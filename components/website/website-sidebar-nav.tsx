@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type ComponentProps } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -19,6 +19,7 @@ export interface NavItem {
 	name: string;
 	href: string;
 	adsPackage?: string;
+	adsTagVariant?: AdsTagVariant;
 	children?: NavItem[];
 	/** If true, the parent item is not clickable - only the chevron expands children */
 	expandOnly?: boolean;
@@ -41,6 +42,7 @@ export interface WebsiteSidebarNavProps {
 
 const RAIL_WIDTH = 48;
 const PANEL_WIDTH = 256;
+type AdsTagVariant = NonNullable<ComponentProps<typeof Lozenge>["variant"]>;
 
 export function WebsiteSidebarNav({
 	staticPages = [],
@@ -394,10 +396,14 @@ export function WebsiteSidebarNav({
 	);
 }
 
-function AdsTag({ adsPackage, mounted }: Readonly<{ adsPackage: string; mounted: boolean }>) {
+function AdsTag({
+	adsPackage,
+	mounted,
+	variant = "discovery",
+}: Readonly<{ adsPackage: string; mounted: boolean; variant?: AdsTagVariant }>) {
 	const tag = (
 		<Lozenge
-			variant="discovery"
+			variant={variant}
 			className="h-auto cursor-default rounded-sm px-1 py-px text-[10px] leading-tight"
 		>
 			ADS
@@ -429,7 +435,9 @@ function NavFlatItem({
 				className="flex items-center gap-1.5 rounded-md py-2 px-3 text-sm no-underline transition-colors text-text-subtle data-[active=true]:bg-bg-neutral data-[active=true]:font-semibold data-[active=true]:text-text"
 			>
 				<span className="truncate">{item.name}</span>
-				{item.adsPackage && <AdsTag adsPackage={item.adsPackage} mounted={mounted} />}
+				{item.adsPackage && (
+					<AdsTag adsPackage={item.adsPackage} mounted={mounted} variant={item.adsTagVariant} />
+				)}
 			</Link>
 		</li>
 	);
@@ -457,7 +465,9 @@ function NavGroupItem({
 					{item.expandOnly ? (
 						<div className="flex flex-1 items-center gap-1.5 rounded-md py-2 px-3 text-sm transition-colors text-text-subtle">
 							<span className="truncate">{item.name}</span>
-							{item.adsPackage && <AdsTag adsPackage={item.adsPackage} mounted={mounted} />}
+							{item.adsPackage && (
+								<AdsTag adsPackage={item.adsPackage} mounted={mounted} variant={item.adsTagVariant} />
+							)}
 						</div>
 					) : (
 						<Link
@@ -466,7 +476,9 @@ function NavGroupItem({
 							className="flex flex-1 items-center gap-1.5 rounded-md py-2 px-3 text-sm no-underline transition-colors text-text-subtle data-[active=true]:bg-bg-neutral data-[active=true]:font-semibold data-[active=true]:text-text"
 						>
 							<span className="truncate">{item.name}</span>
-							{item.adsPackage && <AdsTag adsPackage={item.adsPackage} mounted={mounted} />}
+							{item.adsPackage && (
+								<AdsTag adsPackage={item.adsPackage} mounted={mounted} variant={item.adsTagVariant} />
+							)}
 						</Link>
 					)}
 					{!isFiltering && (

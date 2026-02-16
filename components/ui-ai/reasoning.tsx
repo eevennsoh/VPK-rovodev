@@ -161,6 +161,17 @@ export const Reasoning = memo(
 );
 
 const DOT_COLORS = ["#1868db", "#bf63f3", "#fca700"] as const;
+const COMPLETED_STATUS_PREFIXES = ["used", "completed"] as const;
+
+const isCompletedStatusLabel = (label: ReactNode) => {
+	if (typeof label !== "string") {
+		return false;
+	}
+	const normalizedLabel = label.trim().toLowerCase();
+	return COMPLETED_STATUS_PREFIXES.some((prefix) =>
+		normalizedLabel === prefix || normalizedLabel.startsWith(`${prefix} `)
+	);
+};
 
 export type ReasoningTriggerProps = ComponentProps<
   typeof CollapsibleTrigger
@@ -186,6 +197,9 @@ export const ReasoningTrigger = memo(
   }: ReasoningTriggerProps) => {
     const { isStreaming, isOpen, duration } = useReasoning();
     const isComplete = !isStreaming && duration !== undefined && duration > 0;
+    const hasCompletedStatusLabel = isCompletedStatusLabel(label);
+    const shouldShowCompletedState = isComplete || hasCompletedStatusLabel;
+    const completedStateLabel = hasCompletedStatusLabel ? label : completedLabel(duration);
 
     return (
       <CollapsibleTrigger
@@ -197,7 +211,7 @@ export const ReasoningTrigger = memo(
       >
         {children ?? (
           <>
-            {isComplete ? (
+            {shouldShowCompletedState ? (
               <>
                 <Image
                   src="/loading/rovo-logo.png"
@@ -205,7 +219,7 @@ export const ReasoningTrigger = memo(
                   width={20}
                   height={20}
                 />
-                <span>{completedLabel(duration)}</span>
+                <span>{completedStateLabel}</span>
               </>
             ) : (
               <>
@@ -311,6 +325,9 @@ export const AdsReasoningTrigger = memo(
   }: AdsReasoningTriggerProps) => {
     const { isStreaming, isOpen, duration } = useReasoning();
     const isComplete = !isStreaming && duration !== undefined && duration > 0;
+    const hasCompletedStatusLabel = isCompletedStatusLabel(label);
+    const shouldShowCompletedState = isComplete || hasCompletedStatusLabel;
+    const completedStateLabel = hasCompletedStatusLabel ? label : completedLabel(duration);
 
     return (
       <CollapsibleTrigger
@@ -320,7 +337,7 @@ export const AdsReasoningTrigger = memo(
         )}
         {...props}
       >
-        {isComplete ? (
+        {shouldShowCompletedState ? (
           <>
             <Image
               src="/loading/rovo-logo.png"
@@ -328,7 +345,7 @@ export const AdsReasoningTrigger = memo(
               width={20}
               height={20}
             />
-            <span>{completedLabel(duration)}</span>
+            <span>{completedStateLabel}</span>
           </>
         ) : (
           <>

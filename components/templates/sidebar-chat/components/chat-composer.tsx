@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { QueuedPromptItem } from "@/app/contexts";
 import CustomizeMenu from "@/components/blocks/shared-ui/customize-menu";
 import {
 	PromptInput,
@@ -24,6 +25,7 @@ import {
 	composerTextareaClassName,
 	textareaCSS,
 } from "@/components/blocks/shared-ui/composer-styles";
+import { ChatPromptQueue } from "@/components/templates/shared/components/chat-prompt-queue";
 import { token } from "@/lib/tokens";
 import AddIcon from "@atlaskit/icon/core/add";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
@@ -36,14 +38,24 @@ import UploadIcon from "@atlaskit/icon/core/upload";
 
 interface ChatComposerProps {
 	prompt: string;
+	isStreaming: boolean;
+	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
+	activePrompt: QueuedPromptItem | null;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => void;
+	onStop: () => void;
+	onRemoveQueuedPrompt: (id: string) => void;
 }
 
 export default function ChatComposer({
 	prompt,
+	isStreaming,
+	queuedPrompts,
+	activePrompt,
 	onPromptChange,
 	onSubmit,
+	onStop,
+	onRemoveQueuedPrompt,
 }: Readonly<ChatComposerProps>): React.ReactElement {
 	const [selectedReasoning, setSelectedReasoning] = useState("deep-research");
 	const [webResultsEnabled, setWebResultsEnabled] = useState(false);
@@ -53,14 +65,20 @@ export default function ChatComposer({
 
 	return (
 		<div className="px-1">
-			<div
-				className="rounded-xl border border-border bg-surface px-4 pb-3 pt-4"
-				style={{ boxShadow: composerUpwardShadow }}
-			>
-				<PromptInput
-					onSubmit={onSubmit}
-					className={composerPromptInputClassName}
+				<div
+					className="rounded-xl border border-border bg-surface px-4 pb-3 pt-4"
+					style={{ boxShadow: composerUpwardShadow }}
 				>
+					<ChatPromptQueue
+						activePrompt={activePrompt}
+						queuedPrompts={queuedPrompts}
+						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
+						className="mb-[-10px]"
+					/>
+					<PromptInput
+						onSubmit={onSubmit}
+						className={`${composerPromptInputClassName} relative z-10`}
+					>
 					<PromptInputBody>
 						<PromptInputTextarea
 							value={prompt}
@@ -130,7 +148,13 @@ export default function ChatComposer({
 
 						<div className="flex items-center gap-0.5">
 							<PromptInputMicrophone />
-							<PromptInputSubmit aria-label="Submit" disabled={!prompt.trim()} size="icon-sm">
+							<PromptInputSubmit
+								aria-label="Submit"
+								disabled={!isStreaming && !prompt.trim()}
+								onStop={onStop}
+								size="icon-sm"
+								status={isStreaming ? "streaming" : "ready"}
+							>
 								<ArrowUpIcon label="" />
 							</PromptInputSubmit>
 						</div>

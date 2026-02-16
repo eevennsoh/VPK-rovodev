@@ -22,7 +22,9 @@ import MicrophoneIcon from "@atlaskit/icon/core/microphone";
 
 interface InputFooterToolsProps {
 	isListening: boolean;
+	isStreaming: boolean;
 	onToggleDictation: () => void;
+	onStopStreaming: () => void;
 	prompt: string;
 	selectedReasoning: string;
 	onReasoningChange: (reasoning: string) => void;
@@ -34,7 +36,9 @@ interface InputFooterToolsProps {
 
 export default function InputFooterTools({
 	isListening,
+	isStreaming,
 	onToggleDictation,
+	onStopStreaming,
 	prompt,
 	selectedReasoning,
 	onReasoningChange,
@@ -94,7 +98,9 @@ export default function InputFooterTools({
 				<PromptInputSubmit
 					aria-label="Submit"
 					size="icon-sm"
-					disabled={!prompt.trim()}
+					disabled={!isStreaming && !prompt.trim()}
+					onStop={onStopStreaming}
+					status={isStreaming ? "streaming" : "ready"}
 				>
 					<ArrowUpIcon label="" />
 				</PromptInputSubmit>

@@ -168,12 +168,25 @@ export const JSXPreviewContent = memo(
     const { processedJsx, components, bindings, setError, onErrorProp } =
       useJSXPreview();
     const errorReportedRef = useRef<string | null>(null);
+    const pendingErrorRef = useRef<Error | null>(null);
 
     // Reset error tracking when jsx changes
     // biome-ignore lint/correctness/useExhaustiveDependencies: processedJsx change should reset tracking
     useEffect(() => {
       errorReportedRef.current = null;
     }, [processedJsx]);
+
+    // Flush pending error to state after mount/render — JsxParser calls
+    // onError synchronously during its own render, so we capture the error
+    // in a ref and apply it here to avoid setState-during-render warnings.
+    useEffect(() => {
+      if (pendingErrorRef.current) {
+        const err = pendingErrorRef.current;
+        pendingErrorRef.current = null;
+        setError(err);
+        onErrorProp?.(err);
+      }
+    });
 
     const handleError = useCallback(
       (err: Error) => {
@@ -182,10 +195,9 @@ export const JSXPreviewContent = memo(
           return;
         }
         errorReportedRef.current = processedJsx;
-        setError(err);
-        onErrorProp?.(err);
+        pendingErrorRef.current = err;
       },
-      [processedJsx, onErrorProp, setError]
+      [processedJsx]
     );
 
     return (

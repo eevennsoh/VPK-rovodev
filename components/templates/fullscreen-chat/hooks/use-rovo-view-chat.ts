@@ -21,6 +21,9 @@ export function useRovoViewChat() {
 		stopStreaming,
 		resetChat,
 		isStreaming,
+		queuedPrompts,
+		activePrompt,
+		removeQueuedPrompt,
 	} = useRovoChat();
 	const { name: userName } = useUrlParams();
 	const hasProcessedPendingPrompt = useRef(false);
@@ -110,9 +113,13 @@ export function useRovoViewChat() {
 		setWebResultsEnabled,
 		companyKnowledgeEnabled,
 		setCompanyKnowledgeEnabled,
+		queuedPrompts,
+		activePrompt,
+		removeQueuedPrompt,
 		handleSubmit,
 		handleSuggestedQuestionClick,
 		handleBackToStart,
 		isStreaming,
+		stopStreaming,
 	};
 }

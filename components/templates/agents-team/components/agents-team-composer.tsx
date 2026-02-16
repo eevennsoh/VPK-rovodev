@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { QueuedPromptItem } from "@/app/contexts";
 import {
 	PromptInput,
 	PromptInputActionMenu,
@@ -10,6 +11,7 @@ import {
 	PromptInputBody,
 	PromptInputFooter,
 	PromptInputMicrophone,
+	PromptInputSubmit,
 	PromptInputTextarea,
 	PromptInputTools,
 } from "@/components/ui-ai/prompt-input";
@@ -19,9 +21,10 @@ import {
 	composerTextareaClassName,
 	textareaCSS,
 } from "@/components/blocks/shared-ui/composer-styles";
+import { ChatPromptQueue } from "@/components/templates/shared/components/chat-prompt-queue";
 import AddIcon from "@atlaskit/icon/core/add";
+import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
 import MicrophoneIcon from "@atlaskit/icon/core/microphone";
-import { Button } from "@/components/ui/button";
 import LinkIcon from "@atlaskit/icon/core/link";
 import MentionIcon from "@atlaskit/icon/core/mention";
 import PageIcon from "@atlaskit/icon/core/page";
@@ -30,15 +33,25 @@ import UploadIcon from "@atlaskit/icon/core/upload";
 interface AgentsTeamComposerProps {
 	prompt: string;
 	placeholder: string;
+	isStreaming: boolean;
+	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
+	activePrompt: QueuedPromptItem | null;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
+	onStop: () => void;
+	onRemoveQueuedPrompt: (id: string) => void;
 }
 
 export default function AgentsTeamComposer({
 	prompt,
 	placeholder,
+	isStreaming,
+	queuedPrompts,
+	activePrompt,
 	onPromptChange,
 	onSubmit,
+	onStop,
+	onRemoveQueuedPrompt,
 }: Readonly<AgentsTeamComposerProps>) {
 	const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 
@@ -47,6 +60,12 @@ export default function AgentsTeamComposer({
 			className="rounded-xl border border-border bg-surface px-4 pb-4 pt-4"
 			style={{ boxShadow: composerUpwardShadow }}
 		>
+			<ChatPromptQueue
+				activePrompt={activePrompt}
+				queuedPrompts={queuedPrompts}
+				onRemoveQueuedPrompt={onRemoveQueuedPrompt}
+				className="mb-[-10px]"
+			/>
 			<PromptInput onSubmit={onSubmit} className={composerPromptInputClassName}>
 				<PromptInputBody>
 					<PromptInputTextarea
@@ -94,14 +113,15 @@ export default function AgentsTeamComposer({
 						<PromptInputMicrophone>
 							<MicrophoneIcon label="" />
 						</PromptInputMicrophone>
-						<Button
-							type="submit"
-							variant="warning"
-							size="default"
-							disabled={!prompt.trim()}
+						<PromptInputSubmit
+							aria-label="Submit"
+							disabled={!isStreaming && !prompt.trim()}
+							onStop={onStop}
+							size="icon-sm"
+							status={isStreaming ? "streaming" : "ready"}
 						>
-							Yolo
-						</Button>
+							<ArrowUpIcon label="" />
+						</PromptInputSubmit>
 					</div>
 				</PromptInputFooter>
 			</PromptInput>

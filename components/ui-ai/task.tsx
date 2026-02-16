@@ -61,7 +61,7 @@ export const TaskTrigger = ({
       <div className="flex w-full cursor-pointer items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground">
         <SearchIcon className="size-4" />
         <p className="text-sm">{title}</p>
-        <ChevronDownIcon className="size-4 transition-transform group-data-[state=open]:rotate-180" />
+        <ChevronDownIcon className="size-4 transition-transform group-data-[panel-open]:rotate-180" />
       </div>
     )}
   </CollapsibleTrigger>
@@ -75,14 +75,18 @@ export const TaskContent = ({
   ...props
 }: TaskContentProps) => (
   <CollapsibleContent
-    className={cn(
-      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
-      className
-    )}
+    className="overflow-hidden"
     {...props}
   >
-    <div className="mt-4 space-y-2 border-muted border-l-2 pl-4">
-      {children}
+    <div
+      className={cn(
+        "h-(--collapsible-panel-height) data-ending-style:h-0 data-starting-style:h-0 transition-all duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0",
+        className
+      )}
+    >
+      <div className="mt-4 space-y-2 border-muted border-l-2 pl-4">
+        {children}
+      </div>
     </div>
   </CollapsibleContent>
 );

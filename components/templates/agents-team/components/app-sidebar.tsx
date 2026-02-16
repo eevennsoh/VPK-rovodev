@@ -30,6 +30,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	chatHistory: ChatHistoryItem[];
 	activeChatId: string | null;
 	isGeneratingTitle?: boolean;
+	pendingTitleChatId?: string | null;
 	onSelectChat: (id: string) => void;
 	onDeleteChat: (id: string) => void;
 	isExecuting?: boolean;
@@ -57,6 +58,7 @@ export function AppSidebar({
 	chatHistory,
 	activeChatId,
 	isGeneratingTitle,
+	pendingTitleChatId,
 	onSelectChat,
 	onDeleteChat,
 	isExecuting,
@@ -141,6 +143,7 @@ export function AppSidebar({
 						items={chatHistory}
 						activeChatId={activeChatId}
 						isGeneratingTitle={isGeneratingTitle}
+						pendingChatId={pendingTitleChatId}
 						onSelectChat={onSelectChat}
 						onDeleteChat={onDeleteChat}
 					/>

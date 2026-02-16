@@ -36,6 +36,7 @@ interface AgentsTeamChatViewProps {
 	activePlanWidget: ParsedPlanWidgetPayload | null;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
+	onStop: () => void;
 	onClarificationSubmit: (answers: ClarificationAnswers) => void;
 	onApprovalSubmit: (selection: PlanApprovalSelection) => void;
 	onSuggestedQuestionClick: (question: string) => Promise<void> | void;
@@ -53,6 +54,7 @@ export default function AgentsTeamChatView({
 	activePlanWidget,
 	onPromptChange,
 	onSubmit,
+	onStop,
 	onClarificationSubmit,
 	onApprovalSubmit,
 	onSuggestedQuestionClick,
@@ -174,6 +176,7 @@ export default function AgentsTeamChatView({
 						onDismissApprovalCard={dismissApprovalCard}
 						onPromptChange={onPromptChange}
 						onSubmit={onSubmit}
+						onStop={onStop}
 					/>
 				</div>
 			</div>
@@ -195,6 +198,7 @@ interface BottomOverlayContentProps {
 	onDismissApprovalCard: () => void;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
+	onStop: () => void;
 }
 
 function BottomOverlayContent({
@@ -211,6 +215,7 @@ function BottomOverlayContent({
 	onDismissApprovalCard,
 	onPromptChange,
 	onSubmit,
+	onStop,
 }: Readonly<BottomOverlayContentProps>) {
 	if (shouldShowQuestionCard && activeQuestionCard && activeQuestionCardKey) {
 		return (
@@ -249,8 +254,10 @@ function BottomOverlayContent({
 		<AgentsTeamComposer
 			prompt={prompt}
 			placeholder={DEFAULT_AGENTS_TEAM_PLACEHOLDER}
+			isStreaming={isStreaming}
 			onPromptChange={onPromptChange}
 			onSubmit={onSubmit}
+			onStop={onStop}
 		/>
 	);
 }

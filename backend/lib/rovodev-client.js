@@ -33,6 +33,47 @@ function getBaseUrl() {
 	return `http://127.0.0.1:${getPort()}`;
 }
 
+function parseToolInputValue(value) {
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		return value;
+	}
+
+	if (typeof value !== "string") {
+		return null;
+	}
+
+	const trimmedValue = value.trim();
+	if (!trimmedValue) {
+		return null;
+	}
+
+	try {
+		const parsedValue = JSON.parse(trimmedValue);
+		return parsedValue && typeof parsedValue === "object" && !Array.isArray(parsedValue)
+			? parsedValue
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+function getToolCallInput(part) {
+	if (!part || typeof part !== "object") {
+		return null;
+	}
+
+	const nestedInput =
+		parseToolInputValue(part.input) ||
+		parseToolInputValue(part.arguments) ||
+		parseToolInputValue(part.params) ||
+		parseToolInputValue(part.payload);
+	if (nestedInput) {
+		return nestedInput;
+	}
+
+	return parseToolInputValue(part.args);
+}
+
 /**
  * Extract structured content from an SSE event, handling the Rovo Dev event format.
  *
@@ -45,7 +86,7 @@ function getBaseUrl() {
  *   - "request-usage"       → token usage stats (skip)
  *   - "close"               → stream end (skip)
  *
- * Returns { type, text, toolName?, toolCallId? } or null if the event should be skipped.
+ * Returns { type, text, toolName?, toolCallId?, toolInput? } or null if the event should be skipped.
  */
 function extractChunkFromEvent(eventName, parsed) {
 	// Events to skip entirely
@@ -69,19 +110,22 @@ function extractChunkFromEvent(eventName, parsed) {
 		if (parts.length > 0) {
 			const part = parts[0];
 			let toolName = part?.tool_name || "unknown";
-			let args = "";
-			try {
-				const parsedArgs = typeof part?.args === "string" ? JSON.parse(part.args) : part?.args;
-				toolName = parsedArgs?.tool_name || toolName;
-				args = JSON.stringify(parsedArgs, null, 2);
-			} catch {
-				args = part?.args || "";
+			const toolInput = getToolCallInput(part);
+			if (toolInput && typeof toolInput.tool_name === "string" && toolInput.tool_name.trim()) {
+				toolName = toolInput.tool_name.trim();
 			}
+
+			const args = typeof part?.args === "string"
+				? part.args
+				: toolInput
+					? JSON.stringify(toolInput, null, 2)
+					: "";
 			return {
 				type: "tool_call_start",
 				text: args,
 				toolName,
 				toolCallId: part?.tool_call_id,
+				toolInput,
 			};
 		}
 		return null;
@@ -111,11 +155,16 @@ function extractChunkFromEvent(eventName, parsed) {
 		const partKind = parsed?.part?.part_kind;
 
 		if (partKind === "tool-call") {
+			const toolInput = getToolCallInput(parsed?.part);
+			const toolName =
+				parsed?.part?.tool_name ||
+				(typeof toolInput?.tool_name === "string" ? toolInput.tool_name : "unknown");
 			return {
 				type: "tool_call_start",
 				text: "",
-				toolName: parsed?.part?.tool_name || "unknown",
+				toolName,
 				toolCallId: parsed?.part?.tool_call_id,
+				toolInput,
 			};
 		}
 

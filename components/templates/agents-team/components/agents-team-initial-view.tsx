@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { QueuedPromptItem } from "@/app/contexts";
 import Image from "next/image";
 import PromptGallery from "@/components/blocks/prompt-gallery/page";
 import { token } from "@/lib/tokens";
@@ -11,14 +12,24 @@ const DEFAULT_AGENTS_TEAM_PLACEHOLDER = "Let a team of AI minions solve your pro
 
 interface AgentsTeamInitialViewProps {
 	prompt: string;
+	isStreaming: boolean;
+	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
+	activePrompt: QueuedPromptItem | null;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
+	onStop: () => void;
+	onRemoveQueuedPrompt: (id: string) => void;
 }
 
 export default function AgentsTeamInitialView({
 	prompt,
+	isStreaming,
+	queuedPrompts,
+	activePrompt,
 	onPromptChange,
 	onSubmit,
+	onStop,
+	onRemoveQueuedPrompt,
 }: Readonly<AgentsTeamInitialViewProps>) {
 	const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
 	const { actualTheme } = useTheme();
@@ -44,8 +55,13 @@ export default function AgentsTeamInitialView({
 					<AgentsTeamComposer
 						prompt={prompt}
 						placeholder={previewPrompt ?? DEFAULT_AGENTS_TEAM_PLACEHOLDER}
+						isStreaming={isStreaming}
+						queuedPrompts={queuedPrompts}
+						activePrompt={activePrompt}
 						onPromptChange={onPromptChange}
 						onSubmit={onSubmit}
+						onStop={onStop}
+						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 					/>
 				</div>
 

@@ -27,10 +27,14 @@ export default function RovoView() {
 		setWebResultsEnabled,
 		companyKnowledgeEnabled,
 		setCompanyKnowledgeEnabled,
+		queuedPrompts,
+		activePrompt,
+		removeQueuedPrompt,
 		handleSubmit,
 		handleSuggestedQuestionClick,
 		handleBackToStart,
 		isStreaming,
+		stopStreaming,
 	} = useRovoViewChat();
 
 	const { conversationContextRef, scrollSpacerRef } = useScrollAnchoring({
@@ -48,9 +52,11 @@ export default function RovoView() {
 					prompt={prompt}
 					interimText={interimText}
 					isListening={isListening}
+					isStreaming={isStreaming}
 					onPromptChange={setPrompt}
 					onSubmit={handleSubmit}
 					onToggleDictation={toggleDictation}
+					onStopStreaming={stopStreaming}
 					contextEnabled={contextEnabled}
 					onContextToggle={setContextEnabled}
 					selectedReasoning={selectedReasoning}
@@ -59,6 +65,9 @@ export default function RovoView() {
 					onWebResultsChange={setWebResultsEnabled}
 					companyKnowledgeEnabled={companyKnowledgeEnabled}
 					onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
+					queuedPrompts={queuedPrompts}
+					activePrompt={activePrompt}
+					onRemoveQueuedPrompt={removeQueuedPrompt}
 				/>
 			) : (
 				<>
@@ -85,9 +94,11 @@ export default function RovoView() {
 							prompt={prompt}
 							interimText={interimText}
 							isListening={isListening}
+							isStreaming={isStreaming}
 							onPromptChange={setPrompt}
 							onSubmit={handleSubmit}
 							onToggleDictation={toggleDictation}
+							onStopStreaming={stopStreaming}
 							contextEnabled={contextEnabled}
 							onContextToggle={setContextEnabled}
 							product="rovo"
@@ -97,6 +108,9 @@ export default function RovoView() {
 							onWebResultsChange={setWebResultsEnabled}
 							companyKnowledgeEnabled={companyKnowledgeEnabled}
 							onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
+							queuedPrompts={queuedPrompts}
+							activePrompt={activePrompt}
+							onRemoveQueuedPrompt={removeQueuedPrompt}
 						/>
 					</div>
 				</>

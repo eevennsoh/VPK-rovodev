@@ -15,6 +15,18 @@ interface AssistantToolsSectionProps {
 	toolParts: RovoToolPart[];
 }
 
+function hasToolDetails(toolPart: RovoToolPart): boolean {
+	if (toolPart.input !== undefined) {
+		return true;
+	}
+
+	if (toolPart.output !== undefined) {
+		return true;
+	}
+
+	return Boolean(toolPart.errorText);
+}
+
 export function AssistantToolsSection({
 	messageId,
 	toolParts,
@@ -24,7 +36,7 @@ export function AssistantToolsSection({
 			{toolParts.map((toolPart, index) => (
 				<Tool
 					key={`${messageId}-tool-${toolPart.toolCallId}-${index}`}
-					defaultOpen={toolPart.state !== "output-available"}
+					defaultOpen={hasToolDetails(toolPart)}
 				>
 					{toolPart.type === "dynamic-tool" ? (
 						<ToolHeader

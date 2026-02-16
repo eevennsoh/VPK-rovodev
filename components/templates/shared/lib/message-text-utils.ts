@@ -56,3 +56,134 @@ export function removeLeadingSingleCharacterFragment(value: string): string {
 		.join("\n")
 		.trim();
 }
+
+function isLikelySectionHeading(line: string): boolean {
+	const trimmed = line.trim();
+	if (!trimmed) {
+		return false;
+	}
+
+	if (/^#{1,6}\s+\S/.test(trimmed)) {
+		return true;
+	}
+
+	if (/^\*\*[^*]+\*\*:?$/.test(trimmed)) {
+		return true;
+	}
+
+	return (
+		/^[A-Z][A-Za-z0-9\s-]{1,60}:?$/.test(trimmed) &&
+		!/[.!?]$/.test(trimmed)
+	);
+}
+
+function isActionItemsHeading(line: string): boolean {
+	const normalizedHeading = line
+		.trim()
+		.replace(/^#{1,6}\s*/, "")
+		.replace(/:$/, "")
+		.replace(/^\*\*(.+)\*\*$/, "$1")
+		.trim()
+		.toLowerCase();
+
+	return /^action\s*items?\b/.test(normalizedHeading);
+}
+
+function isActionListItemLine(line: string): boolean {
+	return (
+		/^\s*(?:[-*+\u2022]\s+|\d+[.)]\s+)(?:\[(?:\s|x|X)\]\s*)?(?:\u2610\s*)?\S/.test(
+			line
+		) || /^\s*(?:\[(?:\s|x|X)\]\s*|\u2610\s+)\S/.test(line)
+	);
+}
+
+function isContinuationLine(line: string): boolean {
+	return /^\s{2,}\S/.test(line) || /^\t\S/.test(line);
+}
+
+/**
+ * Remove the "Action items" section from a planning response when tasks are
+ * already rendered in a dedicated plan card widget.
+ */
+export function removeActionItemsSection(value: string): string {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return "";
+	}
+
+	const lines = trimmed.split(/\r?\n/);
+	const headingIndex = lines.findIndex((line) => isActionItemsHeading(line));
+	if (headingIndex === -1) {
+		return trimmed;
+	}
+
+	let hasSeenListItem = false;
+	let hasActiveListItem = false;
+	let sectionEndIndex = headingIndex + 1;
+
+	for (let index = headingIndex + 1; index < lines.length; index += 1) {
+		const line = lines[index];
+		const trimmedLine = line.trim();
+
+		if (isActionListItemLine(line)) {
+			hasSeenListItem = true;
+			hasActiveListItem = true;
+			sectionEndIndex = index + 1;
+			continue;
+		}
+
+		if (!trimmedLine) {
+			hasActiveListItem = false;
+			sectionEndIndex = index + 1;
+			continue;
+		}
+
+		if (!hasSeenListItem) {
+			sectionEndIndex = index + 1;
+			if (isLikelySectionHeading(trimmedLine) && index > headingIndex + 1) {
+				break;
+			}
+			continue;
+		}
+
+		if (hasActiveListItem && isContinuationLine(line)) {
+			sectionEndIndex = index + 1;
+			continue;
+		}
+
+		if (isLikelySectionHeading(trimmedLine)) {
+			break;
+		}
+
+		break;
+	}
+
+	if (!hasSeenListItem) {
+		return trimmed;
+	}
+
+	const remainingLines = [
+		...lines.slice(0, headingIndex),
+		...lines.slice(sectionEndIndex),
+	];
+	const compactedLines: string[] = [];
+	for (const line of remainingLines) {
+		if (
+			line.trim().length === 0 &&
+			compactedLines[compactedLines.length - 1]?.trim().length === 0
+		) {
+			continue;
+		}
+
+		compactedLines.push(line);
+	}
+
+	while (compactedLines[0]?.trim().length === 0) {
+		compactedLines.shift();
+	}
+	while (compactedLines[compactedLines.length - 1]?.trim().length === 0) {
+		compactedLines.pop();
+	}
+
+	return compactedLines.join("\n").trim();
+}

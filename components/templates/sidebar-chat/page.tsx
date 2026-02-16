@@ -33,6 +33,9 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 		abort,
 		uiMessages,
 		isStreaming,
+		queuedPrompts,
+		activePrompt,
+		removeQueuedPrompt,
 	} = useChatSubmit();
 	const messages = useMemo(
 		() => uiMessages.filter(isRenderableRovoUIMessage),
@@ -125,8 +128,13 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 
 			<ChatComposer
 				prompt={prompt}
+				isStreaming={isStreaming}
+				queuedPrompts={queuedPrompts}
+				activePrompt={activePrompt}
 				onPromptChange={setPrompt}
 				onSubmit={handleSubmit}
+				onStop={abort}
+				onRemoveQueuedPrompt={removeQueuedPrompt}
 			/>
 		</div>
 	);

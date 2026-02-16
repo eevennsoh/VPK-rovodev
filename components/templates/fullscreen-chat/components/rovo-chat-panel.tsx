@@ -22,6 +22,9 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		uiMessages,
 		userName,
 		isStreaming,
+		queuedPrompts,
+		activePrompt,
+		removeQueuedPrompt,
 		isListening,
 		interimText,
 		toggleDictation,
@@ -39,6 +42,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		handleSuggestedQuestionClick,
 		handleFullScreen,
 		hasChatStarted,
+		stopStreaming,
 	} = useRovoChatPanel({ product });
 
 	const isFloating = variant === "floating";
@@ -84,9 +88,11 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				prompt={prompt}
 				interimText={interimText}
 				isListening={isListening}
+				isStreaming={isStreaming}
 				onPromptChange={setPrompt}
 				onSubmit={handleSubmit}
 				onToggleDictation={toggleDictation}
+				onStopStreaming={stopStreaming}
 				contextEnabled={contextEnabled}
 				onContextToggle={setContextEnabled}
 				product={product}
@@ -96,6 +102,9 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				onWebResultsChange={setWebResultsEnabled}
 				companyKnowledgeEnabled={companyKnowledgeEnabled}
 				onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
+				queuedPrompts={queuedPrompts}
+				activePrompt={activePrompt}
+				onRemoveQueuedPrompt={removeQueuedPrompt}
 			/>
 		</div>
 	);

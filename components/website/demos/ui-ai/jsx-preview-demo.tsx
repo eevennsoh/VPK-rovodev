@@ -94,6 +94,7 @@ export function JsxPreviewDemoWithComponents() {
 			</div>
 			<JSXPreview
 				jsx={COMPONENTS_JSX}
+				// @ts-expect-error — Badge's ReactElement return doesn't satisfy react-jsx-parser's ComponentsType
 				components={{ Badge }}
 			>
 				<JSXPreviewContent />
@@ -103,8 +104,8 @@ export function JsxPreviewDemoWithComponents() {
 	);
 }
 
-const ERROR_JSX = `<div>
-  <UnknownComponent />
+const ERROR_JSX = `<div onclick={alert('xss')}>
+  <span style={{ invalid syntax here }}>broken</span>
 </div>`;
 
 export function JsxPreviewDemoWithError() {
@@ -125,17 +126,17 @@ export function JsxPreviewDemoCustomError() {
 	return (
 		<div className="w-full rounded-md border">
 			<div className="border-b px-3 py-1.5 text-xs text-muted-foreground">
-				Preview — Custom error renderer
+				Preview — Custom error content
 			</div>
 			<JSXPreview jsx={ERROR_JSX}>
 				<JSXPreviewContent className="p-4" />
 				<JSXPreviewError className="m-4 border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
-					{(error) => (
-						<div className="flex flex-col gap-1">
-							<span className="font-medium">Render failed</span>
-							<span className="text-xs opacity-75">{error.message}</span>
-						</div>
-					)}
+					<div className="flex flex-col gap-1">
+						<span className="font-medium">Render failed</span>
+						<span className="text-xs opacity-75">
+							The component could not be resolved
+						</span>
+					</div>
 				</JSXPreviewError>
 			</JSXPreview>
 		</div>

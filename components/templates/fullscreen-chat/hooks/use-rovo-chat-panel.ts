@@ -19,7 +19,16 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 	const [webResultsEnabled, setWebResultsEnabled] = useState(false);
 	const [companyKnowledgeEnabled, setCompanyKnowledgeEnabled] = useState(true);
 	const [selectedReasoning, setSelectedReasoning] = useState("deep-research");
-	const { uiMessages, sendPrompt, stopStreaming, resetChat, isStreaming } = useRovoChat();
+	const {
+		uiMessages,
+		sendPrompt,
+		stopStreaming,
+		resetChat,
+		isStreaming,
+		queuedPrompts,
+		activePrompt,
+		removeQueuedPrompt,
+	} = useRovoChat();
 	const { name: userName } = useUrlParams();
 
 	const [contextEnabled, setContextEnabled] = useState(
@@ -85,6 +94,9 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		uiMessages,
 		userName,
 		isStreaming,
+		queuedPrompts,
+		activePrompt,
+		removeQueuedPrompt,
 		isListening,
 		interimText,
 		toggleDictation,
@@ -102,5 +114,6 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		handleSuggestedQuestionClick,
 		handleFullScreen,
 		hasChatStarted,
+		stopStreaming,
 	};
 }

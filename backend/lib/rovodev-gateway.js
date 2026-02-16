@@ -87,6 +87,7 @@ function buildThinkingStatusFromToolEvent(toolName, phase) {
  * @param {string} params.message - The full message to send to RovoDev
  * @param {function} params.onTextDelta - Called with each text delta string
  * @param {function} [params.onThinkingStatus] - Called when Rovo emits tool events that map to thinking status labels/content
+ * @param {function} [params.onToolCallStart] - Called with structured tool-call details when a tool starts
  * @param {function} [params.onRetry] - Called when a 409 retry is about to happen (for UI indicators)
  * @returns {Promise<void>}
  */
@@ -94,6 +95,7 @@ async function streamViaRovoDev({
 	message,
 	onTextDelta,
 	onThinkingStatus,
+	onToolCallStart,
 	onRetry,
 }) {
 	/**
@@ -113,6 +115,20 @@ async function streamViaRovoDev({
 						const resolvedToolName = normalizeToolName(chunk.toolName);
 						if (chunk.toolCallId && resolvedToolName) {
 							toolNameByCallId.set(chunk.toolCallId, resolvedToolName);
+						}
+
+						if (typeof onToolCallStart === "function") {
+							onToolCallStart({
+								toolName: resolvedToolName,
+								toolCallId:
+									typeof chunk.toolCallId === "string" && chunk.toolCallId.trim()
+										? chunk.toolCallId.trim()
+										: null,
+								toolInput:
+									chunk.toolInput && typeof chunk.toolInput === "object"
+										? chunk.toolInput
+										: null,
+							});
 						}
 
 						if (typeof onThinkingStatus === "function") {

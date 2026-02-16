@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useRovoChat } from "@/app/contexts";
+import type { QueuedPromptItem } from "@/app/contexts";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 
 interface UseChatSubmitReturn {
@@ -12,6 +13,9 @@ interface UseChatSubmitReturn {
 	abort: () => void;
 	uiMessages: RovoUIMessage[];
 	isStreaming: boolean;
+	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
+	activePrompt: QueuedPromptItem | null;
+	removeQueuedPrompt: (id: string) => void;
 }
 
 export function useChatSubmit(): UseChatSubmitReturn {
@@ -22,12 +26,15 @@ export function useChatSubmit(): UseChatSubmitReturn {
 		sendPrompt,
 		stopStreaming,
 		isStreaming,
+		queuedPrompts,
+		activePrompt,
+		removeQueuedPrompt,
 	} = useRovoChat();
 
 	const submitPrompt = useCallback(
 		async (nextPrompt: string) => {
 			const promptText = nextPrompt.trim();
-			if (!promptText || isSubmittingRef.current || isStreaming) {
+			if (!promptText || isSubmittingRef.current) {
 				return;
 			}
 
@@ -42,7 +49,7 @@ export function useChatSubmit(): UseChatSubmitReturn {
 				isSubmittingRef.current = false;
 			}
 		},
-		[isStreaming, sendPrompt]
+		[sendPrompt]
 	);
 
 	const handleSubmit = useCallback(async () => {
@@ -61,5 +68,8 @@ export function useChatSubmit(): UseChatSubmitReturn {
 		abort,
 		uiMessages,
 		isStreaming,
+		queuedPrompts,
+		activePrompt,
+		removeQueuedPrompt,
 	};
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { QueuedPromptItem } from "@/app/contexts";
 import { token } from "@/lib/tokens";
 import Image from "next/image";
 import Heading from "@/components/blocks/shared-ui/heading";
@@ -14,9 +15,11 @@ interface RovoInitialViewProps {
 	prompt: string;
 	interimText: string;
 	isListening: boolean;
+	isStreaming: boolean;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => void;
 	onToggleDictation: () => void;
+	onStopStreaming: () => void;
 	contextEnabled: boolean;
 	onContextToggle: (enabled: boolean) => void;
 	selectedReasoning: string;
@@ -25,6 +28,9 @@ interface RovoInitialViewProps {
 	onWebResultsChange: (enabled: boolean) => void;
 	companyKnowledgeEnabled: boolean;
 	onCompanyKnowledgeChange: (enabled: boolean) => void;
+	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
+	activePrompt: QueuedPromptItem | null;
+	onRemoveQueuedPrompt: (id: string) => void;
 }
 
 export default function RovoInitialView({
@@ -32,9 +38,11 @@ export default function RovoInitialView({
 	prompt,
 	interimText,
 	isListening,
+	isStreaming,
 	onPromptChange,
 	onSubmit,
 	onToggleDictation,
+	onStopStreaming,
 	contextEnabled,
 	onContextToggle,
 	selectedReasoning,
@@ -43,6 +51,9 @@ export default function RovoInitialView({
 	onWebResultsChange,
 	companyKnowledgeEnabled,
 	onCompanyKnowledgeChange,
+	queuedPrompts,
+	activePrompt,
+	onRemoveQueuedPrompt,
 }: Readonly<RovoInitialViewProps>) {
 	const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
 
@@ -64,9 +75,11 @@ export default function RovoInitialView({
 						prompt={prompt}
 						interimText={interimText}
 						isListening={isListening}
+						isStreaming={isStreaming}
 						onPromptChange={onPromptChange}
 						onSubmit={onSubmit}
 						onToggleDictation={onToggleDictation}
+						onStopStreaming={onStopStreaming}
 						contextEnabled={contextEnabled}
 						onContextToggle={onContextToggle}
 						product="rovo"
@@ -76,6 +89,9 @@ export default function RovoInitialView({
 						onWebResultsChange={onWebResultsChange}
 						companyKnowledgeEnabled={companyKnowledgeEnabled}
 						onCompanyKnowledgeChange={onCompanyKnowledgeChange}
+						queuedPrompts={queuedPrompts}
+						activePrompt={activePrompt}
+						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 						customHeight="131px"
 						hideUsesAI={true}
 						placeholder={previewPrompt ?? DEFAULT_ROVO_PLACEHOLDER}

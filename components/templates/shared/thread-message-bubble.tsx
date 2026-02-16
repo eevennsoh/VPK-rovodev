@@ -23,6 +23,7 @@ import {
 	MessageResponse,
 } from "@/components/ui-ai/message";
 import {
+	removeActionItemsSection,
 	removeLeadingSingleCharacterFragment,
 	removeTrailingSingleCharacterLine,
 } from "./lib/message-text-utils";
@@ -82,6 +83,8 @@ export function ThreadMessageBubble({
 	const messageText =
 		widgetType === "question-card"
 			? removeTrailingSingleCharacterLine(normalizedWidgetText)
+			: widgetType === "plan"
+				? removeActionItemsSection(normalizedWidgetText)
 			: normalizedWidgetText;
 	const suggestedQuestions = suggestedQuestionsPart?.data.questions ?? [];
 	const reasoning = getMessageReasoning(message);
@@ -169,7 +172,7 @@ export function ThreadMessageBubble({
 				const hasContent = Boolean(accumulatedContent);
 				return (
 					<div className="px-3 pt-2">
-						<Reasoning className="mb-0" defaultOpen={false} isStreaming={isStreaming}>
+						<Reasoning className="mb-0" defaultOpen={hasContent} isStreaming={isStreaming}>
 							<AdsReasoningTrigger
 								label={thinkingStatusPart.data.label}
 								completedLabel={() =>

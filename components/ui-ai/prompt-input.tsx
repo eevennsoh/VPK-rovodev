@@ -60,7 +60,6 @@ import {
   ImageIcon,
   MicIcon,
   PlusIcon,
-  SquareIcon,
   XIcon,
 } from "lucide-react";
 import { nanoid } from "nanoid";
@@ -1118,44 +1117,53 @@ export const PromptInputSubmit = ({
   status,
   onStop,
   onClick,
+  disabled,
   children,
   ...props
 }: PromptInputSubmitProps) => {
   const isGenerating = status === "submitted" || status === "streaming";
+  const canStopGeneration = isGenerating && Boolean(onStop);
+  const shouldUseStatusIcon =
+    status === "submitted" || status === "streaming" || status === "error";
+  const resolvedVariant = canStopGeneration ? "outline" : variant;
+  const stateClassName = canStopGeneration
+    ? "rounded-full border-border bg-surface-raised text-icon-danger hover:bg-bg-neutral-hovered active:bg-bg-neutral-pressed"
+    : "rounded-full";
 
   let Icon = <CornerDownLeftIcon className="size-4" />;
 
   if (status === "submitted") {
     Icon = <Spinner />;
   } else if (status === "streaming") {
-    Icon = <SquareIcon className="size-4" />;
+    Icon = <span aria-hidden className="size-3 rounded-[2px] bg-current" />;
   } else if (status === "error") {
     Icon = <XIcon className="size-4" />;
   }
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
-      if (isGenerating && onStop) {
+      if (canStopGeneration && onStop) {
         e.preventDefault();
         onStop();
         return;
       }
       onClick?.(e as React.MouseEvent<HTMLButtonElement> & { preventBaseUIHandler: () => void });
     },
-    [isGenerating, onStop, onClick]
+    [canStopGeneration, onStop, onClick]
   );
 
   return (
     <InputGroupButton
       aria-label={isGenerating ? "Stop" : "Submit"}
-      className={cn("rounded-full", className)}
+      className={cn(stateClassName, className)}
+      disabled={canStopGeneration ? false : disabled}
       onClick={handleClick}
       size={size}
-      type={isGenerating && onStop ? "button" : "submit"}
-      variant={variant}
+      type={canStopGeneration ? "button" : "submit"}
+      variant={resolvedVariant}
       {...props}
     >
-      {children ?? Icon}
+      {shouldUseStatusIcon ? Icon : children ?? Icon}
     </InputGroupButton>
   );
 };

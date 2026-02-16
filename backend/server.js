@@ -28,6 +28,9 @@ const {
 	resolveGatewayUrl,
 	streamGoogleGatewayManualSse,
 } = require("./lib/ai-gateway-helpers");
+const {
+	extractPlanWidgetPayloadFromText,
+} = require("./lib/plan-widget-fallback");
 
 console.log("[STARTUP] Dependencies loaded");
 
@@ -540,6 +543,199 @@ function sanitizeQuestionCardPayload(payload, defaults = {}) {
 		requiredCount: questions.filter((question) => question.required).length,
 		questions,
 	};
+}
+
+function parseObjectFromUnknown(value) {
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		return value;
+	}
+
+	if (typeof value !== "string") {
+		return null;
+	}
+
+	const parsedValue = parseJsonFromText(value);
+	if (!parsedValue || typeof parsedValue !== "object" || Array.isArray(parsedValue)) {
+		return null;
+	}
+
+	return parsedValue;
+}
+
+function findRequestUserInputQuestionContainer(value) {
+	const rootRecord = parseObjectFromUnknown(value);
+	if (!rootRecord) {
+		return null;
+	}
+
+	const queue = [rootRecord];
+	const seenRecords = new Set();
+	const nestedKeys = [
+		"input",
+		"arguments",
+		"params",
+		"payload",
+		"request",
+		"toolInput",
+		"tool_input",
+	];
+
+	while (queue.length > 0) {
+		const candidate = queue.shift();
+		if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+			continue;
+		}
+
+		if (seenRecords.has(candidate)) {
+			continue;
+		}
+		seenRecords.add(candidate);
+
+		const questionItems = Array.isArray(candidate.questions)
+			? candidate.questions
+			: Array.isArray(candidate.items)
+				? candidate.items
+				: null;
+		if (questionItems && questionItems.length > 0) {
+			return {
+				container: candidate,
+				questions: questionItems,
+			};
+		}
+
+		for (const key of nestedKeys) {
+			const nestedRecord = parseObjectFromUnknown(candidate[key]);
+			if (nestedRecord) {
+				queue.push(nestedRecord);
+			}
+		}
+	}
+
+	return null;
+}
+
+function normalizeRequestUserInputOptions(value) {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value
+		.map((option, index) => {
+			if (typeof option === "string") {
+				const label = getNonEmptyString(option);
+				return label ? { id: `option-${index + 1}`, label } : null;
+			}
+
+			if (!option || typeof option !== "object") {
+				return null;
+			}
+
+			const label =
+				getNonEmptyString(option.label) ||
+				getNonEmptyString(option.title) ||
+				getNonEmptyString(option.text) ||
+				getNonEmptyString(option.value);
+			if (!label) {
+				return null;
+			}
+
+			const isRecommendedByLabel = /\(recommended\)$/i.test(label);
+			const normalizedLabel = label.replace(/\s*\(recommended\)$/i, "").trim();
+			return {
+				id: getNonEmptyString(option.id) || `option-${index + 1}`,
+				label: normalizedLabel,
+				description: getNonEmptyString(option.description) || undefined,
+				recommended: Boolean(option.recommended) || isRecommendedByLabel,
+			};
+		})
+		.filter(Boolean);
+}
+
+function normalizeRequestUserInputQuestions(value) {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value
+		.map((question, index) => {
+			if (typeof question === "string") {
+				const label = getNonEmptyString(question);
+				if (!label) {
+					return null;
+				}
+
+				return {
+					id: `q-${index + 1}`,
+					label,
+					required: true,
+					options: [],
+				};
+			}
+
+			if (!question || typeof question !== "object") {
+				return null;
+			}
+
+			const label =
+				getNonEmptyString(question.question) ||
+				getNonEmptyString(question.label) ||
+				getNonEmptyString(question.title) ||
+				getNonEmptyString(question.text) ||
+				getNonEmptyString(question.header);
+			if (!label) {
+				return null;
+			}
+
+			return {
+				id: getNonEmptyString(question.id) || `q-${index + 1}`,
+				label,
+				description: getNonEmptyString(question.description) || undefined,
+				required: question.required !== false,
+				options: normalizeRequestUserInputOptions(question.options),
+			};
+		})
+		.filter(Boolean);
+}
+
+function buildQuestionCardPayloadFromRequestUserInput(input, defaults = {}) {
+	const resolvedRequest = findRequestUserInputQuestionContainer(input);
+	if (!resolvedRequest) {
+		return null;
+	}
+
+	const normalizedQuestions = normalizeRequestUserInputQuestions(
+		resolvedRequest.questions
+	);
+	if (normalizedQuestions.length === 0) {
+		return null;
+	}
+
+	return sanitizeQuestionCardPayload(
+		{
+			type: CLARIFICATION_WIDGET_TYPE,
+			title:
+				getNonEmptyString(resolvedRequest.container.title) ||
+				getNonEmptyString(resolvedRequest.container.prompt) ||
+				defaults.title,
+			description:
+				getNonEmptyString(resolvedRequest.container.description) ||
+				defaults.description,
+			questions: normalizedQuestions,
+		},
+		defaults
+	);
+}
+
+function isRequestUserInputTool(toolName) {
+	const normalizedToolName = getNonEmptyString(toolName)?.toLowerCase();
+	if (!normalizedToolName) {
+		return false;
+	}
+
+	return (
+		normalizedToolName === "request_user_input" ||
+		normalizedToolName.endsWith(".request_user_input")
+	);
 }
 
 function normalizeClarificationAnswerValue(value) {
@@ -1409,6 +1605,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 				let assistantText = "";
 				let widgetType = null;
 				let latestPlanPayload = null;
+				let hasEmittedQuestionCard = false;
+				let hasEmittedPlanWidget = false;
+				const emittedQuestionCardToolCalls = new Set();
 
 				const emitTextDelta = (delta) => {
 					if (!delta) {
@@ -1430,6 +1629,88 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 
 					return value.replace(/(?:\s*(?:\.{3}|…))+$/u, "").trim();
+				};
+
+				const emitRequestUserInputQuestionCard = (toolCall) => {
+					if (!toolCall || typeof toolCall !== "object") {
+						return;
+					}
+
+					if (!isRequestUserInputTool(toolCall.toolName)) {
+						return;
+					}
+
+					const normalizedToolCallId = getNonEmptyString(toolCall.toolCallId);
+					let dedupeKey = normalizedToolCallId
+						? `request-user-input:${normalizedToolCallId}`
+						: null;
+					if (!dedupeKey) {
+						try {
+							const serializedInput = JSON.stringify(toolCall.toolInput);
+							if (serializedInput && serializedInput !== "null") {
+								dedupeKey = `request-user-input:${serializedInput}`;
+							}
+						} catch {
+							dedupeKey = null;
+						}
+					}
+
+					const payload = buildQuestionCardPayloadFromRequestUserInput(
+						toolCall.toolInput,
+						{
+							sessionId: normalizedToolCallId
+								? `request-user-input-${normalizedToolCallId}`
+								: createClarificationSessionId(),
+							round: 1,
+							maxRounds: 1,
+							title: "Answer these questions to continue",
+							description:
+								"Pick the options that best match what you want.",
+						}
+					);
+					if (!payload) {
+						return;
+					}
+
+					const resolvedDedupeKey =
+						dedupeKey ||
+						`request-user-input:${payload.sessionId}:${payload.round}`;
+					if (emittedQuestionCardToolCalls.has(resolvedDedupeKey)) {
+						return;
+					}
+					emittedQuestionCardToolCalls.add(resolvedDedupeKey);
+
+					const questionCardWidgetId = normalizedToolCallId
+						? `request-user-input-${normalizedToolCallId}`
+						: `request-user-input-${Date.now()}`;
+					hasEmittedQuestionCard = true;
+
+					writer.write({
+						type: "data-widget-loading",
+						id: questionCardWidgetId,
+						data: {
+							type: CLARIFICATION_WIDGET_TYPE,
+							loading: true,
+						},
+					});
+
+					writer.write({
+						type: "data-widget-data",
+						id: questionCardWidgetId,
+						data: {
+							type: CLARIFICATION_WIDGET_TYPE,
+							payload,
+						},
+					});
+
+					writer.write({
+						type: "data-widget-loading",
+						id: questionCardWidgetId,
+						data: {
+							type: CLARIFICATION_WIDGET_TYPE,
+							loading: false,
+						},
+					});
 				};
 
 				const findNextMarkerIndex = (value) => {
@@ -1588,8 +1869,12 @@ app.post("/api/chat-sdk", async (req, res) => {
 								const resolvedWidgetType =
 									parsedWidget?.type ?? widgetType ?? "widget";
 								widgetType = resolvedWidgetType;
+								if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
+									hasEmittedQuestionCard = true;
+								}
 								if (resolvedWidgetType === "plan") {
 									latestPlanPayload = parsedWidget;
+									hasEmittedPlanWidget = true;
 								}
 
 								writer.write({
@@ -1766,6 +2051,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 				await streamViaRovoDev({
 					message: userMessageText,
 					onTextDelta: handleStreamTextDelta,
+					onToolCallStart: emitRequestUserInputQuestionCard,
 					onThinkingStatus: (statusUpdate) => {
 						if (!statusUpdate || typeof statusUpdate !== "object") {
 							return;
@@ -1807,6 +2093,33 @@ app.post("/api/chat-sdk", async (req, res) => {
 				});
 
 				processTextBuffer(true);
+
+				if (!hasEmittedQuestionCard && !hasEmittedPlanWidget) {
+					const fallbackPlanPayload = extractPlanWidgetPayloadFromText(
+						assistantText
+					);
+					if (fallbackPlanPayload) {
+						latestPlanPayload = fallbackPlanPayload;
+						hasEmittedPlanWidget = true;
+						writer.write({
+							type: "data-widget-data",
+							id: widgetId,
+							data: {
+								type: "plan",
+								payload: fallbackPlanPayload,
+							},
+						});
+
+						writer.write({
+							type: "data-widget-loading",
+							id: widgetId,
+							data: {
+								type: "plan",
+								loading: false,
+							},
+						});
+					}
+				}
 
 				// Generate mermaid fallback if plan widget was emitted but no diagram
 				if (latestPlanPayload !== null && !hasCompleteMermaidDiagram(assistantText)) {

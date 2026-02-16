@@ -69,6 +69,15 @@ function deriveTitleFromAssistantMessage(messageText: string): string | null {
 	return normalizedTitle || null;
 }
 
+function deriveTitleFromUserPrompt(promptText: string): string {
+	const firstLine = promptText
+		.split(/\r?\n/)
+		.map((line) => trimTitleText(line))
+		.find((line) => line.length > 0);
+
+	return truncateTitleWords(firstLine ?? promptText, 6) || "New chat";
+}
+
 function getWordCount(value: string): number {
 	return value
 		.trim()
@@ -103,7 +112,9 @@ interface UseAgentsTeamChatReturn {
 	setPrompt: (value: string) => void;
 	isChatMode: boolean;
 	isStreaming: boolean;
+	stopStreaming: () => void;
 	isGeneratingTitle: boolean;
+	pendingTitleChatId: string | null;
 	uiMessages: RovoUIMessage[];
 	chatHistory: ChatHistoryItem[];
 	activeChatId: string | null;
@@ -173,8 +184,8 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			return;
 		}
 
-		const hasResolvedTitle = chatHistory.some((item) => item.id === pendingTitleChatId);
-		if (hasResolvedTitle) {
+		const isTitleStillPending = pendingTitleChatIdRef.current === pendingTitleChatId;
+		if (!isTitleStillPending) {
 			return;
 		}
 
@@ -214,13 +225,15 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		return () => {
 			clearTimeout(fallbackResolveTimeout);
 		};
-	}, [chatHistory, isGeneratingTitle, pendingTitleChatId, resolveChatTitle, uiMessages]);
+	}, [isGeneratingTitle, pendingTitleChatId, resolveChatTitle, uiMessages]);
 
 	const pendingTitleMessageRef = useRef<string | null>(null);
 	const hasStreamedOnceRef = useRef(false);
 
 	const createChatEntry = useCallback((firstMessage: string) => {
 		const id = crypto.randomUUID();
+		const provisionalTitle = deriveTitleFromUserPrompt(firstMessage);
+		setChatHistory((prev) => [{ id, title: provisionalTitle }, ...prev]);
 		setActiveChatId(id);
 		hasCreatedEntry.current = true;
 		setIsGeneratingTitle(true);
@@ -250,8 +263,8 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			return;
 		}
 
-		const hasResolvedTitle = chatHistory.some((item) => item.id === pendingTitleChatId);
-		if (hasResolvedTitle) {
+		const isTitleStillPending = pendingTitleChatIdRef.current === pendingTitleChatId;
+		if (!isTitleStillPending) {
 			return;
 		}
 
@@ -272,7 +285,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 			resolveChatTitle(chatId, aiTitle);
 		});
-	}, [isStreaming, pendingTitleChatId, chatHistory, resolveChatTitle]);
+	}, [isStreaming, pendingTitleChatId, resolveChatTitle]);
 
 	const sendAgentsPrompt = useCallback(
 		async (nextPrompt: string) => {
@@ -409,7 +422,9 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		setPrompt,
 		isChatMode,
 		isStreaming,
+		stopStreaming,
 		isGeneratingTitle,
+		pendingTitleChatId,
 		uiMessages,
 		chatHistory,
 		activeChatId,

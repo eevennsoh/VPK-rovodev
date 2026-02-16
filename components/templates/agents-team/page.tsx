@@ -51,7 +51,9 @@ export default function AgentsTeamView() {
 		setPrompt,
 		isChatMode,
 		isStreaming,
+		stopStreaming,
 		isGeneratingTitle,
+		pendingTitleChatId,
 		uiMessages: rawUiMessages,
 		chatHistory,
 		activeChatId,
@@ -178,6 +180,8 @@ export default function AgentsTeamView() {
 		activeChatId !== null
 			? chatHistory.find((item) => item.id === activeChatId)?.title ?? null
 			: null;
+	const isActiveChatTitlePending =
+		activeChatId !== null && pendingTitleChatId === activeChatId;
 
 	useEffect(() => {
 		if (!runId) {
@@ -300,6 +304,7 @@ export default function AgentsTeamView() {
 				chatHistory={chatHistory}
 				activeChatId={activeChatId}
 				isGeneratingTitle={isGeneratingTitle}
+				pendingTitleChatId={pendingTitleChatId}
 				onSelectChat={handleSelectChat}
 				onDeleteChat={handleDeleteChat}
 				onMouseEnter={handleHoverEnter}
@@ -338,7 +343,7 @@ export default function AgentsTeamView() {
 						<div className="flex h-full min-h-0 flex-col">
 							<ChatTitleRow
 								title={activeChatTitle}
-								isGeneratingTitle={isGeneratingTitle}
+								isTitlePending={isActiveChatTitlePending}
 								onNewChat={handleNewChat}
 								sidebarOpen={isOpen}
 								sidebarHovered={isHovered}
@@ -365,6 +370,7 @@ export default function AgentsTeamView() {
 										activePlanWidget={activePlanWidget}
 										onPromptChange={setPrompt}
 										onSubmit={handleSubmit}
+										onStop={stopStreaming}
 										onClarificationSubmit={handleClarificationSubmit}
 										onApprovalSubmit={handleApprovalSubmit}
 										onSuggestedQuestionClick={handleSuggestedQuestionClick}
@@ -375,8 +381,10 @@ export default function AgentsTeamView() {
 				) : (
 						<AgentsTeamInitialView
 							prompt={prompt}
+							isStreaming={isStreaming}
 							onPromptChange={setPrompt}
 							onSubmit={handleSubmit}
+							onStop={stopStreaming}
 						/>
 				)}
 			</SidebarInset>

@@ -584,7 +584,7 @@ import {
 	persona: {
 		description:
 			"An animated persona component using Rive WebGL animations with state-driven visuals. Supports multiple visual variants and lifecycle callbacks.",
-		usage: `import Persona from "@/components/ui-ai/persona";
+		usage: `import { Persona } from "@/components/ui-ai/persona";
 
 <Persona state="idle" variant="obsidian" />
 <Persona state="thinking" variant="glint" />
@@ -603,15 +603,45 @@ import {
 				description: "Rive animation variant.",
 			},
 			{
+				name: "className",
+				type: "string",
+				description: "Additional CSS classes for sizing and styling.",
+			},
+			{
 				name: "onLoad",
-				type: "function",
-				description: "Callback when Rive animation loads.",
+				type: "RiveParameters[\"onLoad\"]",
+				description: "Callback when Rive animation begins loading.",
+			},
+			{
+				name: "onLoadError",
+				type: "RiveParameters[\"onLoadError\"]",
+				description: "Callback when Rive animation fails to load.",
 			},
 			{
 				name: "onReady",
 				type: "() => void",
-				description: "Callback when Rive is ready to play.",
+				description: "Callback when animation is ready to play.",
 			},
+			{
+				name: "onPlay",
+				type: "RiveParameters[\"onPlay\"]",
+				description: "Callback when animation starts playing.",
+			},
+			{
+				name: "onPause",
+				type: "RiveParameters[\"onPause\"]",
+				description: "Callback when animation pauses.",
+			},
+			{
+				name: "onStop",
+				type: "RiveParameters[\"onStop\"]",
+				description: "Callback when animation stops.",
+			},
+		],
+		examples: [
+			{ title: "State management", description: "Cycle through idle, listening, thinking, speaking, and asleep states with buttons.", demoSlug: "persona-demo-states" },
+			{ title: "All variants", description: "Grid showing every visual variant: obsidian, mana, opal, halo, glint, and command.", demoSlug: "persona-demo-variants" },
+			{ title: "Custom styling", description: "Large persona with border styling applied via className.", demoSlug: "persona-demo-custom-styling" },
 		],
 	},
 
@@ -767,6 +797,75 @@ import AddIcon from "@atlaskit/icon/core/add";
 			{ title: "Submit status", description: "Preview submitted, streaming, error, and stop button behaviors.", demoSlug: "prompt-input-demo-submit-status" },
 			{ title: "Model selects", description: "Compose with model and response-style dropdown controls.", demoSlug: "prompt-input-demo-model-select" },
 			{ title: "Provider controlled", description: "Drive PromptInput externally with PromptInputProvider and controller hooks.", demoSlug: "prompt-input-demo-provider-controlled" },
+		],
+	},
+
+	queue: {
+		description:
+			"A composable queue/task list system with collapsible sections, status indicators, hover-revealed action buttons, and file attachment badges. Built on Collapsible and ScrollArea primitives.",
+		usage: `import {
+  Queue,
+  QueueSection,
+  QueueSectionTrigger,
+  QueueSectionLabel,
+  QueueSectionContent,
+  QueueList,
+  QueueItem,
+  QueueItemIndicator,
+  QueueItemContent,
+  QueueItemDescription,
+  QueueItemActions,
+  QueueItemAction,
+  QueueItemAttachment,
+  QueueItemFile,
+} from "@/components/ui-ai/queue";
+
+<Queue>
+  <QueueSection>
+    <QueueSectionTrigger>
+      <QueueSectionLabel label="Pending" count={2} />
+    </QueueSectionTrigger>
+    <QueueSectionContent>
+      <QueueList>
+        <QueueItem>
+          <div className="flex items-center gap-2">
+            <QueueItemIndicator />
+            <QueueItemContent>Write API endpoints</QueueItemContent>
+          </div>
+          <QueueItemDescription>REST endpoints for user CRUD</QueueItemDescription>
+        </QueueItem>
+      </QueueList>
+    </QueueSectionContent>
+  </QueueSection>
+</Queue>`,
+		props: [
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root container.",
+			},
+		],
+		subComponents: [
+			{ name: "Queue", description: "Root container with border, background, and rounded styling." },
+			{ name: "QueueSection", description: "Collapsible section wrapper with defaultOpen control." },
+			{ name: "QueueSectionTrigger", description: "Clickable trigger button to toggle section visibility." },
+			{ name: "QueueSectionLabel", description: "Label content with optional count and icon." },
+			{ name: "QueueSectionContent", description: "Animated content area within a collapsible section." },
+			{ name: "QueueList", description: "Scrollable list container (max-h-40) wrapping items in a ul." },
+			{ name: "QueueItem", description: "Individual list item with hover highlight and group context for actions." },
+			{ name: "QueueItemIndicator", description: "Circular status indicator. Accepts completed prop for visual state." },
+			{ name: "QueueItemContent", description: "Primary item text with line-clamp. Accepts completed prop for strikethrough." },
+			{ name: "QueueItemDescription", description: "Secondary descriptive text below the item content." },
+			{ name: "QueueItemActions", description: "Container for hover-revealed action buttons." },
+			{ name: "QueueItemAction", description: "Ghost icon button that appears on item hover." },
+			{ name: "QueueItemAttachment", description: "Flex-wrap container for file and image attachments." },
+			{ name: "QueueItemFile", description: "File badge with paperclip icon and truncated filename." },
+			{ name: "QueueItemImage", description: "Small thumbnail image (32x32) with rounded border." },
+		],
+		examples: [
+			{ title: "With actions", description: "Items with hover-revealed edit, copy, and delete action buttons.", demoSlug: "queue-demo-with-actions" },
+			{ title: "With attachments", description: "Items with file attachment badges.", demoSlug: "queue-demo-with-attachments" },
+			{ title: "Minimal", description: "Simple flat list without collapsible sections.", demoSlug: "queue-demo-minimal" },
 		],
 	},
 
@@ -1090,6 +1189,85 @@ import AddIcon from "@atlaskit/icon/core/add";
 		],
 	},
 
+	sandbox: {
+		description:
+			"A collapsible container for displaying AI-generated code alongside execution output, with status indicators and tabbed navigation between code and output views. Integrates with the AI SDK's ToolUIPart state to show code execution progress.",
+		usage: `import {
+  Sandbox,
+  SandboxHeader,
+  SandboxContent,
+  SandboxTabs,
+  SandboxTabsBar,
+  SandboxTabsList,
+  SandboxTabsTrigger,
+  SandboxTabContent,
+} from "@/components/ui-ai/sandbox";
+import { CodeBlock } from "@/components/ui-ai/code-block";
+
+<Sandbox>
+  <SandboxHeader state={toolPart.state} title="code.tsx" />
+  <SandboxContent>
+    <SandboxTabs defaultValue="code">
+      <SandboxTabsBar>
+        <SandboxTabsList>
+          <SandboxTabsTrigger value="code">Code</SandboxTabsTrigger>
+          <SandboxTabsTrigger value="output">Output</SandboxTabsTrigger>
+        </SandboxTabsList>
+      </SandboxTabsBar>
+      <SandboxTabContent value="code">
+        <CodeBlock code={code} language="tsx" />
+      </SandboxTabContent>
+      <SandboxTabContent value="output">
+        <CodeBlock code={output} language="log" />
+      </SandboxTabContent>
+    </SandboxTabs>
+  </SandboxContent>
+</Sandbox>`,
+		demoLayout: {
+			previewContentWidth: "full",
+			examplesContentWidth: "full",
+		},
+		props: [
+			{
+				name: "state",
+				type: 'ToolUIPart["state"]',
+				required: true,
+				description: "Execution state from the AI SDK ToolUIPart, rendered as a status badge in the header.",
+			},
+			{
+				name: "title",
+				type: "string",
+				description: "Filename or label displayed in the header next to the code icon.",
+			},
+			{
+				name: "defaultOpen",
+				type: "boolean",
+				default: "true",
+				description: "Initial expanded state of the collapsible container.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root Collapsible container.",
+			},
+		],
+		subComponents: [
+			{ name: "Sandbox", description: "Root Collapsible container with border and rounded corners. Defaults to open." },
+			{ name: "SandboxHeader", description: "Collapsible trigger row with code icon, title, status badge, and chevron." },
+			{ name: "SandboxContent", description: "Animated collapsible content area with slide/fade transitions." },
+			{ name: "SandboxTabs", description: "Tabs wrapper for code/output views." },
+			{ name: "SandboxTabsBar", description: "Container for the tab list with top and bottom borders." },
+			{ name: "SandboxTabsList", description: "Tab list with transparent background and no rounding." },
+			{ name: "SandboxTabsTrigger", description: "Individual tab button with active underline indicator." },
+			{ name: "SandboxTabContent", description: "Tab content panel with no top margin." },
+		],
+		examples: [
+			{ title: "Running", description: "Sandbox in running state with animated status badge.", demoSlug: "sandbox-demo-running" },
+			{ title: "Error", description: "Error state with output tab showing stack trace.", demoSlug: "sandbox-demo-error" },
+			{ title: "Collapsed", description: "Sandbox starting in collapsed state.", demoSlug: "sandbox-demo-collapsed" },
+		],
+	},
+
 	"environment-variables": {
 		description:
 			"A compound component for displaying environment variables with automatic value masking, visibility toggle, copy-to-clipboard in multiple formats, and required status badges.",
@@ -1373,6 +1551,67 @@ const edgeTypes = {
 		],
 	},
 
+	"jsx-preview": {
+		description:
+			"Renders JSX strings dynamically using react-jsx-parser, supporting streaming scenarios where JSX may be incomplete. Automatically closes unclosed tags during streaming and supports custom component injection and error handling.",
+		usage: `import {
+  JSXPreview,
+  JSXPreviewContent,
+  JSXPreviewError,
+} from "@/components/ui-ai/jsx-preview";
+
+<JSXPreview jsx={jsxString} isStreaming={isStreaming} components={{ Button }}>
+  <JSXPreviewContent />
+  <JSXPreviewError />
+</JSXPreview>`,
+		props: [
+			{
+				name: "jsx",
+				type: "string",
+				required: true,
+				description: "The JSX string to render.",
+			},
+			{
+				name: "isStreaming",
+				type: "boolean",
+				default: "false",
+				description: "When true, auto-completes unclosed tags so partial JSX renders safely during streaming.",
+			},
+			{
+				name: "components",
+				type: "Record<string, React.ComponentType>",
+				description: "Custom components available within the rendered JSX scope.",
+			},
+			{
+				name: "bindings",
+				type: "Record<string, unknown>",
+				description: "Variables and functions available within the JSX execution scope.",
+			},
+			{
+				name: "onError",
+				type: "(error: Error) => void",
+				description: "Callback when parsing or rendering fails.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root container.",
+			},
+		],
+		subComponents: [
+			{ name: "JSXPreview", description: "Root provider with JSX processing, tag completion, and error state management." },
+			{ name: "JSXPreviewContent", description: "Renders the parsed JSX output via react-jsx-parser with error deduplication." },
+			{ name: "JSXPreviewError", description: "Displays error information when parsing fails. Accepts static children or a render function receiving the Error object." },
+		],
+		examples: [
+			{ title: "Basic", description: "Static JSX string rendered dynamically.", demoSlug: "jsx-preview-demo-basic" },
+			{ title: "Streaming", description: "Simulated streaming with automatic tag completion for partial JSX.", demoSlug: "jsx-preview-demo-streaming" },
+			{ title: "Custom components", description: "Injecting shadcn Badge components into the JSX render scope.", demoSlug: "jsx-preview-demo-with-components" },
+			{ title: "Error state", description: "Default error display when JSX references an unknown component.", demoSlug: "jsx-preview-demo-with-error" },
+			{ title: "Custom error", description: "Custom error content with styled warning appearance.", demoSlug: "jsx-preview-demo-custom-error" },
+		],
+	},
+
 	"mic-selector": {
 		description:
 			"A composable microphone selector dropdown built on Command and Popover primitives. Provides permission-aware device enumeration, real-time device detection, searchable device list, and intelligent hardware ID label parsing.",
@@ -1543,6 +1782,1329 @@ const edgeTypes = {
 			{ title: "Basic", description: "Minimal inline citation badge without hover card body.", demoSlug: "inline-citation-demo-basic" },
 			{ title: "Multiple citations", description: "Paragraph with two separate inline citations referencing different topics.", demoSlug: "inline-citation-demo-multiple" },
 			{ title: "Single source", description: "Single-source citation with description and quote excerpt.", demoSlug: "inline-citation-demo-single-source" },
+		],
+	},
+
+	"model-selector": {
+		description:
+			"A searchable command palette for selecting AI models, built on cmdk with fuzzy search, keyboard navigation, grouped provider organization, and provider logos fetched from models.dev.",
+		usage: `import {
+  ModelSelector,
+  ModelSelectorTrigger,
+  ModelSelectorContent,
+  ModelSelectorInput,
+  ModelSelectorList,
+  ModelSelectorEmpty,
+  ModelSelectorGroup,
+  ModelSelectorItem,
+  ModelSelectorLogo,
+  ModelSelectorLogoGroup,
+  ModelSelectorName,
+  ModelSelectorSeparator,
+} from "@/components/ui-ai/model-selector";
+
+<ModelSelector>
+  <ModelSelectorTrigger render={<Button variant="outline" size="sm" className="gap-2" />}>
+    <ModelSelectorLogoGroup>
+      <ModelSelectorLogo provider="anthropic" />
+    </ModelSelectorLogoGroup>
+    Claude 4 Sonnet
+  </ModelSelectorTrigger>
+  <ModelSelectorContent>
+    <ModelSelectorInput placeholder="Search models..." />
+    <ModelSelectorList>
+      <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+      <ModelSelectorGroup heading="Anthropic">
+        <ModelSelectorItem value="claude-4-sonnet" onSelect={() => setModel("claude-4-sonnet")}>
+          <ModelSelectorLogo provider="anthropic" />
+          <ModelSelectorName>Claude 4 Sonnet</ModelSelectorName>
+        </ModelSelectorItem>
+      </ModelSelectorGroup>
+    </ModelSelectorList>
+  </ModelSelectorContent>
+</ModelSelector>`,
+		props: [
+			{
+				name: "children",
+				type: "ReactNode",
+				required: true,
+				description: "ModelSelectorTrigger and ModelSelectorContent sub-components.",
+			},
+			{
+				name: "open",
+				type: "boolean",
+				description: "Controlled open state for the dialog.",
+			},
+			{
+				name: "onOpenChange",
+				type: "(open: boolean) => void",
+				description: "Callback when dialog open state changes.",
+			},
+		],
+		subComponents: [
+			{ name: "ModelSelector", description: "Root Dialog wrapper." },
+			{ name: "ModelSelectorTrigger", description: "Button trigger to open the command palette." },
+			{ name: "ModelSelectorContent", description: "Dialog content with embedded Command, configurable title (default: 'Model Selector')." },
+			{ name: "ModelSelectorDialog", description: "Alternative CommandDialog wrapper." },
+			{ name: "ModelSelectorInput", description: "Search input with fuzzy filtering." },
+			{ name: "ModelSelectorList", description: "Scrollable list container for groups and items." },
+			{ name: "ModelSelectorEmpty", description: "Fallback content when search yields no results." },
+			{ name: "ModelSelectorGroup", description: "Provider category group with heading." },
+			{ name: "ModelSelectorItem", description: "Individual model option with value and onSelect callback." },
+			{ name: "ModelSelectorName", description: "Truncated model name text." },
+			{ name: "ModelSelectorLogo", description: "Provider logo fetched from models.dev/logos. Supports autocomplete-friendly provider union type." },
+			{ name: "ModelSelectorLogoGroup", description: "Stacked logo container with overlapping ring styling." },
+			{ name: "ModelSelectorShortcut", description: "Keyboard shortcut display alongside an item." },
+			{ name: "ModelSelectorSeparator", description: "Visual separator between groups." },
+		],
+		examples: [
+			{ title: "With search", description: "Searchable model palette with grouped providers, selection state, and empty state.", demoSlug: "model-selector-demo-with-search" },
+			{ title: "With logos", description: "Provider logos on trigger and items with separators between groups.", demoSlug: "model-selector-demo-with-logos" },
+			{ title: "Multi-provider trigger", description: "Trigger showing stacked logos from multiple providers.", demoSlug: "model-selector-demo-multi-provider" },
+		],
+	},
+
+	"package-info": {
+		description:
+			"A compound component for displaying package dependency information with version transitions (current → new), color-coded change type badges (major, minor, patch, added, removed), optional descriptions, and a dependencies list.",
+		usage: `import {
+  PackageInfo,
+  PackageInfoHeader,
+  PackageInfoName,
+  PackageInfoChangeType,
+  PackageInfoVersion,
+  PackageInfoDescription,
+  PackageInfoContent,
+  PackageInfoDependencies,
+  PackageInfoDependency,
+} from "@/components/ui-ai/package-info";
+
+<PackageInfo name="react" currentVersion="18.2.0" newVersion="19.0.0" changeType="major">
+  <PackageInfoHeader>
+    <PackageInfoName />
+    <PackageInfoChangeType />
+  </PackageInfoHeader>
+  <PackageInfoVersion />
+  <PackageInfoDescription>
+    A JavaScript library for building user interfaces.
+  </PackageInfoDescription>
+</PackageInfo>`,
+		props: [
+			{
+				name: "name",
+				type: "string",
+				required: true,
+				description: "Package name displayed via PackageInfoName.",
+			},
+			{
+				name: "currentVersion",
+				type: "string",
+				description: "Currently installed version shown in the version transition.",
+			},
+			{
+				name: "newVersion",
+				type: "string",
+				description: "Target version shown after the arrow in the version transition.",
+			},
+			{
+				name: "changeType",
+				type: '"major" | "minor" | "patch" | "added" | "removed"',
+				description: "Change category that controls badge color and icon.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root container.",
+			},
+		],
+		subComponents: [
+			{ name: "PackageInfo", description: "Root container with context provider for name, versions, and change type." },
+			{ name: "PackageInfoHeader", description: "Flex row for package name and change type badge." },
+			{ name: "PackageInfoName", description: "Package name with package icon. Defaults to name from context." },
+			{ name: "PackageInfoChangeType", description: "Color-coded badge showing the change category with icon." },
+			{ name: "PackageInfoVersion", description: "Version transition display (e.g., 18.2.0 → 19.0.0)." },
+			{ name: "PackageInfoDescription", description: "Paragraph element for package description text." },
+			{ name: "PackageInfoContent", description: "Content area with top border separator." },
+			{ name: "PackageInfoDependencies", description: "Container with 'Dependencies' label and stacked dependency rows." },
+			{ name: "PackageInfoDependency", description: "Individual dependency row with name and optional version." },
+		],
+		examples: [
+			{ title: "Full", description: "Package card with version transition, change badge, description, and dependencies list.", demoSlug: "package-info-demo-full" },
+			{ title: "Change types", description: "All five change type variants: major, minor, patch, added, and removed.", demoSlug: "package-info-demo-change-types" },
+			{ title: "With dependencies", description: "Package with a dependencies section listing related packages.", demoSlug: "package-info-demo-with-dependencies" },
+			{ title: "Minimal", description: "Header-only package card with name and version arrow.", demoSlug: "package-info-demo-minimal" },
+		],
+	},
+
+	"open-in-chat": {
+		description:
+			"A dropdown menu that lets users open a query in different AI chat platforms with a single click. Supports ChatGPT, Claude, T3 Chat, Scira AI, v0, and Cursor with branded icons and automatic URL parameter encoding.",
+		usage: `import {
+  OpenIn,
+  OpenInTrigger,
+  OpenInContent,
+  OpenInChatGPT,
+  OpenInClaude,
+  OpenInT3,
+  OpenInScira,
+  OpenInv0,
+  OpenInCursor,
+  OpenInLabel,
+  OpenInSeparator,
+} from "@/components/ui-ai/open-in-chat";
+
+<OpenIn query="Explain React hooks">
+  <OpenInTrigger />
+  <OpenInContent>
+    <OpenInLabel>AI Assistants</OpenInLabel>
+    <OpenInSeparator />
+    <OpenInChatGPT />
+    <OpenInClaude />
+    <OpenInCursor />
+  </OpenInContent>
+</OpenIn>`,
+		props: [
+			{
+				name: "query",
+				type: "string",
+				required: true,
+				description: "The query text sent to all AI platforms via URL parameters.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the dropdown content via OpenInContent.",
+			},
+		],
+		subComponents: [
+			{ name: "OpenIn", description: "Root provider wrapping DropdownMenu. Supplies query via React Context to all platform items." },
+			{ name: "OpenInTrigger", description: "Outline button trigger with 'Open in chat' label and chevron. Accepts custom children to override." },
+			{ name: "OpenInContent", description: "Dropdown content panel (240px wide) aligned to start." },
+			{ name: "OpenInChatGPT", description: "Menu item linking to ChatGPT with OpenAI icon." },
+			{ name: "OpenInClaude", description: "Menu item linking to Claude with Anthropic icon." },
+			{ name: "OpenInT3", description: "Menu item linking to T3 Chat." },
+			{ name: "OpenInScira", description: "Menu item linking to Scira AI with branded icon." },
+			{ name: "OpenInv0", description: "Menu item linking to v0 with Vercel icon." },
+			{ name: "OpenInCursor", description: "Menu item linking to Cursor with branded icon." },
+			{ name: "OpenInItem", description: "Generic menu item for custom platform entries." },
+			{ name: "OpenInLabel", description: "Section label wrapped in a DropdownMenuGroup." },
+			{ name: "OpenInSeparator", description: "Visual separator between menu sections." },
+		],
+		examples: [
+			{ title: "All providers", description: "Dropdown with all six AI platform options and a section label.", demoSlug: "open-in-chat-demo-all-providers" },
+			{ title: "Minimal", description: "Two-provider dropdown without labels or separators.", demoSlug: "open-in-chat-demo-minimal" },
+			{ title: "Custom trigger", description: "Custom trigger button with a send icon and 'Ask AI' label.", demoSlug: "open-in-chat-demo-custom-trigger" },
+			{ title: "Grouped", description: "Providers organized into Chat, Code, and Search sections.", demoSlug: "open-in-chat-demo-grouped" },
+		],
+	},
+
+	node: {
+		description:
+			"A composable, Card-based node for React Flow canvases. Supports connection handles (target/source), structured layouts with header, content, and footer sections, and consistent styling via shadcn/ui Card primitives.",
+		usage: `import {
+  Node, NodeHeader, NodeTitle, NodeDescription,
+  NodeAction, NodeContent, NodeFooter,
+} from "@/components/ui-ai/node";
+
+<Node handles={{ target: true, source: true }}>
+  <NodeHeader>
+    <NodeTitle>Process Data</NodeTitle>
+    <NodeDescription>Transform input</NodeDescription>
+  </NodeHeader>
+  <NodeContent>
+    <p className="text-sm">Validating records</p>
+  </NodeContent>
+  <NodeFooter>
+    <p className="text-xs text-muted-foreground">Duration: ~2.5s</p>
+  </NodeFooter>
+</Node>`,
+		props: [
+			{
+				name: "handles",
+				type: "{ target: boolean; source: boolean }",
+				required: true,
+				description: "Connection handle configuration. Target renders on the left, source on the right.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root Card container.",
+			},
+			{
+				name: "children",
+				type: "ReactNode",
+				description: "NodeHeader, NodeContent, and NodeFooter sub-components.",
+			},
+		],
+		subComponents: [
+			{ name: "Node", description: "Root Card container with fixed small width, connection handles, and rounded styling." },
+			{ name: "NodeHeader", description: "Header section with secondary background and bottom border. Wraps CardHeader." },
+			{ name: "NodeTitle", description: "Title text. Wraps CardTitle." },
+			{ name: "NodeDescription", description: "Description text below the title. Wraps CardDescription." },
+			{ name: "NodeAction", description: "Action slot positioned at the top-right of the header. Wraps CardAction." },
+			{ name: "NodeContent", description: "Main content area with padding. Wraps CardContent." },
+			{ name: "NodeFooter", description: "Footer section with secondary background and top border. Wraps CardFooter." },
+		],
+		examples: [
+			{ title: "Full", description: "Node with header, content, footer, and both target/source handles.", demoSlug: "node-demo-full" },
+			{ title: "Header only", description: "Minimal node with only title and description.", demoSlug: "node-demo-header-only" },
+			{ title: "With action", description: "Node with a header action button for copy.", demoSlug: "node-demo-with-action" },
+			{ title: "With badge", description: "Node with rich content including a status badge.", demoSlug: "node-demo-with-badge" },
+		],
+	},
+
+	"schema-display": {
+		description:
+			"A compound component for visualizing REST API endpoints with color-coded HTTP method badges, path parameter highlighting, collapsible parameters/request/response sections, and recursive nested property display.",
+		usage: `import {
+  SchemaDisplay,
+  SchemaDisplayHeader,
+  SchemaDisplayMethod,
+  SchemaDisplayPath,
+  SchemaDisplayDescription,
+  SchemaDisplayContent,
+  SchemaDisplayParameters,
+  SchemaDisplayRequest,
+  SchemaDisplayResponse,
+  SchemaDisplayProperty,
+  SchemaDisplayExample,
+} from "@/components/ui-ai/schema-display";
+
+<SchemaDisplay
+  method="GET"
+  path="/api/users/{id}"
+  description="Retrieve a user by their unique identifier."
+  parameters={[
+    { name: "id", type: "string", required: true, location: "path" },
+  ]}
+  responseBody={[
+    { name: "id", type: "string", required: true },
+    { name: "name", type: "string", required: true },
+    { name: "email", type: "string", required: true },
+  ]}
+/>`,
+		demoLayout: {
+			previewContentWidth: "full",
+			examplesContentWidth: "full",
+		},
+		props: [
+			{
+				name: "method",
+				type: '"GET" | "POST" | "PUT" | "PATCH" | "DELETE"',
+				required: true,
+				description: "HTTP method displayed as a color-coded badge.",
+			},
+			{
+				name: "path",
+				type: "string",
+				required: true,
+				description: "API endpoint path. Parameters in {braces} are highlighted.",
+			},
+			{
+				name: "description",
+				type: "string",
+				description: "Endpoint description shown below the header.",
+			},
+			{
+				name: "parameters",
+				type: "SchemaParameter[]",
+				description: "URL, query, or header parameters with name, type, required, description, and location.",
+			},
+			{
+				name: "requestBody",
+				type: "SchemaProperty[]",
+				description: "Request body properties with recursive nesting support.",
+			},
+			{
+				name: "responseBody",
+				type: "SchemaProperty[]",
+				description: "Response body properties with recursive nesting support.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root container.",
+			},
+		],
+		subComponents: [
+			{ name: "SchemaDisplay", description: "Root container with context provider for method, path, parameters, and body schemas." },
+			{ name: "SchemaDisplayHeader", description: "Header row for method badge and path." },
+			{ name: "SchemaDisplayMethod", description: "Color-coded HTTP method badge (GET=green, POST=blue, PUT=orange, PATCH=yellow, DELETE=red)." },
+			{ name: "SchemaDisplayPath", description: "Monospace endpoint path with highlighted {parameters}." },
+			{ name: "SchemaDisplayDescription", description: "Endpoint description paragraph below the header." },
+			{ name: "SchemaDisplayContent", description: "Content area with divided sections." },
+			{ name: "SchemaDisplayParameters", description: "Collapsible parameters section with count badge." },
+			{ name: "SchemaDisplayParameter", description: "Individual parameter row with name, type, location, and required badges." },
+			{ name: "SchemaDisplayRequest", description: "Collapsible request body section." },
+			{ name: "SchemaDisplayResponse", description: "Collapsible response body section." },
+			{ name: "SchemaDisplayProperty", description: "Recursive property display with collapsible nested objects and arrays." },
+			{ name: "SchemaDisplayBody", description: "Generic body container with dividers." },
+			{ name: "SchemaDisplayExample", description: "Preformatted code example block." },
+		],
+		examples: [
+			{ title: "With parameters", description: "GET endpoint with path, query, and header parameters.", demoSlug: "schema-display-demo-with-params" },
+			{ title: "Request and response", description: "POST endpoint with request body and response schema.", demoSlug: "schema-display-demo-with-body" },
+			{ title: "Nested properties", description: "Complex schema with nested objects and arrays.", demoSlug: "schema-display-demo-nested" },
+			{ title: "HTTP methods", description: "All five HTTP method variants with color-coded badges.", demoSlug: "schema-display-demo-methods" },
+			{ title: "Custom composition", description: "Selective sub-component rendering with explicit children.", demoSlug: "schema-display-demo-custom-composition" },
+		],
+	},
+
+	shimmer: {
+		description:
+			"An animated text shimmer effect that sweeps across content, ideal for indicating loading states or drawing attention to dynamic content in AI applications. Uses CSS gradients and Motion for React with customizable duration and spread.",
+		usage: `import { Shimmer } from "@/components/ui-ai/shimmer";
+
+<Shimmer>Thinking...</Shimmer>
+<Shimmer duration={1} as="span">Fast shimmer</Shimmer>
+<Shimmer spread={4} className="text-lg">Wide spread shimmer</Shimmer>`,
+		props: [
+			{
+				name: "children",
+				type: "string",
+				required: true,
+				description: "The text content receiving the shimmer effect.",
+			},
+			{
+				name: "as",
+				type: "ElementType",
+				default: '"p"',
+				description: "HTML element or React component to render as.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional CSS classes for styling.",
+			},
+			{
+				name: "duration",
+				type: "number",
+				default: "2",
+				description: "Animation duration in seconds.",
+			},
+			{
+				name: "spread",
+				type: "number",
+				default: "2",
+				description: "Shimmer gradient spread multiplier (multiplied by text length).",
+			},
+		],
+		subComponents: [
+			{ name: "Shimmer", description: "Memoized motion component with infinite linear gradient sweep across text using background-clip and text-transparent." },
+		],
+		examples: [
+			{ title: "Custom duration", description: "Shimmer with varying animation speeds: fast (1s), slow (3s), and very slow (5s).", demoSlug: "shimmer-demo-custom-duration" },
+			{ title: "Custom spread", description: "Shimmer with narrow, wide, and extra wide gradient spread.", demoSlug: "shimmer-demo-custom-spread" },
+			{ title: "Polymorphic", description: "Shimmer rendered as heading and span elements with different text sizes.", demoSlug: "shimmer-demo-heading" },
+		],
+	},
+
+	snippet: {
+		description:
+			"A lightweight composable snippet for displaying terminal commands and short code strings with copy-to-clipboard functionality. Built on InputGroup primitives with optional prefix text and animated copy state.",
+		usage: `import {
+  Snippet,
+  SnippetAddon,
+  SnippetText,
+  SnippetInput,
+  SnippetCopyButton,
+} from "@/components/ui-ai/snippet";
+
+<Snippet code="npm install ai">
+  <SnippetAddon>
+    <SnippetText>$</SnippetText>
+  </SnippetAddon>
+  <SnippetInput />
+  <SnippetCopyButton />
+</Snippet>`,
+		props: [
+			{
+				name: "code",
+				type: "string",
+				required: true,
+				description: "The code content to display and copy.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root InputGroup container.",
+			},
+			{
+				name: "children",
+				type: "ReactNode",
+				description: "SnippetAddon, SnippetInput, and SnippetCopyButton sub-components.",
+			},
+		],
+		subComponents: [
+			{ name: "Snippet", description: "Root provider wrapping InputGroup. Supplies code value via React Context to SnippetInput and SnippetCopyButton." },
+			{ name: "SnippetAddon", description: "Wrapper for supplementary elements like prefix text. Delegates to InputGroupAddon." },
+			{ name: "SnippetText", description: "Prefix text display (e.g., '$' for terminal prompts). Delegates to InputGroupText." },
+			{ name: "SnippetInput", description: "Read-only input displaying the code string. Value and readOnly are set automatically from context." },
+			{ name: "SnippetCopyButton", description: "Copy-to-clipboard button with animated check icon on success. Accepts onCopy, onError, and timeout props." },
+		],
+		examples: [
+			{ title: "Without prefix", description: "Plain snippet without terminal prompt prefix.", demoSlug: "snippet-demo-plain" },
+			{ title: "Multiple commands", description: "Stacked snippets for multi-step install instructions.", demoSlug: "snippet-demo-multiple" },
+			{ title: "With callbacks", description: "Snippet with onCopy/onError callbacks and custom timeout.", demoSlug: "snippet-demo-callbacks" },
+		],
+	},
+
+	"speech-input": {
+		description:
+			"A voice input button with animated pulse rings and automatic browser capability detection. Uses Web Speech API (Chrome/Edge) or MediaRecorder fallback (Firefox/Safari) with external transcription service support.",
+		usage: `import { SpeechInput } from "@/components/ui-ai/speech-input";
+
+<SpeechInput
+  onTranscriptionChange={(text) => console.log(text)}
+  onAudioRecorded={async (blob) => {
+    // Send blob to transcription API, return text
+    return "transcribed text";
+  }}
+  lang="en-US"
+/>`,
+		props: [
+			{
+				name: "onTranscriptionChange",
+				type: "(text: string) => void",
+				description: "Callback fired when final transcription is available. Does not fire for interim results.",
+			},
+			{
+				name: "onAudioRecorded",
+				type: "(audioBlob: Blob) => Promise<string>",
+				description: "Required for Firefox/Safari. Receives audio Blob (audio/webm) and should return transcribed text from an external service.",
+			},
+			{
+				name: "lang",
+				type: "string",
+				default: '"en-US"',
+				description: "BCP 47 language tag for speech recognition.",
+			},
+			{
+				name: "...props",
+				type: "ComponentProps<typeof Button>",
+				description: "All Button props (variant, size, disabled, className) are forwarded.",
+			},
+		],
+		subComponents: [
+			{ name: "SpeechInput", description: "Standalone button with mic/stop icon, animated pulse rings when listening, and spinner when processing audio." },
+		],
+		examples: [
+			{ title: "With transcript", description: "Speech input that displays transcribed text below the button.", demoSlug: "speech-input-demo-with-transcript" },
+			{ title: "Sizes", description: "Small, default, and large button sizes.", demoSlug: "speech-input-demo-sizes" },
+			{ title: "Disabled", description: "Disabled state when speech input is unavailable.", demoSlug: "speech-input-demo-disabled" },
+		],
+	},
+
+	sources: {
+		description:
+			"A collapsible component that allows users to view the sources or citations used to generate an AI response. Built on Collapsible with animated expand/collapse and customizable trigger and content areas.",
+		usage: `import {
+  Sources,
+  SourcesTrigger,
+  SourcesContent,
+  Source,
+} from "@/components/ui-ai/sources";
+
+<Sources>
+  <SourcesTrigger count={3} />
+  <SourcesContent>
+    <Source href="https://react.dev" title="React Documentation" />
+    <Source href="https://developer.mozilla.org" title="MDN Web Docs" />
+    <Source href="https://www.typescriptlang.org/docs" title="TypeScript Handbook" />
+  </SourcesContent>
+</Sources>`,
+		props: [
+			{
+				name: "count",
+				type: "number",
+				required: true,
+				description: "The number of sources displayed in the trigger label.",
+			},
+			{
+				name: "href",
+				type: "string",
+				description: "URL for an individual Source link. Opens in a new tab with rel=\"noreferrer\".",
+			},
+			{
+				name: "title",
+				type: "string",
+				description: "Display title for an individual Source when using default rendering.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional CSS classes applied to any sub-component.",
+			},
+		],
+		subComponents: [
+			{ name: "Sources", description: "Root Collapsible wrapper with default text styling." },
+			{ name: "SourcesTrigger", description: "Collapsible trigger button displaying \"Used N sources\" label with chevron icon. Accepts children to override default rendering." },
+			{ name: "SourcesContent", description: "Animated collapsible content container with slide-in/slide-out transitions." },
+			{ name: "Source", description: "Individual source link opening in a new tab. Renders a BookIcon + title by default, or custom children." },
+		],
+		examples: [
+			{ title: "Custom rendering", description: "Sources with custom trigger label, external link icons, and custom source titles.", demoSlug: "sources-demo-custom-rendering" },
+		],
+	},
+
+	"stack-trace": {
+		description:
+			"A compound component for displaying parsed JavaScript/Node.js error stack traces with collapsible frames, clickable file paths, internal-frame dimming, and copy-to-clipboard. Parses raw stack trace strings into structured error type, message, and frame data.",
+		usage: `import {
+  StackTrace,
+  StackTraceHeader,
+  StackTraceError,
+  StackTraceErrorType,
+  StackTraceErrorMessage,
+  StackTraceActions,
+  StackTraceCopyButton,
+  StackTraceExpandButton,
+  StackTraceContent,
+  StackTraceFrames,
+} from "@/components/ui-ai/stack-trace";
+
+<StackTrace trace={errorString} defaultOpen>
+  <StackTraceHeader>
+    <StackTraceError>
+      <StackTraceErrorType />
+      <StackTraceErrorMessage />
+    </StackTraceError>
+    <StackTraceActions>
+      <StackTraceCopyButton />
+      <StackTraceExpandButton />
+    </StackTraceActions>
+  </StackTraceHeader>
+  <StackTraceContent>
+    <StackTraceFrames />
+  </StackTraceContent>
+</StackTrace>`,
+		demoLayout: {
+			previewContentWidth: "full",
+			examplesContentWidth: "full",
+		},
+		props: [
+			{
+				name: "trace",
+				type: "string",
+				required: true,
+				description: "Raw stack trace string to parse and display.",
+			},
+			{
+				name: "open",
+				type: "boolean",
+				description: "Controlled open/closed state for the collapsible frames section.",
+			},
+			{
+				name: "defaultOpen",
+				type: "boolean",
+				default: "false",
+				description: "Initial open state when uncontrolled.",
+			},
+			{
+				name: "onOpenChange",
+				type: "(open: boolean) => void",
+				description: "Callback fired when the collapse state changes.",
+			},
+			{
+				name: "onFilePathClick",
+				type: "(path: string, line?: number, column?: number) => void",
+				description: "Callback when a file path in a stack frame is clicked. Enables clickable file paths for IDE integration.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional CSS classes applied to the root container.",
+			},
+		],
+		subComponents: [
+			{ name: "StackTrace", description: "Root provider and container. Parses the raw trace string and supplies context to all sub-components." },
+			{ name: "StackTraceHeader", description: "Clickable header row that toggles the collapsible content. Wraps CollapsibleTrigger." },
+			{ name: "StackTraceError", description: "Flex container for the error icon, type, and message." },
+			{ name: "StackTraceErrorType", description: "Displays the parsed error type (e.g., 'TypeError'). Falls back to context value when no children provided." },
+			{ name: "StackTraceErrorMessage", description: "Displays the parsed error message text. Falls back to context value when no children provided." },
+			{ name: "StackTraceActions", description: "Container for action buttons with click/keydown event isolation." },
+			{ name: "StackTraceCopyButton", description: "Copies the full raw stack trace to clipboard with animated check icon feedback." },
+			{ name: "StackTraceExpandButton", description: "Chevron icon that rotates to indicate expand/collapse state." },
+			{ name: "StackTraceContent", description: "Collapsible content area with max-height scroll and fade animations." },
+			{ name: "StackTraceFrames", description: "Renders parsed stack frames with function names, clickable file paths, and dimmed internal (node_modules/node:) frames." },
+		],
+		examples: [
+			{ title: "Expanded", description: "Stack trace with frames visible by default.", demoSlug: "stack-trace-demo-open" },
+			{ title: "Filter internals", description: "Hides node_modules and Node.js internal frames.", demoSlug: "stack-trace-demo-filter-internals" },
+			{ title: "Clickable paths", description: "File paths trigger a callback for IDE integration.", demoSlug: "stack-trace-demo-clickable" },
+		],
+	},
+
+	suggestion: {
+		description:
+			"Clickable suggestion chips that present follow-up prompts or quick actions to users. Supports horizontal scrollable and vertical stacked layouts via the Suggestions container, with each Suggestion rendered as a rounded pill Button.",
+		usage: `import { Suggestions, Suggestion } from "@/components/ui-ai/suggestion";
+
+<Suggestions>
+  <Suggestion suggestion="Tell me a joke" />
+  <Suggestion suggestion="Explain AI" />
+  <Suggestion suggestion="Write code" />
+</Suggestions>
+
+// Vertical layout (right-aligned, for follow-up suggestions)
+<Suggestions orientation="vertical">
+  <Suggestion suggestion="How does this work?" />
+  <Suggestion suggestion="Show me an example" />
+</Suggestions>`,
+		props: [
+			{
+				name: "suggestion",
+				type: "string",
+				required: true,
+				description: "The suggestion text to display and emit on click.",
+			},
+			{
+				name: "onClick",
+				type: "(suggestion: string) => void",
+				description: "Callback fired with the suggestion string when clicked.",
+			},
+			{
+				name: "variant",
+				type: "ButtonProps[\"variant\"]",
+				default: '"outline"',
+				description: "Button variant passed to the underlying Button component.",
+			},
+			{
+				name: "size",
+				type: "ButtonProps[\"size\"]",
+				default: '"sm"',
+				description: "Button size passed to the underlying Button component.",
+			},
+			{
+				name: "children",
+				type: "ReactNode",
+				description: "Custom content. Falls back to the suggestion text when not provided.",
+			},
+		],
+		subComponents: [
+			{ name: "Suggestions", description: "Container that arranges Suggestion chips. Horizontal (default) uses ScrollArea; vertical stacks right-aligned." },
+			{ name: "Suggestion", description: "Individual clickable suggestion button rendered as a rounded pill." },
+		],
+		examples: [
+			{ title: "Vertical", description: "Right-aligned vertical stack with icons, matching the agents-team follow-up suggestion pattern.", demoSlug: "suggestion-demo-vertical" },
+			{ title: "With icons", description: "Horizontal suggestions with leading icons and secondary variant.", demoSlug: "suggestion-demo-with-icons" },
+		],
+	},
+
+	tool: {
+		description:
+			"A collapsible container for displaying AI tool invocation details including parameters and execution results. Integrates with the AI SDK's ToolUIPart and DynamicToolUIPart types to show tool execution progress, status badges, and formatted JSON input/output.",
+		usage: `import {
+  Tool,
+  ToolHeader,
+  ToolContent,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ui-ai/tool";
+
+<Tool defaultOpen>
+  <ToolHeader type="tool-invocation" state="output-available" title="fetch_weather_data" />
+  <ToolContent>
+    <ToolInput input={{ location: "San Francisco", units: "fahrenheit" }} />
+    <ToolOutput output={{ temperature: 64, condition: "Partly Cloudy" }} errorText={undefined} />
+  </ToolContent>
+</Tool>`,
+		demoLayout: {
+			previewContentWidth: "full",
+			examplesContentWidth: "full",
+		},
+		props: [
+			{
+				name: "type",
+				type: '"tool-invocation" | "dynamic-tool"',
+				required: true,
+				description: "Tool part type from the AI SDK. Determines how the tool name is derived.",
+			},
+			{
+				name: "state",
+				type: '"input-streaming" | "input-available" | "output-available" | "output-error" | "approval-requested" | "approval-responded" | "output-denied"',
+				required: true,
+				description: "Current tool execution state. Controls the status badge icon and label.",
+			},
+			{
+				name: "title",
+				type: "string",
+				description: "Custom display name for the tool. Falls back to derived name from the type string.",
+			},
+			{
+				name: "toolName",
+				type: "string",
+				description: "Required for dynamic-tool type. Provides the tool name when type is 'dynamic-tool'.",
+			},
+			{
+				name: "input",
+				type: "object",
+				description: "Tool parameter data object. Rendered as formatted JSON inside ToolInput.",
+			},
+			{
+				name: "output",
+				type: "ReactNode | object | string",
+				description: "Tool execution result. Objects and strings render as formatted JSON via CodeBlock. ReactNodes render directly.",
+			},
+			{
+				name: "errorText",
+				type: "string",
+				description: "Error message displayed in ToolOutput when the tool execution fails.",
+			},
+			{
+				name: "defaultOpen",
+				type: "boolean",
+				description: "Initial collapsed state for the Collapsible wrapper.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root Collapsible container.",
+			},
+		],
+		subComponents: [
+			{ name: "Tool", description: "Root Collapsible container with border and rounded corners." },
+			{ name: "ToolHeader", description: "Collapsible trigger row with wrench icon, tool name, status badge, and chevron." },
+			{ name: "ToolContent", description: "Animated collapsible content area with slide/fade transitions." },
+			{ name: "ToolInput", description: "Parameter display section with 'Parameters' label and formatted JSON via CodeBlock." },
+			{ name: "ToolOutput", description: "Result display section showing output as JSON or error text with color-coded background." },
+		],
+		examples: [
+			{ title: "Running", description: "Tool in running state with only input parameters visible.", demoSlug: "tool-demo-running" },
+			{ title: "Error", description: "Error state with connection timeout error message.", demoSlug: "tool-demo-error" },
+			{ title: "Collapsed", description: "Completed tool starting in collapsed state.", demoSlug: "tool-demo-collapsed" },
+			{ title: "Pending", description: "Tool in input-streaming state before parameters are available.", demoSlug: "tool-demo-pending" },
+			{ title: "Approval requested", description: "Tool awaiting user approval before execution.", demoSlug: "tool-demo-approval" },
+		],
+	},
+
+	"test-results": {
+		description:
+			"A compound component for displaying test suite results with summary statistics, progress visualization, collapsible suites, individual test status indicators with duration, and error details with stack traces. Supports passed, failed, skipped, and running states with color-coded indicators.",
+		usage: `import {
+  TestResults,
+  TestResultsHeader,
+  TestResultsSummary,
+  TestResultsDuration,
+  TestResultsProgress,
+  TestResultsContent,
+  TestSuite,
+  TestSuiteName,
+  TestSuiteStats,
+  TestSuiteContent,
+  Test,
+  TestStatus,
+  TestName,
+  TestDuration,
+  TestError,
+  TestErrorMessage,
+  TestErrorStack,
+} from "@/components/ui-ai/test-results";
+
+<TestResults summary={{ passed: 8, failed: 1, skipped: 0, total: 9, duration: 2340 }}>
+  <TestResultsHeader>
+    <TestResultsSummary />
+    <TestResultsDuration />
+  </TestResultsHeader>
+  <TestResultsProgress />
+  <TestResultsContent>
+    <TestSuite name="utils.test.ts" status="failed" defaultOpen>
+      <TestSuiteName />
+      <TestSuiteContent>
+        <Test name="adds numbers" status="passed" duration={12}>
+          <TestStatus />
+          <TestName />
+          <TestDuration />
+        </Test>
+        <Test name="handles nulls" status="failed" duration={8}>
+          <TestStatus />
+          <TestName />
+          <TestDuration />
+        </Test>
+      </TestSuiteContent>
+    </TestSuite>
+  </TestResultsContent>
+</TestResults>`,
+		props: [
+			{
+				name: "summary",
+				type: "{ passed: number; failed: number; skipped: number; total: number; duration?: number }",
+				description: "Overall test run summary data. Consumed by TestResultsSummary, TestResultsDuration, and TestResultsProgress via context.",
+			},
+			{
+				name: "name",
+				type: "string",
+				description: "Test suite or individual test name. Used by TestSuite, TestSuiteName, Test, and TestName.",
+			},
+			{
+				name: "status",
+				type: '"passed" | "failed" | "skipped" | "running"',
+				description: "Test status for TestSuite and Test. Controls the color-coded icon indicator.",
+			},
+			{
+				name: "duration",
+				type: "number",
+				description: "Execution time in milliseconds. Used by Test and displayed via TestDuration.",
+			},
+			{
+				name: "defaultOpen",
+				type: "boolean",
+				default: "false",
+				description: "Initial collapsed state for TestSuite. Uses Collapsible under the hood.",
+			},
+			{
+				name: "passed",
+				type: "number",
+				default: "0",
+				description: "Passed test count for TestSuiteStats.",
+			},
+			{
+				name: "failed",
+				type: "number",
+				default: "0",
+				description: "Failed test count for TestSuiteStats.",
+			},
+			{
+				name: "skipped",
+				type: "number",
+				default: "0",
+				description: "Skipped test count for TestSuiteStats.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional CSS classes applied to any sub-component.",
+			},
+		],
+		subComponents: [
+			{ name: "TestResults", description: "Root container and context provider. Renders children or a default header with summary and duration." },
+			{ name: "TestResultsHeader", description: "Flex header row for summary badges and duration." },
+			{ name: "TestResultsSummary", description: "Badge group showing passed/failed/skipped counts from context." },
+			{ name: "TestResultsDuration", description: "Total run duration from context, formatted as ms or seconds." },
+			{ name: "TestResultsProgress", description: "Stacked progress bar showing passed (green) and failed (red) proportions." },
+			{ name: "TestResultsContent", description: "Padded content area for test suites." },
+			{ name: "TestSuite", description: "Collapsible test suite container with name and status context." },
+			{ name: "TestSuiteName", description: "Collapsible trigger with chevron icon, status icon, and suite name." },
+			{ name: "TestSuiteStats", description: "Inline passed/failed/skipped counts for a suite header." },
+			{ name: "TestSuiteContent", description: "Collapsible content area with divided test rows." },
+			{ name: "Test", description: "Individual test row with name, status, and optional duration context." },
+			{ name: "TestStatus", description: "Color-coded status icon (check, x, circle, or pulsing dot)." },
+			{ name: "TestName", description: "Test name text, falls back to context value." },
+			{ name: "TestDuration", description: "Test execution time in milliseconds." },
+			{ name: "TestError", description: "Error detail container with red background." },
+			{ name: "TestErrorMessage", description: "Error message text in red." },
+			{ name: "TestErrorStack", description: "Monospace stack trace display with horizontal scroll." },
+		],
+		examples: [
+			{ title: "With progress", description: "Full test run with summary, duration, progress bar, suite stats, and individual test durations.", demoSlug: "test-results-demo-with-progress" },
+			{ title: "With errors", description: "Failed tests with inline error messages and stack traces.", demoSlug: "test-results-demo-with-errors" },
+			{ title: "Running", description: "In-progress test run with running status indicator and pending tests.", demoSlug: "test-results-demo-running" },
+		],
+	},
+
+	terminal: {
+		description:
+			"A composable terminal output display with ANSI color support, streaming indicators, auto-scroll, copy-to-clipboard, and clear functionality. Uses ansi-to-react for escape sequence parsing (256 colors, bold, italic, underline).",
+		usage: `import {
+  Terminal,
+  TerminalHeader,
+  TerminalTitle,
+  TerminalStatus,
+  TerminalActions,
+  TerminalCopyButton,
+  TerminalClearButton,
+  TerminalContent,
+} from "@/components/ui-ai/terminal";
+
+<Terminal output={output} isStreaming={isStreaming} onClear={handleClear}>
+  <TerminalHeader>
+    <TerminalTitle />
+    <TerminalActions>
+      <TerminalCopyButton />
+      <TerminalClearButton />
+    </TerminalActions>
+  </TerminalHeader>
+  <TerminalContent />
+</Terminal>`,
+		props: [
+			{
+				name: "output",
+				type: "string",
+				required: true,
+				description: "Terminal output text. Supports ANSI escape sequences for color and formatting.",
+			},
+			{
+				name: "isStreaming",
+				type: "boolean",
+				default: "false",
+				description: "When true, shows a streaming status indicator and blinking cursor.",
+			},
+			{
+				name: "autoScroll",
+				type: "boolean",
+				default: "true",
+				description: "Auto-scroll to bottom when new output arrives.",
+			},
+			{
+				name: "onClear",
+				type: "() => void",
+				description: "Callback to clear output. When provided, enables the clear button.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root container.",
+			},
+			{
+				name: "children",
+				type: "ReactNode",
+				description: "Custom compound composition. Falls back to default layout with header, status, actions, and content.",
+			},
+		],
+		subComponents: [
+			{ name: "Terminal", description: "Root container and context provider. Renders default header + content layout when no children are provided." },
+			{ name: "TerminalHeader", description: "Flex header row with border-bottom separator." },
+			{ name: "TerminalTitle", description: "Title with terminal icon. Renders 'Terminal' by default, accepts custom children." },
+			{ name: "TerminalStatus", description: "Streaming status indicator using Shimmer. Only visible when isStreaming is true." },
+			{ name: "TerminalActions", description: "Flex container for action buttons (copy, clear)." },
+			{
+				name: "TerminalCopyButton",
+				description: "Copy-to-clipboard button with animated check icon on success.",
+				props: [
+					{ name: "onCopy", type: "() => void", description: "Callback after successful copy." },
+					{ name: "onError", type: "(error: Error) => void", description: "Callback if copying fails." },
+					{ name: "timeout", type: "number", default: "2000", description: "Duration to show copied state in milliseconds." },
+				],
+			},
+			{ name: "TerminalClearButton", description: "Clear button that calls onClear from context. Only renders when onClear is provided." },
+			{ name: "TerminalContent", description: "Scrollable output area with monospace font and ANSI rendering. Shows blinking cursor when streaming." },
+		],
+		examples: [
+			{ title: "Streaming", description: "Simulated streaming output with line-by-line rendering and blinking cursor.", demoSlug: "terminal-demo-streaming" },
+			{ title: "Clearable", description: "Terminal with clear button to reset output.", demoSlug: "terminal-demo-clearable" },
+			{ title: "Composed", description: "Custom compound composition with custom title and explicit sub-component layout.", demoSlug: "terminal-demo-composed" },
+			{ title: "ANSI colors", description: "Terminal output with ANSI escape sequences for colored git status.", demoSlug: "terminal-demo-ansi" },
+		],
+	},
+
+	panel: {
+		description:
+			"A positioned overlay container for React Flow canvases. Wraps @xyflow/react Panel with card styling, rounded corners, and border for status indicators, toolbars, or metadata overlays.",
+		usage: `import { Canvas } from "@/components/ui-ai/canvas";
+import { Panel } from "@/components/ui-ai/panel";
+
+<Canvas nodes={nodes} edges={edges}>
+  <Panel position="top-right">
+    <div className="flex items-center gap-2 px-2 py-1">
+      <span className="text-xs">Status: Running</span>
+    </div>
+  </Panel>
+</Canvas>`,
+		demoLayout: {
+			previewContentWidth: "full",
+			examplesContentWidth: "full",
+		},
+		props: [
+			{
+				name: "position",
+				type: '"top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right"',
+				description: "Where the panel appears on the canvas.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the panel container.",
+			},
+			{
+				name: "children",
+				type: "ReactNode",
+				description: "Content rendered inside the panel.",
+			},
+		],
+		subComponents: [
+			{ name: "Panel", description: "Themed React Flow panel with card background, rounded corners, border, and padding." },
+		],
+		examples: [
+			{ title: "Status badge", description: "Panel with a running status badge and graph stats.", demoSlug: "panel-demo-status-badge" },
+			{ title: "Positions", description: "Panels placed in all six canvas positions.", demoSlug: "panel-demo-positions" },
+		],
+	},
+
+	toolbar: {
+		description:
+			"A styled toolbar component for React Flow nodes with flexible positioning and custom actions. Wraps @xyflow/react NodeToolbar with card styling, rounded corners, and border.",
+		usage: `import { Toolbar } from "@/components/ui-ai/toolbar";
+import { Node, NodeHeader, NodeTitle } from "@/components/ui-ai/node";
+import { Button } from "@/components/ui/button";
+
+<Node handles={{ source: true, target: true }}>
+  <Toolbar>
+    <Button size="sm" variant="ghost" aria-label="Edit">
+      <EditIcon label="" />
+    </Button>
+    <Button size="sm" variant="ghost" aria-label="Copy">
+      <CopyIcon label="" />
+    </Button>
+  </Toolbar>
+  <NodeHeader>
+    <NodeTitle>Process Data</NodeTitle>
+  </NodeHeader>
+</Node>`,
+		demoLayout: {
+			examplesContentWidth: "full",
+		},
+		props: [
+			{
+				name: "className",
+				type: "string",
+				description: "Additional CSS classes applied to the toolbar container.",
+			},
+			{
+				name: "position",
+				type: "Position",
+				default: "Position.Bottom",
+				description: "Where the toolbar appears relative to the node. Uses @xyflow/react Position enum.",
+			},
+			{
+				name: "...props",
+				type: "ComponentProps<typeof NodeToolbar>",
+				description: "Any other props from @xyflow/react NodeToolbar component (offset, isVisible, etc.).",
+			},
+		],
+		subComponents: [
+			{ name: "Toolbar", description: "Themed React Flow NodeToolbar with card background, flexbox layout, rounded corners, and border. Defaults to bottom positioning." },
+		],
+		examples: [
+			{ title: "With node actions", description: "Nodes with a bottom-positioned toolbar for edit, copy, and delete actions.", demoSlug: "toolbar-demo-with-nodes" },
+		],
+	},
+
+	transcription: {
+		description:
+			"A synchronized transcript display that highlights words in time with audio playback. Supports controlled and uncontrolled current-time state, click-to-seek navigation, and automatic filtering of empty segments. Designed for use with AI SDK transcription results.",
+		usage: `import { Transcription, TranscriptionSegment } from "@/components/ui-ai/transcription";
+
+<Transcription
+  segments={transcriptionResult.segments}
+  currentTime={currentTime}
+  onSeek={(time) => setCurrentTime(time)}
+>
+  {(segment, index) => (
+    <TranscriptionSegment key={index} segment={segment} index={index} />
+  )}
+</Transcription>`,
+		props: [
+			{
+				name: "segments",
+				type: "TranscriptionSegment[]",
+				required: true,
+				description: "Array of transcription segments from AI SDK transcribe(). Each segment has text, startSecond, and endSecond fields.",
+			},
+			{
+				name: "currentTime",
+				type: "number",
+				default: "0",
+				description: "Current playback position in seconds. Enables controlled mode when provided.",
+			},
+			{
+				name: "onSeek",
+				type: "(time: number) => void",
+				description: "Callback fired when a segment is clicked with the segment's start time. Also fires on controlled time changes.",
+			},
+			{
+				name: "children",
+				type: "(segment: TranscriptionSegment, index: number) => ReactNode",
+				required: true,
+				description: "Render function that receives each non-empty segment and its index.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the root container.",
+			},
+		],
+		subComponents: [
+			{ name: "Transcription", description: "Root container and context provider. Wraps segments in a flex-wrap layout and filters out empty/whitespace-only segments." },
+			{ name: "TranscriptionSegment", description: "Individual word button with automatic state styling. Active segments show primary color, past segments use muted foreground, future segments are dimmed. Clickable when onSeek is provided." },
+		],
+		examples: [
+			{ title: "Static", description: "Transcript without playback — all segments rendered in dimmed state.", demoSlug: "transcription-demo-static" },
+			{ title: "With seek", description: "Click-to-seek navigation with controlled current time.", demoSlug: "transcription-demo-with-seek" },
+		],
+	},
+
+	"voice-selector": {
+		description:
+			"A searchable voice selection dialog built on cmdk and Dialog primitives. Supports voice metadata (gender, accent, age), grouped provider organization, voice preview playback, and controlled/uncontrolled selection state.",
+		usage: `import {
+  VoiceSelector,
+  VoiceSelectorTrigger,
+  VoiceSelectorContent,
+  VoiceSelectorInput,
+  VoiceSelectorList,
+  VoiceSelectorEmpty,
+  VoiceSelectorGroup,
+  VoiceSelectorItem,
+  VoiceSelectorName,
+  VoiceSelectorDescription,
+  VoiceSelectorAttributes,
+  VoiceSelectorGender,
+  VoiceSelectorAccent,
+  VoiceSelectorAge,
+  VoiceSelectorBullet,
+  VoiceSelectorPreview,
+  VoiceSelectorSeparator,
+} from "@/components/ui-ai/voice-selector";
+
+<VoiceSelector>
+  <VoiceSelectorTrigger render={<Button variant="outline" size="sm" />}>
+    Select voice
+  </VoiceSelectorTrigger>
+  <VoiceSelectorContent>
+    <VoiceSelectorInput placeholder="Search voices..." />
+    <VoiceSelectorList>
+      <VoiceSelectorEmpty>No voices found.</VoiceSelectorEmpty>
+      <VoiceSelectorGroup heading="Voices">
+        <VoiceSelectorItem value="alloy">
+          <VoiceSelectorName>Alloy</VoiceSelectorName>
+          <VoiceSelectorAttributes>
+            <VoiceSelectorGender value="non-binary" />
+            <VoiceSelectorBullet />
+            <VoiceSelectorAccent value="american" />
+          </VoiceSelectorAttributes>
+        </VoiceSelectorItem>
+      </VoiceSelectorGroup>
+    </VoiceSelectorList>
+  </VoiceSelectorContent>
+</VoiceSelector>`,
+		props: [
+			{
+				name: "value",
+				type: "string",
+				description: "Controlled selected voice ID.",
+			},
+			{
+				name: "defaultValue",
+				type: "string",
+				description: "Default selected voice ID for uncontrolled usage.",
+			},
+			{
+				name: "onValueChange",
+				type: "(value: string | undefined) => void",
+				description: "Callback fired when the selected voice changes.",
+			},
+			{
+				name: "open",
+				type: "boolean",
+				description: "Controlled open state of the dialog.",
+			},
+			{
+				name: "onOpenChange",
+				type: "(open: boolean) => void",
+				description: "Callback fired when the dialog open state changes.",
+			},
+		],
+		subComponents: [
+			{ name: "VoiceSelector", description: "Root provider wrapping a Dialog. Manages voice selection and open state." },
+			{ name: "VoiceSelectorTrigger", description: "DialogTrigger for opening the voice selection dialog." },
+			{ name: "VoiceSelectorContent", description: "Dialog content with embedded Command, configurable title (default: 'Voice Selector')." },
+			{ name: "VoiceSelectorDialog", description: "Alternative CommandDialog wrapper for full-screen command palette." },
+			{ name: "VoiceSelectorInput", description: "Search input for filtering the voice list." },
+			{ name: "VoiceSelectorList", description: "Scrollable list container for groups and items." },
+			{ name: "VoiceSelectorEmpty", description: "Fallback content when search yields no results." },
+			{ name: "VoiceSelectorGroup", description: "Category group with heading for organizing voices by provider." },
+			{ name: "VoiceSelectorItem", description: "Individual selectable voice option with value and onSelect callback." },
+			{ name: "VoiceSelectorName", description: "Truncated voice name text with font-medium styling." },
+			{ name: "VoiceSelectorDescription", description: "Muted description text for a voice." },
+			{ name: "VoiceSelectorAttributes", description: "Flex container for grouping gender, accent, and age metadata." },
+			{ name: "VoiceSelectorGender", description: "Gender indicator with Lucide icons. Supports male, female, transgender, androgyne, non-binary, and intersex." },
+			{ name: "VoiceSelectorAccent", description: "Accent representation with emoji flags for 27+ regions." },
+			{ name: "VoiceSelectorAge", description: "Age metadata display with tabular-nums alignment." },
+			{ name: "VoiceSelectorBullet", description: "Bullet separator (•) between attributes, hidden from screen readers." },
+			{ name: "VoiceSelectorPreview", description: "Play/pause button for voice sample preview with loading spinner state." },
+			{ name: "VoiceSelectorShortcut", description: "Keyboard shortcut display alongside an item." },
+			{ name: "VoiceSelectorSeparator", description: "Visual separator between voice groups." },
+		],
+		examples: [
+			{ title: "With attributes", description: "Voice items with gender icons, accent flags, and age metadata.", demoSlug: "voice-selector-demo-with-attributes" },
+			{ title: "Multi-provider", description: "Grouped voices from multiple providers with separators.", demoSlug: "voice-selector-demo-multi-provider" },
+			{ title: "With preview", description: "Play/pause buttons for previewing voice samples.", demoSlug: "voice-selector-demo-with-preview" },
+		],
+	},
+
+	"web-preview": {
+		description:
+			"A composable browser-like preview container with navigation controls, editable URL bar, sandboxed iframe rendering, and collapsible console output with timestamped log levels. Context-driven state management allows sub-components to share URL and console open state.",
+		usage: `import {
+  WebPreview,
+  WebPreviewNavigation,
+  WebPreviewNavigationButton,
+  WebPreviewUrl,
+  WebPreviewBody,
+  WebPreviewConsole,
+} from "@/components/ui-ai/web-preview";
+
+<WebPreview defaultUrl="https://example.com">
+  <WebPreviewNavigation>
+    <WebPreviewNavigationButton tooltip="Back" disabled>
+      <ArrowLeft className="size-4" />
+    </WebPreviewNavigationButton>
+    <WebPreviewNavigationButton tooltip="Forward" disabled>
+      <ArrowRight className="size-4" />
+    </WebPreviewNavigationButton>
+    <WebPreviewNavigationButton tooltip="Reload">
+      <RotateCw className="size-4" />
+    </WebPreviewNavigationButton>
+    <WebPreviewUrl />
+  </WebPreviewNavigation>
+  <WebPreviewBody />
+  <WebPreviewConsole logs={logs} />
+</WebPreview>`,
+		props: [
+			{
+				name: "defaultUrl",
+				type: "string",
+				default: '""',
+				description: "Initial URL loaded in the preview iframe.",
+			},
+			{
+				name: "onUrlChange",
+				type: "(url: string) => void",
+				description: "Callback fired when the URL changes via the URL bar (Enter key).",
+			},
+			{
+				name: "logs",
+				type: '{ level: "log" | "warn" | "error"; message: string; timestamp: Date }[]',
+				description: "Console log entries displayed in the WebPreviewConsole panel.",
+			},
+			{
+				name: "loading",
+				type: "ReactNode",
+				description: "Optional loading overlay rendered inside WebPreviewBody.",
+			},
+			{
+				name: "tooltip",
+				type: "string",
+				description: "Hover tooltip text for WebPreviewNavigationButton.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to any sub-component.",
+			},
+		],
+		subComponents: [
+			{ name: "WebPreview", description: "Root container and context provider managing URL and console open state." },
+			{ name: "WebPreviewNavigation", description: "Flex navigation bar with border separator for buttons and URL input." },
+			{ name: "WebPreviewNavigationButton", description: "Ghost button with tooltip for navigation actions (back, forward, reload, fullscreen)." },
+			{ name: "WebPreviewUrl", description: "Editable URL input synced with context. Pressing Enter navigates to the entered URL." },
+			{ name: "WebPreviewBody", description: "Sandboxed iframe wrapper rendering the current URL. Supports an optional loading overlay." },
+			{ name: "WebPreviewConsole", description: "Collapsible console panel with color-coded log levels (log, warn, error) and timestamps." },
+		],
+		examples: [
+			{ title: "With console", description: "Preview with collapsible console showing log, warn, and error entries.", demoSlug: "web-preview-demo-with-console" },
+			{ title: "With extra actions", description: "Navigation bar with an additional fullscreen button.", demoSlug: "web-preview-demo-fullscreen" },
+			{ title: "URL change callback", description: "Tracks URL changes via onUrlChange callback.", demoSlug: "web-preview-demo-url-change" },
 		],
 	},
 };

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Shimmer } from "@/components/ui-ai/shimmer";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import AddIcon from "@atlaskit/icon/core/add";
@@ -10,7 +10,7 @@ import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
 
 interface ChatTitleRowProps {
 	title: string | null;
-	isGeneratingTitle: boolean;
+	isTitlePending: boolean;
 	onNewChat: () => void;
 	sidebarOpen: boolean;
 	sidebarHovered: boolean;
@@ -21,7 +21,7 @@ interface ChatTitleRowProps {
 
 export default function ChatTitleRow({
 	title,
-	isGeneratingTitle,
+	isTitlePending,
 	onNewChat,
 	sidebarOpen,
 	sidebarHovered,
@@ -29,7 +29,7 @@ export default function ChatTitleRow({
 	onHoverEnter,
 	onHoverLeave,
 }: Readonly<ChatTitleRowProps>) {
-	const shouldShowSkeleton = isGeneratingTitle || !title;
+	const displayTitle = title ?? "New chat";
 
 	return (
 		<div className="flex h-14 items-center justify-between border-b border-border px-4">
@@ -62,19 +62,27 @@ export default function ChatTitleRow({
 					<div className="mx-1 h-5 w-px shrink-0 bg-border" />
 				</div>
 			)}
-			<div className="min-w-0 flex-1">
-				{shouldShowSkeleton ? (
-					<Skeleton
-						className="h-4 w-56 max-w-full rounded-sm"
-						aria-label="Generating chat title"
-					/>
+			<div
+				className="min-w-0 flex-1"
+				style={{ font: token("font.heading.xsmall") }}
+				title={displayTitle}
+			>
+				{isTitlePending ? (
+					<Shimmer
+						key={displayTitle}
+						as="span"
+						duration={1}
+						className="max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+					>
+						{displayTitle}
+					</Shimmer>
 				) : (
 					<p
-						style={{ font: token("font.heading.xsmall") }}
-						className="truncate text-text motion-safe:animate-[sd-blurIn_220ms_ease-out_both] motion-reduce:animate-none"
-						title={title}
+						key={displayTitle}
+						className="truncate text-text motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+						title={displayTitle}
 					>
-						{title}
+						{displayTitle}
 					</p>
 				)}
 			</div>
