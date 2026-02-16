@@ -1,33 +1,94 @@
-# Dependencies
-node_modules/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Next.js
-.next/
-out/
+# dependencies
+/node_modules
+/backend/node_modules
+.pnpm-store/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# Build
-dist/
-build/
-tsconfig.tsbuildinfo
+# testing
+/coverage
 
-# Environment
-.env
-.env.local
-.env.*.local
+# screenshots (Playwright MCP)
+/screenshots
 
-# OS
+# root-level screenshots/images (keep nested assets tracked)
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
+/*.bmp
+/*.tif
+/*.tiff
+/*.avif
+/*.heic
+/*.heif
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
 .DS_Store
-Thumbs.db
+*.pem
 
-# IDE
-.cursor/
-.vscode/
-.idea/
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Dev artifacts
+# env files (can opt-in for committing if needed)
+.env*
+!*.example
+
+# ASAP config (contains private keys - never commit)
+.asap-config
+
+# Deploy configuration (contains Docker credentials)
+.deploy.local
+
+# Dev process management
+.dev-pids
 .dev-backend-port
-test-results/
-.playwright-mcp/
+.dev-frontend-port
+.api-routes-backup
 
-# Cache
-.rovodev/
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Claude Code local plugin settings
+*.local.md
+*.local.json
+
+# VPK Sync configuration (user-specific)
+.vpk-sync.json
+
+# Additional key/credential patterns
+*.key
+credentials*
+secrets*
+
+# Task management (session-local working state)
+tasks/
+/backend/data/
+
+# IDE settings
+.idea/
+.vscode/settings.json
+.vscode/*.log
+.playwright-mcp/

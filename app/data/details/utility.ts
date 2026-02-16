@@ -1,0 +1,17 @@
+import type { ComponentDetail } from "@/app/data/component-detail-types";
+
+export const UTILITY_DETAILS: Record<string, ComponentDetail> = {
+	"streamdown": {
+		description: "A streaming-optimized React Markdown renderer with syntax highlighting, Mermaid diagrams, math rendering, and CJK support. Supports caret animation, interactive code controls, and both streaming and static rendering modes.",
+	},
+	"image-generation": {
+		description: "An interactive test harness for image generation via AI Gateway. Sends prompts to /api/chat-sdk in pure chat mode, streams SSE responses, and displays both text and generated images with download support. Switch to a Gemini endpoint to enable native image generation.",
+	},
+	"sound-generation": {
+		description: "An interactive text-to-speech harness that posts text input to /api/sound-generation, synthesizes voice output with tts-latest, and returns playable downloadable audio.",
+	},
+	"ui-generation": {
+		description: "A client-side showcase of json-render, rendering structured JSON specs into live UI with data dashboards, interactive forms, chart visualizations, and 3D scenes powered by React Three Fiber.",
+		demoLayout: { previewContentWidth: "full" },
+	},
+};

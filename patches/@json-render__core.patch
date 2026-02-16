@@ -1,0 +1,98 @@
+diff --git a/dist/index.js b/dist/index.js
+index 92bd3a4fc8e39d2d555b05d186e01f9ae2b80b3e..36290b9fe468d06156c19315609d765986fbfc4b 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -2003,7 +2003,9 @@ function formatZodType(schema) {
+     }
+     case "ZodArray":
+     case "array": {
+-      const inner = def.type ?? def.element;
++      // Zod v4: def.type is the string "array", def.element is the inner schema
++      // Zod v3: def.type is the inner schema
++      const inner = def.element && typeof def.element === "object" ? def.element : (typeof def.type === "object" ? def.type : null);
+       return inner ? `Array<${formatZodType(inner)}>` : "Array<unknown>";
+     }
+     case "ZodObject":
+@@ -2029,6 +2031,34 @@ function formatZodType(schema) {
+       const options = def.options;
+       return options ? options.map((opt) => formatZodType(opt)).join(" | ") : "unknown";
+     }
++    case "ZodDefault": {
++      // Unwrap ZodDefault to get the underlying type
++      const inner = def.innerType ?? def.type;
++      return inner && typeof inner === "object" ? formatZodType(inner) : "unknown";
++    }
++    case "ZodTuple":
++    case "tuple": {
++      // Format tuple items
++      const items = def.items;
++      if (Array.isArray(items) && items.length > 0) {
++        return `[${items.map((item) => formatZodType(item)).join(", ")}]`;
++      }
++      return "tuple";
++    }
++    case "ZodRecord":
++    case "record": {
++      // Zod v4: def.keyType and def.valueType
++      // Zod v3: def.keyType and def.valueType
++      const keyType = def.keyType;
++      const valueType = def.valueType;
++      if (keyType && valueType) {
++        return `Record<${formatZodType(keyType)}, ${formatZodType(valueType)}>`;
++      }
++      return "Record<string, unknown>";
++    }
++    case "ZodUnknown":
++    case "unknown":
++      return "unknown";
+     default:
+       return "unknown";
+   }
+diff --git a/dist/index.mjs b/dist/index.mjs
+index f20c13ccdbf1dd3dc516ed96d127bd41d6579e63..327706322354cfea54ba8951a26cc2b669e28973 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1928,7 +1928,9 @@ function formatZodType(schema) {
+     }
+     case "ZodArray":
+     case "array": {
+-      const inner = def.type ?? def.element;
++      // Zod v4: def.type is the string "array", def.element is the inner schema
++      // Zod v3: def.type is the inner schema
++      const inner = def.element && typeof def.element === "object" ? def.element : (typeof def.type === "object" ? def.type : null);
+       return inner ? `Array<${formatZodType(inner)}>` : "Array<unknown>";
+     }
+     case "ZodObject":
+@@ -1954,6 +1956,32 @@ function formatZodType(schema) {
+       const options = def.options;
+       return options ? options.map((opt) => formatZodType(opt)).join(" | ") : "unknown";
+     }
++    case "ZodDefault": {
++      // Unwrap ZodDefault to get the underlying type
++      const inner = def.innerType ?? def.type;
++      return inner && typeof inner === "object" ? formatZodType(inner) : "unknown";
++    }
++    case "ZodTuple":
++    case "tuple": {
++      // Format tuple items
++      const items = def.items;
++      if (Array.isArray(items) && items.length > 0) {
++        return `[${items.map((item) => formatZodType(item)).join(", ")}]`;
++      }
++      return "tuple";
++    }
++    case "ZodRecord":
++    case "record": {
++      const keyType = def.keyType;
++      const valueType = def.valueType;
++      if (keyType && valueType) {
++        return `Record<${formatZodType(keyType)}, ${formatZodType(valueType)}>`;
++      }
++      return "Record<string, unknown>";
++    }
++    case "ZodUnknown":
++    case "unknown":
++      return "unknown";
+     default:
+       return "unknown";
+   }

@@ -1,0 +1,158 @@
+"use client";
+
+import { Suspense, type ComponentType } from "react";
+import { token } from "@/lib/tokens";
+import type { DemoLayout, ExampleDefinition } from "@/app/data/component-detail-types";
+import { getVariantDemoComponent } from "@/components/website/registry";
+import { Badge } from "@/components/ui/badge";
+import { DocSection } from "./doc-section";
+import { AnchorLinkButton } from "./doc-section";
+
+function slugify(name: string) {
+	return name.replace(/\s+/g, "-").toLowerCase();
+}
+
+interface DocExamplesProps {
+	examples: ExampleDefinition[];
+	category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual";
+	demoLayout?: DemoLayout;
+}
+
+function ExampleSkeleton() {
+	return (
+		<div
+			style={{
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				minHeight: 80,
+			}}
+		>
+			<div
+				style={{
+					width: 60,
+					height: 60,
+					borderRadius: 8,
+					backgroundColor: token("color.background.neutral"),
+					animation: "pulse 2s ease-in-out infinite",
+				}}
+			/>
+		</div>
+	);
+}
+
+function ExampleItem({
+	example,
+	Demo,
+	isFullWidth,
+}: Readonly<{ example: ExampleDefinition; Demo: ComponentType; isFullWidth: boolean }>) {
+	const id = slugify(example.title);
+	return (
+		<div
+			id={id}
+			className="group"
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				gap: token("space.150"),
+			}}
+		>
+			<div>
+				<div className="flex items-center gap-1">
+					<h3
+						style={{
+							fontSize: "14px",
+							fontWeight: 600,
+							color: token("color.text"),
+							margin: 0,
+						}}
+					>
+						{example.title}
+						{example.badge ? (
+							<Badge variant={example.badge.variant as "discovery"} className="ml-2 align-middle">
+								{example.badge.label}
+							</Badge>
+						) : null}
+					</h3>
+					<AnchorLinkButton id={id} label={example.title} />
+				</div>
+				{example.description && (
+					<p
+						style={{
+							fontSize: "13px",
+							color: token("color.text.subtle"),
+							margin: 0,
+							marginTop: token("space.050"),
+						}}
+					>
+						{example.description}
+					</p>
+				)}
+			</div>
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					padding: token("space.300"),
+					border: `1px solid ${token("color.border")}`,
+					borderRadius: token("radius.large"),
+					backgroundColor: token("elevation.surface"),
+				}}
+			>
+				<div
+					style={
+						isFullWidth
+							? {
+									width: "100%",
+									maxWidth: "100%",
+								}
+							: undefined
+					}
+				>
+					<Suspense fallback={<ExampleSkeleton />}>
+						<Demo />
+					</Suspense>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+export function DocExamples({ examples, category, demoLayout }: Readonly<DocExamplesProps>) {
+	const isFullWidthExamples = demoLayout?.examplesContentWidth === "full";
+
+	const resolvedExamples = examples
+		.map((example) => ({
+			example,
+			Demo: getVariantDemoComponent(example.demoSlug, category),
+		}))
+		.filter(
+			(entry): entry is { example: ExampleDefinition; Demo: ComponentType } =>
+				entry.Demo !== null
+		);
+
+	if (resolvedExamples.length === 0) {
+		return null;
+	}
+
+	return (
+		<DocSection id="examples" title="Examples">
+			<div
+				style={{
+					display: "flex",
+					flexDirection: "column",
+					gap: token("space.400"),
+				}}
+			>
+				{resolvedExamples.map(({ example, Demo }) => (
+					<ExampleItem
+						key={example.demoSlug}
+						example={example}
+						Demo={Demo}
+						isFullWidth={isFullWidthExamples}
+					/>
+				))}
+			</div>
+		</DocSection>
+	);
+}

@@ -1,0 +1,927 @@
+const { streamText } = require("ai");
+const {
+	applySpecPatch,
+	autoFixSpec,
+	createMixedStreamParser,
+	validateSpec,
+} = require("@json-render/core");
+const { createAIGatewayProvider } = require("./ai-gateway-provider");
+const {
+	getEnvVars,
+	detectEndpointType,
+	resolveGatewayUrl,
+	streamBedrockGatewayManualSse,
+} = require("./ai-gateway-helpers");
+const { getGenuiSystemPrompt } = require("./genui-system-prompt");
+
+const MAX_OUTPUT_TOKENS = 4000;
+const GENUI_META_PREFIX = "[genui-meta]";
+const WEB_LOOKUP_TIMEOUT_MS = 4500;
+
+const STRICT_RETRY_INSTRUCTION = `
+## Retry Enforcement
+
+- Output exactly one short sentence of explanation.
+- Then output exactly one \`\`\`spec block.
+- Inside the \`\`\`spec block, emit only valid RFC 6902 JSON patch objects (one per line).
+- Ensure the first patch sets "/root" and that the referenced key exists in "/elements".
+- Ensure at least one element exists in "/elements".
+`;
+
+const LIVE_DATA_REQUEST_PATTERN =
+	/\b(latest|current|today|live|real[-\s]?time|up[-\s]?to[-\s]?date|search the internet|web search|look it up|online|directions|traffic|travel time)\b/i;
+const CHART_REQUEST_PATTERN =
+	/\b(chart|charts|graph|graphs|plot|plots|trend|trends|time[-\s]?series|line chart|bar chart|pie chart|area chart|radar chart)\b/i;
+const CHART_COMPONENT_TYPES = new Set([
+	"BarChart",
+	"LineChart",
+	"PieChart",
+	"AreaChart",
+	"RadarChart",
+]);
+
+function stripMetaPrefix(text) {
+	if (typeof text !== "string" || !text.startsWith(GENUI_META_PREFIX)) {
+		return typeof text === "string" ? text : "";
+	}
+
+	const lines = text.split("\n");
+	if (lines.length <= 1) {
+		return "";
+	}
+
+	return lines.slice(1).join("\n");
+}
+
+function normalizeMessages(rawMessages) {
+	if (!Array.isArray(rawMessages)) {
+		return [];
+	}
+
+	return rawMessages
+		.map((msg) => {
+			const role = msg?.role === "assistant" ? "assistant" : "user";
+			const content =
+				typeof msg?.content === "string"
+					? stripMetaPrefix(msg.content)
+					: "";
+
+			return { role, content };
+		})
+		.filter((msg) => msg.content.trim().length > 0);
+}
+
+function getLastUserPrompt(messages) {
+	for (let i = messages.length - 1; i >= 0; i -= 1) {
+		const message = messages[i];
+		if (message.role === "user" && message.content.trim().length > 0) {
+			return message.content;
+		}
+	}
+
+	return "";
+}
+
+function shouldUseWebLookup({ allowWebLookup, prompt }) {
+	if (allowWebLookup) {
+		return true;
+	}
+
+	return LIVE_DATA_REQUEST_PATTERN.test(prompt);
+}
+
+function shouldRequireChartComponent(prompt) {
+	return CHART_REQUEST_PATTERN.test(prompt);
+}
+
+function hasChartComponent(spec) {
+	if (!spec?.elements || typeof spec.elements !== "object") {
+		return false;
+	}
+
+	for (const element of Object.values(spec.elements)) {
+		if (
+			element &&
+			typeof element === "object" &&
+			typeof element.type === "string" &&
+			CHART_COMPONENT_TYPES.has(element.type)
+		) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function getRequirementMisses(spec, requirements) {
+	if (!spec || !requirements || typeof requirements !== "object") {
+		return [];
+	}
+
+	const misses = [];
+	if (requirements.requireChartComponent && !hasChartComponent(spec)) {
+		misses.push("missing_chart_component");
+	}
+
+	return misses;
+}
+
+function pickBestSpecForRequirementCheck(analysis) {
+	if (!analysis || typeof analysis !== "object") {
+		return null;
+	}
+
+	if (analysis.renderable && analysis.spec) {
+		return analysis.spec;
+	}
+
+	if (analysis.fixedRenderable && analysis.fixedSpec) {
+		return analysis.fixedSpec;
+	}
+
+	if (analysis.synthesizedRenderable && analysis.synthesizedSpec) {
+		return analysis.synthesizedSpec;
+	}
+
+	return null;
+}
+
+function sanitizeSpec(spec) {
+	const safeSpec = {
+		root: typeof spec?.root === "string" ? spec.root : "",
+		elements:
+			spec?.elements &&
+			typeof spec.elements === "object" &&
+			!Array.isArray(spec.elements)
+				? spec.elements
+				: {},
+	};
+
+	if (
+		spec &&
+		Object.prototype.hasOwnProperty.call(spec, "state") &&
+		spec.state !== undefined
+	) {
+		safeSpec.state = spec.state;
+	}
+
+	return safeSpec;
+}
+
+function isRenderableSpec(spec, validation) {
+	if (!spec || typeof spec.root !== "string" || spec.root.trim().length === 0) {
+		return false;
+	}
+
+	if (!spec.elements || Object.keys(spec.elements).length === 0) {
+		return false;
+	}
+
+	return Boolean(validation?.valid);
+}
+
+function getMissingChildReferences(spec) {
+	if (!spec?.elements || typeof spec.elements !== "object") {
+		return [];
+	}
+
+	const references = [];
+	const elements = spec.elements;
+	for (const [parentKey, element] of Object.entries(elements)) {
+		if (!element || typeof element !== "object") {
+			continue;
+		}
+
+		const children = Array.isArray(element.children) ? element.children : [];
+		for (const childKey of children) {
+			if (typeof childKey !== "string" || childKey.trim().length === 0) {
+				continue;
+			}
+
+			if (!Object.prototype.hasOwnProperty.call(elements, childKey)) {
+				references.push({ parentKey, childKey });
+			}
+		}
+	}
+
+	return references;
+}
+
+function ensureUniqueElementKey(baseKey, elements) {
+	if (!Object.prototype.hasOwnProperty.call(elements, baseKey)) {
+		return baseKey;
+	}
+
+	let suffix = 1;
+	while (Object.prototype.hasOwnProperty.call(elements, `${baseKey}_${suffix}`)) {
+		suffix += 1;
+	}
+
+	return `${baseKey}_${suffix}`;
+}
+
+function synthesizeMissingChildren(spec) {
+	const nextSpec = sanitizeSpec({
+		...spec,
+		elements: { ...(spec?.elements ?? {}) },
+	});
+	const missingRefs = getMissingChildReferences(nextSpec);
+
+	if (missingRefs.length === 0) {
+		const validation = validateSpec(nextSpec);
+		return {
+			spec: nextSpec,
+			validation,
+			renderable: isRenderableSpec(nextSpec, validation),
+			synthesizedChildCount: 0,
+			missingChildKeys: [],
+		};
+	}
+
+	const missingChildKeys = [...new Set(missingRefs.map((ref) => ref.childKey))];
+	let synthesizedChildCount = 0;
+
+	for (const missingKey of missingChildKeys) {
+		if (Object.prototype.hasOwnProperty.call(nextSpec.elements, missingKey)) {
+			continue;
+		}
+
+		const detailsKey = ensureUniqueElementKey(
+			`${missingKey}_autofix_details`,
+			nextSpec.elements,
+		);
+		nextSpec.elements[detailsKey] = {
+			type: "Text",
+			props: {
+				text: "Auto-repaired placeholder generated because the original response referenced a missing child element.",
+			},
+			children: [],
+		};
+
+		nextSpec.elements[missingKey] = {
+			type: "Card",
+			props: {
+				title: "Generated section",
+				description: "Recovered from incomplete model output.",
+			},
+			children: [detailsKey],
+		};
+		synthesizedChildCount += 1;
+	}
+
+	const validation = validateSpec(nextSpec);
+	return {
+		spec: nextSpec,
+		validation,
+		renderable: isRenderableSpec(nextSpec, validation),
+		synthesizedChildCount,
+		missingChildKeys,
+	};
+}
+
+function stripSpecBlocks(rawText) {
+	if (typeof rawText !== "string") {
+		return "";
+	}
+
+	return rawText.replace(/```spec[\s\S]*?```/gi, "");
+}
+
+function normalizeNarrative(rawText) {
+	const noSpec = stripSpecBlocks(rawText)
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+
+	if (!noSpec) {
+		return "";
+	}
+
+	const MAX_LENGTH = 1200;
+	if (noSpec.length <= MAX_LENGTH) {
+		return noSpec;
+	}
+
+	return `${noSpec.slice(0, MAX_LENGTH).trimEnd()}...`;
+}
+
+function buildSpecFence(spec) {
+	const lines = [
+		"```spec",
+		JSON.stringify({ op: "replace", path: "/root", value: spec.root }),
+		JSON.stringify({ op: "replace", path: "/elements", value: spec.elements }),
+	];
+
+	if (Object.prototype.hasOwnProperty.call(spec, "state")) {
+		lines.push(
+			JSON.stringify({
+				op: "replace",
+				path: "/state",
+				value: spec.state,
+			}),
+		);
+	}
+
+	lines.push("```");
+	return lines.join("\n");
+}
+
+function buildMetaLine(meta) {
+	return `${GENUI_META_PREFIX} ${JSON.stringify(meta)}`;
+}
+
+function withMeta(outputText, meta) {
+	const body = typeof outputText === "string" ? outputText.trim() : "";
+	if (!body) {
+		return buildMetaLine(meta);
+	}
+
+	return `${buildMetaLine(meta)}\n${body}`;
+}
+
+function analyzeGeneratedText(rawText) {
+	const compiledSpec = { root: "", elements: {} };
+	let patchCount = 0;
+	let patchApplyErrors = 0;
+
+	const parser = createMixedStreamParser({
+		onPatch(patch) {
+			patchCount += 1;
+			try {
+				applySpecPatch(compiledSpec, patch);
+			} catch {
+				patchApplyErrors += 1;
+			}
+		},
+		onText() {
+			// no-op: text is preserved in rawText
+		},
+	});
+
+	parser.push(rawText);
+	parser.flush();
+
+	const sanitizedCompiledSpec = sanitizeSpec(compiledSpec);
+	const validation = validateSpec(sanitizedCompiledSpec);
+	const renderable = isRenderableSpec(sanitizedCompiledSpec, validation);
+
+	let fixedSpec = null;
+	let fixedValidation = null;
+	let fixedRenderable = false;
+	let fixes = [];
+	let synthesizedSpec = null;
+	let synthesizedValidation = null;
+	let synthesizedRenderable = false;
+	let synthesizedChildCount = 0;
+	let missingChildKeys = [];
+
+	if (patchCount > 0 && !renderable) {
+		const fixedResult = autoFixSpec(sanitizedCompiledSpec);
+		fixedSpec = sanitizeSpec(fixedResult.spec);
+		fixedValidation = validateSpec(fixedSpec);
+		fixedRenderable = isRenderableSpec(fixedSpec, fixedValidation);
+		fixes = Array.isArray(fixedResult.fixes) ? fixedResult.fixes : [];
+
+		if (!fixedRenderable) {
+			const synthesized = synthesizeMissingChildren(fixedSpec);
+			synthesizedSpec = synthesized.spec;
+			synthesizedValidation = synthesized.validation;
+			synthesizedRenderable = synthesized.renderable;
+			synthesizedChildCount = synthesized.synthesizedChildCount;
+			missingChildKeys = synthesized.missingChildKeys;
+		}
+	}
+
+	return {
+		rawText,
+		patchCount,
+		patchApplyErrors,
+		spec: sanitizedCompiledSpec,
+		validation,
+		renderable,
+		fixedSpec,
+		fixedValidation,
+		fixedRenderable,
+		synthesizedSpec,
+		synthesizedValidation,
+		synthesizedRenderable,
+		synthesizedChildCount,
+		missingChildKeys,
+		fixes,
+	};
+}
+
+function summarizeIssues(issues) {
+	if (!Array.isArray(issues)) {
+		return [];
+	}
+
+	return issues
+		.filter((issue) => issue && typeof issue === "object")
+		.slice(0, 5)
+		.map((issue) =>
+			typeof issue.code === "string" && issue.code.trim().length > 0
+				? issue.code
+				: "unknown",
+		);
+}
+
+function formatValidationIssuesForRetry(analysis) {
+	const lines = [];
+
+	const missingRefs = getMissingChildReferences(analysis.spec);
+	for (const ref of missingRefs.slice(0, 5)) {
+		lines.push(`- Missing child element '${ref.childKey}' referenced in children array of '${ref.parentKey}'`);
+	}
+
+	const issues = analysis.validation?.issues;
+	if (Array.isArray(issues)) {
+		for (const issue of issues.slice(0, 5)) {
+			if (!issue || typeof issue !== "object") continue;
+			const msg = typeof issue.message === "string" ? issue.message : "";
+			const code = typeof issue.code === "string" ? issue.code : "unknown";
+			if (msg) {
+				lines.push(`- ${msg} (${code})`);
+			} else {
+				lines.push(`- Validation error: ${code}`);
+			}
+		}
+	}
+
+	if (analysis.patchCount === 0) {
+		lines.push("- No spec patches were detected in the output. You must include a ```spec block.");
+	}
+
+	return lines.length > 0 ? lines.join("\n") : null;
+}
+
+function logAttempt(label, analysis, requirements) {
+	const requirementMisses = getRequirementMisses(
+		pickBestSpecForRequirementCheck(analysis),
+		requirements,
+	);
+
+	console.info("[GENUI-CHAT] Attempt diagnostics", {
+		label,
+		patchCount: analysis.patchCount,
+		patchApplyErrors: analysis.patchApplyErrors,
+		renderable: analysis.renderable,
+		fixedRenderable: analysis.fixedRenderable,
+		synthesizedRenderable: analysis.synthesizedRenderable,
+		synthesizedChildCount: analysis.synthesizedChildCount,
+		validationIssues: summarizeIssues(analysis.validation?.issues),
+		fixedValidationIssues: summarizeIssues(analysis.fixedValidation?.issues),
+		synthesizedValidationIssues: summarizeIssues(analysis.synthesizedValidation?.issues),
+		requirementMisses,
+		fixCount: analysis.fixes.length,
+	});
+}
+
+function getFailureType(analysis) {
+	if (analysis.patchCount === 0) {
+		return "no-spec";
+	}
+
+	return "malformed-spec";
+}
+
+function buildFixedOutput(rawText, fixedSpec) {
+	const narrative = normalizeNarrative(rawText);
+	const lines = [];
+
+	if (narrative) {
+		lines.push(narrative);
+	}
+
+	lines.push("Applied automatic spec repair for rendering reliability.");
+	lines.push(buildSpecFence(fixedSpec));
+
+	return lines.join("\n\n");
+}
+
+function buildSynthesizedOutput(rawText, synthesizedSpec, synthesizedChildCount) {
+	const narrative = normalizeNarrative(rawText);
+	const lines = [];
+
+	if (narrative) {
+		lines.push(narrative);
+	}
+
+	lines.push(
+		`Recovered ${synthesizedChildCount} missing section${
+			synthesizedChildCount === 1 ? "" : "s"
+		} by generating placeholders.`,
+	);
+	lines.push(buildSpecFence(synthesizedSpec));
+
+	return lines.join("\n\n");
+}
+
+function buildFailureOutput(rawText, failureType, requirementMisses = []) {
+	const narrative = normalizeNarrative(rawText);
+	const hasMissingChart = requirementMisses.includes("missing_chart_component");
+	const guidance = hasMissingChart
+		? "The generated spec did not include a required chart component. Try naming a specific chart type like LineChart, BarChart, or AreaChart."
+		: failureType === "no-spec"
+			? "I could not detect a renderable spec. Try asking for a concrete UI layout with sections and sample data."
+			: "I detected spec patches, but the final structure was invalid. Try a simpler prompt with explicit sections and component types.";
+
+	if (!narrative) {
+		return guidance;
+	}
+
+	return `${narrative}\n\n${guidance}`;
+}
+
+function toAnthropicMessages(messages) {
+	return messages.map((msg) => ({
+		role: msg.role === "assistant" ? "assistant" : "user",
+		content: [{ type: "text", text: msg.content }],
+	}));
+}
+
+async function generateAssistantText({
+	endpointType,
+	rawGatewayUrl,
+	envVars,
+	systemPrompt,
+	messages,
+}) {
+	let output = "";
+
+	if (endpointType === "bedrock") {
+		await streamBedrockGatewayManualSse({
+			gatewayUrl: rawGatewayUrl,
+			envVars,
+			system: systemPrompt,
+			messages: toAnthropicMessages(messages),
+			maxOutputTokens: MAX_OUTPUT_TOKENS,
+			onTextDelta(delta) {
+				output += delta;
+			},
+		});
+
+		return output;
+	}
+
+	const gatewayUrl = resolveGatewayUrl(rawGatewayUrl) || rawGatewayUrl;
+	const { provider, modelId } = createAIGatewayProvider({ gatewayUrl });
+	const result = streamText({
+		model: provider.chatModel(modelId),
+		system: systemPrompt,
+		messages,
+		maxOutputTokens: MAX_OUTPUT_TOKENS,
+	});
+
+	for await (const chunk of result.textStream) {
+		output += chunk;
+	}
+
+	return output;
+}
+
+function extractRelatedTopicTexts(topics, output = []) {
+	if (!Array.isArray(topics)) {
+		return output;
+	}
+
+	for (const topic of topics) {
+		if (!topic || typeof topic !== "object") {
+			continue;
+		}
+
+		if (typeof topic.Text === "string" && topic.Text.trim().length > 0) {
+			output.push(topic.Text.trim());
+		}
+
+		if (Array.isArray(topic.Topics)) {
+			extractRelatedTopicTexts(topic.Topics, output);
+		}
+	}
+
+	return output;
+}
+
+async function fetchWebLookupContext(prompt) {
+	const query = prompt.trim();
+	if (!query) {
+		return null;
+	}
+
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), WEB_LOOKUP_TIMEOUT_MS);
+
+	try {
+		const endpoint = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&no_redirect=1&skip_disambig=1`;
+		const response = await fetch(endpoint, {
+			signal: controller.signal,
+			headers: {
+				Accept: "application/json",
+				"User-Agent": "VPK-GenUI/1.0",
+			},
+		});
+
+		if (!response.ok) {
+			return null;
+		}
+
+		const payload = await response.json();
+		const snippets = [];
+
+		if (
+			typeof payload.AbstractText === "string" &&
+			payload.AbstractText.trim().length > 0
+		) {
+			snippets.push(payload.AbstractText.trim());
+		}
+
+		snippets.push(...extractRelatedTopicTexts(payload.RelatedTopics).slice(0, 3));
+
+		const deduped = [...new Set(snippets.map((snippet) => snippet.trim()))].filter(
+			(snippet) => snippet.length > 0,
+		);
+		if (deduped.length === 0) {
+			return null;
+		}
+
+		const sourceUrl =
+			typeof payload.AbstractURL === "string" && payload.AbstractURL.trim().length > 0
+				? payload.AbstractURL.trim()
+				: "https://duckduckgo.com/";
+
+		return `Source: ${sourceUrl}\n${deduped
+			.map((snippet, index) => `${index + 1}. ${snippet}`)
+			.join("\n")}`;
+	} catch (error) {
+		console.warn("[GENUI-CHAT] Web lookup failed:", error);
+		return null;
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+function buildSuccessOutput({
+	analysis,
+	rawText,
+	attempt,
+	wasRetried,
+	usedWebLookup,
+	requirements,
+	allowSynthesis = false,
+}) {
+	const baseRequirementMisses = getRequirementMisses(analysis.spec, requirements);
+	if (analysis.renderable && baseRequirementMisses.length === 0) {
+		return withMeta(rawText, {
+			status: "ok",
+			failureType: null,
+			wasAutoFixed: false,
+			wasRetried,
+			usedWebLookup,
+			repairMode: "none",
+			synthesizedChildCount: 0,
+			requirementMisses: [],
+			attempt,
+		});
+	}
+
+	const fixedRequirementMisses = getRequirementMisses(
+		analysis.fixedSpec,
+		requirements,
+	);
+	if (
+		analysis.fixedRenderable &&
+		analysis.fixedSpec &&
+		fixedRequirementMisses.length === 0
+	) {
+		return withMeta(buildFixedOutput(rawText, analysis.fixedSpec), {
+			status: "ok",
+			failureType: null,
+			wasAutoFixed: true,
+			wasRetried,
+			usedWebLookup,
+			repairMode: "none",
+			synthesizedChildCount: 0,
+			missingChildKeys: [],
+			requirementMisses: [],
+			attempt,
+		});
+	}
+
+	const synthesizedRequirementMisses = getRequirementMisses(
+		analysis.synthesizedSpec,
+		requirements,
+	);
+	if (
+		allowSynthesis &&
+		analysis.synthesizedRenderable &&
+		analysis.synthesizedSpec &&
+		synthesizedRequirementMisses.length === 0
+	) {
+		return withMeta(
+			buildSynthesizedOutput(
+				rawText,
+				analysis.synthesizedSpec,
+				analysis.synthesizedChildCount,
+			),
+			{
+				status: "ok",
+				failureType: null,
+				wasAutoFixed: true,
+				wasRetried,
+				usedWebLookup,
+				repairMode: "synthesize-missing-children",
+				synthesizedChildCount: analysis.synthesizedChildCount,
+				missingChildKeys: analysis.missingChildKeys,
+				requirementMisses: [],
+				attempt,
+			},
+		);
+	}
+
+	return null;
+}
+
+/**
+ * Handler for POST /api/genui-chat.
+ *
+ * Accepts `{ messages: [{ role, content }], strictSpec?, allowWebLookup? }`
+ * and returns mixed text + json-render patch output.
+ */
+async function genuiChatHandler(req, res) {
+	try {
+		const {
+			messages: rawMessages,
+			strictSpec,
+			allowWebLookup,
+		} = req.body || {};
+		const normalizedMessages = normalizeMessages(rawMessages);
+
+		if (normalizedMessages.length === 0) {
+			return res.status(400).json({ error: "messages array is required" });
+		}
+
+		const envVars = getEnvVars();
+		const rawGatewayUrl = envVars.AI_GATEWAY_URL;
+
+		if (!rawGatewayUrl) {
+			return res.status(500).json({ error: "Server configuration error" });
+		}
+
+		const endpointType = detectEndpointType(rawGatewayUrl);
+		const userPrompt = getLastUserPrompt(normalizedMessages);
+		const enableWebLookup = shouldUseWebLookup({
+			allowWebLookup: allowWebLookup === true,
+			prompt: userPrompt,
+		});
+		const requirements = {
+			requireChartComponent: shouldRequireChartComponent(userPrompt),
+		};
+
+		const useStrictSpec = strictSpec !== false;
+		const basePrompt = getGenuiSystemPrompt({
+			strict: useStrictSpec,
+		});
+
+		res.setHeader("Content-Type", "text/plain; charset=utf-8");
+		res.setHeader("Cache-Control", "no-cache");
+		res.setHeader("Connection", "keep-alive");
+
+		const baseText = await generateAssistantText({
+			endpointType,
+			rawGatewayUrl,
+			envVars,
+			systemPrompt: basePrompt,
+			messages: normalizedMessages,
+		});
+		const baseAnalysis = analyzeGeneratedText(baseText);
+		logAttempt("base", baseAnalysis, requirements);
+
+		let finalOutput = buildSuccessOutput({
+			analysis: baseAnalysis,
+			rawText: baseText,
+			attempt: "base",
+			wasRetried: false,
+			usedWebLookup: false,
+			requirements,
+			allowSynthesis: false,
+		});
+		let lastAnalysis = baseAnalysis;
+		let lastRawText = baseText;
+		let usedWebLookup = false;
+		let attemptLabel = "base";
+
+		if (!finalOutput) {
+			const issuesSummary = formatValidationIssuesForRetry(baseAnalysis);
+			const retryDiagnostics = issuesSummary
+				? `\n\nYour previous attempt had these spec issues:\n${issuesSummary}\nFix these specific issues.`
+				: "";
+			const strictRetryPrompt = `${getGenuiSystemPrompt({
+				strict: true,
+			})}\n\n${STRICT_RETRY_INSTRUCTION}${retryDiagnostics}`;
+			const retryText = await generateAssistantText({
+				endpointType,
+				rawGatewayUrl,
+				envVars,
+				systemPrompt: strictRetryPrompt,
+				messages: normalizedMessages,
+			});
+			const retryAnalysis = analyzeGeneratedText(retryText);
+			logAttempt("strict-retry", retryAnalysis, requirements);
+
+			lastAnalysis = retryAnalysis;
+			lastRawText = retryText;
+			attemptLabel = "strict-retry";
+			finalOutput = buildSuccessOutput({
+				analysis: retryAnalysis,
+				rawText: retryText,
+				attempt: "strict-retry",
+				wasRetried: true,
+				usedWebLookup: false,
+				requirements,
+				allowSynthesis: false,
+			});
+		}
+
+		if (!finalOutput && enableWebLookup) {
+			const webContext = await fetchWebLookupContext(userPrompt);
+			if (webContext) {
+				const webRetryPrompt = `${getGenuiSystemPrompt({
+					strict: true,
+					webContext,
+				})}\n\n${STRICT_RETRY_INSTRUCTION}`;
+				const webRetryText = await generateAssistantText({
+					endpointType,
+					rawGatewayUrl,
+					envVars,
+					systemPrompt: webRetryPrompt,
+					messages: normalizedMessages,
+				});
+				const webRetryAnalysis = analyzeGeneratedText(webRetryText);
+				logAttempt("web-retry", webRetryAnalysis, requirements);
+
+				lastAnalysis = webRetryAnalysis;
+				lastRawText = webRetryText;
+				attemptLabel = "web-retry";
+				usedWebLookup = true;
+				finalOutput = buildSuccessOutput({
+					analysis: webRetryAnalysis,
+					rawText: webRetryText,
+					attempt: "web-retry",
+					wasRetried: true,
+					usedWebLookup: true,
+					requirements,
+					allowSynthesis: false,
+				});
+			}
+		}
+
+		if (!finalOutput) {
+			finalOutput = buildSuccessOutput({
+				analysis: lastAnalysis,
+				rawText: lastRawText,
+				attempt: attemptLabel,
+				wasRetried: attemptLabel !== "base",
+				usedWebLookup,
+				requirements,
+				allowSynthesis: true,
+			});
+		}
+
+		if (!finalOutput) {
+			const requirementMisses = getRequirementMisses(
+				pickBestSpecForRequirementCheck(lastAnalysis),
+				requirements,
+			);
+			const failureType = getFailureType(lastAnalysis);
+			finalOutput = withMeta(
+				buildFailureOutput(lastRawText, failureType, requirementMisses),
+				{
+					status: "failed",
+					failureType,
+					wasAutoFixed: false,
+					wasRetried: attemptLabel !== "base",
+					usedWebLookup,
+					repairMode: "none",
+					synthesizedChildCount: 0,
+					missingChildKeys: [],
+					requirementMisses,
+					validationIssues: summarizeIssues(lastAnalysis.validation?.issues),
+					attempt: attemptLabel,
+				},
+			);
+		}
+
+		res.write(finalOutput);
+		res.end();
+	} catch (error) {
+		console.error("[GENUI-CHAT] Error:", error);
+		if (!res.headersSent) {
+			return res.status(500).json({
+				error: "Internal server error",
+				details: error instanceof Error ? error.message : String(error),
+			});
+		}
+		res.end();
+	}
+}
+
+module.exports = { genuiChatHandler };

@@ -1,0 +1,29 @@
+.latestTurn {
+	animation: latest-turn-enter 0.22s ease-out;
+}
+
+.hideScrollbar > div {
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+}
+
+.hideScrollbar > div::-webkit-scrollbar {
+	display: none;
+}
+
+@keyframes latest-turn-enter {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.latestTurn {
+		animation: none;
+	}
+}

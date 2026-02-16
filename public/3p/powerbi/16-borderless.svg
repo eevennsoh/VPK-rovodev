@@ -1,0 +1,25 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_237_7338)">
+<path d="M13.0735 -0.435547H8.83219C8.46751 -0.435547 8.17188 -0.139913 8.17188 0.224771V14.9041C8.17188 15.2688 8.46751 15.5645 8.83219 15.5645H13.0735C13.4381 15.5645 13.7338 15.2688 13.7338 14.9041V0.224771C13.7338 -0.139913 13.4381 -0.435547 13.0735 -0.435547Z" fill="url(#paint0_linear_237_7338)"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M10.4584 14.9041V15.5645H5.5568C5.1921 15.5645 4.89648 15.2688 4.89648 14.9041V4.21208C4.89648 3.84738 5.1921 3.55176 5.5568 3.55176H9.79807C10.1628 3.55176 10.4584 3.84738 10.4584 4.21208V14.9041Z" fill="black"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M10.4584 14.9041V15.5645H5.5568C5.1921 15.5645 4.89648 15.2688 4.89648 14.9041V4.21208C4.89648 3.84738 5.1921 3.55176 5.5568 3.55176H9.79807C10.1628 3.55176 10.4584 3.84738 10.4584 4.21208V14.9041Z" fill="url(#paint1_linear_237_7338)"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7.23183 14.9041V15.5645H2.33024C1.96554 15.5645 1.66992 15.2688 1.66992 14.9041V8.22477C1.66992 7.86007 1.96554 7.56445 2.33024 7.56445H6.57151C6.93621 7.56445 7.23183 7.86007 7.23183 8.22477V14.9041Z" fill="url(#paint2_linear_237_7338)"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_237_7338" x1="10.9264" y1="-0.455864" x2="10.9264" y2="15.5441" gradientUnits="userSpaceOnUse">
+<stop stop-color="#EBBB14"/>
+<stop offset="1" stop-color="#B25400"/>
+</linearGradient>
+<linearGradient id="paint1_linear_237_7338" x1="7.65102" y1="3.50223" x2="7.65102" y2="15.5149" gradientUnits="userSpaceOnUse">
+<stop stop-color="#F9E583"/>
+<stop offset="1" stop-color="#DE9800"/>
+</linearGradient>
+<linearGradient id="paint2_linear_237_7338" x1="4.42446" y1="7.54414" x2="4.42446" y2="15.5441" gradientUnits="userSpaceOnUse">
+<stop stop-color="#F9E68B"/>
+<stop offset="1" stop-color="#F3CD32"/>
+</linearGradient>
+<clipPath id="clip0_237_7338">
+<path d="M0 4C0 1.79086 1.79086 0 4 0H12C14.2091 0 16 1.79086 16 4V12C16 14.2091 14.2091 16 12 16H4C1.79086 16 0 14.2091 0 12V4Z" fill="white"/>
+</clipPath>
+</defs>
+</svg>

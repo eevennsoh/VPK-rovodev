@@ -1,0 +1,16 @@
+{
+	"hooks": {
+		"PreToolUse": [
+			{
+				"matcher": "mcp__playwright__.*|mcp__plugin_playwright_playwright__.*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/provide-port-context.sh",
+						"timeout": 5000
+					}
+				]
+			}
+		]
+	}
+}

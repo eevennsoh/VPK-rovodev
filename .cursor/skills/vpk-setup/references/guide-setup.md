@@ -1,0 +1,370 @@
+# VPK Setup Guide
+
+Complete setup guide for local development with ASAP authentication to Atlassian AI Gateway.
+
+---
+
+## Quick Start (5 Minutes)
+
+**Prerequisites:**
+
+- Node.js 18+
+- pnpm installed
+- ASAP credentials (you'll generate these in the Terminal)
+
+**Architecture:**
+
+**Local Development:**
+
+```
+Browser → Next.js Server (port 3000) with API proxy routes
+        → Express Backend (port 8080)
+        → AI Gateway
+```
+
+**Production (Micros Deployment):**
+
+```
+Browser → Single Express Server (port 8080)
+        → Serves Next.js static build + API routes
+        → AI Gateway
+```
+
+The same code works in both environments! Next.js API routes (`/api/chat-sdk`, `/api/health`) run in development directly and are bundled into the Express server for production.
+
+### Option 1: Automated Startup
+
+```bash
+./scripts/start-dev.sh
+```
+
+This starts both Express backend (:8080) and Next.js frontend (:3000).
+
+**For AI/automated execution:** Use `./scripts/start-dev.sh --no-wait` to prevent the script from blocking.
+
+**To stop:** `./scripts/stop-dev.sh`
+
+### Option 2: Manual 2-Terminal Setup
+
+**Terminal 1 - Backend:**
+
+```bash
+pnpm run dev:backend
+```
+
+**Terminal 2 - Frontend:**
+
+```bash
+pnpm run dev:frontend
+```
+
+### Verify It Works
+
+1. **Check backend health:**
+
+   ```bash
+   curl http://localhost:8080/api/health
+   ```
+
+   Should show `"authMethod": "ASAP"`
+
+2. **Open browser:** http://localhost:3000
+
+### Troubleshooting
+
+**"EADDRINUSE" error:** Kill processes on ports
+
+```bash
+pkill -f 'node backend/server.js'
+pkill -f 'next dev'
+```
+
+**"Unable to acquire lock at .next/dev/lock":** Another Next.js dev server is already running for this repo.
+
+```bash
+./scripts/stop-dev.sh
+rm -f .next/dev/lock
+./scripts/start-dev.sh
+```
+
+**Frontend 500 with "Can't resolve '@/components/providers'":** Ensure the file is named `components/providers.tsx` (lowercase) and matches the import casing.
+
+**No available port found (3000-3019 or 8080-8099):** Another process is using the dev port range. Stop other dev servers and retry.
+
+**No AI response:** Check `.env.local` has ASAP credentials properly set (ASAP_KID, ASAP_ISSUER, ASAP_PRIVATE_KEY)
+
+**More help:** Enable `DEBUG=true` in `.env.local`
+
+---
+
+## Prerequisites & Access Setup
+
+**Test SSH access:** `ssh -T git@bitbucket.org`
+
+**If not authenticated:**
+
+1. Generate key: `ssh-keygen -t ed25519 -C "your-email@atlassian.com"` (press Enter for all prompts)
+2. Copy public key: `cat ~/.ssh/id_ed25519.pub`
+3. Add to Bitbucket: https://bitbucket.org/account/settings/ssh-keys/
+4. Verify: `ssh -T git@bitbucket.org`
+
+---
+
+## Setup Project
+
+### Install Dependencies
+
+```bash
+pnpm install
+```
+
+### Install Backend Dependencies
+
+```bash
+cd backend && npm install && cd ..
+```
+
+### Generate ASAP Credentials for AI Gateway
+
+**Authentication: Use ASAP (Recommended)**
+
+This repo uses **ASAP authentication** which works everywhere:
+
+- ✅ Browser-based VMs (Volt Studio)
+- ✅ Local laptop development
+- ✅ Production deployments
+- ✅ No dependency on atlas CLI or background services
+
+**Why ASAP?**
+
+- Works in all environments (browser VMs, local, production)
+- Cryptographic keys can be embedded in environment
+- No background services required
+
+Requirements:
+
+- YubiKey enrolled in Okta (for initial setup)
+- Atlas CLI installed (for generating credentials)
+
+---
+
+## Authentication Setup: ASAP
+
+**⚠️ The `.asap-config` file does NOT exist when you clone this repo!** You must generate your own.
+
+**Security Note:**
+
+- The `.asap-config` file is gitignored and will NEVER be committed to the repository
+- DO NOT share your ASAP private key with others
+- Each person/team must generate their own credentials
+
+### Step 1: Generate the ASAP key pair
+
+In your terminal, run this command (replace YOUR-USE-CASE-ID and TIMESTAMP):
+
+```bash
+# Using timestamp for uniqueness to avoid "key already exists" errors
+# Replace TIMESTAMP with current Unix timestamp (e.g., 1735075200)
+atlas asap key generate --key YOUR-USE-CASE-ID/TIMESTAMP --file .asap-config
+```
+
+Example:
+
+```bash
+atlas asap key generate --key my-use-case/1735075200 --file .asap-config
+```
+
+You should see: `Wrote key to config file .asap-config`
+
+**Tip:** Generate a timestamp with: `date +%s`
+
+### Step 2: Register the key with AI Gateway keyserver
+
+Use the SAME timestamp from Step 1:
+
+```bash
+atlas asap key save --key YOUR-USE-CASE-ID/TIMESTAMP --service YOUR-USE-CASE-ID --env staging --file .asap-config
+```
+
+**⚠️ Authentication Required - WebAuthn/YubiKey Flow:**
+
+When you run this command, you'll see:
+
+```
+Opening browser to use yubikey webauthn...
+Authenticating using "webauthn" to "browser"
+```
+
+**What to do:**
+
+1. A browser window will open automatically with Okta authentication
+2. The activation code should be pre-filled - click **"Next"**
+3. When prompted, **tap your physical YubiKey** (or use Touch ID/Face ID)
+4. Authentication completes automatically
+
+You should see: `Saved asap key successfully`
+
+**If you get "Key already exists" error**: Generate a new timestamp and re-run both Step 1 and Step 2 with the new timestamp.
+
+### Step 3: Create `.env.local` with ASAP credentials
+
+**Create `.env.local` file** (gitignored) in project root. It should contain:
+
+```
+AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/openai/v1/chat/completions
+AI_GATEWAY_USE_CASE_ID=your-use-case-id
+AI_GATEWAY_CLOUD_ID=local-testing
+AI_GATEWAY_USER_ID=your-email@atlassian.com
+ASAP_KID=your-use-case-id/YOUR-TIMESTAMP
+ASAP_ISSUER=your-use-case-id
+ASAP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nYOUR-KEY-CONTENT-HERE\n-----END RSA PRIVATE KEY-----"
+```
+
+**Optional — Per-request Gemini routing for image + voice generation:**
+
+```
+AI_GATEWAY_URL_GOOGLE=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publishers/google/v1/chat/completions
+```
+
+Add this alongside `AI_GATEWAY_URL` to enable Google routing for features that request `provider: "google"` (image generation) and for voice synthesis route derivation (`/api/sound-generation` -> Google synth endpoint) without changing the default chat model. See `guide-model-switch.md` for details.
+
+**Optional — TTS model verification (`tts-latest`):**
+
+```bash
+atlas ml aigateway model view --modelId tts-latest
+atlas ml aigateway usecase view --id YOUR-USE-CASE-ID -e stg-west
+```
+
+If `tts-latest` is available for your use case, use the AI Gateway speech endpoint for text-to-audio generation:
+https://developer.atlassian.com/platform/ai-gateway/rest/v1/api-group-google/#api-v1-google-v1-text-synthesize-post
+
+**Where to find these values:**
+
+- `ASAP_KID`: From your `.asap-config` file (e.g., `my-use-case/1735075200`)
+- `ASAP_ISSUER`: Your use case ID
+- `ASAP_PRIVATE_KEY`: From your `.asap-config` file - **CRITICAL:** Must use escaped newlines `\n` and be quoted
+- `AI_GATEWAY_USER_ID`: Your Atlassian email address
+
+**Tip:** The helper script `./.cursor/skills/vpk-setup/scripts/create-env-local.js` uses `git config user.email` by default. You can pass an explicit email if needed:
+
+```bash
+node ./.cursor/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID your-email@atlassian.com
+```
+
+**⚠️ IMPORTANT - Private Key Format:**
+
+The `ASAP_PRIVATE_KEY` must be:
+
+1. **Quoted** with double quotes
+2. Use `\n` (literal backslash-n), NOT actual line breaks
+3. All on one line
+
+### ✅ Correct Format
+
+```
+ASAP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIEogIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----"
+```
+
+### Converting from .asap-config
+
+**Method 1: Using Node.js (Easiest)**
+
+```bash
+node -e "
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('.asap-config', 'utf8'));
+const escaped = config.privateKey.replace(/\n/g, '\\\\n');
+console.log(\`ASAP_PRIVATE_KEY=\"\${escaped}\"\`);
+"
+```
+
+Then copy-paste the output into your `.env.local` file.
+
+### Verification
+
+After creating `.env.local`, verify it's correct:
+
+```bash
+node -e "
+require('dotenv').config({ path: '.env.local' });
+const key = process.env.ASAP_PRIVATE_KEY;
+console.log('✓ ASAP_PRIVATE_KEY loaded:', key ? 'YES' : 'NO');
+console.log('✓ Valid PEM format:', key && key.includes('-----BEGIN') ? 'YES' : 'NO');
+console.log('✓ Has newlines:', key && key.includes('\n') ? 'YES' : 'NO');
+console.log('✓ Key length:', key ? key.length : 0);
+"
+```
+
+Expected output:
+
+```
+✓ ASAP_PRIVATE_KEY loaded: YES
+✓ Valid PEM format: YES
+✓ Has newlines: YES
+✓ Key length: 1674
+```
+
+Need help? Ask in #help-ai-gateway on Slack
+
+---
+
+## Test Locally
+
+### Start Development Services
+
+**Option 1 - Automated (Recommended):**
+
+```bash
+./scripts/start-dev.sh
+```
+
+**Option 2 - Manual:**
+
+```bash
+# Terminal 1
+pnpm run dev:backend
+
+# Terminal 2
+pnpm run dev:frontend
+```
+
+**Option 3 - Concurrent:**
+
+```bash
+pnpm run dev
+```
+
+**Important:** Only run one dev command at a time. Running `pnpm run dev` while `start-dev.sh` (or another `pnpm run dev`) is active will trigger the `.next/dev/lock` error.
+
+### Verify Everything Works
+
+1. **Open** http://localhost:3000
+2. **Check backend:** `curl http://localhost:8080/api/health` should show `"authMethod": "ASAP"`
+
+**Troubleshooting .env.local Issues:**
+
+**If you see "ASAP_PRIVATE_KEY: MISSING" in the health check:**
+
+1. Check if `.env.local` exists: `ls -la .env.local`
+2. Check format: Must be quoted and use `\n` for newlines
+3. Verify with: `node -e "require('dotenv').config(); console.log(process.env.ASAP_PRIVATE_KEY?.substring(0,30))"`
+
+---
+
+## Deploy to Micros (Optional)
+
+For complete step-by-step deployment instructions, see the vpk-deploy skill at `.cursor/skills/vpk-deploy/` or run `/vpk-deploy`.
+
+The deployment guide includes:
+
+- First-time deployment walkthrough
+- How to update existing deployments
+- Environment variable setup
+- Docker build and push instructions
+- Comprehensive troubleshooting section
+
+**Quick path:**
+
+1. Update `service-descriptor.yml` with your service name
+2. Follow the **Path A: First-Time Deployment** section in DEPLOYMENT_GUIDE.md
+3. Test your deployment using the verification steps provided

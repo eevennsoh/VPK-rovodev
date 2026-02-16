@@ -1,0 +1,23 @@
+.focusedSearchBox input {
+	height: 36px !important;
+	box-sizing: border-box !important;
+	padding: 6px 8px !important;
+	border: none !important;
+	background: transparent !important;
+}
+
+.focusedSearchBox input:focus {
+	outline: none !important;
+	box-shadow: none !important;
+	border: none !important;
+}
+
+.focusedSearchBox > div {
+	border: none !important;
+	background: transparent !important;
+}
+
+.focusedSearchBox > div:focus-within {
+	border: none !important;
+	box-shadow: none !important;
+}

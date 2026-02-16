@@ -1,0 +1,43 @@
+export interface PropDefinition {
+	name: string;
+	type: string;
+	default?: string;
+	required?: boolean;
+	description: string;
+}
+
+export interface SubComponentDoc {
+	name: string;
+	description: string;
+	props?: PropDefinition[];
+}
+
+export interface ExampleDefinition {
+	title: string;
+	description?: string;
+	demoSlug: string;
+	badge?: { label: string; variant: string };
+}
+
+export interface ExternalLinkDefinition {
+	label: string;
+	url: string;
+}
+
+export type DemoContentWidth = "fit" | "full";
+
+export interface DemoLayout {
+	previewContentWidth?: DemoContentWidth;
+	examplesContentWidth?: DemoContentWidth;
+}
+
+export interface ComponentDetail {
+	description: string;
+	usage?: string;
+	props?: PropDefinition[];
+	subComponents?: SubComponentDoc[];
+	examples?: ExampleDefinition[];
+	demoLayout?: DemoLayout;
+	adsUrl?: string;
+	adsLinks?: ExternalLinkDefinition[];
+}
