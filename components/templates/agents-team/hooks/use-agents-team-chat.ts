@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRovoChat } from "@/app/contexts";
+import type { QueuedPromptItem } from "@/app/contexts";
 import { API_ENDPOINTS } from "@/lib/api-config";
 import {
 	getMessageText,
@@ -116,6 +117,8 @@ interface UseAgentsTeamChatReturn {
 	isGeneratingTitle: boolean;
 	pendingTitleChatId: string | null;
 	uiMessages: RovoUIMessage[];
+	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
+	removeQueuedPrompt: (id: string) => void;
 	chatHistory: ChatHistoryItem[];
 	activeChatId: string | null;
 	handleSubmit: () => Promise<void>;
@@ -146,6 +149,8 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		sendPrompt,
 		stopStreaming,
 		resetChat,
+		queuedPrompts,
+		removeQueuedPrompt,
 	} = useRovoChat();
 
 	useEffect(() => {
@@ -270,21 +275,25 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 		const chatId = pendingTitleChatId;
 		const message = pendingTitleMessageRef.current;
-		pendingTitleMessageRef.current = null;
 
-		void fetchAITitle(message).then((aiTitle) => {
-			if (!aiTitle) {
-				// Clear generating state so the sidebar doesn't stay in skeleton loading
-				if (pendingTitleChatIdRef.current === chatId) {
-					pendingTitleChatIdRef.current = null;
-					setPendingTitleChatId(null);
-					setIsGeneratingTitle(false);
+		const titleDelay = setTimeout(() => {
+			pendingTitleMessageRef.current = null;
+			void fetchAITitle(message).then((aiTitle) => {
+				if (!aiTitle) {
+					// Clear generating state so the sidebar doesn't stay in skeleton loading
+					if (pendingTitleChatIdRef.current === chatId) {
+						pendingTitleChatIdRef.current = null;
+						setPendingTitleChatId(null);
+						setIsGeneratingTitle(false);
+					}
+					return;
 				}
-				return;
-			}
 
-			resolveChatTitle(chatId, aiTitle);
-		});
+				resolveChatTitle(chatId, aiTitle);
+			});
+		}, 2000);
+
+		return () => clearTimeout(titleDelay);
 	}, [isStreaming, pendingTitleChatId, resolveChatTitle]);
 
 	const sendAgentsPrompt = useCallback(
@@ -426,6 +435,8 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		isGeneratingTitle,
 		pendingTitleChatId,
 		uiMessages,
+		queuedPrompts,
+		removeQueuedPrompt,
 		chatHistory,
 		activeChatId,
 		handleSubmit,

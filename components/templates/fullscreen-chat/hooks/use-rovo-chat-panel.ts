@@ -26,7 +26,6 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		resetChat,
 		isStreaming,
 		queuedPrompts,
-		activePrompt,
 		removeQueuedPrompt,
 	} = useRovoChat();
 	const { name: userName } = useUrlParams();
@@ -95,7 +94,6 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		userName,
 		isStreaming,
 		queuedPrompts,
-		activePrompt,
 		removeQueuedPrompt,
 		isListening,
 		interimText,

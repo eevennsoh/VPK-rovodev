@@ -97,7 +97,8 @@ export function ThreadMessageBubble({
 	const shouldShowFollowUpSuggestions = showFollowUpSuggestions ?? surface === "fullscreen";
 	const shouldRenderPlainTextWhileStreaming =
 		isStreaming && assistantStreamingRenderMode === "text-first";
-	const showThinkingStatus = showThinkingStatusSection && Boolean(thinkingStatusPart) && (!isStreaming || Boolean(messageText));
+	const isRetryThinkingStatus = thinkingStatusPart?.data.label?.includes("Retrying") ?? false;
+	const showThinkingStatus = showThinkingStatusSection && Boolean(thinkingStatusPart) && (!isStreaming || Boolean(messageText)) && !(isRetryThinkingStatus && !isStreaming);
 	const renderedWidget =
 		shouldShowWidgetSections && widgetDataPart && !isWidgetLoading
 			? renderWidget?.(
@@ -110,9 +111,12 @@ export function ThreadMessageBubble({
 			: null;
 	const shouldRenderPlanWidgetFirst = widgetType === "plan";
 	const hasRenderedWidget = Boolean(renderedWidget);
-	const showFeedback = shouldShowFeedbackActions && !isStreaming && Boolean(messageText) && !hasRenderedWidget;
+	const shouldRenderPlanText =
+		widgetType !== "plan" || (!isStreaming && !isWidgetLoading);
+	const shouldRenderMessageText = Boolean(messageText) && shouldRenderPlanText;
+	const showFeedback = shouldShowFeedbackActions && !isStreaming && shouldRenderMessageText && !hasRenderedWidget;
 	const showSuggestions = shouldShowFollowUpSuggestions && !isStreaming && suggestedQuestions.length > 0 && !hasRenderedWidget;
-	const hasRenderableContent = Boolean(messageText) ||
+	const hasRenderableContent = shouldRenderMessageText ||
 		showFeedback ||
 		Boolean(reasoning) ||
 		showThinkingStatus ||
@@ -137,24 +141,24 @@ export function ThreadMessageBubble({
 	return (
 		<UiMessage from="assistant" className="max-w-full">
 			{shouldRenderPlanWidgetFirst ? widgetSection : null}
-				{messageText ? (
-					<MessageContent
-						className={cn(
-							"px-3",
-							(widgetDataPart || isWidgetLoading) && "mb-2"
-						)}
-					>
-						{shouldRenderPlainTextWhileStreaming ? (
-							<div className="whitespace-pre-wrap break-words text-sm leading-6 text-text">
-								{messageText}
-							</div>
-						) : (
-							<MessageResponse isAnimating={isStreaming}>
-								{messageText}
-							</MessageResponse>
-						)}
-					</MessageContent>
-				) : null}
+			{shouldRenderMessageText ? (
+				<MessageContent
+					className={cn(
+						"px-3",
+						(widgetDataPart || isWidgetLoading) && "mb-2"
+					)}
+				>
+					{shouldRenderPlainTextWhileStreaming ? (
+						<div className="whitespace-pre-wrap break-words text-sm leading-6 text-text">
+							{messageText}
+						</div>
+					) : (
+						<MessageResponse isAnimating={isStreaming}>
+							{messageText}
+						</MessageResponse>
+					)}
+				</MessageContent>
+			) : null}
 
 			{showFeedback ? (
 				<AssistantFeedbackActions messageText={messageText} />

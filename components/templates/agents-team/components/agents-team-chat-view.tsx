@@ -1,6 +1,11 @@
 "use client";
 
-import { type RovoUIMessage } from "@/lib/rovo-ui-messages";
+import {
+	getLatestDataPart,
+	isMessageTextStreaming,
+	type RovoUIMessage,
+} from "@/lib/rovo-ui-messages";
+import type { QueuedPromptItem } from "@/app/contexts";
 import { ChatMessages } from "@/components/templates/shared/components/chat-messages";
 import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scroll-anchoring";
 import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
@@ -23,6 +28,8 @@ import { useScrollToBottom } from "../hooks/use-scroll-to-bottom";
 import { useDismissibleCards } from "../hooks/use-dismissible-cards";
 
 const DEFAULT_AGENTS_TEAM_PLACEHOLDER = "Let a team of AI minions solve your problem";
+const CHAT_COMPOSER_BASE_BOTTOM_PADDING = "128px";
+const CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING = "320px";
 
 interface AgentsTeamChatViewProps {
 	prompt: string;
@@ -37,6 +44,8 @@ interface AgentsTeamChatViewProps {
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
 	onStop: () => void;
+	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
+	onRemoveQueuedPrompt: (id: string) => void;
 	onClarificationSubmit: (answers: ClarificationAnswers) => void;
 	onApprovalSubmit: (selection: PlanApprovalSelection) => void;
 	onSuggestedQuestionClick: (question: string) => Promise<void> | void;
@@ -55,6 +64,8 @@ export default function AgentsTeamChatView({
 	onPromptChange,
 	onSubmit,
 	onStop,
+	queuedPrompts,
+	onRemoveQueuedPrompt,
 	onClarificationSubmit,
 	onApprovalSubmit,
 	onSuggestedQuestionClick,
@@ -90,20 +101,23 @@ export default function AgentsTeamChatView({
 		gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
 	const isAwaitingUserInput =
 		gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
+	const chatComposerBottomPadding = queuedPrompts.length > 0
+		? CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING
+		: CHAT_COMPOSER_BASE_BOTTOM_PADDING;
 
 	return (
 		<div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
 			<div className="flex min-h-0 flex-1 justify-center overflow-hidden px-4">
 				<div className="flex min-h-0 w-full max-w-[800px] flex-col">
-						<ChatMessages
-							uiMessages={uiMessages}
-							streamingIndicatorMessages={streamingUiMessages}
-							hideScrollbar
-							onSuggestedQuestionClick={onSuggestedQuestionClick}
-							conversationContextRef={conversationContextRef}
+					<ChatMessages
+						uiMessages={uiMessages}
+						streamingIndicatorMessages={streamingUiMessages}
+						hideScrollbar
+						onSuggestedQuestionClick={onSuggestedQuestionClick}
+						conversationContextRef={conversationContextRef}
 						scrollSpacerRef={scrollSpacerRef}
 						contentTopPadding="24px"
-						contentBottomPadding={gatedHasBottomOverlayCard ? "360px" : "128px"}
+						contentBottomPadding={gatedHasBottomOverlayCard ? "360px" : chatComposerBottomPadding}
 						isStreaming={isStreaming}
 						streamingIndicatorVariant="reasoning-expanded"
 						thinkingLabel="Reasoning"
@@ -119,10 +133,19 @@ export default function AgentsTeamChatView({
 										? "Waiting for your approval"
 										: "Processing your request"
 						}
-						renderWidget={(widget) => {
+						renderWidget={(widget, message) => {
 							if (widget.type !== "plan") return null;
 
 							const parsedPlanWidget = parsePlanWidgetPayload(widget.data);
+							const latestWidgetLoadingPart = getLatestDataPart(
+								message,
+								"data-widget-loading"
+							);
+							const isPlanWidgetLoading =
+								latestWidgetLoadingPart?.data.type === "plan" &&
+								latestWidgetLoadingPart.data.loading === true;
+							const isPlanWidgetStreaming =
+								isPlanWidgetLoading || isMessageTextStreaming(message);
 							return parsedPlanWidget ? (
 								<div className="pt-2">
 									<PlanCardWidget
@@ -131,7 +154,7 @@ export default function AgentsTeamChatView({
 										emoji={parsedPlanWidget.emoji}
 										tasks={parsedPlanWidget.tasks}
 										agents={parsedPlanWidget.agents}
-										isStreaming={isStreaming}
+										isStreaming={isPlanWidgetStreaming}
 									/>
 								</div>
 							) : null;
@@ -177,6 +200,8 @@ export default function AgentsTeamChatView({
 						onPromptChange={onPromptChange}
 						onSubmit={onSubmit}
 						onStop={onStop}
+						queuedPrompts={queuedPrompts}
+						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 					/>
 				</div>
 			</div>
@@ -199,6 +224,8 @@ interface BottomOverlayContentProps {
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
 	onStop: () => void;
+	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
+	onRemoveQueuedPrompt: (id: string) => void;
 }
 
 function BottomOverlayContent({
@@ -216,6 +243,8 @@ function BottomOverlayContent({
 	onPromptChange,
 	onSubmit,
 	onStop,
+	queuedPrompts,
+	onRemoveQueuedPrompt,
 }: Readonly<BottomOverlayContentProps>) {
 	if (shouldShowQuestionCard && activeQuestionCard && activeQuestionCardKey) {
 		return (
@@ -255,9 +284,11 @@ function BottomOverlayContent({
 			prompt={prompt}
 			placeholder={DEFAULT_AGENTS_TEAM_PLACEHOLDER}
 			isStreaming={isStreaming}
+			queuedPrompts={queuedPrompts}
 			onPromptChange={onPromptChange}
 			onSubmit={onSubmit}
 			onStop={onStop}
+			onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 		/>
 	);
 }

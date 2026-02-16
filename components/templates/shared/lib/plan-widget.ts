@@ -75,14 +75,15 @@ export function parsePlanWidgetPayload(
 	const title =
 		getNonEmptyString(record.title) ??
 		getNonEmptyString(record.name) ??
-		getNonEmptyString(record.planTitle);
+		getNonEmptyString(record.planTitle) ??
+		"Plan";
 	const taskCandidates = Array.isArray(record.tasks)
 		? record.tasks
 		: Array.isArray(record.steps)
 			? record.steps
 			: null;
 
-	if (!title || !taskCandidates) {
+	if (!taskCandidates) {
 		return null;
 	}
 

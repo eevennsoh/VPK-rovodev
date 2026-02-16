@@ -166,7 +166,7 @@ function AgentDialogForm({
 						onChange={(e) => setSystemPrompt(e.currentTarget.value)}
 						rows={8}
 						isMonospaced
-						className="min-h-[160px]"
+						className="min-h-[160px] max-h-[320px] overflow-y-auto"
 					/>
 				</div>
 

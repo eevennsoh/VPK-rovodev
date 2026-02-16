@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
 	extractPlanWidgetPayloadFromText,
+	extractProgressivePlanWidgetPayloadFromText,
 } = require("./plan-widget-fallback");
 
 test("extracts tasks from action items section", () => {
@@ -41,5 +42,42 @@ test("returns null when section has fewer than two tasks", () => {
 test("returns null when no action items heading exists", () => {
 	const input = `Plan\n- [ ] Task one\n- [ ] Task two`;
 	const result = extractPlanWidgetPayloadFromText(input);
+	assert.equal(result, null);
+});
+
+test("extracts progressive plan payload without action items heading", () => {
+	const input = `Conference rollout plan\n1. Define conference goals`;
+	const result = extractProgressivePlanWidgetPayloadFromText(input);
+	assert.ok(result);
+	assert.equal(result.type, "plan");
+	assert.equal(result.title, "Conference rollout plan");
+	assert.deepEqual(
+		result.tasks.map((task) => task.label),
+		["Define conference goals"]
+	);
+});
+
+test("progressive extractor expands tasks as more list items appear", () => {
+	const partialInput = `Execution plan\n- Define conference goals`;
+	const completeInput = `${partialInput}\n- Secure venue`;
+
+	const partialResult = extractProgressivePlanWidgetPayloadFromText(partialInput);
+	const completeResult = extractProgressivePlanWidgetPayloadFromText(completeInput);
+
+	assert.ok(partialResult);
+	assert.ok(completeResult);
+	assert.deepEqual(
+		partialResult.tasks.map((task) => task.id),
+		["task-1"]
+	);
+	assert.deepEqual(
+		completeResult.tasks.map((task) => task.id),
+		["task-1", "task-2"]
+	);
+});
+
+test("progressive extractor ignores generic lists without plan signal", () => {
+	const input = `Shopping list\n- Apples\n- Oranges`;
+	const result = extractProgressivePlanWidgetPayloadFromText(input);
 	assert.equal(result, null);
 });

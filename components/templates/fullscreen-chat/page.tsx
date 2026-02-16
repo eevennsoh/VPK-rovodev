@@ -28,7 +28,6 @@ export default function RovoView() {
 		companyKnowledgeEnabled,
 		setCompanyKnowledgeEnabled,
 		queuedPrompts,
-		activePrompt,
 		removeQueuedPrompt,
 		handleSubmit,
 		handleSuggestedQuestionClick,
@@ -66,7 +65,6 @@ export default function RovoView() {
 					companyKnowledgeEnabled={companyKnowledgeEnabled}
 					onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
 					queuedPrompts={queuedPrompts}
-					activePrompt={activePrompt}
 					onRemoveQueuedPrompt={removeQueuedPrompt}
 				/>
 			) : (
@@ -109,7 +107,6 @@ export default function RovoView() {
 							companyKnowledgeEnabled={companyKnowledgeEnabled}
 							onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
 							queuedPrompts={queuedPrompts}
-							activePrompt={activePrompt}
 							onRemoveQueuedPrompt={removeQueuedPrompt}
 						/>
 					</div>

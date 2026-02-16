@@ -29,7 +29,6 @@ interface RovoInitialViewProps {
 	companyKnowledgeEnabled: boolean;
 	onCompanyKnowledgeChange: (enabled: boolean) => void;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
-	activePrompt: QueuedPromptItem | null;
 	onRemoveQueuedPrompt: (id: string) => void;
 }
 
@@ -52,7 +51,6 @@ export default function RovoInitialView({
 	companyKnowledgeEnabled,
 	onCompanyKnowledgeChange,
 	queuedPrompts,
-	activePrompt,
 	onRemoveQueuedPrompt,
 }: Readonly<RovoInitialViewProps>) {
 	const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
@@ -90,7 +88,6 @@ export default function RovoInitialView({
 						companyKnowledgeEnabled={companyKnowledgeEnabled}
 						onCompanyKnowledgeChange={onCompanyKnowledgeChange}
 						queuedPrompts={queuedPrompts}
-						activePrompt={activePrompt}
 						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 						customHeight="131px"
 						hideUsesAI={true}

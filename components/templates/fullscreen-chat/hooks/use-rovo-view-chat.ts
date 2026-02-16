@@ -22,7 +22,6 @@ export function useRovoViewChat() {
 		resetChat,
 		isStreaming,
 		queuedPrompts,
-		activePrompt,
 		removeQueuedPrompt,
 	} = useRovoChat();
 	const { name: userName } = useUrlParams();
@@ -114,7 +113,6 @@ export function useRovoViewChat() {
 		companyKnowledgeEnabled,
 		setCompanyKnowledgeEnabled,
 		queuedPrompts,
-		activePrompt,
 		removeQueuedPrompt,
 		handleSubmit,
 		handleSuggestedQuestionClick,

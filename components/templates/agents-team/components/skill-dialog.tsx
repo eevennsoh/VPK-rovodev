@@ -120,7 +120,7 @@ function SkillDialogForm({
 						onChange={(e) => setContent(e.currentTarget.value)}
 						rows={10}
 						isMonospaced
-						className="min-h-[200px]"
+						className="min-h-[200px] max-h-[320px] overflow-y-auto"
 					/>
 				</div>
 			</div>

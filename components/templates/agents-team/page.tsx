@@ -55,6 +55,8 @@ export default function AgentsTeamView() {
 		isGeneratingTitle,
 		pendingTitleChatId,
 		uiMessages: rawUiMessages,
+		queuedPrompts,
+		removeQueuedPrompt,
 		chatHistory,
 		activeChatId,
 		handleSubmit,
@@ -371,6 +373,8 @@ export default function AgentsTeamView() {
 										onPromptChange={setPrompt}
 										onSubmit={handleSubmit}
 										onStop={stopStreaming}
+										queuedPrompts={queuedPrompts}
+										onRemoveQueuedPrompt={removeQueuedPrompt}
 										onClarificationSubmit={handleClarificationSubmit}
 										onApprovalSubmit={handleApprovalSubmit}
 										onSuggestedQuestionClick={handleSuggestedQuestionClick}
@@ -382,9 +386,11 @@ export default function AgentsTeamView() {
 						<AgentsTeamInitialView
 							prompt={prompt}
 							isStreaming={isStreaming}
+							queuedPrompts={queuedPrompts}
 							onPromptChange={setPrompt}
 							onSubmit={handleSubmit}
 							onStop={stopStreaming}
+							onRemoveQueuedPrompt={removeQueuedPrompt}
 						/>
 				)}
 			</SidebarInset>

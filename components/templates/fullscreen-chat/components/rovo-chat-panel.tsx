@@ -23,7 +23,6 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		userName,
 		isStreaming,
 		queuedPrompts,
-		activePrompt,
 		removeQueuedPrompt,
 		isListening,
 		interimText,
@@ -103,7 +102,6 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				companyKnowledgeEnabled={companyKnowledgeEnabled}
 				onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
 				queuedPrompts={queuedPrompts}
-				activePrompt={activePrompt}
 				onRemoveQueuedPrompt={removeQueuedPrompt}
 			/>
 		</div>

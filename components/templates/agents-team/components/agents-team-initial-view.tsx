@@ -14,7 +14,6 @@ interface AgentsTeamInitialViewProps {
 	prompt: string;
 	isStreaming: boolean;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
-	activePrompt: QueuedPromptItem | null;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
 	onStop: () => void;
@@ -25,7 +24,6 @@ export default function AgentsTeamInitialView({
 	prompt,
 	isStreaming,
 	queuedPrompts,
-	activePrompt,
 	onPromptChange,
 	onSubmit,
 	onStop,
@@ -57,7 +55,6 @@ export default function AgentsTeamInitialView({
 						placeholder={previewPrompt ?? DEFAULT_AGENTS_TEAM_PLACEHOLDER}
 						isStreaming={isStreaming}
 						queuedPrompts={queuedPrompts}
-						activePrompt={activePrompt}
 						onPromptChange={onPromptChange}
 						onSubmit={onSubmit}
 						onStop={onStop}

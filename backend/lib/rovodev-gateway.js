@@ -32,10 +32,26 @@ function isChatInProgressError(err) {
 /**
  * Wait for a given number of milliseconds.
  * @param {number} ms
+ * @param {AbortSignal} [signal] - Optional signal to cancel the sleep early
  * @returns {Promise<void>}
  */
-function sleep(ms) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms, signal) {
+	return new Promise((resolve) => {
+		if (signal?.aborted) {
+			resolve();
+			return;
+		}
+
+		const timer = setTimeout(resolve, ms);
+
+		if (signal) {
+			const onAbort = () => {
+				clearTimeout(timer);
+				resolve();
+			};
+			signal.addEventListener("abort", onAbort, { once: true });
+		}
+	});
 }
 
 function normalizeToolName(toolName) {
@@ -89,6 +105,7 @@ function buildThinkingStatusFromToolEvent(toolName, phase) {
  * @param {function} [params.onThinkingStatus] - Called when Rovo emits tool events that map to thinking status labels/content
  * @param {function} [params.onToolCallStart] - Called with structured tool-call details when a tool starts
  * @param {function} [params.onRetry] - Called when a 409 retry is about to happen (for UI indicators)
+ * @param {AbortSignal} [params.signal] - Optional signal to abort the stream (e.g. on client disconnect)
  * @returns {Promise<void>}
  */
 async function streamViaRovoDev({
@@ -97,14 +114,20 @@ async function streamViaRovoDev({
 	onThinkingStatus,
 	onToolCallStart,
 	onRetry,
+	signal,
 }) {
 	/**
 	 * @param {boolean} isRetry
 	 */
 	const attempt = (isRetry) =>
 		new Promise((resolve, reject) => {
+			if (signal?.aborted) {
+				resolve();
+				return;
+			}
+
 			const toolNameByCallId = new Map();
-			sendMessageStreaming(message, {
+			const handle = sendMessageStreaming(message, {
 				onChunk: (chunk) => {
 					if (chunk.type === "text" && chunk.text) {
 						onTextDelta(chunk.text);
@@ -175,12 +198,30 @@ async function streamViaRovoDev({
 					resolve(); // resolve rather than reject so the stream closes cleanly
 				},
 			});
+
+			// Wire the abort signal to the streaming handle
+			if (signal) {
+				const onAbort = () => {
+					handle.abort();
+					resolve();
+				};
+
+				if (signal.aborted) {
+					handle.abort();
+					resolve();
+				} else {
+					signal.addEventListener("abort", onAbort, { once: true });
+				}
+			}
 		});
 
 	try {
 		await attempt(false);
 	} catch (err) {
 		if (isChatInProgressError(err)) {
+			if (signal?.aborted) {
+				return;
+			}
 			console.warn("[streamViaRovoDev] Chat already in progress — cancelling and retrying in 10s...");
 			if (typeof onRetry === "function") {
 				onRetry();
@@ -190,7 +231,10 @@ async function streamViaRovoDev({
 			} catch {
 				// Ignore cancel errors — the chat may have finished on its own
 			}
-			await sleep(RETRY_DELAY_MS);
+			await sleep(RETRY_DELAY_MS, signal);
+			if (signal?.aborted) {
+				return;
+			}
 			await attempt(true);
 		} else {
 			throw err;

@@ -1069,6 +1069,7 @@ const BLOCK_DEMOS: Record<string, ComponentType> = {
 	"settings-dialog": dynamic(() => import("./demos/blocks/settings-dialog-demo"), { ssr: false }),
 	"product-sidebar": dynamic(() => import("./demos/blocks/product-sidebar-demo"), { ssr: false }),
 	"sidebar-rail": dynamic(() => import("./demos/blocks/sidebar-rail-demo"), { ssr: false }),
+	"rsvp-01": dynamic(() => import("./demos/blocks/rsvp-01-demo"), { ssr: false }),
 	"signup-01": dynamic(() => import("./demos/blocks/signup-01-demo"), { ssr: false }),
 	"signup-02": dynamic(() => import("./demos/blocks/signup-02-demo"), { ssr: false }),
 	"signup-03": dynamic(() => import("./demos/blocks/signup-03-demo"), { ssr: false }),

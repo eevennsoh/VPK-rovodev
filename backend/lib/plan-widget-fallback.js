@@ -1,5 +1,6 @@
 const MAX_TASKS = 20;
 const DEFAULT_MIN_TASKS = 2;
+const DEFAULT_PROGRESSIVE_MIN_TASKS = 1;
 
 function normalizeWhitespace(value) {
 	return value.replace(/\s+/g, " ").trim();
@@ -111,38 +112,51 @@ function derivePlanTitle(lines, actionItemsHeadingIndex) {
 	return "Plan";
 }
 
-function extractPlanWidgetPayloadFromText(rawText, options = {}) {
-	if (typeof rawText !== "string") {
-		return null;
+function deriveProgressivePlanTitle(lines, listStartIndex) {
+	for (let index = 0; index < listStartIndex; index += 1) {
+		const line = lines[index];
+		const listItemLabel = parseListItemLabel(line);
+		if (listItemLabel) {
+			continue;
+		}
+
+		const normalizedLine = stripMarkdownDecorators(
+			line
+				.replace(/^#{1,6}\s*/, "")
+				.replace(/:$/, "")
+		);
+		if (!normalizedLine || isActionItemsHeading(normalizedLine)) {
+			continue;
+		}
+
+		return truncateWords(normalizedLine, 8);
 	}
 
-	const normalizedText = rawText.trim();
-	if (!normalizedText) {
-		return null;
-	}
+	return derivePlanTitle(lines, listStartIndex);
+}
 
-	const minTasks =
-		typeof options.minTasks === "number" && options.minTasks > 0
-			? Math.floor(options.minTasks)
-			: DEFAULT_MIN_TASKS;
-	const maxTasks =
-		typeof options.maxTasks === "number" && options.maxTasks > 0
-			? Math.floor(options.maxTasks)
-			: MAX_TASKS;
-
-	const lines = normalizedText.split(/\r?\n/);
-	const actionItemsHeadingIndex = lines.findIndex((line) =>
-		isActionItemsHeading(line)
+function hasPlanSignal(value) {
+	return /\b(action\s*items?|plan|steps?|tasks?|roadmap|timeline|milestones?)\b/i.test(
+		value
 	);
-	if (actionItemsHeadingIndex === -1) {
-		return null;
+}
+
+function findFirstListItemIndex(lines, startIndex = 0) {
+	for (let index = startIndex; index < lines.length; index += 1) {
+		if (parseListItemLabel(lines[index])) {
+			return index;
+		}
 	}
 
+	return -1;
+}
+
+function collectPlanTasks(lines, startIndex, maxTasks) {
 	const tasks = [];
 	let hasSeenListItem = false;
 	let activeTaskIndex = -1;
 
-	for (let index = actionItemsHeadingIndex + 1; index < lines.length; index += 1) {
+	for (let index = startIndex; index < lines.length; index += 1) {
 		const line = lines[index];
 		const listItemLabel = parseListItemLabel(line);
 		if (listItemLabel) {
@@ -186,6 +200,38 @@ function extractPlanWidgetPayloadFromText(rawText, options = {}) {
 		break;
 	}
 
+	return tasks;
+}
+
+function extractPlanWidgetPayloadFromText(rawText, options = {}) {
+	if (typeof rawText !== "string") {
+		return null;
+	}
+
+	const normalizedText = rawText.trim();
+	if (!normalizedText) {
+		return null;
+	}
+
+	const minTasks =
+		typeof options.minTasks === "number" && options.minTasks > 0
+			? Math.floor(options.minTasks)
+			: DEFAULT_MIN_TASKS;
+	const maxTasks =
+		typeof options.maxTasks === "number" && options.maxTasks > 0
+			? Math.floor(options.maxTasks)
+			: MAX_TASKS;
+
+	const lines = normalizedText.split(/\r?\n/);
+	const actionItemsHeadingIndex = lines.findIndex((line) =>
+		isActionItemsHeading(line)
+	);
+	if (actionItemsHeadingIndex === -1) {
+		return null;
+	}
+
+	const tasks = collectPlanTasks(lines, actionItemsHeadingIndex + 1, maxTasks);
+
 	if (tasks.length < minTasks) {
 		return null;
 	}
@@ -197,6 +243,58 @@ function extractPlanWidgetPayloadFromText(rawText, options = {}) {
 	};
 }
 
+function extractProgressivePlanWidgetPayloadFromText(rawText, options = {}) {
+	if (typeof rawText !== "string") {
+		return null;
+	}
+
+	const normalizedText = rawText.trim();
+	if (!normalizedText) {
+		return null;
+	}
+
+	const minTasks =
+		typeof options.minTasks === "number" && options.minTasks > 0
+			? Math.floor(options.minTasks)
+			: DEFAULT_PROGRESSIVE_MIN_TASKS;
+	const maxTasks =
+		typeof options.maxTasks === "number" && options.maxTasks > 0
+			? Math.floor(options.maxTasks)
+			: MAX_TASKS;
+	const requirePlanSignal = options.requirePlanSignal !== false;
+
+	const lines = normalizedText.split(/\r?\n/);
+	const actionItemsHeadingIndex = lines.findIndex((line) =>
+		isActionItemsHeading(line)
+	);
+	if (actionItemsHeadingIndex === -1 && requirePlanSignal && !hasPlanSignal(normalizedText)) {
+		return null;
+	}
+
+	const listStartIndex =
+		actionItemsHeadingIndex !== -1
+			? actionItemsHeadingIndex + 1
+			: findFirstListItemIndex(lines);
+	if (listStartIndex === -1) {
+		return null;
+	}
+
+	const tasks = collectPlanTasks(lines, listStartIndex, maxTasks);
+	if (tasks.length < minTasks) {
+		return null;
+	}
+
+	return {
+		type: "plan",
+		title:
+			actionItemsHeadingIndex !== -1
+				? derivePlanTitle(lines, actionItemsHeadingIndex)
+				: deriveProgressivePlanTitle(lines, listStartIndex),
+		tasks,
+	};
+}
+
 module.exports = {
 	extractPlanWidgetPayloadFromText,
+	extractProgressivePlanWidgetPayloadFromText,
 };

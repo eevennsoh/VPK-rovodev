@@ -30,6 +30,8 @@ export interface SendPromptOptions {
 	contextDescription?: string;
 	userName?: string;
 	messageMetadata?: RovoMessageMetadata;
+	clarification?: unknown;
+	approval?: unknown;
 }
 
 export interface QueuedPromptItem {
@@ -286,6 +288,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 										body: {
 											contextDescription: saved.options?.contextDescription,
 											userName: saved.options?.userName,
+											hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 										},
 									}
 								);
@@ -305,6 +308,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 										body: {
 											contextDescription: saved.options?.contextDescription,
 											userName: saved.options?.userName,
+											hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 										},
 									}
 								);
@@ -413,6 +417,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 						body: {
 							contextDescription: promptItem.options?.contextDescription,
 							userName: promptItem.options?.userName,
+							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 						},
 					}
 				);
@@ -432,6 +437,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 						body: {
 							contextDescription: promptItem.options?.contextDescription,
 							userName: promptItem.options?.userName,
+							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 						},
 					}
 				);
@@ -565,6 +571,10 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 			shouldFinalizeActivePromptRef.current = true;
 		}
 		void stop();
+		// Belt-and-suspenders: explicitly tell the backend to cancel the RovoDev
+		// stream. The primary cancellation path is req.on("close") → AbortSignal,
+		// but this handles edge cases where the SSE close event is delayed.
+		fetch(API_ENDPOINTS.CHAT_CANCEL, { method: "POST" }).catch(() => {});
 		queueTick();
 	}, [queueTick, stop]);
 

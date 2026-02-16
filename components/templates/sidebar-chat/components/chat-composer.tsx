@@ -13,6 +13,7 @@ import {
 	PromptInputButton,
 	PromptInputDisclaimer,
 	PromptInputFooter,
+	PromptInputHeader,
 	PromptInputMicrophone,
 	PromptInputSubmit,
 	PromptInputTextarea,
@@ -40,7 +41,6 @@ interface ChatComposerProps {
 	prompt: string;
 	isStreaming: boolean;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
-	activePrompt: QueuedPromptItem | null;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => void;
 	onStop: () => void;
@@ -51,7 +51,6 @@ export default function ChatComposer({
 	prompt,
 	isStreaming,
 	queuedPrompts,
-	activePrompt,
 	onPromptChange,
 	onSubmit,
 	onStop,
@@ -65,20 +64,22 @@ export default function ChatComposer({
 
 	return (
 		<div className="px-1">
-				<div
-					className="rounded-xl border border-border bg-surface px-4 pb-3 pt-4"
-					style={{ boxShadow: composerUpwardShadow }}
+			<div
+				className="rounded-xl border border-border bg-surface px-4 pb-3 pt-4"
+				style={{ boxShadow: composerUpwardShadow }}
+			>
+				<PromptInput
+					onSubmit={onSubmit}
+					className={`${composerPromptInputClassName} relative z-10`}
 				>
-					<ChatPromptQueue
-						activePrompt={activePrompt}
-						queuedPrompts={queuedPrompts}
-						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-						className="mb-[-10px]"
-					/>
-					<PromptInput
-						onSubmit={onSubmit}
-						className={`${composerPromptInputClassName} relative z-10`}
-					>
+					{queuedPrompts.length > 0 ? (
+						<PromptInputHeader className="px-0 pb-2 pt-0">
+							<ChatPromptQueue
+								queuedPrompts={queuedPrompts}
+								onRemoveQueuedPrompt={onRemoveQueuedPrompt}
+							/>
+						</PromptInputHeader>
+					) : null}
 					<PromptInputBody>
 						<PromptInputTextarea
 							value={prompt}

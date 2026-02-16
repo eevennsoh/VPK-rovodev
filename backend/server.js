@@ -18,7 +18,7 @@ const { createRunManager } = require("./lib/agents-team-runs");
 const { createConfigManager } = require("./lib/agents-team-config");
 const { genuiChatHandler } = require("./lib/genui-chat-handler");
 const { streamViaRovoDev, generateTextViaRovoDev } = require("./lib/rovodev-gateway");
-const { healthCheck: rovoDevHealthCheck } = require("./lib/rovodev-client");
+const { healthCheck: rovoDevHealthCheck, cancelChat: rovoDevCancelChat } = require("./lib/rovodev-client");
 const {
 	getEnvVars,
 	getAuthToken,
@@ -30,6 +30,7 @@ const {
 } = require("./lib/ai-gateway-helpers");
 const {
 	extractPlanWidgetPayloadFromText,
+	extractProgressivePlanWidgetPayloadFromText,
 } = require("./lib/plan-widget-fallback");
 
 console.log("[STARTUP] Dependencies loaded");
@@ -1483,7 +1484,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 			messages,
 			contextDescription,
 			provider,
+			hasQueuedPrompts: rawHasQueuedPrompts,
 		} = req.body || {};
+		const hasQueuedPrompts = Boolean(rawHasQueuedPrompts);
 
 		const {
 			message: latestUserMessage,
@@ -1590,24 +1593,37 @@ app.post("/api/chat-sdk", async (req, res) => {
 			});
 		}
 
+		// Create an AbortController so we can cancel the RovoDev stream when
+		// the client disconnects (e.g. user clicks Stop).
+		const abortController = new AbortController();
+		req.on("close", () => {
+			if (!abortController.signal.aborted) {
+				console.log("[CHAT-SDK] Client disconnected, aborting RovoDev stream");
+				abortController.abort();
+			}
+		});
+
 		const stream = createUIMessageStream({
 			execute: async ({ writer }) => {
 				const widgetLoadingPrefix = "WIDGET_LOADING:";
 				const widgetDataPrefix = "WIDGET_DATA:";
 				const thinkingStatusPrefix = "THINKING_STATUS:";
 				const agentExecutionPrefix = "AGENT_EXECUTION:";
-				const partialMarkerBufferLength =
-					Math.max(widgetLoadingPrefix.length, widgetDataPrefix.length, thinkingStatusPrefix.length, agentExecutionPrefix.length) - 1;
-				let textBuffer = "";
-				const textId = `text-${Date.now()}`;
-				const widgetId = `widget-${Date.now()}`;
-				let textStarted = false;
-				let assistantText = "";
-				let widgetType = null;
-				let latestPlanPayload = null;
-				let hasEmittedQuestionCard = false;
-				let hasEmittedPlanWidget = false;
-				const emittedQuestionCardToolCalls = new Set();
+					const partialMarkerBufferLength =
+						Math.max(widgetLoadingPrefix.length, widgetDataPrefix.length, thinkingStatusPrefix.length, agentExecutionPrefix.length) - 1;
+					let textBuffer = "";
+					const textId = `text-${Date.now()}`;
+					const widgetId = `widget-${Date.now()}`;
+					let textStarted = false;
+					let assistantText = "";
+					let widgetType = null;
+					let latestPlanPayload = null;
+					let hasEmittedQuestionCard = false;
+					let hasEmittedPlanWidget = false;
+					let hasEmittedPlanLoadingState = false;
+					let latestProgressivePlanFingerprint = null;
+					let hasExplicitPlanPayload = false;
+					const emittedQuestionCardToolCalls = new Set();
 
 				const emitTextDelta = (delta) => {
 					if (!delta) {
@@ -1623,13 +1639,77 @@ app.post("/api/chat-sdk", async (req, res) => {
 					assistantText += delta;
 				};
 
-				const sanitizeThinkingLabel = (value) => {
-					if (typeof value !== "string") {
-						return "";
-					}
+					const sanitizeThinkingLabel = (value) => {
+						if (typeof value !== "string") {
+							return "";
+						}
 
-					return value.replace(/(?:\s*(?:\.{3}|…))+$/u, "").trim();
-				};
+						return value.replace(/(?:\s*(?:\.{3}|…))+$/u, "").trim();
+					};
+
+					const emitPlanWidgetLoading = (loading) => {
+						writer.write({
+							type: "data-widget-loading",
+							id: widgetId,
+							data: {
+								type: "plan",
+								loading,
+							},
+						});
+						hasEmittedPlanLoadingState = loading;
+					};
+
+					const emitPlanWidgetData = (payload) => {
+						writer.write({
+							type: "data-widget-data",
+							id: widgetId,
+							data: {
+								type: "plan",
+								payload,
+							},
+						});
+					};
+
+					const maybeEmitProgressivePlanUpdate = () => {
+						if (hasEmittedQuestionCard || hasExplicitPlanPayload) {
+							return;
+						}
+
+						const progressivePlanPayload = extractProgressivePlanWidgetPayloadFromText(
+							assistantText,
+							{
+								minTasks: 1,
+							}
+						);
+						if (!progressivePlanPayload) {
+							return;
+						}
+
+						let nextFingerprint = null;
+						try {
+							nextFingerprint = JSON.stringify(progressivePlanPayload);
+						} catch {
+							nextFingerprint = null;
+						}
+
+						if (
+							nextFingerprint &&
+							nextFingerprint === latestProgressivePlanFingerprint
+						) {
+							return;
+						}
+
+						latestProgressivePlanFingerprint = nextFingerprint;
+						latestPlanPayload = progressivePlanPayload;
+						hasEmittedPlanWidget = true;
+						widgetType = "plan";
+
+						if (!hasEmittedPlanLoadingState) {
+							emitPlanWidgetLoading(true);
+						}
+
+						emitPlanWidgetData(progressivePlanPayload);
+					};
 
 				const emitRequestUserInputQuestionCard = (toolCall) => {
 					if (!toolCall || typeof toolCall !== "object") {
@@ -1781,44 +1861,47 @@ app.post("/api/chat-sdk", async (req, res) => {
 							return;
 						}
 
-						if (markerIndex > 0) {
-							emitTextDelta(textBuffer.slice(0, markerIndex));
-							textBuffer = textBuffer.slice(markerIndex);
-							continue;
-						}
-
-						if (textBuffer.startsWith(widgetLoadingPrefix)) {
-							const loadingMatch = textBuffer.match(
-								/^WIDGET_LOADING:([A-Za-z0-9_-]+)/
-							);
-							if (!loadingMatch) {
-								if (textBuffer.length > widgetLoadingPrefix.length) {
-									emitTextDelta(widgetLoadingPrefix);
-									textBuffer = textBuffer.slice(widgetLoadingPrefix.length);
-									continue;
-								}
-								if (isFinalChunk) {
-									emitTextDelta(textBuffer);
-									textBuffer = "";
-								}
-								return;
+							if (markerIndex > 0) {
+								emitTextDelta(textBuffer.slice(0, markerIndex));
+								textBuffer = textBuffer.slice(markerIndex);
+								continue;
 							}
 
-							widgetType = loadingMatch[1];
-							writer.write({
-								type: "data-widget-loading",
-								id: widgetId,
-								data: {
-									type: widgetType,
-									loading: true,
-								},
-							});
+							if (textBuffer.startsWith(widgetLoadingPrefix)) {
+								const loadingMatch = textBuffer.match(
+									/^WIDGET_LOADING:([A-Za-z0-9_-]+)/
+								);
+								if (!loadingMatch) {
+									if (textBuffer.length > widgetLoadingPrefix.length) {
+										emitTextDelta(widgetLoadingPrefix);
+										textBuffer = textBuffer.slice(widgetLoadingPrefix.length);
+										continue;
+									}
+									if (isFinalChunk) {
+										emitTextDelta(textBuffer);
+										textBuffer = "";
+									}
+									return;
+								}
 
-							textBuffer = textBuffer
-								.slice(loadingMatch[0].length)
-								.replace(/^[\r\n\t ]+/, "");
-							continue;
-						}
+								widgetType = loadingMatch[1];
+								if (widgetType === "plan") {
+									hasEmittedPlanLoadingState = true;
+								}
+								writer.write({
+									type: "data-widget-loading",
+									id: widgetId,
+									data: {
+										type: widgetType,
+										loading: true,
+									},
+								});
+
+								textBuffer = textBuffer
+									.slice(loadingMatch[0].length)
+									.replace(/^[\r\n\t ]+/, "");
+								continue;
+							}
 
 						if (textBuffer.startsWith(widgetDataPrefix)) {
 							let jsonStartIndex = widgetDataPrefix.length;
@@ -1864,18 +1947,20 @@ app.post("/api/chat-sdk", async (req, res) => {
 								.slice(jsonEndIndex + 1)
 								.replace(/^[\r\n\t ]+/, "");
 
-							try {
-								const parsedWidget = JSON.parse(jsonPayload);
-								const resolvedWidgetType =
-									parsedWidget?.type ?? widgetType ?? "widget";
-								widgetType = resolvedWidgetType;
-								if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
-									hasEmittedQuestionCard = true;
-								}
-								if (resolvedWidgetType === "plan") {
-									latestPlanPayload = parsedWidget;
-									hasEmittedPlanWidget = true;
-								}
+								try {
+									const parsedWidget = JSON.parse(jsonPayload);
+									const resolvedWidgetType =
+										parsedWidget?.type ?? widgetType ?? "widget";
+									widgetType = resolvedWidgetType;
+									if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
+										hasEmittedQuestionCard = true;
+									}
+									if (resolvedWidgetType === "plan") {
+										latestPlanPayload = parsedWidget;
+										hasEmittedPlanWidget = true;
+										hasExplicitPlanPayload = true;
+										latestProgressivePlanFingerprint = null;
+									}
 
 								writer.write({
 									type: "data-widget-data",
@@ -1886,17 +1971,20 @@ app.post("/api/chat-sdk", async (req, res) => {
 									},
 								});
 
-								writer.write({
-									type: "data-widget-loading",
-									id: widgetId,
-									data: {
-										type: resolvedWidgetType,
-										loading: false,
+									writer.write({
+										type: "data-widget-loading",
+										id: widgetId,
+										data: {
+											type: resolvedWidgetType,
+											loading: false,
 									},
-								});
-							} catch (error) {
-								console.error("Failed to parse widget payload:", error);
-								emitTextDelta(`${widgetDataPrefix}${jsonPayload}`);
+									});
+									if (resolvedWidgetType === "plan") {
+										hasEmittedPlanLoadingState = false;
+									}
+								} catch (error) {
+									console.error("Failed to parse widget payload:", error);
+									emitTextDelta(`${widgetDataPrefix}${jsonPayload}`);
 							}
 
 							continue;
@@ -2044,14 +2132,17 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 					textBuffer += delta;
 					processTextBuffer(false);
+					maybeEmitProgressivePlanUpdate();
 				};
 
 				// RovoDev Serve: route through the local agent loop
 				console.log("[CHAT-SDK] Routing through RovoDev Serve");
+				let retryOccurred = false;
 				await streamViaRovoDev({
 					message: userMessageText,
 					onTextDelta: handleStreamTextDelta,
 					onToolCallStart: emitRequestUserInputQuestionCard,
+					signal: abortController.signal,
 					onThinkingStatus: (statusUpdate) => {
 						if (!statusUpdate || typeof statusUpdate !== "object") {
 							return;
@@ -2078,6 +2169,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 					onRetry: (() => {
 						let retryEmitted = false;
 						return () => {
+							retryOccurred = true;
 							if (retryEmitted) return;
 							retryEmitted = true;
 							const retryStatusId = `thinking-retry-${Date.now()}`;
@@ -2092,7 +2184,23 @@ app.post("/api/chat-sdk", async (req, res) => {
 					})(),
 				});
 
+				if (retryOccurred) {
+					writer.write({
+						type: "data-thinking-status",
+						data: { label: "Reconnected" },
+					});
+				}
+
 				processTextBuffer(true);
+				maybeEmitProgressivePlanUpdate();
+
+				// Skip post-stream work if the client disconnected
+				if (abortController.signal.aborted) {
+					if (textStarted) {
+						writer.write({ type: "text-end", id: textId });
+					}
+					return;
+				}
 
 				if (!hasEmittedQuestionCard && !hasEmittedPlanWidget) {
 					const fallbackPlanPayload = extractPlanWidgetPayloadFromText(
@@ -2101,24 +2209,17 @@ app.post("/api/chat-sdk", async (req, res) => {
 					if (fallbackPlanPayload) {
 						latestPlanPayload = fallbackPlanPayload;
 						hasEmittedPlanWidget = true;
-						writer.write({
-							type: "data-widget-data",
-							id: widgetId,
-							data: {
-								type: "plan",
-								payload: fallbackPlanPayload,
-							},
-						});
-
-						writer.write({
-							type: "data-widget-loading",
-							id: widgetId,
-							data: {
-								type: "plan",
-								loading: false,
-							},
-						});
+						emitPlanWidgetData(fallbackPlanPayload);
+						emitPlanWidgetLoading(false);
 					}
+				}
+
+				if (
+					hasEmittedPlanWidget &&
+					!hasExplicitPlanPayload &&
+					hasEmittedPlanLoadingState
+				) {
+					emitPlanWidgetLoading(false);
 				}
 
 				// Generate mermaid fallback if plan widget was emitted but no diagram
@@ -2138,21 +2239,23 @@ app.post("/api/chat-sdk", async (req, res) => {
 					writer.write({ type: "text-end", id: textId });
 				}
 
-				try {
-					const suggestedQuestions = await generateSuggestedQuestions({
-						message: latestUserMessage,
-						conversationHistory,
-						assistantResponse: assistantText,
-					});
-
-					if (suggestedQuestions.length > 0) {
-						writer.write({
-							type: "data-suggested-questions",
-							data: { questions: suggestedQuestions },
+				if (!hasQueuedPrompts) {
+					try {
+						const suggestedQuestions = await generateSuggestedQuestions({
+							message: latestUserMessage,
+							conversationHistory,
+							assistantResponse: assistantText,
 						});
+
+						if (suggestedQuestions.length > 0) {
+							writer.write({
+								type: "data-suggested-questions",
+								data: { questions: suggestedQuestions },
+							});
+						}
+					} catch (error) {
+						console.error("Failed to stream suggested questions:", error);
 					}
-				} catch (error) {
-					console.error("Failed to stream suggested questions:", error);
 				}
 			},
 			onError: (error) => {
@@ -2175,6 +2278,18 @@ app.post("/api/chat-sdk", async (req, res) => {
 		});
 	}
 });
+
+app.post("/api/chat-cancel", async (req, res) => {
+	try {
+		console.log("[CHAT-CANCEL] Cancel requested");
+		await rovoDevCancelChat();
+		return res.status(200).json({ cancelled: true });
+	} catch (error) {
+		console.error("[CHAT-CANCEL] Cancel error:", error.message || error);
+		return res.status(200).json({ cancelled: false, error: error.message });
+	}
+});
+
 app.post("/api/genui-chat", genuiChatHandler);
 
 app.post("/api/sound-generation", async (req, res) => {

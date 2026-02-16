@@ -7,6 +7,7 @@ import {
 	PromptInput,
 	PromptInputBody,
 	PromptInputFooter,
+	PromptInputHeader,
 	PromptInputTextarea,
 } from "@/components/ui-ai/prompt-input";
 import { ChatPromptQueue } from "@/components/templates/shared/components/chat-prompt-queue";
@@ -33,7 +34,6 @@ interface RovoChatInputProps {
 	companyKnowledgeEnabled: boolean;
 	onCompanyKnowledgeChange: (enabled: boolean) => void;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
-	activePrompt: QueuedPromptItem | null;
 	onRemoveQueuedPrompt: (id: string) => void;
 	customHeight?: string;
 	hideUsesAI?: boolean;
@@ -59,7 +59,6 @@ export default function RovoChatInput({
 	companyKnowledgeEnabled,
 	onCompanyKnowledgeChange,
 	queuedPrompts,
-	activePrompt,
 	onRemoveQueuedPrompt,
 	customHeight,
 	hideUsesAI = false,
@@ -73,8 +72,8 @@ export default function RovoChatInput({
 				<InputContextBar product={product} />
 			) : null}
 
-				<div
-					style={{
+			<div
+				style={{
 					backgroundColor: token("elevation.surface"),
 					border: `1px solid ${token("color.border")}`,
 					borderRadius: token("radius.xlarge"),
@@ -84,20 +83,22 @@ export default function RovoChatInput({
 					flexDirection: customHeight ? "column" : undefined,
 					...(customHeight ? { height: customHeight } : {}),
 				}}
+			>
+				<PromptInput
+					onSubmit={onSubmit}
+					className={cn(
+						"relative z-10 w-full",
+						customHeight ? "flex h-full flex-col" : undefined
+					)}
 				>
-					<ChatPromptQueue
-						activePrompt={activePrompt}
-						queuedPrompts={queuedPrompts}
-						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-						className="mb-[-10px]"
-					/>
-					<PromptInput
-						onSubmit={onSubmit}
-						className={cn(
-							"relative z-10 w-full",
-							customHeight ? "flex h-full flex-col" : undefined
-						)}
-					>
+					{queuedPrompts.length > 0 ? (
+						<PromptInputHeader className="px-0 pb-2 pt-0">
+							<ChatPromptQueue
+								queuedPrompts={queuedPrompts}
+								onRemoveQueuedPrompt={onRemoveQueuedPrompt}
+							/>
+						</PromptInputHeader>
+					) : null}
 					<PromptInputBody className={cn(customHeight ? "flex-1" : undefined)}>
 						<PromptInputTextarea
 							value={prompt + interimText}

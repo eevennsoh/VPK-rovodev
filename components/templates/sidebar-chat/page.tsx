@@ -34,7 +34,6 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 		uiMessages,
 		isStreaming,
 		queuedPrompts,
-		activePrompt,
 		removeQueuedPrompt,
 	} = useChatSubmit();
 	const messages = useMemo(
@@ -130,7 +129,6 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 				prompt={prompt}
 				isStreaming={isStreaming}
 				queuedPrompts={queuedPrompts}
-				activePrompt={activePrompt}
 				onPromptChange={setPrompt}
 				onSubmit={handleSubmit}
 				onStop={abort}
