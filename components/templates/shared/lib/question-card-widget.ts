@@ -1,4 +1,4 @@
-import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
+import { getMessageText, type RovoUIMessage } from "@/lib/rovo-ui-messages";
 
 interface StringRecord {
 	[key: string]: unknown;
@@ -49,6 +49,11 @@ const DEFAULT_MAX_ROUNDS = 3;
 const DEFAULT_TITLE = "Help me clarify this";
 const DEFAULT_PLACEHOLDER = "Tell Rovo what to do...";
 const MAX_GENERATED_OPTIONS = 3;
+const INFERRED_QUESTION_CARD_TITLE = "Answer these questions to continue";
+const NUMBERED_QUESTION_PATTERN = /^\s*(\d+)[.)]\s+(.+)$/;
+const BULLET_OPTION_PATTERN = /^\s*[-*•]\s+(.+)$/;
+const INTERROGATIVE_PATTERN =
+	/^(what|which|who|when|where|why|how|is|are|can|could|would|should|will|do|does|did|has|have|had)\b/i;
 
 function isStringRecord(value: unknown): value is StringRecord {
 	return typeof value === "object" && value !== null;
@@ -166,6 +171,116 @@ function getUniqueQuestionId(baseId: string, seenQuestionIds: Set<string>): stri
 
 	seenQuestionIds.add(uniqueQuestionId);
 	return uniqueQuestionId;
+}
+
+function stripMarkdownFormatting(value: string): string {
+	return value
+		.replace(/\*\*(.*?)\*\*/g, "$1")
+		.replace(/`([^`]+)`/g, "$1")
+		.replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function stripFencedCodeBlocks(value: string): string {
+	return value.replace(/```[\s\S]*?```/g, "");
+}
+
+function normalizeQuestionLabel(value: string): string {
+	return stripMarkdownFormatting(value)
+		.replace(/\s+(?:for example|e\.g\.)\s*:?\s*$/i, "")
+		.trim();
+}
+
+function isLikelyQuestionLabel(value: string): boolean {
+	if (!value) {
+		return false;
+	}
+
+	return value.includes("?") || INTERROGATIVE_PATTERN.test(value);
+}
+
+function inferQuestionCardPayloadFromAssistantText(
+	message: Readonly<Pick<RovoUIMessage, "id" | "parts">>
+): ParsedQuestionCardPayload | null {
+	const messageText = stripFencedCodeBlocks(getMessageText(message)).trim();
+	if (!messageText) {
+		return null;
+	}
+
+	const lines = messageText.split(/\r?\n/);
+	const introLines: string[] = [];
+	const questions: Array<{
+		label: string;
+		options: string[];
+	}> = [];
+	let activeQuestionIndex = -1;
+	let hasSeenNumberedQuestion = false;
+
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+		if (!trimmedLine) {
+			continue;
+		}
+
+		const numberedQuestionMatch = trimmedLine.match(NUMBERED_QUESTION_PATTERN);
+		if (numberedQuestionMatch) {
+			hasSeenNumberedQuestion = true;
+			const questionLabel = normalizeQuestionLabel(numberedQuestionMatch[2]);
+			if (!isLikelyQuestionLabel(questionLabel)) {
+				activeQuestionIndex = -1;
+				continue;
+			}
+
+			questions.push({
+				label: questionLabel,
+				options: [],
+			});
+			activeQuestionIndex = questions.length - 1;
+			continue;
+		}
+
+		const bulletOptionMatch = trimmedLine.match(BULLET_OPTION_PATTERN);
+		if (bulletOptionMatch && activeQuestionIndex >= 0) {
+			const optionLabel = stripMarkdownFormatting(bulletOptionMatch[1]);
+			if (optionLabel) {
+				questions[activeQuestionIndex].options.push(optionLabel);
+			}
+			continue;
+		}
+
+		if (!hasSeenNumberedQuestion) {
+			const introLine = stripMarkdownFormatting(trimmedLine);
+			if (introLine) {
+				introLines.push(introLine);
+			}
+		}
+	}
+
+	if (questions.length < 2) {
+		return null;
+	}
+
+	const inferredPayload = parseQuestionCardPayload({
+		type: "question-card",
+		sessionId: `inferred-${message.id}`,
+		round: 1,
+		maxRounds: 1,
+		title: INFERRED_QUESTION_CARD_TITLE,
+		description: introLines.join(" ").trim() || undefined,
+		questions: questions.map((question, questionIndex) => ({
+			id: `q-${questionIndex + 1}`,
+			label: question.label,
+			required: true,
+			kind: "single-select",
+			options: question.options.map((optionLabel, optionIndex) => ({
+				id: `q-${questionIndex + 1}-option-${optionIndex + 1}`,
+				label: optionLabel,
+			})),
+		})),
+	});
+
+	return inferredPayload;
 }
 
 export function parseQuestionCardPayload(
@@ -345,37 +460,49 @@ export function buildClarificationSummaryPrompt(
 export function getLatestQuestionCardPayload(
 	messages: ReadonlyArray<RovoUIMessage>
 ): ParsedQuestionCardPayload | null {
-	for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
-		const message = messages[messageIndex];
-		if (message.role !== "assistant") {
+	const latestAssistantMessageIndex = messages.findLastIndex(
+		(message) => message.role === "assistant"
+	);
+	if (latestAssistantMessageIndex === -1) {
+		return null;
+	}
+
+	const latestUserMessageIndex = messages.findLastIndex(
+		(message) => message.role === "user"
+	);
+	if (latestUserMessageIndex > latestAssistantMessageIndex) {
+		return null;
+	}
+
+	const latestAssistantMessage = messages[latestAssistantMessageIndex];
+	for (
+		let partIndex = latestAssistantMessage.parts.length - 1;
+		partIndex >= 0;
+		partIndex--
+	) {
+		const part = latestAssistantMessage.parts[partIndex] as {
+			type?: string;
+			data?: {
+				type?: unknown;
+				payload?: unknown;
+			};
+		};
+
+		if (part.type !== "data-widget-data") {
 			continue;
 		}
 
-		for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex--) {
-			const part = message.parts[partIndex] as {
-				type?: string;
-				data?: {
-					type?: unknown;
-					payload?: unknown;
-				};
-			};
-
-			if (part.type !== "data-widget-data") {
-				continue;
-			}
-
-			const widgetType = getNonEmptyString(part.data?.type);
-			if (!widgetType) {
-				continue;
-			}
-
-			if (widgetType !== "question-card") {
-				return null;
-			}
-
-			return parseQuestionCardPayload(part.data?.payload);
+		const widgetType = getNonEmptyString(part.data?.type);
+		if (!widgetType) {
+			continue;
 		}
+
+		if (widgetType !== "question-card") {
+			return null;
+		}
+
+		return parseQuestionCardPayload(part.data?.payload);
 	}
 
-	return null;
+	return inferQuestionCardPayloadFromAssistantText(latestAssistantMessage);
 }

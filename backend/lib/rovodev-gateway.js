@@ -18,7 +18,10 @@
 
 const { sendMessageStreaming, sendMessageSync, cancelChat } = require("./rovodev-client");
 
-const RETRY_DELAY_MS = 10_000;
+const RETRY_INITIAL_DELAY_MS = 250;
+const RETRY_DELAY_STEP_MS = 250;
+const RETRY_MAX_DELAY_MS = 1_000;
+const RETRY_TIMEOUT_MS = 10_000;
 
 /**
  * Check whether an error is a 409 "chat already in progress" conflict.
@@ -52,6 +55,66 @@ function sleep(ms, signal) {
 			signal.addEventListener("abort", onAbort, { once: true });
 		}
 	});
+}
+
+/**
+ * Retry an operation while RovoDev reports "chat already in progress" (409).
+ * Uses short, bounded backoff delays so queued prompts start as soon as possible.
+ *
+ * @template T
+ * @param {() => Promise<T>} operation
+ * @param {object} params
+ * @param {AbortSignal} [params.signal]
+ * @param {function} [params.onRetry]
+ * @param {string} params.logPrefix
+ * @returns {Promise<{ aborted: boolean; value: T | undefined }>}
+ */
+async function retryChatInProgress(operation, { signal, onRetry, logPrefix }) {
+	const deadlineMs = Date.now() + RETRY_TIMEOUT_MS;
+	let retryDelayMs = RETRY_INITIAL_DELAY_MS;
+	let retryNotified = false;
+
+	while (true) {
+		if (signal?.aborted) {
+			return { aborted: true, value: undefined };
+		}
+
+		try {
+			const value = await operation();
+			return { aborted: false, value };
+		} catch (err) {
+			if (!isChatInProgressError(err)) {
+				throw err;
+			}
+
+			const remainingMs = deadlineMs - Date.now();
+			if (remainingMs <= 0) {
+				throw err;
+			}
+
+			if (!retryNotified && typeof onRetry === "function") {
+				retryNotified = true;
+				onRetry();
+			}
+
+			const waitMs = Math.min(retryDelayMs, RETRY_MAX_DELAY_MS, remainingMs);
+			console.warn(
+				`[${logPrefix}] Chat already in progress — cancelling and retrying in ${waitMs}ms...`
+			);
+
+			try {
+				await cancelChat();
+			} catch {
+				// Ignore cancel errors — the chat may have finished on its own
+			}
+
+			await sleep(waitMs, signal);
+			retryDelayMs = Math.min(
+				retryDelayMs + RETRY_DELAY_STEP_MS,
+				RETRY_MAX_DELAY_MS
+			);
+		}
+	}
 }
 
 function normalizeToolName(toolName) {
@@ -97,7 +160,7 @@ function buildThinkingStatusFromToolEvent(toolName, phase) {
  * writer calls are already handled.
  *
  * If a 409 "chat already in progress" error occurs, the function will
- * cancel the in-progress chat, wait 10 seconds, and retry once.
+ * cancel the in-progress chat and retry quickly with bounded backoff.
  *
  * @param {object} params
  * @param {string} params.message - The full message to send to RovoDev
@@ -116,10 +179,7 @@ async function streamViaRovoDev({
 	onRetry,
 	signal,
 }) {
-	/**
-	 * @param {boolean} isRetry
-	 */
-	const attempt = (isRetry) =>
+	const attempt = () =>
 		new Promise((resolve, reject) => {
 			if (signal?.aborted) {
 				resolve();
@@ -187,7 +247,7 @@ async function streamViaRovoDev({
 					resolve();
 				},
 				onError: (err) => {
-					if (!isRetry && isChatInProgressError(err)) {
+					if (isChatInProgressError(err)) {
 						// Bubble up so the outer handler can retry
 						reject(err);
 						return;
@@ -216,29 +276,22 @@ async function streamViaRovoDev({
 		});
 
 	try {
-		await attempt(false);
+		const { aborted } = await retryChatInProgress(attempt, {
+			signal,
+			onRetry,
+			logPrefix: "streamViaRovoDev",
+		});
+		if (aborted) {
+			return;
+		}
 	} catch (err) {
 		if (isChatInProgressError(err)) {
-			if (signal?.aborted) {
-				return;
-			}
-			console.warn("[streamViaRovoDev] Chat already in progress — cancelling and retrying in 10s...");
-			if (typeof onRetry === "function") {
-				onRetry();
-			}
-			try {
-				await cancelChat();
-			} catch {
-				// Ignore cancel errors — the chat may have finished on its own
-			}
-			await sleep(RETRY_DELAY_MS, signal);
-			if (signal?.aborted) {
-				return;
-			}
-			await attempt(true);
-		} else {
-			throw err;
+			onTextDelta(
+				`\\n\\n⚠️ RovoDev is still finishing the previous response after ${Math.ceil(RETRY_TIMEOUT_MS / 1000)} seconds. Please try again.`
+			);
+			return;
 		}
+		throw err;
 	}
 }
 
@@ -270,14 +323,13 @@ async function generateTextViaRovoDev({ system, prompt }) {
 		return await sendMessageSync(fullMessage);
 	} catch (err) {
 		if (isChatInProgressError(err)) {
-			console.warn("[generateTextViaRovoDev] Chat already in progress — cancelling and retrying in 10s...");
-			try {
-				await cancelChat();
-			} catch {
-				// Ignore cancel errors — the chat may have finished on its own
-			}
-			await sleep(RETRY_DELAY_MS);
-			return await sendMessageSync(fullMessage);
+			const { value } = await retryChatInProgress(
+				() => sendMessageSync(fullMessage),
+				{
+					logPrefix: "generateTextViaRovoDev",
+				}
+			);
+			return typeof value === "string" ? value : "";
 		}
 		throw err;
 	}

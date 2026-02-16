@@ -1679,6 +1679,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 							assistantText,
 							{
 								minTasks: 1,
+								requireActionItemsHeading: true,
 							}
 						);
 						if (!progressivePlanPayload) {

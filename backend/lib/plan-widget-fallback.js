@@ -48,7 +48,7 @@ function isActionItemsHeading(line) {
 	)
 		.toLowerCase();
 
-	return /^action\s*items?\b/.test(normalized);
+	return /^(?:action\s*items?|tasks?)\b/.test(normalized);
 }
 
 function parseListItemLabel(line) {
@@ -262,11 +262,15 @@ function extractProgressivePlanWidgetPayloadFromText(rawText, options = {}) {
 			? Math.floor(options.maxTasks)
 			: MAX_TASKS;
 	const requirePlanSignal = options.requirePlanSignal !== false;
+	const requireActionItemsHeading = options.requireActionItemsHeading === true;
 
 	const lines = normalizedText.split(/\r?\n/);
 	const actionItemsHeadingIndex = lines.findIndex((line) =>
 		isActionItemsHeading(line)
 	);
+	if (requireActionItemsHeading && actionItemsHeadingIndex === -1) {
+		return null;
+	}
 	if (actionItemsHeadingIndex === -1 && requirePlanSignal && !hasPlanSignal(normalizedText)) {
 		return null;
 	}

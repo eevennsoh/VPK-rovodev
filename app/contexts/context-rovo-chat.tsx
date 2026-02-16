@@ -277,7 +277,9 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 						isDispatchingPromptRef.current = true;
 
 						try {
-							await stop();
+							if (isStreamingRef.current) {
+								await stop();
+							}
 							try {
 								await sendMessage(
 									{
@@ -406,7 +408,9 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 			setSubmissionErrorMessage(null);
 			clearSuggestedQuestions();
 
-			await stop();
+			if (isStreamingRef.current) {
+				await stop();
+			}
 			try {
 				await sendMessage(
 					{

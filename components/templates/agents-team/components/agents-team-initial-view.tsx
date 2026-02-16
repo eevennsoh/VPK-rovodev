@@ -6,6 +6,7 @@ import Image from "next/image";
 import PromptGallery from "@/components/blocks/prompt-gallery/page";
 import { token } from "@/lib/tokens";
 import { useTheme } from "@/components/utils/theme-wrapper";
+import FooterDisclaimer from "@/components/blocks/shared-ui/footer-disclaimer";
 import AgentsTeamComposer from "./agents-team-composer";
 
 const DEFAULT_AGENTS_TEAM_PLACEHOLDER = "Let a team of AI minions solve your problem";
@@ -60,6 +61,7 @@ export default function AgentsTeamInitialView({
 						onStop={onStop}
 						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 					/>
+					<FooterDisclaimer />
 				</div>
 
 				<div className="mt-3 w-full">

@@ -57,6 +57,39 @@ test("extracts progressive plan payload without action items heading", () => {
 	);
 });
 
+test("strict progressive mode ignores clarification-style numbered lists", () => {
+	const input = `Let me get the create-plan skill to help
+6 tasks
+1. What is the AI project about?
+2. A chatbot / conversational agent
+3. An AI-powered feature within an existing app
+4. A standalone AI application
+5. Something else?`;
+
+	const result = extractProgressivePlanWidgetPayloadFromText(input, {
+		requireActionItemsHeading: true,
+	});
+
+	assert.equal(result, null);
+});
+
+test("strict progressive mode requires action-items heading and returns tasks", () => {
+	const input = `Planning draft
+
+Action items
+1. Define conference goals
+2. Secure venue`;
+	const result = extractProgressivePlanWidgetPayloadFromText(input, {
+		requireActionItemsHeading: true,
+	});
+
+	assert.ok(result);
+	assert.deepEqual(
+		result.tasks.map((task) => task.label),
+		["Define conference goals", "Secure venue"]
+	);
+});
+
 test("progressive extractor expands tasks as more list items appear", () => {
 	const partialInput = `Execution plan\n- Define conference goals`;
 	const completeInput = `${partialInput}\n- Secure venue`;

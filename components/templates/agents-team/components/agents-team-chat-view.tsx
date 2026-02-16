@@ -23,6 +23,7 @@ import type {
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
 import { Button } from "@/components/ui/button";
 import { token } from "@/lib/tokens";
+import FooterDisclaimer from "@/components/blocks/shared-ui/footer-disclaimer";
 import AgentsTeamComposer from "./agents-team-composer";
 import { useScrollToBottom } from "../hooks/use-scroll-to-bottom";
 import { useDismissibleCards } from "../hooks/use-dismissible-cards";
@@ -204,6 +205,10 @@ export default function AgentsTeamChatView({
 						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 					/>
 				</div>
+			</div>
+
+			<div className="absolute inset-x-0 bottom-0 z-20 flex justify-center">
+				<FooterDisclaimer />
 			</div>
 		</div>
 	);
