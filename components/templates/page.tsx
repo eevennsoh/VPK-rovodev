@@ -7,7 +7,7 @@ import Sidebar from "@/components/blocks/product-sidebar/page";
 import { RovoChatPanel } from "@/components/templates/fullscreen-chat";
 import FloatingRovoButton from "@/components/templates/shared/components/floating-rovo-button";
 import { useSidebar } from "@/app/contexts/context-sidebar";
-import { useRovoChatAsk } from "@/app/contexts/context-rovo-chat-ask";
+import { useRovoChat } from "@/app/contexts";
 
 type Product = "home" | "jira" | "confluence" | "rovo" | "search";
 
@@ -18,7 +18,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({ product, children }: Readonly<AppLayoutProps>) {
 	const { isVisible } = useSidebar();
-	const { isOpen, closeChat } = useRovoChatAsk();
+	const { isOpen, closeChat } = useRovoChat();
 	const sidebarWidth = isVisible ? "230px" : "0px";
 
 	return (

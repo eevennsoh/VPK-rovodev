@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useWindowWidth } from "@/components/hooks/use-window-width";
 import { useClickOutside } from "@/components/hooks/use-click-outside";
 import { useSidebar } from "@/app/contexts/context-sidebar";
-import { useRovoChatAsk } from "@/app/contexts/context-rovo-chat-ask";
+import { useRovoChat } from "@/app/contexts";
 import { useTheme } from "@/components/utils/theme-wrapper";
 import { token } from "@/lib/tokens";
 
@@ -21,7 +21,7 @@ export function useTopNavigation() {
 	const [isSearchFocused, setIsSearchFocused] = useState(false);
 	const windowWidth = useWindowWidth();
 	const { isVisible, toggleSidebar, setHovered } = useSidebar();
-	const { toggleChat } = useRovoChatAsk();
+	const { toggleChat } = useRovoChat();
 	const { setTheme, actualTheme } = useTheme();
 	const searchContainerRef = useRef<HTMLDivElement>(null);
 	const searchPanelRef = useRef<HTMLDivElement>(null);

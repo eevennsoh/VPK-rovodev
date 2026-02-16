@@ -2,14 +2,14 @@
 
 import TopNavigation from "@/components/blocks/top-navigation/page";
 import { SidebarProvider } from "@/app/contexts/context-sidebar";
-import { RovoChatAskProvider } from "@/app/contexts/context-rovo-chat-ask";
+import { RovoChatProvider } from "@/app/contexts";
 
 export default function NavigationDemo() {
 	return (
 		<SidebarProvider>
-			<RovoChatAskProvider>
+			<RovoChatProvider>
 				<TopNavigation product="jira" />
-			</RovoChatAskProvider>
+			</RovoChatProvider>
 		</SidebarProvider>
 	);
 }

@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRovoChatPlan } from "@/app/contexts/context-rovo-chat-plan";
-import { useSystemPrompt } from "@/app/contexts/context-system-prompt";
+import { useRovoChat } from "@/app/contexts";
 import { API_ENDPOINTS } from "@/lib/api-config";
 import {
 	getMessageText,
@@ -136,8 +135,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		sendPrompt,
 		stopStreaming,
 		resetChat,
-	} = useRovoChatPlan();
-	const { customPrompt } = useSystemPrompt();
+	} = useRovoChat();
 
 	useEffect(() => {
 		return () => stopStreaming();
@@ -242,11 +240,9 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				return;
 			}
 
-			await sendPrompt(nextPrompt, {
-				customSystemPrompt: customPrompt || undefined,
-			});
+			await sendPrompt(nextPrompt, {});
 		},
-		[customPrompt, sendPrompt]
+		[sendPrompt]
 	);
 	const submitClarification = useCallback(
 		async (promptText: string, clarification: ClarificationSubmission) => {
@@ -255,7 +251,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			}
 
 			await sendPrompt(promptText, {
-				customSystemPrompt: customPrompt || undefined,
+				
 				clarification,
 				messageMetadata: {
 					visibility: "hidden",
@@ -263,7 +259,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				},
 			});
 		},
-		[customPrompt, sendPrompt]
+		[sendPrompt]
 	);
 	const submitPlanApproval = useCallback(
 		async (approval: PlanApprovalSubmission) => {
@@ -273,7 +269,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			}
 
 			await sendPrompt(approvalPrompt, {
-				customSystemPrompt: customPrompt || undefined,
+				
 				approval,
 				messageMetadata: {
 					visibility: "hidden",
@@ -281,7 +277,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				},
 			});
 		},
-		[customPrompt, sendPrompt]
+		[sendPrompt]
 	);
 	const sendAgentDirective = useCallback(
 		async (agentName: string, message: string) => {
@@ -291,14 +287,14 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			}
 
 			await sendPrompt(`@${agentName}: ${trimmed}`, {
-				customSystemPrompt: customPrompt || undefined,
+				
 				messageMetadata: {
 					visibility: "hidden",
 					source: "agent-directive",
 				},
 			});
 		},
-		[customPrompt, sendPrompt]
+		[sendPrompt]
 	);
 
 	const handleSubmit = useCallback(async () => {

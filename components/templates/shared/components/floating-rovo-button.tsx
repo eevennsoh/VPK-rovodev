@@ -2,11 +2,11 @@
 
 import React from "react";
 import { token } from "@/lib/tokens";
-import { useRovoChatAsk } from "@/app/contexts/context-rovo-chat-ask";
+import { useRovoChat } from "@/app/contexts";
 import { usePathname } from "next/navigation";
 
 export default function FloatingRovoButton() {
-	const { isOpen, toggleChat } = useRovoChatAsk();
+	const { isOpen, toggleChat } = useRovoChat();
 	const pathname = usePathname();
 
 	if (isOpen || pathname === "/fullscreen-chat") {

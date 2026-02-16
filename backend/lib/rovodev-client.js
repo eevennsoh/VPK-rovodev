@@ -13,13 +13,10 @@
  */
 
 const http = require("http");
-const fs = require("fs");
-const path = require("path");
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const DEFAULT_PORT = 8000;
-const TOKEN_FILE = path.join(process.cwd(), ".dev-rovodev-token");
 
 function getPort() {
 	const envPort = process.env.ROVODEV_PORT;
@@ -35,23 +32,6 @@ function getPort() {
 function getBaseUrl() {
 	return `http://127.0.0.1:${getPort()}`;
 }
-
-/**
- * Get the session token from ROVODEV_SERVE_SESSION_TOKEN env var,
- * falling back to .dev-rovodev-token file.
- */
-function getSessionToken() {
-	if (process.env.ROVODEV_SERVE_SESSION_TOKEN) {
-		return process.env.ROVODEV_SERVE_SESSION_TOKEN;
-	}
-	try {
-		return fs.readFileSync(TOKEN_FILE, "utf8").trim();
-	} catch {
-		return null;
-	}
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
  * Extract structured content from an SSE event, handling the Rovo Dev event format.
@@ -190,7 +170,6 @@ function request(method, path, body, timeoutMs = 10000) {
 			headers: {
 				"Content-Type": "application/json",
 				"Accept": "application/json",
-				...(getSessionToken() ? { "Authorization": `Bearer ${getSessionToken()}` } : {}),
 			},
 			timeout: timeoutMs,
 		};
@@ -220,11 +199,17 @@ function request(method, path, body, timeoutMs = 10000) {
 
 /**
  * Check if RovoDev serve is running and healthy.
+ * Note: The healthcheck endpoint may return 401/403 (missing credentials) which is OK -
+ * it means the server is running and reachable.
  */
 async function healthCheck() {
 	const { status, data } = await request("GET", "/healthcheck");
-	if (status !== 200) {
+	if (status !== 200 && status !== 401 && status !== 403) {
 		throw new Error(`Health check failed with status ${status}: ${data}`);
+	}
+	if (status === 401 || status === 403) {
+		// Server is running but requires auth - this is expected
+		return { status: "reachable", requiresAuth: true };
 	}
 	return JSON.parse(data);
 }
@@ -291,7 +276,6 @@ function sendMessageStreaming(message, callbacks) {
 						"Accept": "text/event-stream",
 						"Cache-Control": "no-cache",
 						"Connection": "keep-alive",
-						...(getSessionToken() ? { "Authorization": `Bearer ${getSessionToken()}` } : {}),
 					},
 				};
 

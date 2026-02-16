@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useRovoChatAsk } from "@/app/contexts/context-rovo-chat-ask";
-import { useSystemPrompt } from "@/app/contexts/context-system-prompt";
+import { useRovoChat } from "@/app/contexts";
 import { useSpeechRecognition } from "./use-speech-recognition";
 import { useUrlParams } from "./use-url-params";
 import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scroll-anchoring";
@@ -20,8 +19,7 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 	const [webResultsEnabled, setWebResultsEnabled] = useState(false);
 	const [companyKnowledgeEnabled, setCompanyKnowledgeEnabled] = useState(true);
 	const [selectedReasoning, setSelectedReasoning] = useState("deep-research");
-	const { uiMessages, sendPrompt, stopStreaming, resetChat, isStreaming } = useRovoChatAsk();
-	const { customPrompt } = useSystemPrompt();
+	const { uiMessages, sendPrompt, stopStreaming, resetChat, isStreaming } = useRovoChat();
 	const { name: userName } = useUrlParams();
 
 	const [contextEnabled, setContextEnabled] = useState(
@@ -49,9 +47,8 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		return {
 			contextDescription,
 			userName: userName || undefined,
-			customSystemPrompt: customPrompt || undefined,
 		};
-	}, [contextEnabled, product, userName, customPrompt]);
+	}, [contextEnabled, product, userName]);
 
 	const handleSuggestedQuestionClick = useCallback(
 		async (question: string) => {

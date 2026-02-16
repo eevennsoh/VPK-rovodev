@@ -3,7 +3,7 @@
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
 import { RovoIcon } from "@/components/ui/logo";
-import { useRovoChatAsk } from "@/app/contexts/context-rovo-chat-ask";
+import { useRovoChat } from "@/app/contexts";
 import VariantMenu from "./variant-menu";
 import CrossIcon from "@atlaskit/icon/core/cross";
 import EditIcon from "@atlaskit/icon/core/edit";
@@ -24,7 +24,7 @@ export default function RovoChatHeader({
 	onVariantChange,
 	onFullScreen,
 }: Readonly<RovoChatHeaderProps>) {
-	const { resetChat } = useRovoChatAsk();
+	const { resetChat } = useRovoChat();
 
 	return (
 		<div

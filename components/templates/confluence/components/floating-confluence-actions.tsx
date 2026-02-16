@@ -3,14 +3,14 @@
 import React from "react";
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
-import { useRovoChatAsk } from "@/app/contexts/context-rovo-chat-ask";
+import { useRovoChat } from "@/app/contexts";
 import AiGenerativeAudioBriefingIcon from "@atlaskit/icon/core/audio";
 import CommentIcon from "@atlaskit/icon/core/comment";
 import InformationCircleIcon from "@atlaskit/icon/core/information-circle";
 import VideoIcon from "@atlaskit/icon/core/video";
 
 export default function FloatingConfluenceActions() {
-	const { isOpen } = useRovoChatAsk();
+	const { isOpen } = useRovoChat();
 
 	return (
 		<div

@@ -3,7 +3,7 @@
 > Provider-neutral project context for AI coding assistants (Cursor, Claude Code, Codex, and others).
 > Skills are defined in `.cursor/skills/`. Agents are defined in `.cursor/agents/`.
 
-Next.js 16 (React 19, Tailwind CSS v4) + Express backend with AI SDK (Vercel) and AI Gateway integration.
+Next.js 16 (React 19, Tailwind CSS v4) + Express backend with AI SDK (Vercel) and RovoDev Serve integration.
 
 ## Start Here
 
@@ -37,8 +37,6 @@ Prefer reading these references over relying on pre-trained knowledge.
 | Motion for React rules                 | `.claude/rules/motion-react.md`                             |
 | Session corrections log                | `AGENTS-LESSONS.md`                                         |
 | AI SDK chat integration                | `rovo/config.js`, `app/contexts/context-rovo-chat-plan.tsx` |
-| AI Gateway helpers (auth, streaming)   | `backend/lib/ai-gateway-helpers.js`                         |
-| AI Gateway provider factory            | `backend/lib/ai-gateway-provider.js`                        |
 | RovoDev Serve gateway (agent loop)     | `backend/lib/rovodev-gateway.js`, `backend/lib/rovodev-client.js` |
 | Agent team run types                   | `lib/agents-team-run-types.ts`                              |
 | Agent team run manager                 | `backend/lib/agents-team-runs.js`                           |
@@ -96,25 +94,22 @@ If instructions overlap, use this precedence:
 
 ### Runtime Modes
 
-Local development — AI Gateway (two processes):
+Local development — RovoDev agent loop (two terminals):
 
 ```text
-Browser -> Next.js (:3000) -> app/api/* proxy -> Express (:8080) -> AI Gateway
-```
+Terminal 1: pnpm run rovodev          → rovodev serve (:8000)
+Terminal 2: pnpm run dev                   → Next.js (:3000) + Express (:8080)
 
-Local development — RovoDev agent loop (three processes):
-
-```text
 Browser -> Next.js (:3000) -> app/api/* proxy -> Express (:8080) -> rovodev serve (:8000)
 ```
 
 Production with static export (single process, requires `NEXT_OUTPUT=export` during build):
 
 ```text
-Browser -> Express (:8080) -> static export + /api/* -> AI Gateway
+Browser -> Express (:8080) -> static export + /api/* -> RovoDev Serve
 ```
 
-Use `pnpm run dev` for AI Gateway mode, `pnpm run rovodev` for RovoDev mode. The backend auto-detects which mode to use by checking for the `.dev-rovodev-port` file written by the RovoDev serve process.
+Start `pnpm run rovodev` in one terminal, then `pnpm run dev` in another. The backend auto-detects RovoDev Serve via the `.dev-rovodev-port` file and will reject chat requests if it's unavailable.
 
 ### Key Directories
 
@@ -126,7 +121,7 @@ Use `pnpm run dev` for AI Gateway mode, `pnpm run rovodev` for RovoDev mode. The
 - `components/ui/` - shared shadcn/Base UI primitives
 - `components/website/` - component documentation and demo site
 - `lib/` - shared utilities and token helpers
-- `backend/lib/` - backend utilities (agents-team run manager, AI Gateway helpers and provider, RovoDev gateway and client)
+- `backend/lib/` - backend utilities (agents-team run manager, RovoDev gateway and client)
 - `public/` - static assets (illustrations, product logos, third-party logos, avatars)
 - `.cursor/`, `.claude/`, `.codex/` - assistant config, skills, agents, and rules
 
@@ -219,33 +214,22 @@ Custom data parts sent by the backend:
 Backend streaming (`backend/server.js`):
 
 - `createUIMessageStream` + `pipeUIMessageStreamToResponse` from `ai` handle SSE streaming
-- AI Gateway auth uses ASAP JWT (see `### Environment Variables` for required keys)
+RovoDev Serve integration (`backend/lib/rovodev-gateway.js`):
 
-Multi-provider support (`rovo/config.js`):
-
-- RovoDev Serve — auto-detected when `pnpm run rovodev` is used (highest priority)
-- Bedrock (Claude) — default when using AI Gateway
-- OpenAI (GPT) — switch via `AI_GATEWAY_URL` in `.env.local`
-- Google (Gemini) — switch via `AI_GATEWAY_URL` or per-request `provider` field
-
-RovoDev routing (`backend/lib/rovodev-gateway.js`):
-
-- When `rovodev serve` is running, the backend routes all chat traffic through it instead of AI Gateway
+- **RovoDev-only mode**: The backend requires RovoDev Serve to be running and will reject requests if unavailable
 - Detection: reads `.dev-rovodev-port` file → sets `ROVODEV_PORT` env var → pings `/healthcheck`
 - Streaming: `streamViaRovoDev()` uses the V3 two-step API (`POST /v3/set_chat_message` then `GET /v3/stream_chat`)
 - Non-streaming: `generateTextViaRovoDev()` wraps streaming for title generation, suggestions, and clarification cards
-- Dynamic switching: if `rovodev serve` stops mid-session, next request falls back to AI Gateway automatically
+- If `rovodev serve` stops mid-session, subsequent requests return 503 errors with instructions to restart
 
 Key files:
 
 - `app/contexts/context-rovo-chat-plan.tsx` — `useChat` integration, data part handling, message transformation
 - `rovo/config.js` — system prompt builder, model config, payload construction
 - `backend/server.js` — Express streaming endpoint using `createUIMessageStream`
-- `backend/lib/ai-gateway-helpers.js` — Auth, headers, model detection, manual SSE streaming
-- `backend/lib/ai-gateway-provider.js` — OpenAI-compatible provider factory via `@ai-sdk/openai-compatible`
-- `backend/lib/rovodev-gateway.js` — RovoDev Serve streaming/text bridge (used when `pnpm run rovodev`)
+- `backend/lib/rovodev-gateway.js` — RovoDev Serve streaming/text bridge
 - `backend/lib/rovodev-client.js` — Low-level V3 REST + SSE client for `rovodev serve`
-- `app/api/chat-sdk/route.ts` — dev proxy forwarding to Express
+- `app/api/chat-sdk/route.ts` — dev proxy forwarding to Express (requires RovoDev Serve)
 
 ### Route Overview
 
@@ -379,8 +363,8 @@ Exports:
 ### Development
 
 - Install dependencies: `pnpm install`
-- Start full dev stack: `pnpm run dev` (AI Gateway mode)
-- Start with RovoDev agent loop: `pnpm run rovodev` (requires `rovodev` CLI installed)
+- Start RovoDev Serve (separate terminal): `pnpm run rovodev`
+- Start frontend + backend: `pnpm run dev` (auto-detects rovodev serve via port file)
 - Start frontend only: `pnpm run dev:frontend`
 - Start backend only: `pnpm run dev:backend`
 
@@ -547,8 +531,8 @@ Note: `.claude.local.md` should be added to `.gitignore` if used for personal/lo
 - Dev API calls traverse Next.js proxy then Express; debug both layers. <!-- added: 2026-02-08 -->
 - Use functional state updates for toggles (`setX(prev => !prev)`). <!-- added: 2026-02-08 -->
 - Derive render-only values inline; do not sync derived state via effects. <!-- added: 2026-02-08 -->
-- VPK model switching (Claude/GPT/Gemini) is done through `AI_GATEWAY_URL` in `.env.local`. Google can also use `AI_GATEWAY_URL_GOOGLE`. <!-- added: 2026-02-12 -->
-- `pnpm run rovodev` auto-detects and routes through `rovodev serve`. If the chat gives unexpected answers or stale context, the RovoDev session may be corrupted — restart `rovodev serve` for a fresh session. The `autorestore` setting in your personal rovodev config can leak sessions across workspaces; VPK starts without `--restore` to avoid this. <!-- added: 2026-02-16 -->
+- **RovoDev-only mode**: VPK requires `pnpm run rovodev` to be running in a separate terminal. All chat endpoints return 503 if RovoDev Serve is unavailable. There is no AI Gateway fallback. <!-- added: 2026-02-17 -->
+- `pnpm run rovodev` + `pnpm run dev` (in separate terminals) is required to use chat functionality. If the chat gives unexpected answers or stale context, the RovoDev session may be corrupted — restart `rovodev` for a fresh session. The `autorestore` setting in your personal rovodev config can leak sessions across workspaces; VPK starts without `--restore` to avoid this. <!-- added: 2026-02-16 -->
 - No directories are excluded from TypeScript type-checking (only `node_modules`). All errors are visible and trackable. <!-- added: 2026-02-15 -->
 - Always `await stop()` before calling `sendMessage()` in AI SDK `useChat` flows — `stop`, `sendMessage`, `regenerate`, and `resumeStream` share mutable internal state and must not be fire-and-forgotten in sequence. <!-- added: 2026-02-12 -->
 - CSS `gap` doesn't transition away when a flex child collapses to `w-0`. Replace parent `gap-*` with transitioning `mr-*`/`ml-*` on the collapsible element (e.g., `mr-3` → `mr-0` alongside `w-0 opacity-0`). <!-- added: 2026-02-12 -->
@@ -577,8 +561,6 @@ backend/
   server.js                    # Express server (production runtime)
   lib/                         # Backend utilities
     agents-team-runs.js         # Agent team run manager (task tracking, SSE streaming)
-    ai-gateway-helpers.js       # Auth, headers, model detection, manual SSE streaming
-    ai-gateway-provider.js      # OpenAI-compatible provider factory via @ai-sdk/openai-compatible
     rovodev-gateway.js          # RovoDev Serve streaming/text bridge
     rovodev-client.js           # Low-level V3 REST + SSE client for rovodev serve
 
@@ -625,23 +607,15 @@ public/
 
 ### Environment Variables
 
-Required in `.env.local`:
+**RovoDev-only mode** — no `.env.local` configuration required for chat functionality. RovoDev Serve handles all AI interactions.
 
-- `AI_GATEWAY_URL`
-- `AI_GATEWAY_USE_CASE_ID`
-- `AI_GATEWAY_CLOUD_ID`
-- `AI_GATEWAY_USER_ID`
-- `ASAP_PRIVATE_KEY`
-- `ASAP_KID`
-- `ASAP_ISSUER`
+Optional environment variables:
 
-Optional:
-
-- `DEBUG=true`
-- `PORT=8080`
-- `BACKEND_URL=http://localhost:8080`
-- `AI_GATEWAY_URL_GOOGLE` - Google/Gemini AI Gateway endpoint
+- `DEBUG=true` - Enable verbose logging
+- `PORT=8080` - Backend server port
+- `BACKEND_URL=http://localhost:8080` - Backend URL for frontend
 - `ROVODEV_PORT` - RovoDev Serve port (auto-set by `pnpm run rovodev`; do not set manually)
+- `NEXT_PUBLIC_API_URL` - API URL for production builds
 
 ### Provider Reference
 

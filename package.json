@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
-		"dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
+		"dev": "concurrently --kill-others -n backend,frontend -c yellow,green \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
 		"build": "next build",
 		"start": "next start",
 		"lint": "eslint",
@@ -12,8 +12,7 @@
 		"deploy:micros": "./scripts/dev-deploy-fast.sh",
 		"dev:backend": "node scripts/dev-backend.js",
 		"dev:frontend": "node scripts/dev-frontend.js",
-		"dev:rovodev": "node scripts/dev-rovodev.js",
-		"rovodev": "concurrently \"pnpm run dev:rovodev\" \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
+		"rovodev": "concurrently --kill-others -n rovodev,backend,frontend -c blue,yellow,green \"node scripts/dev-rovodev.js\" \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
 		"ports": "node scripts/show-worktree-ports.js",
 		"generate:prompt": "node --experimental-strip-types scripts/generate-catalog-prompt.js"
 	},

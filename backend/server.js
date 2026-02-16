@@ -13,23 +13,13 @@ try {
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const { generateText, streamText, createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
+const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
 const { createRunManager } = require("./lib/agents-team-runs");
 const { createConfigManager } = require("./lib/agents-team-config");
-const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
 const { genuiChatHandler } = require("./lib/genui-chat-handler");
-const {
-	getEnvVars,
-	getAuthToken,
-	detectEndpointType,
-	getGatewayHeaders,
-	getModelId,
-	resolveGatewayUrl,
-	streamBedrockGatewayManualSse,
-	streamGoogleGatewayManualSse,
-} = require("./lib/ai-gateway-helpers");
 const { streamViaRovoDev, generateTextViaRovoDev } = require("./lib/rovodev-gateway");
 const { healthCheck: rovoDevHealthCheck } = require("./lib/rovodev-client");
+const { getEnvVars } = require("./lib/ai-gateway-helpers");
 
 console.log("[STARTUP] Dependencies loaded");
 
@@ -70,10 +60,21 @@ async function refreshRovoDevAvailability() {
 		// Set the env var so rovodev-client.js picks up the correct port
 		process.env.ROVODEV_PORT = String(port);
 
-		await rovoDevHealthCheck();
+		try {
+			await rovoDevHealthCheck();
+		} catch (healthCheckErr) {
+			// Health check endpoint requires credentials, but the fact that it's
+			// reachable and responding means RovoDev Serve is running.
+			// 401/403 (missing credentials) is OK — it means the server is there.
+			if (!healthCheckErr.message.includes("status 401") && !healthCheckErr.message.includes("status 403")) {
+				throw healthCheckErr;
+			}
+			console.log(`[ROVODEV] Serve detected on port ${port} (health check requires auth)`);
+		}
+
 		_rovoDevAvailable = true;
 		_rovoDevChecked = true;
-		console.log(`[ROVODEV] Serve detected and healthy on port ${port}`);
+		console.log(`[ROVODEV] Serve available on port ${port}`);
 		return true;
 	} catch (err) {
 		_rovoDevAvailable = false;
@@ -95,7 +96,7 @@ async function isRovoDevAvailable() {
 	// If the port file disappeared, RovoDev was stopped
 	if (!portFileExists) {
 		if (_rovoDevAvailable) {
-			console.log("[ROVODEV] Port file removed — switching to AI Gateway mode");
+			console.error("[ROVODEV] Port file removed — RovoDev Serve is no longer available");
 		}
 		_rovoDevAvailable = false;
 		_rovoDevChecked = true;
@@ -190,7 +191,6 @@ function buildSpeechEndpointUrl(gatewayUrl, endpointType) {
 	}
 }
 
-let buildSystemPrompt;
 let buildUserMessage;
 try {
 	let config;
@@ -201,18 +201,11 @@ try {
 		config = require("../rovo/config");
 		console.log("[STARTUP] config loaded from ../rovo (local dev path)");
 	}
-	buildSystemPrompt = config.buildSystemPrompt;
 	buildUserMessage = config.buildUserMessage;
 	console.log("[STARTUP] rovo config loaded successfully");
 } catch (error) {
 	console.warn("[STARTUP] rovo config failed to load:", error.message);
 	console.warn("[STARTUP] Using fallback functions - config did not load!");
-	buildSystemPrompt = (userName, customSystemPrompt) => {
-		if (typeof customSystemPrompt === "string" && customSystemPrompt.trim()) {
-			return customSystemPrompt.trim();
-		}
-		return "You are Rovo, an AI assistant built by Atlassian.";
-	};
 	buildUserMessage = (message) => message;
 }
 
@@ -223,36 +216,18 @@ try {
  *   1. RovoDev Serve (if running — detected via `.dev-rovodev-port` file)
  *   2. AI Gateway — manual SSE for Bedrock, AI SDK for OpenAI/Google
  */
-async function generateTextViaGateway({ system, prompt, maxOutputTokens, temperature }) {
-	// Route through RovoDev when available
-	if (await isRovoDevAvailable()) {
-		debugLog("GENERATE", "Routing through RovoDev Serve");
-		return generateTextViaRovoDev({ system, prompt });
+async function generateTextViaGateway({ system, prompt }) {
+	// RovoDev Serve is required - no AI Gateway fallback
+	const useRovoDev = await isRovoDevAvailable();
+	if (!useRovoDev) {
+		throw new Error(
+			"RovoDev Serve is required but not available. " +
+			"Please start RovoDev Serve with 'pnpm run rovodev' before using this feature."
+		);
 	}
 
-	const envVars = getEnvVars();
-	const endpointType = detectEndpointType(envVars.AI_GATEWAY_URL);
-
-	if (endpointType === "bedrock") {
-		const result = await streamBedrockGatewayManualSse({
-			gatewayUrl: envVars.AI_GATEWAY_URL,
-			envVars,
-			system,
-			prompt,
-			maxOutputTokens,
-		});
-		return result.text;
-	}
-
-	const { provider, modelId } = createAIGatewayProvider();
-	const { text } = await generateText({
-		model: provider.chatModel(modelId),
-		system,
-		prompt,
-		maxOutputTokens,
-		temperature,
-	});
-	return text;
+	debugLog("GENERATE", "Routing through RovoDev Serve");
+	return generateTextViaRovoDev({ system, prompt });
 }
 
 function extractTextFromUiParts(parts) {
@@ -313,8 +288,7 @@ const agentsTeamConfigManager = createConfigManager();
 
 const agentsTeamRunManager = createRunManager({
 	baseDir: path.join(__dirname, "data"),
-	getEnvVars,
-	buildSystemPrompt,
+	buildSystemPrompt: null, // Not used in RovoDev-only mode
 	configManager: agentsTeamConfigManager,
 	logger: console,
 });
@@ -370,23 +344,7 @@ function parseSuggestedQuestions(rawText) {
 	}
 }
 
-const CLARIFICATION_WIDGET_TYPE = "question-card";
-const CLARIFICATION_MAX_ROUNDS = 3;
-const CLARIFICATION_MAX_PRESET_OPTIONS = 3;
-const CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER = "Tell Rovo what to do...";
-const ALWAYS_REQUIRE_CLARIFICATION = true;
-const CHAT_MODE_PLAN = "plan";
-const CHAT_MODE_ASK = "ask";
-const APPROVAL_DECISIONS = new Set([
-	"auto-accept",
-	"manual-approve",
-	"continue-planning",
-	"custom",
-]);
-
-function normalizeChatMode(value) {
-	return value === CHAT_MODE_ASK ? CHAT_MODE_ASK : CHAT_MODE_PLAN;
-}
+// RovoDev-only mode - no local clarification/approval logic
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -1288,11 +1246,6 @@ app.post("/api/chat-title", async (req, res) => {
 			return res.status(400).json({ error: "A message is required" });
 		}
 
-		const ENV_VARS = getEnvVars();
-		if (!ENV_VARS.AI_GATEWAY_URL) {
-			return res.status(500).json({ error: "Server configuration error" });
-		}
-
 		const titlePrompt = `Generate a very short title (3-6 words) that summarizes this user message. Return ONLY the title text, nothing else. No quotes, no punctuation at the end, no explanation.
 
 User message: ${message.trim()}`;
@@ -1313,7 +1266,10 @@ User message: ${message.trim()}`;
 		return res.json({ title });
 	} catch (error) {
 		console.error("Chat title API error:", error);
-		return res.status(500).json({ error: "Internal server error" });
+		return res.status(503).json({
+			error: "RovoDev Serve is required but not available",
+			details: "Please start RovoDev Serve with 'pnpm run rovodev' before using chat.",
+		});
 	}
 });
 
@@ -1321,242 +1277,33 @@ app.post("/api/chat-sdk", async (req, res) => {
 	try {
 		const {
 			messages,
-			customSystemPrompt,
 			contextDescription,
 			userName,
-			clarification,
-			approval,
-			chatMode,
-			provider,
 		} = req.body || {};
-		const resolvedChatMode = normalizeChatMode(chatMode);
-		const shouldUseClarificationFlow = resolvedChatMode === CHAT_MODE_PLAN;
+
+		// RovoDev Serve is required - no AI Gateway fallback
+		const useRovoDev = await isRovoDevAvailable();
+		if (!useRovoDev) {
+			return res.status(503).json({
+				error: "RovoDev Serve is required but not available",
+				details: "Please start RovoDev Serve with 'pnpm run rovodev' before using chat.",
+			});
+		}
 
 		const {
 			message: latestUserMessage,
 			conversationHistory,
 		} = mapUiMessagesToConversation(messages);
-		const activeQuestionCard = shouldUseClarificationFlow
-			? getActiveQuestionCardPayload(messages)
-			: null;
-		const clarificationSubmission = shouldUseClarificationFlow
-			? normalizeClarificationSubmission(clarification)
-			: null;
-		const approvalSubmission = shouldUseClarificationFlow
-			? normalizeApprovalSubmission(approval)
-			: null;
 
 		if (!latestUserMessage) {
 			return res.status(400).json({ error: "A user message is required" });
 		}
 
-		const ENV_VARS = getEnvVars();
-
-		// Per-request provider routing: resolve gateway URL based on optional `provider` field
-		if (provider === "google" && !ENV_VARS.AI_GATEWAY_URL_GOOGLE) {
-			return res.status(500).json({
-				error: "AI_GATEWAY_URL_GOOGLE is not configured",
-				details: 'The request specified provider: "google" but AI_GATEWAY_URL_GOOGLE is not set in .env.local.',
-			});
-		}
-		const rawGatewayUrl = (provider === "google" && ENV_VARS.AI_GATEWAY_URL_GOOGLE)
-			? ENV_VARS.AI_GATEWAY_URL_GOOGLE
-			: ENV_VARS.AI_GATEWAY_URL;
-		const resolvedGatewayUrl = resolveGatewayUrl(rawGatewayUrl) || rawGatewayUrl;
-		const resolvedEndpointType = (provider === "google" && ENV_VARS.AI_GATEWAY_URL_GOOGLE)
-			? "google"
-			: null;
-
-		const shouldStartClarification =
-			shouldUseClarificationFlow &&
-			ALWAYS_REQUIRE_CLARIFICATION &&
-			!activeQuestionCard &&
-			!clarificationSubmission &&
-			!approvalSubmission;
-		if (shouldStartClarification) {
-			let initialQuestionCard = null;
-			const sessionId = createClarificationSessionId();
-			if (ENV_VARS.AI_GATEWAY_URL) {
-				initialQuestionCard = await generateClarificationQuestionCard({
-					latestUserMessage,
-					conversationHistory,
-					previousQuestionCard: null,
-					submission: null,
-					round: 1,
-					maxRounds: CLARIFICATION_MAX_ROUNDS,
-					sessionId,
-				});
-			}
-
-			const resolvedInitialQuestionCard =
-				initialQuestionCard ||
-				createFallbackQuestionCardPayload({
-					latestUserMessage,
-					sessionId,
-					round: 1,
-					maxRounds: CLARIFICATION_MAX_ROUNDS,
-				});
-
-			streamQuestionCardWidget({
-				res,
-				payload: resolvedInitialQuestionCard,
-				introText:
-					"Before I generate your plan, I need a few quick answers to clarify what you want.",
-			});
-			return;
-		}
-
-		let clarificationSummary = "";
-		if (shouldUseClarificationFlow && (activeQuestionCard || clarificationSubmission)) {
-			if (activeQuestionCard && !clarificationSubmission) {
-				streamQuestionCardWidget({
-					res,
-					payload: activeQuestionCard,
-					introText:
-						"Please answer the clarification questions first, then I will generate the plan.",
-				});
-				return;
-			}
-
-			if (
-				activeQuestionCard &&
-				clarificationSubmission &&
-				clarificationSubmission.sessionId !== activeQuestionCard.sessionId
-			) {
-				streamQuestionCardWidget({
-					res,
-					payload: activeQuestionCard,
-					introText:
-						"I still need answers for the current clarification card before continuing.",
-				});
-				return;
-			}
-
-			const answers = activeQuestionCard
-				? sanitizeAnswersForQuestionCard(
-						activeQuestionCard,
-						clarificationSubmission?.answers || {}
-					)
-				: clarificationSubmission?.answers || {};
-			const hasRequiredAnswers = activeQuestionCard
-				? hasRequiredClarificationAnswers(activeQuestionCard, answers)
-				: Boolean(clarificationSubmission?.completed);
-			const maxRounds = activeQuestionCard?.maxRounds || CLARIFICATION_MAX_ROUNDS;
-			const nextRound = (activeQuestionCard?.round || 1) + 1;
-
-			if (!hasRequiredAnswers && nextRound <= maxRounds) {
-				const followUpSessionId =
-					activeQuestionCard?.sessionId ||
-					clarificationSubmission?.sessionId ||
-					createClarificationSessionId();
-				let followUpQuestionCard = null;
-				if (ENV_VARS.AI_GATEWAY_URL) {
-					followUpQuestionCard = await generateClarificationQuestionCard({
-						latestUserMessage,
-						conversationHistory,
-						previousQuestionCard: activeQuestionCard,
-						submission: clarificationSubmission,
-						round: nextRound,
-						maxRounds,
-						sessionId: followUpSessionId,
-					});
-				}
-
-				const resolvedFollowUpQuestionCard =
-					followUpQuestionCard ||
-					createFallbackQuestionCardPayload({
-						latestUserMessage,
-						sessionId: followUpSessionId,
-						round: nextRound,
-						maxRounds,
-					});
-
-				streamQuestionCardWidget({
-					res,
-					payload: resolvedFollowUpQuestionCard,
-					introText:
-						"I need a bit more detail before I can generate a high-quality plan.",
-				});
-				return;
-			}
-
-			clarificationSummary = buildClarificationSummary(activeQuestionCard, answers);
-		}
-		const approvalSummary = approvalSubmission
-			? buildApprovalSummary(approvalSubmission)
-			: "";
-
-		const resolvedContextDescription = [
-			getNonEmptyString(contextDescription),
-			clarificationSummary
-				? [
-						"Clarification answers:",
-						clarificationSummary,
-						"Use these details when generating the plan.",
-					].join("\n")
-				: null,
-			approvalSummary
-				? [
-						"Plan approval submission:",
-						approvalSummary,
-					].join("\n")
-				: null,
-		]
-			.filter(Boolean)
-			.join("\n\n") || undefined;
-
-		if (!resolvedGatewayUrl) {
-			return res.status(500).json({ error: "Server configuration error" });
-		}
-
-		const resolvedEndpointTypeForProvider = resolvedEndpointType || detectEndpointType(rawGatewayUrl);
-
-		// Check RovoDev availability once per request (before stream setup)
-		const useRovoDev = await isRovoDevAvailable();
-
-		const systemPrompt = buildSystemPrompt(
-			userName,
-			customSystemPrompt,
-			resolvedChatMode,
-			resolvedEndpointTypeForProvider,
-			{ isRovoDev: useRovoDev }
-		);
-
-		// Inject create-plan skill content + agent roster for plan mode
-		let resolvedSystemPrompt = systemPrompt;
-		if (resolvedChatMode === CHAT_MODE_PLAN && !customSystemPrompt?.trim()) {
-			const planContext = agentsTeamConfigManager.buildPlanModeContext();
-			if (planContext) {
-				resolvedSystemPrompt = `${systemPrompt}\n\n${planContext}`;
-			}
-		}
-
 		const userMessageText = buildUserMessage(
 			latestUserMessage,
 			conversationHistory,
-			resolvedContextDescription
+			contextDescription
 		);
-
-		let aiStreamResult;
-		const isGoogleEndpoint = resolvedEndpointTypeForProvider === "google";
-		const isBedrockEndpoint = resolvedEndpointTypeForProvider === "bedrock";
-		try {
-			if (!useRovoDev && !isGoogleEndpoint && !isBedrockEndpoint) {
-				const { provider, modelId } = createAIGatewayProvider({
-					gatewayUrl: resolvedGatewayUrl,
-					endpointType: resolvedEndpointType || undefined,
-				});
-				aiStreamResult = streamText({
-					model: provider.chatModel(modelId),
-					system: resolvedSystemPrompt,
-					prompt: userMessageText,
-					maxOutputTokens: 2000,
-				});
-			}
-		} catch (error) {
-			console.error("AI Gateway stream error:", error);
-			return res.status(500).type("text/plain").send("Rovo hit an upstream error. Please try again.");
-		}
 
 		const stream = createUIMessageStream({
 			execute: async ({ writer }) => {
@@ -1564,8 +1311,6 @@ app.post("/api/chat-sdk", async (req, res) => {
 				const widgetDataPrefix = "WIDGET_DATA:";
 				const thinkingStatusPrefix = "THINKING_STATUS:";
 				const agentExecutionPrefix = "AGENT_EXECUTION:";
-				const shouldParseWidgetMarkers =
-					resolvedChatMode === CHAT_MODE_PLAN;
 				const partialMarkerBufferLength =
 					Math.max(widgetLoadingPrefix.length, widgetDataPrefix.length, thinkingStatusPrefix.length, agentExecutionPrefix.length) - 1;
 				let textBuffer = "";
@@ -1670,12 +1415,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 							);
 							if (!loadingMatch) {
 								if (textBuffer.length > widgetLoadingPrefix.length) {
-									// Invalid chars after prefix — emit prefix as text, continue
 									emitTextDelta(widgetLoadingPrefix);
 									textBuffer = textBuffer.slice(widgetLoadingPrefix.length);
 									continue;
 								}
-								// No content after prefix yet — wait for more data
 								if (isFinalChunk) {
 									emitTextDelta(textBuffer);
 									textBuffer = "";
@@ -1916,98 +1659,29 @@ app.post("/api/chat-sdk", async (req, res) => {
 						return;
 					}
 
-					if (!shouldParseWidgetMarkers) {
-						emitTextDelta(delta);
-						return;
-					}
-
 					textBuffer += delta;
 					processTextBuffer(false);
 				};
 
-				const emitFilePart = (mediaType, dataUrl) => {
-					if (!mediaType || !dataUrl) {
-						return;
-					}
+				// RovoDev Serve: route through the local agent loop
+				console.log("[CHAT-SDK] Routing through RovoDev Serve");
+				await streamViaRovoDev({
+					message: userMessageText,
+					onTextDelta: handleStreamTextDelta,
+				});
 
-					writer.write({
-						type: "file",
-						url: dataUrl,
-						mediaType,
-					});
-				};
+				processTextBuffer(true);
 
-				if (useRovoDev) {
-					// RovoDev Serve: route through the local agent loop
-					console.log("[CHAT-SDK] Routing through RovoDev Serve");
-					const fullMessage = `[System Instructions]\n${resolvedSystemPrompt}\n[End System Instructions]\n\n${userMessageText}`;
-					await streamViaRovoDev({
-						message: fullMessage,
-						onTextDelta: handleStreamTextDelta,
-					});
-				} else if (isBedrockEndpoint) {
-					// Bedrock/Claude: manual SSE with Anthropic Messages API format
-					// Uses the original URL to avoid POCO authorization issues with translated paths
-					console.log("[CHAT-SDK] Using manual SSE for Bedrock endpoint:", rawGatewayUrl);
-					await streamBedrockGatewayManualSse({
-						gatewayUrl: rawGatewayUrl,
-						envVars: ENV_VARS,
-						system: resolvedSystemPrompt,
-						prompt: userMessageText,
-						maxOutputTokens: 2000,
-						onTextDelta: handleStreamTextDelta,
-					});
-				} else if (isGoogleEndpoint) {
-					// Google/Gemini: manual SSE parsing to capture non-standard image data
-					console.log("[CHAT-SDK] Using manual SSE for Google endpoint:", resolvedGatewayUrl);
-					await streamGoogleGatewayManualSse({
-						gatewayUrl: resolvedGatewayUrl,
-						envVars: ENV_VARS,
-						model: getModelId(rawGatewayUrl),
-						system: resolvedSystemPrompt,
-						prompt: userMessageText,
-						maxOutputTokens: 2000,
-						onTextDelta: handleStreamTextDelta,
-						onFile: (file) => {
-							if (file?.mediaType && file?.base64) {
-								console.log(`[CHAT-SDK] Image received: ${file.mediaType}, base64 length: ${file.base64.length}`);
-								emitFilePart(
-									file.mediaType,
-									`data:${file.mediaType};base64,${file.base64}`
-								);
-							}
-						},
-					});
-				} else {
-					// OpenAI: use AI SDK fullStream
-					for await (const part of aiStreamResult.fullStream) {
-						if (part.type === "text-delta") {
-							handleStreamTextDelta(part.text);
-						} else if (part.type === "file") {
-							const file = part.file;
-							emitFilePart(
-								file.mediaType,
-								`data:${file.mediaType};base64,${file.base64}`
-							);
+				// Generate mermaid fallback if plan widget was emitted but no diagram
+				if (latestPlanPayload !== null && !hasCompleteMermaidDiagram(assistantText)) {
+					const fallbackMermaid = generateMermaidFromPlan(latestPlanPayload);
+					if (fallbackMermaid) {
+						if (hasUnclosedMermaidFence(assistantText)) {
+							emitTextDelta("\n```");
 						}
-					}
-				}
 
-				if (shouldParseWidgetMarkers) {
-					processTextBuffer(true);
-
-					const shouldInjectMermaidFallback =
-						latestPlanPayload !== null && !hasCompleteMermaidDiagram(assistantText);
-					if (shouldInjectMermaidFallback) {
-						const fallbackMermaid = generateMermaidFromPlan(latestPlanPayload);
-						if (fallbackMermaid) {
-							if (hasUnclosedMermaidFence(assistantText)) {
-								emitTextDelta("\n```");
-							}
-
-							const prefix = assistantText.trim().length > 0 ? "\n\n" : "";
-							emitTextDelta(`${prefix}${fallbackMermaid}`);
-						}
+						const prefix = assistantText.trim().length > 0 ? "\n\n" : "";
+						emitTextDelta(`${prefix}${fallbackMermaid}`);
 					}
 				}
 
@@ -2052,7 +1726,6 @@ app.post("/api/chat-sdk", async (req, res) => {
 		});
 	}
 });
-
 app.post("/api/genui-chat", genuiChatHandler);
 
 app.post("/api/sound-generation", async (req, res) => {
@@ -2459,15 +2132,16 @@ app.get("/healthcheck", (req, res) => {
 	res.status(200).json({ status: "ok" });
 });
 
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
 	console.log("Health check requested");
 	debugLog("HEALTH", "Processing health check");
 
-	const envVars = getEnvVars();
 	const key = process.env.ASAP_PRIVATE_KEY;
+	const rovoDevAvailable = await isRovoDevAvailable();
 
 	debugLog("HEALTH", "Auth configuration", {
 		hasAsapKey: !!key,
+		rovoDevAvailable,
 	});
 
 	const response = {
@@ -2476,21 +2150,11 @@ app.get("/api/health", (req, res) => {
 		timestamp: new Date().toISOString(),
 		authMethod: "ASAP",
 		debugMode: DEBUG,
+		rovoDevMode: rovoDevAvailable,
 		envCheck: {
-			AI_GATEWAY_URL: envVars.AI_GATEWAY_URL ? "SET" : "MISSING",
-			AI_GATEWAY_USE_CASE_ID: envVars.AI_GATEWAY_USE_CASE_ID ? "SET" : "MISSING",
-			AI_GATEWAY_CLOUD_ID: envVars.AI_GATEWAY_CLOUD_ID ? "SET" : "MISSING",
-			AI_GATEWAY_USER_ID: envVars.AI_GATEWAY_USER_ID ? "SET" : "MISSING",
 			ASAP_PRIVATE_KEY: key ? "SET" : "MISSING",
+			ROVODEV_PORT: process.env.ROVODEV_PORT ? "SET" : "MISSING",
 		},
-		keyDebug: key
-			? {
-					length: key.length,
-					startsWithBegin: key.substring(0, 15),
-					hasNewlines: key.includes("\n"),
-					hasLiteralBackslashN: key.includes("\\n"),
-				}
-			: null,
 	};
 
 	res.status(200).json(response);

@@ -8,8 +8,7 @@
 export { ChatProvider, useChat } from "./context-chat";
 export type { Message } from "./context-chat";
 
-export { RovoChatPlanProvider, useRovoChatPlan } from "./context-rovo-chat-plan";
-export { RovoChatAskProvider, useRovoChatAsk } from "./context-rovo-chat-ask";
+export { RovoChatProvider, useRovoChat } from "./context-rovo-chat";
 
 // Modal contexts
 export {
@@ -28,5 +27,4 @@ export type {
 } from "./context-work-item-modal";
 
 // Other contexts
-export { SystemPromptProvider, useSystemPrompt } from "./context-system-prompt";
 export { SidebarProvider, useSidebar } from "./context-sidebar";

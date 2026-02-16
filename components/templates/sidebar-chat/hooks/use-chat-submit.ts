@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { useSystemPrompt } from "@/app/contexts/context-system-prompt";
-import { useRovoChatAsk } from "@/app/contexts/context-rovo-chat-ask";
+import { useRovoChat } from "@/app/contexts";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 
 interface UseChatSubmitReturn {
@@ -18,13 +17,12 @@ interface UseChatSubmitReturn {
 export function useChatSubmit(): UseChatSubmitReturn {
 	const [prompt, setPrompt] = useState("");
 	const isSubmittingRef = useRef(false);
-	const { customPrompt } = useSystemPrompt();
 	const {
 		uiMessages,
 		sendPrompt,
 		stopStreaming,
 		isStreaming,
-	} = useRovoChatAsk();
+	} = useRovoChat();
 
 	const submitPrompt = useCallback(
 		async (nextPrompt: string) => {
@@ -38,13 +36,13 @@ export function useChatSubmit(): UseChatSubmitReturn {
 
 			try {
 				await sendPrompt(promptText, {
-					customSystemPrompt: customPrompt || undefined,
+					
 				});
 			} finally {
 				isSubmittingRef.current = false;
 			}
 		},
-		[customPrompt, isStreaming, sendPrompt]
+		[isStreaming, sendPrompt]
 	);
 
 	const handleSubmit = useCallback(async () => {

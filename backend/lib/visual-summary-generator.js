@@ -13,15 +13,8 @@
 
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const {
-	getEnvVars,
-	detectEndpointType,
-	getModelId,
-	resolveGatewayUrl,
-	streamGoogleGatewayManualSse,
-	streamBedrockGatewayManualSse,
-} = require("./ai-gateway-helpers");
 const { buildImagePrompts, buildVisualPresenterPrompt } = require("./visual-summary-prompts");
+const { generateTextViaRovoDev } = require("./rovodev-gateway");
 
 function toIsoDate() {
 	return new Date().toISOString();
@@ -36,57 +29,11 @@ function toIsoDate() {
  * @param {object} options.run - The agent run object
  * @param {object} [options.logger] - Logger instance
  * @returns {Promise<Array<{ mimeType: string, dataUrl: string }>>}
- */
 async function generateImages({ run, logger = console }) {
-	const envVars = getEnvVars();
-	const googleUrl = envVars.AI_GATEWAY_URL_GOOGLE;
-
-	if (!googleUrl) {
-		logger.info?.("[VISUAL-SUMMARY] No AI_GATEWAY_URL_GOOGLE configured, skipping image generation");
-		return [];
-	}
-
-	const resolvedUrl = resolveGatewayUrl(googleUrl);
-	if (!resolvedUrl) {
-		logger.warn?.("[VISUAL-SUMMARY] Failed to resolve Google gateway URL");
-		return [];
-	}
-
-	const model = getModelId(googleUrl);
-	const imagePrompts = buildImagePrompts(run);
-	const images = [];
-
-	for (const prompt of imagePrompts) {
-		try {
-			const capturedImages = [];
-			await streamGoogleGatewayManualSse({
-				gatewayUrl: resolvedUrl,
-				envVars,
-				model,
-				system: "You are an image generation assistant. Generate the requested image. Do not include any text in the response, only generate the image.",
-				prompt,
-				maxOutputTokens: 4096,
-				onTextDelta: () => {},
-				onFile: (file) => {
-					if (file?.mediaType && file?.base64) {
-						capturedImages.push({
-							mimeType: file.mediaType,
-							dataUrl: `data:${file.mediaType};base64,${file.base64}`,
-						});
-					}
-				},
-			});
-
-			if (capturedImages.length > 0) {
-				images.push(...capturedImages);
-				logger.info?.(`[VISUAL-SUMMARY] Generated ${capturedImages.length} image(s)`);
-			}
-		} catch (error) {
-			logger.warn?.("[VISUAL-SUMMARY] Image generation failed, continuing without image", error);
-		}
-	}
-
-	return images;
+	// Image generation disabled in RovoDev-only mode
+	logger.info?.("[VISUAL-SUMMARY] Image generation disabled in RovoDev-only mode");
+	return [];
+}
 }
 
 /**
@@ -102,47 +49,15 @@ async function generateImages({ run, logger = console }) {
  * @param {object} [options.logger] - Logger instance
  * @returns {Promise<string>} The generated HTML
  */
-async function generateHtmlPage({ run, images, textSummary, skillContent, getEnvVarsFn, logger = console }) {
-	const envVars = getEnvVarsFn();
-	if (!envVars.AI_GATEWAY_URL) {
-		throw new Error("AI_GATEWAY_URL is not configured");
-	}
-
+async function generateHtmlPage({ run, images, textSummary, skillContent, logger = console }) {
 	logger.info?.(`[VISUAL-SUMMARY] Generating HTML page (${images.length} image(s), ${textSummary.length} chars text summary)`);
 	const prompt = buildVisualPresenterPrompt(run, images, textSummary, skillContent);
-	const endpointType = detectEndpointType(envVars.AI_GATEWAY_URL);
 
-	if (endpointType === "bedrock") {
-		const result = await streamBedrockGatewayManualSse({
-			gatewayUrl: envVars.AI_GATEWAY_URL,
-			envVars,
-			system: "You are a senior frontend designer and developer. You create distinctive, polished interfaces that avoid generic aesthetics. Output ONLY raw HTML — no markdown fences, no explanation.",
-			prompt,
-			maxOutputTokens: 8000,
-		});
-		return cleanHtmlOutput(result.text);
-	}
-
-	// Fallback: try Google gateway with streaming
-	const resolvedUrl = resolveGatewayUrl(envVars.AI_GATEWAY_URL);
-	if (!resolvedUrl) {
-		throw new Error("Failed to resolve AI gateway URL");
-	}
-
-	const { streamText } = require("ai");
-	const { createAIGatewayProvider } = require("./ai-gateway-provider");
-	const { provider, modelId } = createAIGatewayProvider();
-	const result = streamText({
-		model: provider.chatModel(modelId),
+	// Use RovoDev Serve for visual summary generation
+	const fullText = await generateTextViaRovoDev({
 		system: "You are a senior frontend designer and developer. You create distinctive, polished interfaces that avoid generic aesthetics. Output ONLY raw HTML — no markdown fences, no explanation.",
 		prompt,
-		maxOutputTokens: 8000,
 	});
-
-	let fullText = "";
-	for await (const delta of result.textStream) {
-		fullText += delta;
-	}
 
 	return cleanHtmlOutput(fullText.trim());
 }

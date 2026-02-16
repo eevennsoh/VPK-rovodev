@@ -1,19 +1,8 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { streamText } = require("ai");
-const { createAIGatewayProvider } = require("./ai-gateway-provider");
-const {
-	detectEndpointType,
-	streamBedrockGatewayManualSse,
-} = require("./ai-gateway-helpers");
-const {
-	generateVisualSummary,
-	loadVisualSummaryFromDisk,
-	cleanHtmlOutput,
-} = require("./visual-summary-generator");
-const {
-	buildVisualPresenterPrompt,
-} = require("./visual-summary-prompts");
+const { generateVisualSummary, loadVisualSummaryFromDisk, cleanHtmlOutput } = require("./visual-summary-generator");
+const { buildVisualPresenterPrompt } = require("./visual-summary-prompts");
+const { generateTextViaRovoDev } = require("./rovodev-gateway");
 
 const TERMINAL_TASK_STATUSES = new Set(["done", "failed", "blocked-failed"]);
 const FAILURE_TASK_STATUSES = new Set(["failed", "blocked-failed"]);
@@ -567,16 +556,9 @@ function createRunManager(options) {
 		prompt,
 		conversationHistory,
 		contextDescription,
-		onDelta,
 		customSystemPrompt,
 		userName,
-		maxOutputTokens = 2000,
 	}) => {
-		const envVars = getEnvVars();
-		if (!envVars.AI_GATEWAY_URL) {
-			throw new Error("AI_GATEWAY_URL is not configured");
-		}
-
 		const systemPrompt = customSystemPrompt || (buildSystemPrompt
 			? buildSystemPrompt(userName, null, "ask")
 			: "You are a helpful AI assistant.");
@@ -593,37 +575,9 @@ function createRunManager(options) {
 			userMessage = `${contextDescription}\n\n${userMessage}`;
 		}
 
-		const endpointType = detectEndpointType(envVars.AI_GATEWAY_URL);
-
-		if (endpointType === "bedrock") {
-			const result = await streamBedrockGatewayManualSse({
-				gatewayUrl: envVars.AI_GATEWAY_URL,
-				envVars,
-				system: systemPrompt,
-				prompt: userMessage,
-				maxOutputTokens,
-				onTextDelta: onDelta,
-			});
-			return result.text;
-		}
-
-		const { provider, modelId } = createAIGatewayProvider();
-		const result = streamText({
-			model: provider.chatModel(modelId),
-			system: systemPrompt,
-			prompt: userMessage,
-			maxOutputTokens,
-		});
-
-		let fullText = "";
-		for await (const delta of result.textStream) {
-			fullText += delta;
-			if (onDelta) {
-				onDelta(delta);
-			}
-		}
-
-		return fullText.trim();
+		// Use RovoDev Serve for agent team runs
+		const result = await generateTextViaRovoDev({ system: systemPrompt, prompt: userMessage });
+		return result.trim();
 	};
 
 	const isAgentBusy = (run, agentId) =>

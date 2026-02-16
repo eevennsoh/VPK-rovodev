@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useRovoChatAsk } from "@/app/contexts/context-rovo-chat-ask";
-import { useSystemPrompt } from "@/app/contexts/context-system-prompt";
+import { useRovoChat } from "@/app/contexts";
 import { useSpeechRecognition } from "./use-speech-recognition";
 import { useUrlParams } from "./use-url-params";
 
@@ -22,8 +21,7 @@ export function useRovoViewChat() {
 		stopStreaming,
 		resetChat,
 		isStreaming,
-	} = useRovoChatAsk();
-	const { customPrompt } = useSystemPrompt();
+	} = useRovoChat();
 	const { name: userName } = useUrlParams();
 	const hasProcessedPendingPrompt = useRef(false);
 
@@ -47,9 +45,8 @@ export function useRovoViewChat() {
 
 		await sendPrompt(currentPrompt, {
 			userName: userName || undefined,
-			customSystemPrompt: customPrompt || undefined,
 		});
-	}, [prompt, isChatMode, userName, customPrompt, sendPrompt]);
+	}, [prompt, isChatMode, userName, sendPrompt]);
 
 	const handleSuggestedQuestionClick = useCallback(
 		async (question: string) => {
@@ -61,10 +58,10 @@ export function useRovoViewChat() {
 
 			await sendPrompt(question, {
 				userName: userName || undefined,
-				customSystemPrompt: customPrompt || undefined,
+				
 			});
 		},
-		[isChatMode, userName, customPrompt, sendPrompt]
+		[isChatMode, userName, sendPrompt]
 	);
 
 	const handleBackToStart = useCallback(() => {
@@ -88,13 +85,13 @@ export function useRovoViewChat() {
 
 				await sendPrompt(promptToSubmit, {
 					userName: userName || undefined,
-					customSystemPrompt: customPrompt || undefined,
+					
 				});
 			};
 
 			submitPendingPrompt();
 		}
-	}, [pendingPrompt, userName, customPrompt, setPendingPrompt, sendPrompt]);
+	}, [pendingPrompt, userName, setPendingPrompt, sendPrompt]);
 
 	return {
 		prompt,

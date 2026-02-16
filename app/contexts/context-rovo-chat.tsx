@@ -11,10 +11,10 @@ import {
 	type ReactNode,
 } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { API_ENDPOINTS } from "@/lib/api-config";
 import {
 	createAssistantTextMessage,
+	type RovoMessageMetadata,
 	type RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
 import {
@@ -24,14 +24,15 @@ import {
 	RATE_LIMIT_MAX_RETRIES,
 	RATE_LIMIT_RETRY_DELAY_MS,
 } from "@/lib/chat-error-utils";
+import { DefaultChatTransport } from "ai";
 
 interface SendPromptOptions {
 	contextDescription?: string;
 	userName?: string;
-	customSystemPrompt?: string;
+	messageMetadata?: RovoMessageMetadata;
 }
 
-interface RovoChatAskContextType {
+interface RovoChatContextType {
 	isOpen: boolean;
 	toggleChat: () => void;
 	closeChat: () => void;
@@ -45,7 +46,7 @@ interface RovoChatAskContextType {
 	setPendingPrompt: (prompt: string | null) => void;
 }
 
-const RovoChatAskContext = createContext<RovoChatAskContextType | undefined>(undefined);
+const RovoChatContext = createContext<RovoChatContextType | undefined>(undefined);
 
 function extractErrorMessageFromValue(value: unknown): string | null {
 	if (typeof value === "string") {
@@ -85,7 +86,7 @@ function toUserFacingChatErrorMessage(rawMessage?: string): string {
 	}
 }
 
-export function RovoChatAskProvider({ children }: { children: ReactNode }) {
+export function RovoChatProvider({ children }: { children: ReactNode }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 	const [submissionErrorMessage, setSubmissionErrorMessage] =
@@ -190,13 +191,14 @@ export function RovoChatAskProvider({ children }: { children: ReactNode }) {
 						retryCountRef.current += 1;
 						await stop();
 						await sendMessage(
-							{ text: saved.text },
+							{
+								text: saved.text,
+								metadata: saved.options?.messageMetadata,
+							},
 							{
 								body: {
-									chatMode: "ask",
 									contextDescription: saved.options?.contextDescription,
 									userName: saved.options?.userName,
-									customSystemPrompt: saved.options?.customSystemPrompt,
 								},
 							}
 						);
@@ -223,7 +225,6 @@ export function RovoChatAskProvider({ children }: { children: ReactNode }) {
 			);
 		},
 	});
-
 	const uiMessages = useMemo(() => {
 		if (!submissionErrorMessage) {
 			return rawUiMessages;
@@ -264,7 +265,6 @@ export function RovoChatAskProvider({ children }: { children: ReactNode }) {
 			})
 		);
 	}, [setMessages]);
-
 	const sendPrompt = useCallback(
 		async (prompt: string, options?: SendPromptOptions) => {
 			const trimmedPrompt = prompt.trim();
@@ -280,13 +280,14 @@ export function RovoChatAskProvider({ children }: { children: ReactNode }) {
 			clearSuggestedQuestions();
 			setSubmissionErrorMessage(null);
 			await sendMessage(
-				{ text: trimmedPrompt },
+				{
+					text: trimmedPrompt,
+					metadata: options?.messageMetadata,
+				},
 				{
 					body: {
-						chatMode: "ask",
 						contextDescription: options?.contextDescription,
 						userName: options?.userName,
-						customSystemPrompt: options?.customSystemPrompt,
 					},
 				}
 			);
@@ -299,7 +300,7 @@ export function RovoChatAskProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	return (
-		<RovoChatAskContext
+		<RovoChatContext
 			value={{
 				isOpen,
 				toggleChat,
@@ -315,14 +316,14 @@ export function RovoChatAskProvider({ children }: { children: ReactNode }) {
 			}}
 		>
 			{children}
-		</RovoChatAskContext>
+		</RovoChatContext>
 	);
 }
 
-export function useRovoChatAsk() {
-	const context = use(RovoChatAskContext);
+export function useRovoChat() {
+	const context = use(RovoChatContext);
 	if (context === undefined) {
-		throw new Error("useRovoChatAsk must be used within a RovoChatAskProvider");
+		throw new Error("useRovoChat must be used within a RovoChatProvider");
 	}
 	return context;
 }

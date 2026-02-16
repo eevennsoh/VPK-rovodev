@@ -7,7 +7,6 @@ const { getRovodevBasePort } = require("./lib/worktree-ports");
 const basePort = getRovodevBasePort();
 const maxTries = Number.parseInt(process.env.PORT_SEARCH_MAX ?? "20", 10);
 const portFile = path.join(process.cwd(), ".dev-rovodev-port");
-const tokenFile = path.join(process.cwd(), ".dev-rovodev-token");
 
 const unsupportedErrors = new Set([
 	"EADDRNOTAVAIL",
@@ -70,14 +69,9 @@ const writePortFile = (port) => {
 	fs.writeFileSync(portFile, String(port));
 };
 
-const cleanupPortFile = () => {
+const cleanup = () => {
 	try {
 		fs.unlinkSync(portFile);
-	} catch {
-		// ignore missing file
-	}
-	try {
-		fs.unlinkSync(tokenFile);
 	} catch {
 		// ignore missing file
 	}
@@ -100,29 +94,51 @@ const readRecordedPort = () => {
 	return null;
 };
 
+/**
+ * Resolve the rovodev binary and return { bin, args } where `args` are any
+ * extra arguments that must be prepended before "serve".
+ *
+ * For standalone `rovodev` binary: { bin: "/path/to/rovodev", servePrefix: [] }
+ * For `acli` wrapper:              { bin: "/path/to/acli", servePrefix: ["rovodev"] }
+ */
 const resolveRovodevBin = () => {
-	// 1. Check PATH first
 	const { execSync } = require("node:child_process");
+
+	// 1. Check PATH for `rovodev` first
 	try {
 		const binPath = execSync("which rovodev", {
 			encoding: "utf8",
 			stdio: ["pipe", "pipe", "pipe"],
 		}).trim();
 		if (binPath) {
-			return binPath;
+			return { bin: binPath, servePrefix: [] };
 		}
 	} catch {
 		// not on PATH
 	}
 
-	// 2. Check ~/.rovodev/bin as a common install location
+	// 2. Check PATH for `acli` (user-managed, typically more up-to-date)
+	try {
+		const acliBinPath = execSync("which acli", {
+			encoding: "utf8",
+			stdio: ["pipe", "pipe", "pipe"],
+		}).trim();
+		if (acliBinPath) {
+			console.log(`[rovodev] Using acli wrapper: ${acliBinPath}`);
+			return { bin: acliBinPath, servePrefix: ["rovodev"] };
+		}
+	} catch {
+		// not on PATH
+	}
+
+	// 3. Check ~/.rovodev/bin as a common install location
 	const homeDir = require("node:os").homedir();
 	const homeBinPath = path.join(homeDir, ".rovodev", "bin", "rovodev");
 	if (fs.existsSync(homeBinPath)) {
-		return homeBinPath;
+		return { bin: homeBinPath, servePrefix: [] };
 	}
 
-	// 3. Search Atlascode extension paths (Cursor / VS Code)
+	// 4. Search Atlascode extension paths (Cursor / VS Code)
 	//    The binary is installed per-workspace under:
 	//    ~/Library/Application Support/{Cursor,Code}/User/workspaceStorage/*/
 	//      atlassian.atlascode/atlascode-rovodev-bin/*/atlassian_cli_rovodev
@@ -194,10 +210,10 @@ const resolveRovodevBin = () => {
 
 	if (latestBin) {
 		console.log(`[rovodev] Found Atlascode binary (v${latestVersion.join(".")}): ${latestBin}`);
-		return latestBin;
+		return { bin: latestBin, servePrefix: [] };
 	}
 
-	return "rovodev";
+	return { bin: "rovodev", servePrefix: [] };
 };
 
 const run = async () => {
@@ -211,7 +227,7 @@ const run = async () => {
 			);
 			return;
 		}
-		cleanupPortFile();
+		cleanup();
 	}
 
 	const port = await findAvailablePort();
@@ -222,43 +238,32 @@ const run = async () => {
 
 	writePortFile(port);
 
-	const rovodevBin = resolveRovodevBin();
+	const { bin: rovodevBin, servePrefix } = resolveRovodevBin();
+
+	// Disable session token auth so the backend can call rovodev serve
+	// without needing to coordinate Bearer tokens. This is safe because
+	// rovodev serve only listens on 127.0.0.1.
+	// When rovodev adds ROVODEV_SERVE_SESSION_TOKEN env var support,
+	// we can switch to generating and sharing a token instead.
 
 	// Start rovodev serve without --restore so we get fresh sessions
 	// and avoid leaking sessions from other workspaces.
-	// Capture stdout to parse the real session token that rovodev serve generates.
-	const child = spawn(rovodevBin, ["serve", String(port)], {
-		stdio: ["inherit", "pipe", "inherit"],
+	const spawnArgs = [...servePrefix, "serve", "--disable-session-token", String(port)];
+	console.log(`[rovodev] Starting: ${rovodevBin} ${spawnArgs.join(" ")}`);
+	const child = spawn(rovodevBin, spawnArgs, {
+		stdio: "inherit",
 		env: {
 			...process.env,
 			ROVODEV_PORT: String(port),
 		},
 	});
 
-	// Parse the session token from rovodev serve's stdout and write it
-	// to .dev-rovodev-token so the backend can authenticate requests.
-	// Token line format: "    Authorization: Bearer <token>"
-	let tokenCaptured = false;
-	child.stdout.on("data", (chunk) => {
-		const text = chunk.toString();
-		process.stdout.write(text);
-
-		if (!tokenCaptured) {
-			const match = text.match(/Authorization:\s+Bearer\s+(\S+)/);
-			if (match) {
-				fs.writeFileSync(tokenFile, match[1]);
-				tokenCaptured = true;
-				console.log("[rovodev] Session token captured and saved.");
-			}
-		}
-	});
-
 	child.on("error", (err) => {
-		cleanupPortFile();
+		cleanup();
 		if (err.code === "ENOENT") {
 			console.error(
-				`\nError: "rovodev" command not found.\n` +
-				`Install the Rovo Dev CLI first, then try again.\n` +
+				`\nError: "${rovodevBin}" command not found.\n` +
+				`Install the Rovo Dev CLI ("rovodev" or "acli") first, then try again.\n` +
 				`If it's already installed, make sure it's on your PATH.\n`
 			);
 		} else {
@@ -275,7 +280,7 @@ const run = async () => {
 	process.on("SIGTERM", forwardSignal);
 
 	child.on("exit", (code, signal) => {
-		cleanupPortFile();
+		cleanup();
 
 		if (signal) {
 			process.kill(process.pid, signal);
@@ -287,7 +292,7 @@ const run = async () => {
 };
 
 run().catch((error) => {
-	cleanupPortFile();
+	cleanup();
 	console.error(error);
 	process.exit(1);
 });
