@@ -1,1 +1,0 @@
-../../.cursor/agents/vpk-design-ads.md

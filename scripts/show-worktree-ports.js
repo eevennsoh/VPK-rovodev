@@ -69,10 +69,11 @@ function main() {
 		const isMain = !wt.path.includes("/worktrees/");
 
 		// Calculate the expected ports based on worktree name
-		let frontendBase, backendBase;
+		let frontendBase, backendBase, rovodevBase;
 		if (isMain) {
 			frontendBase = 3000;
 			backendBase = 8080;
+			rovodevBase = 8000;
 		} else {
 			// Extract worktree name from path
 			const worktreeName = wt.branch || name;
@@ -80,22 +81,24 @@ function main() {
 			const offset = slot * 2;
 			frontendBase = 3000 + offset;
 			backendBase = 8080 + offset;
+			rovodevBase = 8000 + offset;
 		}
 
 		// Check actual running ports
 		const runningFrontend = readPortFile(wt.path, ".dev-frontend-port");
 		const runningBackend = readPortFile(wt.path, ".dev-backend-port");
+		const runningRovodev = readPortFile(wt.path, ".dev-rovodev-port");
 
-		const status = runningFrontend || runningBackend ? "🟢 RUNNING" : "⚪ stopped";
+		const status = runningFrontend || runningBackend || runningRovodev ? "🟢 RUNNING" : "⚪ stopped";
 
 		console.log(`\n${isMain ? "📁" : "🌿"} ${name} ${isMain ? "(main)" : `(${wt.branch})`}`);
 		console.log(`   Path: ${wt.path}`);
 		console.log(`   Status: ${status}`);
-		console.log(`   Reserved ports: frontend=${frontendBase}, backend=${backendBase}`);
+		console.log(`   Reserved ports: frontend=${frontendBase}, backend=${backendBase}, rovodev=${rovodevBase}`);
 
-		if (runningFrontend || runningBackend) {
+		if (runningFrontend || runningBackend || runningRovodev) {
 			console.log(
-				`   Active ports:   frontend=${runningFrontend || "—"}, backend=${runningBackend || "—"}`
+				`   Active ports:   frontend=${runningFrontend || "—"}, backend=${runningBackend || "—"}, rovodev=${runningRovodev || "—"}`
 			);
 		}
 	}

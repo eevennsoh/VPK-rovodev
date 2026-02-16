@@ -28,8 +28,87 @@ const {
 	streamBedrockGatewayManualSse,
 	streamGoogleGatewayManualSse,
 } = require("./lib/ai-gateway-helpers");
+const { streamViaRovoDev, generateTextViaRovoDev } = require("./lib/rovodev-gateway");
+const { healthCheck: rovoDevHealthCheck } = require("./lib/rovodev-client");
 
 console.log("[STARTUP] Dependencies loaded");
+
+// ─── RovoDev Serve Detection ─────────────────────────────────────────────────
+// When `pnpm run rovodev` is used, `dev-rovodev.js` writes the serve port to
+// `.dev-rovodev-port`. The backend reads this file to decide whether to route
+// chat traffic through the local RovoDev agent loop instead of AI Gateway.
+
+const ROVODEV_PORT_FILE = path.join(__dirname, "..", ".dev-rovodev-port");
+
+/** Cached availability state — refreshed on each request via the port file. */
+let _rovoDevAvailable = false;
+let _rovoDevChecked = false;
+
+/**
+ * Check whether a RovoDev Serve instance is reachable.
+ * Reads the port file written by `dev-rovodev.js` and pings the health endpoint.
+ * Caches the result so subsequent calls within the same process are fast.
+ * Call `refreshRovoDevAvailability()` to re-check (e.g. at startup).
+ */
+async function refreshRovoDevAvailability() {
+	try {
+		const fs = require("fs");
+		if (!fs.existsSync(ROVODEV_PORT_FILE)) {
+			_rovoDevAvailable = false;
+			_rovoDevChecked = true;
+			return false;
+		}
+
+		const portStr = fs.readFileSync(ROVODEV_PORT_FILE, "utf8").trim();
+		const port = parseInt(portStr, 10);
+		if (isNaN(port) || port <= 0) {
+			_rovoDevAvailable = false;
+			_rovoDevChecked = true;
+			return false;
+		}
+
+		// Set the env var so rovodev-client.js picks up the correct port
+		process.env.ROVODEV_PORT = String(port);
+
+		await rovoDevHealthCheck();
+		_rovoDevAvailable = true;
+		_rovoDevChecked = true;
+		console.log(`[ROVODEV] Serve detected and healthy on port ${port}`);
+		return true;
+	} catch (err) {
+		_rovoDevAvailable = false;
+		_rovoDevChecked = true;
+		debugLog("ROVODEV", "Not available", { error: err.message });
+		return false;
+	}
+}
+
+/**
+ * Returns true if RovoDev Serve is available. Uses cached result if already checked,
+ * otherwise performs a fresh check. The port file is re-read on each call to detect
+ * if RovoDev was started or stopped since last check.
+ */
+async function isRovoDevAvailable() {
+	const fs = require("fs");
+	const portFileExists = fs.existsSync(ROVODEV_PORT_FILE);
+
+	// If the port file disappeared, RovoDev was stopped
+	if (!portFileExists) {
+		if (_rovoDevAvailable) {
+			console.log("[ROVODEV] Port file removed — switching to AI Gateway mode");
+		}
+		_rovoDevAvailable = false;
+		_rovoDevChecked = true;
+		return false;
+	}
+
+	// If the port file appeared or we haven't checked yet, do a fresh health check
+	if (!_rovoDevChecked || !_rovoDevAvailable) {
+		return refreshRovoDevAvailability();
+	}
+
+	return _rovoDevAvailable;
+}
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -132,17 +211,25 @@ try {
 		if (typeof customSystemPrompt === "string" && customSystemPrompt.trim()) {
 			return customSystemPrompt.trim();
 		}
-		return "You are a helpful AI assistant.";
+		return "You are Rovo, an AI assistant built by Atlassian.";
 	};
 	buildUserMessage = (message) => message;
 }
 
 /**
- * Generates text using the gateway, routing through manual SSE for Bedrock
- * endpoints to avoid POCO authorization issues with the translated OpenAI-
- * compatible path.
+ * Generates text using the best available backend.
+ *
+ * Priority:
+ *   1. RovoDev Serve (if running — detected via `.dev-rovodev-port` file)
+ *   2. AI Gateway — manual SSE for Bedrock, AI SDK for OpenAI/Google
  */
 async function generateTextViaGateway({ system, prompt, maxOutputTokens, temperature }) {
+	// Route through RovoDev when available
+	if (await isRovoDevAvailable()) {
+		debugLog("GENERATE", "Routing through RovoDev Serve");
+		return generateTextViaRovoDev({ system, prompt });
+	}
+
 	const envVars = getEnvVars();
 	const endpointType = detectEndpointType(envVars.AI_GATEWAY_URL);
 
@@ -1423,11 +1510,16 @@ app.post("/api/chat-sdk", async (req, res) => {
 		}
 
 		const resolvedEndpointTypeForProvider = resolvedEndpointType || detectEndpointType(rawGatewayUrl);
+
+		// Check RovoDev availability once per request (before stream setup)
+		const useRovoDev = await isRovoDevAvailable();
+
 		const systemPrompt = buildSystemPrompt(
 			userName,
 			customSystemPrompt,
 			resolvedChatMode,
-			resolvedEndpointTypeForProvider
+			resolvedEndpointTypeForProvider,
+			{ isRovoDev: useRovoDev }
 		);
 
 		// Inject create-plan skill content + agent roster for plan mode
@@ -1449,7 +1541,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 		const isGoogleEndpoint = resolvedEndpointTypeForProvider === "google";
 		const isBedrockEndpoint = resolvedEndpointTypeForProvider === "bedrock";
 		try {
-			if (!isGoogleEndpoint && !isBedrockEndpoint) {
+			if (!useRovoDev && !isGoogleEndpoint && !isBedrockEndpoint) {
 				const { provider, modelId } = createAIGatewayProvider({
 					gatewayUrl: resolvedGatewayUrl,
 					endpointType: resolvedEndpointType || undefined,
@@ -1845,7 +1937,15 @@ app.post("/api/chat-sdk", async (req, res) => {
 					});
 				};
 
-				if (isBedrockEndpoint) {
+				if (useRovoDev) {
+					// RovoDev Serve: route through the local agent loop
+					console.log("[CHAT-SDK] Routing through RovoDev Serve");
+					const fullMessage = `[System Instructions]\n${resolvedSystemPrompt}\n[End System Instructions]\n\n${userMessageText}`;
+					await streamViaRovoDev({
+						message: fullMessage,
+						onTextDelta: handleStreamTextDelta,
+					});
+				} else if (isBedrockEndpoint) {
 					// Bedrock/Claude: manual SSE with Anthropic Messages API format
 					// Uses the original URL to avoid POCO authorization issues with translated paths
 					console.log("[CHAT-SDK] Using manual SSE for Bedrock endpoint:", rawGatewayUrl);
@@ -2444,7 +2544,7 @@ app.get("*", (req, res) => {
 
 console.log("[STARTUP] All routes registered, starting HTTP server...");
 
-const server = app.listen(port, "0.0.0.0", () => {
+const server = app.listen(port, "0.0.0.0", async () => {
 	console.log(`[STARTUP] ✓ Server listening on 0.0.0.0:${port}`);
 	console.log(`\n${"=".repeat(60)}`);
 	console.log(`Server ready for connections`);
@@ -2457,6 +2557,13 @@ const server = app.listen(port, "0.0.0.0", () => {
 	console.log(`  ASAP_ISSUER: ${process.env.ASAP_ISSUER ? "SET" : "MISSING"}`);
 	console.log(`  ASAP_KID: ${process.env.ASAP_KID ? "SET" : "MISSING"}`);
 	console.log(`  ASAP_PRIVATE_KEY: ${process.env.ASAP_PRIVATE_KEY ? "SET" : "MISSING"}`);
+
+	// Check for RovoDev Serve at startup
+	const rovoDevReady = await refreshRovoDevAvailability();
+	console.log(`\n🤖 Chat Backend: ${rovoDevReady ? "RovoDev Serve (agent loop)" : "AI Gateway (direct)"}`);
+	if (rovoDevReady) {
+		console.log(`  ROVODEV_PORT: ${process.env.ROVODEV_PORT}`);
+	}
 	console.log(`${"=".repeat(60)}\n`);
 
 	if (DEBUG) {

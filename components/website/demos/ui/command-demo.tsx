@@ -6,7 +6,7 @@ import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, Comma
 
 export default function CommandDemo() {
 	return (
-		<Command className="w-48 rounded-lg border">
+		<Command className="w-48 rounded-lg border" value="__preview__" onValueChange={() => {}}>
 			<CommandInput placeholder="Search..." />
 			<CommandList>
 				<CommandEmpty>No results found.</CommandEmpty>

@@ -82,6 +82,7 @@ export default async function RootLayout({
 	root.classList.remove("light", "dark");
 	root.classList.add(resolvedColorMode);
 	root.style.colorScheme = resolvedColorMode;
+
 })();
 `;
 

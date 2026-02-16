@@ -135,6 +135,27 @@ function getBackendBasePort() {
 }
 
 /**
+ * Get the base rovodev serve port for the current worktree
+ */
+function getRovodevBasePort() {
+	const envPort = process.env.ROVODEV_PORT;
+	if (envPort) {
+		return Number.parseInt(envPort, 10);
+	}
+
+	const defaultBase = 8000;
+	const offset = getWorktreePortOffset();
+	const basePort = defaultBase + offset;
+
+	const worktreeName = getWorktreeName();
+	if (worktreeName && offset > 0) {
+		console.log(`[worktree: ${worktreeName}] RovoDev base port: ${basePort}`);
+	}
+
+	return basePort;
+}
+
+/**
  * Get port info for the current worktree (useful for diagnostics)
  */
 function getPortInfo() {
@@ -146,6 +167,7 @@ function getPortInfo() {
 		offset,
 		frontendBase: 3000 + offset,
 		backendBase: 8080 + offset,
+		rovodevBase: 8000 + offset,
 	};
 }
 
@@ -155,5 +177,6 @@ module.exports = {
 	getWorktreePortOffset,
 	getFrontendBasePort,
 	getBackendBasePort,
+	getRovodevBasePort,
 	getPortInfo,
 };

@@ -38,6 +38,15 @@ if [ -f "$BACKEND_PORT_FILE" ]; then
     fi
 fi
 
+# Read rovodev port if file exists
+ROVODEV_PORT_FILE="$PROJECT_DIR/.dev-rovodev-port"
+if [ -f "$ROVODEV_PORT_FILE" ]; then
+    ROVODEV_PORT=$(cat "$ROVODEV_PORT_FILE" 2>/dev/null | tr -d '[:space:]')
+    if [ -n "$ROVODEV_PORT" ]; then
+        CONTEXT_PARTS+=("RovoDev Serve: http://localhost:$ROVODEV_PORT")
+    fi
+fi
+
 # If we found any ports, output context for Claude
 if [ ${#CONTEXT_PARTS[@]} -gt 0 ]; then
     # Build the context message

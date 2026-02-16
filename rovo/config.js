@@ -35,7 +35,7 @@ function normalizeChatMode(chatMode) {
 		: ROVO_CHAT_MODES.PLAN;
 }
 
-function buildSystemPrompt(userName, customSystemPrompt, chatMode, endpointTypeOverride) {
+function buildSystemPrompt(userName, customSystemPrompt, chatMode, endpointTypeOverride, { isRovoDev = false } = {}) {
 	if (customSystemPrompt && customSystemPrompt.trim()) {
 		return customSystemPrompt.trim();
 	}
@@ -108,7 +108,12 @@ function buildSystemPrompt(userName, customSystemPrompt, chatMode, endpointTypeO
 - Respond as plain conversational markdown text only.
 - Do not emit widget markers such as WIDGET_LOADING or WIDGET_DATA.`;
 
-	return `You are an AI assistant built by Atlassian.
+	const assistantName = isRovoDev ? "Rovo Dev" : "Rovo";
+	const identityDetail = isRovoDev
+		? "powered by the Rovo Dev agent loop and built by Atlassian"
+		: "an AI assistant built by Atlassian";
+
+	return `You are ${assistantName}, ${identityDetail}.
 
 ## Context
 - Current Date/Time: ${currentDate}
@@ -116,7 +121,7 @@ function buildSystemPrompt(userName, customSystemPrompt, chatMode, endpointTypeO
 
 ## Your Capabilities
 
-You are a helpful AI assistant that can answer questions, help with tasks, and provide information.
+You are ${assistantName}, a helpful AI assistant that can answer questions, help with tasks, and provide information. When asked about your identity, you should confirm that you are ${assistantName}, ${identityDetail}.
 
 ## Response Guidelines
 - Be conversational, helpful, and professional${personalizationRule}

@@ -12,6 +12,8 @@
 		"deploy:micros": "./scripts/dev-deploy-fast.sh",
 		"dev:backend": "node scripts/dev-backend.js",
 		"dev:frontend": "node scripts/dev-frontend.js",
+		"dev:rovodev": "node scripts/dev-rovodev.js",
+		"rovodev": "concurrently \"pnpm run dev:rovodev\" \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
 		"ports": "node scripts/show-worktree-ports.js",
 		"generate:prompt": "node --experimental-strip-types scripts/generate-catalog-prompt.js"
 	},

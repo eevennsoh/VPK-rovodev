@@ -13,10 +13,13 @@
  */
 
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const DEFAULT_PORT = 8000;
+const TOKEN_FILE = path.join(process.cwd(), ".dev-rovodev-token");
 
 function getPort() {
 	const envPort = process.env.ROVODEV_PORT;
@@ -31,6 +34,21 @@ function getPort() {
 
 function getBaseUrl() {
 	return `http://127.0.0.1:${getPort()}`;
+}
+
+/**
+ * Get the session token from ROVODEV_SERVE_SESSION_TOKEN env var,
+ * falling back to .dev-rovodev-token file.
+ */
+function getSessionToken() {
+	if (process.env.ROVODEV_SERVE_SESSION_TOKEN) {
+		return process.env.ROVODEV_SERVE_SESSION_TOKEN;
+	}
+	try {
+		return fs.readFileSync(TOKEN_FILE, "utf8").trim();
+	} catch {
+		return null;
+	}
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -172,6 +190,7 @@ function request(method, path, body, timeoutMs = 10000) {
 			headers: {
 				"Content-Type": "application/json",
 				"Accept": "application/json",
+				...(getSessionToken() ? { "Authorization": `Bearer ${getSessionToken()}` } : {}),
 			},
 			timeout: timeoutMs,
 		};
@@ -272,6 +291,7 @@ function sendMessageStreaming(message, callbacks) {
 						"Accept": "text/event-stream",
 						"Cache-Control": "no-cache",
 						"Connection": "keep-alive",
+						...(getSessionToken() ? { "Authorization": `Bearer ${getSessionToken()}` } : {}),
 					},
 				};
 
