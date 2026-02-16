@@ -13,7 +13,8 @@ import {
 } from "@/components/ui-ai/conversation";
 import { isRenderableRovoUIMessage } from "@/lib/rovo-ui-messages";
 import type { RovoSuggestion } from "@/lib/rovo-suggestions";
-import { ThinkingIndicator } from "@/components/templates/shared/components/thinking-indicator";
+import { Message, MessageContent } from "@/components/ui-ai/message";
+import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import { chatStyles } from "./data/styles";
 import { useChatSubmit } from "./hooks/use-chat-submit";
 import { useScrollAnchor } from "./hooks/use-scroll-anchor";
@@ -109,7 +110,15 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 							)}
 						/>
 					)}
-					{shouldShowThinking ? <ThinkingIndicator label="Thinking..." /> : null}
+					{shouldShowThinking ? (
+						<Message from="assistant" className="max-w-full">
+							<MessageContent className="px-3">
+								<Reasoning className="mb-0" isStreaming>
+									<AdsReasoningTrigger label="Thinking" showChevron={false} />
+								</Reasoning>
+							</MessageContent>
+						</Message>
+					) : null}
 					<div ref={scrollSpacerRef} aria-hidden style={{ height: 0, flexShrink: 0 }} />
 				</ConversationContent>
 			</Conversation>

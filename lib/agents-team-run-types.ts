@@ -63,12 +63,6 @@ export interface AgentRunSummary {
 	createdAt: string;
 }
 
-export interface AgentRunVisualSummary {
-	html: string;
-	hasImages: boolean;
-	createdAt: string;
-}
-
 export interface AgentRun {
 	runId: string;
 	status: AgentRunStatus;
@@ -103,7 +97,6 @@ export type AgentRunStreamEvent =
 				| "directive.recorded"
 				| "run.completed"
 				| "run.summary-ready"
-				| "run.visual-summary-ready"
 				| "run.failed";
 			timestamp: string;
 			run: AgentRun;

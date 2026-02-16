@@ -6,13 +6,13 @@ import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
 import CommentIcon from "@atlaskit/icon/core/comment";
 import VideoPauseIcon from "@atlaskit/icon/core/video-pause";
-import { MessageResponse } from "@/components/ui-ai/message";
 import {
 	Conversation,
 	ConversationContent,
 	ConversationScrollButton,
 } from "@/components/ui-ai/conversation";
-import { ThinkingIndicator } from "@/components/templates/shared/components/thinking-indicator";
+import { Message, MessageContent, MessageResponse } from "@/components/ui-ai/message";
+import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import type { TaskExecution } from "../lib/execution-data";
 
 interface AgentScreenProps {
@@ -40,40 +40,16 @@ export const AgentScreen = memo(function AgentScreen({
 	className,
 }: Readonly<AgentScreenProps>) {
 	const isWorking = execution.status === "working";
-	const isVisualPresenter = execution.agentName === "Visual Presenter";
 
 	const conversation = useMemo(() => {
 		const result: { id: string; role: "assistant"; content: string }[] = [];
 
-		if (execution.content && !isVisualPresenter) {
+		if (execution.content) {
 			result.push({ id: "a-0", role: "assistant", content: execution.content });
 		}
 
 		return result;
-	}, [execution.content, isVisualPresenter]);
-
-	const renderVisualPresenterContent = () => {
-		if (isWorking) {
-			return <ThinkingIndicator label="Designing visual presentation..." />;
-		}
-		if (execution.status === "completed") {
-			return (
-				<div className="flex items-center gap-2 text-sm text-text-success">
-					<span className="inline-block size-2 rounded-full bg-bg-success-bold" />
-					Visual presentation ready
-				</div>
-			);
-		}
-		if (execution.status === "failed") {
-			return (
-				<div className="flex items-center gap-2 text-sm text-text-danger">
-					<span className="inline-block size-2 rounded-full bg-bg-danger-bold" />
-					Visual presentation failed
-				</div>
-			);
-		}
-		return null;
-	};
+	}, [execution.content]);
 
 	return (
 		<div
@@ -132,16 +108,22 @@ export const AgentScreen = memo(function AgentScreen({
 
 			<Conversation className="min-h-0 flex-1">
 				<ConversationContent className="gap-4 p-3">
-					{isVisualPresenter ? (
-						renderVisualPresenterContent()
-					) : conversation.length > 0 ? (
+					{conversation.length > 0 ? (
 						conversation.map((msg) => (
-							<MessageResponse key={msg.id} className="text-sm">
-								{msg.content}
-							</MessageResponse>
+							<Message key={msg.id} from="assistant" className="max-w-full">
+								<MessageContent>
+									<MessageResponse>{msg.content}</MessageResponse>
+								</MessageContent>
+							</Message>
 						))
 					) : isWorking ? (
-						<ThinkingIndicator label="Working..." />
+						<Message from="assistant" className="max-w-full">
+						<MessageContent className="px-3">
+							<Reasoning className="mb-0" isStreaming>
+								<AdsReasoningTrigger label="Working" showChevron={false} />
+							</Reasoning>
+						</MessageContent>
+					</Message>
 					) : null}
 				</ConversationContent>
 				<ConversationScrollButton />

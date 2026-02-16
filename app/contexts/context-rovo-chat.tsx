@@ -32,6 +32,45 @@ interface SendPromptOptions {
 	messageMetadata?: RovoMessageMetadata;
 }
 
+type RovoUIMessagePart = RovoUIMessage["parts"][number];
+
+function isValidRovoUiMessagePart(part: unknown): part is RovoUIMessagePart {
+	return (
+		typeof part === "object" &&
+		part !== null &&
+		typeof (part as { type?: unknown }).type === "string"
+	);
+}
+
+function sanitizeRovoUiMessages(
+	messages: ReadonlyArray<RovoUIMessage>
+): RovoUIMessage[] {
+	let hasChanged = false;
+
+	const nextMessages = messages.map((message) => {
+		const nextParts = Array.isArray(message.parts)
+			? message.parts.filter(isValidRovoUiMessagePart)
+			: [];
+
+		if (nextParts.length !== message.parts.length) {
+			hasChanged = true;
+			return { ...message, parts: nextParts };
+		}
+
+		return message;
+	});
+
+	return hasChanged ? nextMessages : (messages as RovoUIMessage[]);
+}
+
+function isInvalidPartStateError(error: unknown): boolean {
+	return (
+		error instanceof TypeError &&
+		typeof error.message === "string" &&
+		error.message.includes("reading 'state'")
+	);
+}
+
 interface RovoChatContextType {
 	isOpen: boolean;
 	toggleChat: () => void;
@@ -190,18 +229,39 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 						});
 						retryCountRef.current += 1;
 						await stop();
-						await sendMessage(
-							{
-								text: saved.text,
-								metadata: saved.options?.messageMetadata,
-							},
-							{
-								body: {
-									contextDescription: saved.options?.contextDescription,
-									userName: saved.options?.userName,
+						try {
+							await sendMessage(
+								{
+									text: saved.text,
+									metadata: saved.options?.messageMetadata,
 								},
+								{
+									body: {
+										contextDescription: saved.options?.contextDescription,
+										userName: saved.options?.userName,
+									},
+								}
+							);
+						} catch (error) {
+							if (!isInvalidPartStateError(error)) {
+								throw error;
 							}
-						);
+
+							setMessages((prev) => sanitizeRovoUiMessages(prev));
+							await Promise.resolve();
+							await sendMessage(
+								{
+									text: saved.text,
+									metadata: saved.options?.messageMetadata,
+								},
+								{
+									body: {
+										contextDescription: saved.options?.contextDescription,
+										userName: saved.options?.userName,
+									},
+								}
+							);
+						}
 					}, RATE_LIMIT_RETRY_DELAY_MS);
 				} else {
 					retryCountRef.current = 0;
@@ -251,7 +311,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 	}, [cancelRetryTimer, setMessages]);
 	const clearSuggestedQuestions = useCallback(() => {
 		setMessages((prev) =>
-			prev.map((message) => {
+			sanitizeRovoUiMessages(prev).map((message) => {
 				if (message.role !== "assistant") {
 					return message;
 				}
@@ -279,20 +339,41 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 			await stop();
 			clearSuggestedQuestions();
 			setSubmissionErrorMessage(null);
-			await sendMessage(
-				{
-					text: trimmedPrompt,
-					metadata: options?.messageMetadata,
-				},
-				{
-					body: {
-						contextDescription: options?.contextDescription,
-						userName: options?.userName,
+			try {
+				await sendMessage(
+					{
+						text: trimmedPrompt,
+						metadata: options?.messageMetadata,
 					},
+					{
+						body: {
+							contextDescription: options?.contextDescription,
+							userName: options?.userName,
+						},
+					}
+				);
+			} catch (error) {
+				if (!isInvalidPartStateError(error)) {
+					throw error;
 				}
-			);
+
+				setMessages((prev) => sanitizeRovoUiMessages(prev));
+				await Promise.resolve();
+				await sendMessage(
+					{
+						text: trimmedPrompt,
+						metadata: options?.messageMetadata,
+					},
+					{
+						body: {
+							contextDescription: options?.contextDescription,
+							userName: options?.userName,
+						},
+					}
+				);
+			}
 		},
-		[cancelRetryTimer, clearSuggestedQuestions, sendMessage, stop]
+		[cancelRetryTimer, clearSuggestedQuestions, sendMessage, setMessages, stop]
 	);
 
 	const setPendingPromptValue = useCallback((prompt: string | null) => {

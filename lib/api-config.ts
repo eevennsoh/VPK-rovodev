@@ -43,8 +43,6 @@ export const API_ENDPOINTS = {
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/directives`,
 	agentsTeamRunSummary: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/summary`,
-	agentsTeamRunVisualSummary: (runId: string) =>
-		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/visual-summary`,
 	agentsTeamSkill: (id: string) =>
 		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(id)}`,
 	agentsTeamAgent: (id: string) =>

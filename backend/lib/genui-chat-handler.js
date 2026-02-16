@@ -1,20 +1,12 @@
-const { streamText } = require("ai");
 const {
 	applySpecPatch,
 	autoFixSpec,
 	createMixedStreamParser,
 	validateSpec,
 } = require("@json-render/core");
-const { createAIGatewayProvider } = require("./ai-gateway-provider");
-const {
-	getEnvVars,
-	detectEndpointType,
-	resolveGatewayUrl,
-	streamBedrockGatewayManualSse,
-} = require("./ai-gateway-helpers");
+const { generateTextViaRovoDev, streamViaRovoDev } = require("./rovodev-gateway");
 const { getGenuiSystemPrompt } = require("./genui-system-prompt");
 
-const MAX_OUTPUT_TOKENS = 4000;
 const GENUI_META_PREFIX = "[genui-meta]";
 const WEB_LOOKUP_TIMEOUT_MS = 4500;
 
@@ -532,51 +524,38 @@ function buildFailureOutput(rawText, failureType, requirementMisses = []) {
 	return `${narrative}\n\n${guidance}`;
 }
 
-function toAnthropicMessages(messages) {
-	return messages.map((msg) => ({
-		role: msg.role === "assistant" ? "assistant" : "user",
-		content: [{ type: "text", text: msg.content }],
-	}));
-}
-
+/**
+ * Generate assistant text via RovoDev Serve.
+ *
+ * Combines the system prompt and conversation messages into a single
+ * message string that RovoDev Serve can process, matching the pattern
+ * used by `generateTextViaRovoDev` in rovodev-gateway.js.
+ */
 async function generateAssistantText({
-	endpointType,
-	rawGatewayUrl,
-	envVars,
 	systemPrompt,
 	messages,
+	onTextDelta,
 }) {
-	let output = "";
+	// Build a single prompt that includes the system instructions
+	// and the full conversation history for RovoDev Serve
+	const conversationLines = messages.map(
+		(msg) => `[${msg.role === "assistant" ? "Assistant" : "User"}]\n${msg.content}`
+	);
+	const prompt = conversationLines.join("\n\n");
 
-	if (endpointType === "bedrock") {
-		await streamBedrockGatewayManualSse({
-			gatewayUrl: rawGatewayUrl,
-			envVars,
-			system: systemPrompt,
-			messages: toAnthropicMessages(messages),
-			maxOutputTokens: MAX_OUTPUT_TOKENS,
-			onTextDelta(delta) {
-				output += delta;
+	if (typeof onTextDelta === "function") {
+		const chunks = [];
+		await streamViaRovoDev({
+			message: `[System Instructions]\n${systemPrompt}\n[End System Instructions]\n\n${prompt}`,
+			onTextDelta: (delta) => {
+				chunks.push(delta);
+				onTextDelta(delta);
 			},
 		});
-
-		return output;
+		return chunks.join("");
 	}
 
-	const gatewayUrl = resolveGatewayUrl(rawGatewayUrl) || rawGatewayUrl;
-	const { provider, modelId } = createAIGatewayProvider({ gatewayUrl });
-	const result = streamText({
-		model: provider.chatModel(modelId),
-		system: systemPrompt,
-		messages,
-		maxOutputTokens: MAX_OUTPUT_TOKENS,
-	});
-
-	for await (const chunk of result.textStream) {
-		output += chunk;
-	}
-
-	return output;
+	return generateTextViaRovoDev({ system: systemPrompt, prompt });
 }
 
 function extractRelatedTopicTexts(topics, output = []) {
@@ -752,6 +731,7 @@ async function genuiChatHandler(req, res) {
 			messages: rawMessages,
 			strictSpec,
 			allowWebLookup,
+			streamResponse = true,
 		} = req.body || {};
 		const normalizedMessages = normalizeMessages(rawMessages);
 
@@ -759,14 +739,6 @@ async function genuiChatHandler(req, res) {
 			return res.status(400).json({ error: "messages array is required" });
 		}
 
-		const envVars = getEnvVars();
-		const rawGatewayUrl = envVars.AI_GATEWAY_URL;
-
-		if (!rawGatewayUrl) {
-			return res.status(500).json({ error: "Server configuration error" });
-		}
-
-		const endpointType = detectEndpointType(rawGatewayUrl);
 		const userPrompt = getLastUserPrompt(normalizedMessages);
 		const enableWebLookup = shouldUseWebLookup({
 			allowWebLookup: allowWebLookup === true,
@@ -784,16 +756,78 @@ async function genuiChatHandler(req, res) {
 		res.setHeader("Content-Type", "text/plain; charset=utf-8");
 		res.setHeader("Cache-Control", "no-cache");
 		res.setHeader("Connection", "keep-alive");
+		if (typeof res.flushHeaders === "function") {
+			res.flushHeaders();
+		}
 
 		const baseText = await generateAssistantText({
-			endpointType,
-			rawGatewayUrl,
-			envVars,
 			systemPrompt: basePrompt,
 			messages: normalizedMessages,
+			onTextDelta:
+				streamResponse === true
+					? (delta) => {
+							if (typeof delta === "string" && delta.length > 0) {
+								res.write(delta);
+							}
+						}
+					: undefined,
 		});
 		const baseAnalysis = analyzeGeneratedText(baseText);
 		logAttempt("base", baseAnalysis, requirements);
+
+		// Low-latency path: stream base output immediately, then append only
+		// recovery/failure guidance if needed.
+		if (streamResponse === true) {
+			const requirementMisses = getRequirementMisses(
+				pickBestSpecForRequirementCheck(baseAnalysis),
+				requirements,
+			);
+
+			if (baseAnalysis.renderable && requirementMisses.length === 0) {
+				res.end();
+				return;
+			}
+
+			const fixedRequirementMisses = getRequirementMisses(
+				baseAnalysis.fixedSpec,
+				requirements,
+			);
+			if (
+				baseAnalysis.fixedRenderable &&
+				baseAnalysis.fixedSpec &&
+				fixedRequirementMisses.length === 0
+			) {
+				res.write(
+					`\n\nApplied automatic spec repair for rendering reliability.\n\n${buildSpecFence(baseAnalysis.fixedSpec)}`
+				);
+				res.end();
+				return;
+			}
+
+			const synthesizedRequirementMisses = getRequirementMisses(
+				baseAnalysis.synthesizedSpec,
+				requirements,
+			);
+			if (
+				baseAnalysis.synthesizedRenderable &&
+				baseAnalysis.synthesizedSpec &&
+				synthesizedRequirementMisses.length === 0
+			) {
+				res.write(
+					`\n\nRecovered ${baseAnalysis.synthesizedChildCount} missing section${
+						baseAnalysis.synthesizedChildCount === 1 ? "" : "s"
+					} by generating placeholders.\n\n${buildSpecFence(baseAnalysis.synthesizedSpec)}`
+				);
+				res.end();
+				return;
+			}
+
+			const failureType = getFailureType(baseAnalysis);
+			const guidance = buildFailureOutput("", failureType, requirementMisses);
+			res.write(`\n\n${guidance}`);
+			res.end();
+			return;
+		}
 
 		let finalOutput = buildSuccessOutput({
 			analysis: baseAnalysis,
@@ -818,9 +852,6 @@ async function genuiChatHandler(req, res) {
 				strict: true,
 			})}\n\n${STRICT_RETRY_INSTRUCTION}${retryDiagnostics}`;
 			const retryText = await generateAssistantText({
-				endpointType,
-				rawGatewayUrl,
-				envVars,
 				systemPrompt: strictRetryPrompt,
 				messages: normalizedMessages,
 			});
@@ -849,9 +880,6 @@ async function genuiChatHandler(req, res) {
 					webContext,
 				})}\n\n${STRICT_RETRY_INSTRUCTION}`;
 				const webRetryText = await generateAssistantText({
-					endpointType,
-					rawGatewayUrl,
-					envVars,
 					systemPrompt: webRetryPrompt,
 					messages: normalizedMessages,
 				});
@@ -915,9 +943,15 @@ async function genuiChatHandler(req, res) {
 	} catch (error) {
 		console.error("[GENUI-CHAT] Error:", error);
 		if (!res.headersSent) {
-			return res.status(500).json({
-				error: "Internal server error",
-				details: error instanceof Error ? error.message : String(error),
+			const message = error instanceof Error ? error.message : String(error);
+			const isRovoDevError = message.includes("RovoDev") || message.includes("rovodev");
+			return res.status(isRovoDevError ? 503 : 500).json({
+				error: isRovoDevError
+					? "RovoDev Serve is required but not available"
+					: "Internal server error",
+				details: isRovoDevError
+					? "Please start RovoDev Serve with 'pnpm run rovodev' before using UI Generation."
+					: message,
 			});
 		}
 		res.end();

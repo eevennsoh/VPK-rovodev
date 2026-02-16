@@ -1,18 +1,12 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { token } from "@/lib/tokens";
-import type { AgentRun, AgentRunSummary, AgentRunVisualSummary } from "@/lib/agents-team-run-types";
+import type { AgentRun, AgentRunSummary } from "@/lib/agents-team-run-types";
 import { RunSummarySection } from "./run-summary-section";
-import { VisualSummarySection } from "./visual-summary-section";
 
 interface RunSummaryResponse {
 	run?: AgentRun;
 	summary?: AgentRunSummary | null;
-	error?: string;
-}
-
-interface VisualSummaryResponse {
-	visualSummary?: AgentRunVisualSummary | null;
 	error?: string;
 }
 
@@ -123,26 +117,17 @@ export default async function AgentsTeamRunSummaryPage({ params }: Readonly<RunS
 	const headersList = await headers();
 	const requestOrigin = getRequestOrigin(headersList);
 	const summaryPath = `/api/agents-team/runs/${encodeURIComponent(runId)}/summary`;
-	const visualSummaryPath = `/api/agents-team/runs/${encodeURIComponent(runId)}/visual-summary`;
 	let payload: RunSummaryResponse | null = null;
 	let errorMessage: string | null = null;
-	let visualSummaryPayload: VisualSummaryResponse | null = null;
 
 	try {
-		const [summaryResponse, visualSummaryResponse] = await Promise.all([
-			fetch(`${requestOrigin}${summaryPath}`, { cache: "no-store" }),
-			fetch(`${requestOrigin}${visualSummaryPath}`, { cache: "no-store" }).catch(() => null),
-		]);
+		const summaryResponse = await fetch(`${requestOrigin}${summaryPath}`, { cache: "no-store" });
 
 		if (!summaryResponse.ok) {
 			const errorPayload = (await summaryResponse.json().catch(() => null)) as unknown;
 			errorMessage = parseApiError(errorPayload, "Failed to load run summary.");
 		} else {
 			payload = (await summaryResponse.json()) as RunSummaryResponse;
-		}
-
-		if (visualSummaryResponse?.ok) {
-			visualSummaryPayload = (await visualSummaryResponse.json()) as VisualSummaryResponse;
 		}
 	} catch (error) {
 		errorMessage = parseFetchFailure(error, "Failed to load run summary.");
@@ -197,18 +182,10 @@ export default async function AgentsTeamRunSummaryPage({ params }: Readonly<RunS
 					</Link>
 				</div>
 
-				<VisualSummarySection
-					runId={runId}
-					initialVisualSummary={visualSummaryPayload?.visualSummary ?? null}
-					runStatus={payload.run.status}
-				/>
-
 				<RunSummarySection
 					runId={runId}
 					initialRun={payload.run}
 					initialSummary={payload.summary ?? null}
-					collapsible
-					defaultCollapsed={visualSummaryPayload?.visualSummary !== null && visualSummaryPayload?.visualSummary !== undefined}
 				/>
 
 				<section className="rounded-xl border border-border bg-surface-raised p-5">

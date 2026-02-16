@@ -1,7 +1,5 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { generateVisualSummary, loadVisualSummaryFromDisk, cleanHtmlOutput } = require("./visual-summary-generator");
-const { buildVisualPresenterPrompt } = require("./visual-summary-prompts");
 const { generateTextViaRovoDev } = require("./rovodev-gateway");
 
 const TERMINAL_TASK_STATUSES = new Set(["done", "failed", "blocked-failed"]);
@@ -348,7 +346,6 @@ function createTaskPrompt(run, task, dependencyOutputs, directivesForAgent, skil
 
 function createSummaryPrompt(run) {
 	const taskSections = run.tasks
-		.filter((task) => task.id !== "task-visual-presenter")
 		.map((task) => {
 			const taskOutput = task.output?.trim() || "No output generated.";
 			return [
@@ -392,7 +389,6 @@ function createFallbackSummary(run) {
 		"",
 		"## Task outcomes",
 		...run.tasks
-			.filter((task) => task.id !== "task-visual-presenter")
 			.map(
 			(task) =>
 				`### ${task.id} · ${task.label} (${task.agentName})\nStatus: ${task.status}\n\n${task.output || "No output generated."}`
@@ -631,39 +627,15 @@ function createRunManager(options) {
 			}
 		}
 
-		// Build prompt and system prompt — Visual Presenter uses a specialised path
-		const isVisualPresenter = task.id === "task-visual-presenter";
-		let taskPrompt;
-		let taskSystemPrompt;
-		let taskMaxOutputTokens = 2000;
-
-		if (isVisualPresenter) {
-			const skillContent = skillContents.length > 0
-				? skillContents.map((s) => `### ${s.name}\n${s.content}`).join("\n\n")
-				: null;
-			const textSummary = dependencyOutputs
-				.map((dep) => `## ${dep.taskLabel}\n${dep.output}`)
-				.join("\n\n---\n\n");
-			taskPrompt = buildVisualPresenterPrompt(
-				{ plan: run.plan, tasks: run.tasks },
-				[],
-				textSummary,
-				skillContent
-			);
-			taskSystemPrompt =
-				"You are a senior frontend designer and developer. You create distinctive, polished interfaces that avoid generic aesthetics. Output ONLY raw HTML — no markdown fences, no explanation.";
-			taskMaxOutputTokens = 8000;
-		} else {
-			taskPrompt = createTaskPrompt(
-				run,
-				task,
-				dependencyOutputs,
-				directivesForAgent,
-				skillContents
-			);
-			taskSystemPrompt =
-				"You are an expert execution agent. Produce practical markdown output for the assigned task.";
-		}
+		const taskPrompt = createTaskPrompt(
+			run,
+			task,
+			dependencyOutputs,
+			directivesForAgent,
+			skillContents
+		);
+		const taskSystemPrompt =
+			"You are an expert execution agent. Produce practical markdown output for the assigned task.";
 		let streamedBuffer = "";
 		let output = "";
 
@@ -688,7 +660,7 @@ function createRunManager(options) {
 		try {
 			output = await callGatewayForMarkdown({
 				prompt: taskPrompt,
-				conversationHistory: isVisualPresenter ? [] : run.conversationContext,
+				conversationHistory: run.conversationContext,
 				contextDescription: `Plan title: ${run.plan.title}`,
 				customSystemPrompt: taskSystemPrompt,
 				userName: agent.agentName,
@@ -804,33 +776,9 @@ function createRunManager(options) {
 		emitRunStateEvent(run, "run.summary-ready", {});
 	};
 
-	const synthesizeVisualRunSummary = async (run) => {
-		const paths = await ensureRunDirectories(run.id);
-		try {
-			const result = await generateVisualSummary({
-				run: toSerializableRun(run),
-				runDir: paths.runDir,
-				configManager,
-				getEnvVarsFn: getEnvVars,
-				logger,
-			});
-
-			if (result) {
-				run.visualSummary = result;
-				updateRunTimestamp(run);
-				await persistRunSnapshot(run);
-				emitRunStateEvent(run, "run.visual-summary-ready", {});
-				logger.info?.(`[AGENTS-RUN] Visual summary generated for run ${run.id}`);
-			}
-		} catch (error) {
-			logger.warn?.("[AGENTS-RUN] Visual summary generation failed (non-blocking)", error);
-		}
-	};
-
 	const finalizeRun = async (run) => {
-		// Determine run status based on regular tasks only (exclude VP task)
 		const regularFailedTasks = run.tasks.filter(
-			(task) => task.id !== "task-visual-presenter" && FAILURE_TASK_STATUSES.has(task.status)
+			(task) => FAILURE_TASK_STATUSES.has(task.status)
 		);
 		run.status = regularFailedTasks.length > 0 ? RUN_STATUS_FAILED : RUN_STATUS_COMPLETED;
 		run.completedAt = toIsoDate();
@@ -852,42 +800,6 @@ function createRunManager(options) {
 
 		void synthesizeRunSummary(run).catch((error) => {
 			logger.error?.("[AGENTS-RUN] Failed to generate run summary", error);
-		});
-
-		// Use VP task output as visual summary if it completed successfully
-		const vpTask = run.tasks.find((task) => task.id === "task-visual-presenter");
-		if (vpTask && vpTask.status === "done" && vpTask.output) {
-			const html = cleanHtmlOutput(vpTask.output);
-			if (html && html.length >= 50) {
-				run.visualSummary = {
-					html,
-					hasImages: false,
-					createdAt: vpTask.completedAt || toIsoDate(),
-				};
-				updateRunTimestamp(run);
-				try {
-					const paths = await ensureRunDirectories(run.id);
-					const visualSummaryPath = path.join(paths.runDir, "visual-summary.html");
-					await fs.writeFile(visualSummaryPath, html, "utf8");
-					const metadataPath = path.join(paths.runDir, "visual-summary.json");
-					await fs.writeFile(
-						metadataPath,
-						JSON.stringify({ hasImages: false, createdAt: run.visualSummary.createdAt, htmlLength: html.length }, null, 2),
-						"utf8"
-					);
-					await persistRunSnapshot(run);
-				} catch (error) {
-					logger.error?.("[AGENTS-RUN] Failed to persist VP visual summary", error);
-				}
-				emitRunStateEvent(run, "run.visual-summary-ready", {});
-				logger.info?.(`[AGENTS-RUN] Visual summary from VP task for run ${run.id}`);
-				return;
-			}
-		}
-
-		// Fallback: generate visual summary in the background
-		void synthesizeVisualRunSummary(run).catch((error) => {
-			logger.error?.("[AGENTS-RUN] Failed to generate visual summary", error);
 		});
 	};
 
@@ -976,21 +888,6 @@ function createRunManager(options) {
 			throw new Error("A valid plan with tasks is required.");
 		}
 
-		// Inject Visual Presenter task that depends on all regular tasks
-		const VP_TASK_ID = "task-visual-presenter";
-		const VP_AGENT_NAME = "Visual Presenter";
-		const allRegularTaskIds = normalizedPlan.tasks.map((task) => task.id);
-		normalizedPlan.tasks.push({
-			id: VP_TASK_ID,
-			label: "Create visual summary presentation",
-			agentName: VP_AGENT_NAME,
-			agentId: slugifyAgentName(VP_AGENT_NAME),
-			blockedBy: allRegularTaskIds,
-		});
-		if (!normalizedPlan.agents.includes(VP_AGENT_NAME)) {
-			normalizedPlan.agents.push(VP_AGENT_NAME);
-		}
-
 		const runId = createId("run");
 			const run = createInitialRun({
 				runId,
@@ -1060,29 +957,6 @@ function createRunManager(options) {
 				summary: null,
 			};
 		}
-	};
-
-	const getRunVisualSummary = async (runId) => {
-		// Check in-memory run first
-		const activeRun = runsById.get(runId);
-		if (activeRun && activeRun.visualSummary) {
-			return {
-				visualSummary: activeRun.visualSummary,
-			};
-		}
-
-		// Check disk
-		const paths = buildRunPaths(runRootsDir, runId);
-		const diskResult = await loadVisualSummaryFromDisk(paths.runDir);
-		if (diskResult) {
-			return {
-				visualSummary: diskResult,
-			};
-		}
-
-		return {
-			visualSummary: null,
-		};
 	};
 
 	const addDirective = async (runId, { agentName, message }) => {
@@ -1183,7 +1057,6 @@ function createRunManager(options) {
 		createRun,
 		getRun,
 		getRunSummary,
-		getRunVisualSummary,
 		addDirective,
 		streamRunEvents,
 	};

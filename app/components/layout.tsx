@@ -7,7 +7,7 @@ import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, TEMPLATE_COMPONENTS, UT
 import { buildNavItems, UI_GROUPS, BLOCK_GROUPS } from "@/app/data/nav-utils";
 
 const staticPages = [{ name: "Home", href: "/" }];
-const ADS_AI_SLUGS = new Set(["code-block", "message", "plan", "prompt-input"]);
+const ADS_AI_SLUGS = new Set(["chain-of-thought", "code-block", "conversation", "message", "plan", "prompt-input", "reasoning"]);
 const ADS_BLOCK_SLUGS = new Set(["top-navigation", "prompt-gallery", "shared-ui", "product-sidebar", "sidebar-rail", "work-items-widget", "question-card", "approval-card"]);
 const blockAdsResolver = (slug: string) => ADS_BLOCK_SLUGS.has(slug) ? "Atlassian Design System" : undefined;
 

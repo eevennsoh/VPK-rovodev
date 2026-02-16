@@ -13,7 +13,7 @@ import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
-import { BrainIcon, ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import Image from "next/image";
 import {
   createContext,
@@ -160,30 +160,32 @@ export const Reasoning = memo(
   }
 );
 
+const DOT_COLORS = ["#1868db", "#bf63f3", "#fca700"] as const;
+
 export type ReasoningTriggerProps = ComponentProps<
   typeof CollapsibleTrigger
 > & {
-  getThinkingMessage?: (isStreaming: boolean, duration?: number) => ReactNode;
+  label?: string;
+  completedLabel?: (duration?: number) => ReactNode;
 };
 
-const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
-  if (isStreaming || duration === 0) {
-    return <Shimmer duration={1}>Thinking...</Shimmer>;
-  }
+const defaultReasoningCompletedLabel = (duration?: number) => {
   if (duration === undefined) {
-    return <p>Thought for a few seconds</p>;
+    return "Thought for a few seconds";
   }
-  return <p>Thought for {duration} seconds</p>;
+  return `Thought for ${duration} seconds`;
 };
 
 export const ReasoningTrigger = memo(
   ({
     className,
     children,
-    getThinkingMessage = defaultGetThinkingMessage,
+    label = "Thinking",
+    completedLabel = defaultReasoningCompletedLabel,
     ...props
   }: ReasoningTriggerProps) => {
     const { isStreaming, isOpen, duration } = useReasoning();
+    const isComplete = !isStreaming && duration !== undefined && duration > 0;
 
     return (
       <CollapsibleTrigger
@@ -195,8 +197,57 @@ export const ReasoningTrigger = memo(
       >
         {children ?? (
           <>
-            <BrainIcon className="size-4" />
-            {getThinkingMessage(isStreaming, duration)}
+            {isComplete ? (
+              <>
+                <Image
+                  src="/loading/rovo-logo.png"
+                  alt=""
+                  width={20}
+                  height={20}
+                />
+                <span>{completedLabel(duration)}</span>
+              </>
+            ) : (
+              <>
+                <style
+                  dangerouslySetInnerHTML={{
+                    __html: `
+                      @keyframes dot-reveal {
+                        0%, 20% { opacity: 0; }
+                        40%, 100% { opacity: 1; }
+                      }
+                    `,
+                  }}
+                />
+                <Image
+                  src="/loading/rovo-logo.gif"
+                  alt=""
+                  width={20}
+                  height={20}
+                  unoptimized
+                />
+                <span className="inline-flex items-baseline">
+                  <Shimmer duration={1} as="span">
+                    {label}
+                  </Shimmer>
+                  <span className="inline-flex items-baseline" aria-hidden="true">
+                    {DOT_COLORS.map((color, i) => (
+                      <span
+                        key={i}
+                        className="text-sm leading-none"
+                        style={{
+                          color,
+                          animation: "dot-reveal 1.2s ease-in-out infinite",
+                          animationDelay: `${i * 0.2}s`,
+                        }}
+                      >
+                        .
+                      </span>
+                    ))}
+                  </span>
+                </span>
+              </>
+            )}
             <ChevronDownIcon
               className={cn(
                 "size-4 transition-transform",
@@ -234,8 +285,6 @@ export const ReasoningContent = memo(
     </CollapsibleContent>
   )
 );
-
-const DOT_COLORS = ["#1868db", "#bf63f3", "#fca700"] as const;
 
 export type AdsReasoningTriggerProps = ComponentProps<
   typeof CollapsibleTrigger

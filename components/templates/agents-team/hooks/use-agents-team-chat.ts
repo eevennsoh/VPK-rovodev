@@ -216,6 +216,9 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		};
 	}, [chatHistory, isGeneratingTitle, pendingTitleChatId, resolveChatTitle, uiMessages]);
 
+	const pendingTitleMessageRef = useRef<string | null>(null);
+	const hasStreamedOnceRef = useRef(false);
+
 	const createChatEntry = useCallback((firstMessage: string) => {
 		const id = crypto.randomUUID();
 		setActiveChatId(id);
@@ -223,16 +226,53 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		setIsGeneratingTitle(true);
 		setPendingTitleChatId(id);
 		pendingTitleChatIdRef.current = id;
+		pendingTitleMessageRef.current = firstMessage;
+		hasStreamedOnceRef.current = false;
+	}, []);
 
-		// Prefer dedicated title generation API, then fallback to first assistant message.
-		void fetchAITitle(firstMessage).then((aiTitle) => {
+	// Track when streaming has started at least once so we don't fire title
+	// generation before the stream begins (isStreaming may still be false on the
+	// first render after sendMessage is called).
+	useEffect(() => {
+		if (isStreaming) {
+			hasStreamedOnceRef.current = true;
+		}
+	}, [isStreaming]);
+
+	// Generate title via API after streaming completes to avoid 409 race with RovoDev Serve
+	useEffect(() => {
+		if (isStreaming || !pendingTitleChatId || !pendingTitleMessageRef.current) {
+			return;
+		}
+
+		// Don't fire until streaming has started and finished at least once
+		if (!hasStreamedOnceRef.current) {
+			return;
+		}
+
+		const hasResolvedTitle = chatHistory.some((item) => item.id === pendingTitleChatId);
+		if (hasResolvedTitle) {
+			return;
+		}
+
+		const chatId = pendingTitleChatId;
+		const message = pendingTitleMessageRef.current;
+		pendingTitleMessageRef.current = null;
+
+		void fetchAITitle(message).then((aiTitle) => {
 			if (!aiTitle) {
+				// Clear generating state so the sidebar doesn't stay in skeleton loading
+				if (pendingTitleChatIdRef.current === chatId) {
+					pendingTitleChatIdRef.current = null;
+					setPendingTitleChatId(null);
+					setIsGeneratingTitle(false);
+				}
 				return;
 			}
 
-			resolveChatTitle(id, aiTitle);
+			resolveChatTitle(chatId, aiTitle);
 		});
-	}, [resolveChatTitle]);
+	}, [isStreaming, pendingTitleChatId, chatHistory, resolveChatTitle]);
 
 	const sendAgentsPrompt = useCallback(
 		async (nextPrompt: string) => {

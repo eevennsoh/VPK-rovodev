@@ -96,8 +96,7 @@ export default function AgentsTeamChatView({
 						<ChatMessages
 							uiMessages={uiMessages}
 							streamingIndicatorMessages={streamingUiMessages}
-							assistantStreamingRenderMode="text-first"
-							hideScrollbar={isStreaming}
+							hideScrollbar
 							onSuggestedQuestionClick={onSuggestedQuestionClick}
 							conversationContextRef={conversationContextRef}
 						scrollSpacerRef={scrollSpacerRef}
@@ -105,7 +104,7 @@ export default function AgentsTeamChatView({
 						contentBottomPadding={gatedHasBottomOverlayCard ? "360px" : "128px"}
 						isStreaming={isStreaming}
 						streamingIndicatorVariant="reasoning-expanded"
-						thinkingLabel="Using create-plan skill"
+						thinkingLabel="Reasoning"
 						showFeedbackActions={false}
 						showFollowUpSuggestions={!isAwaitingUserInput}
 						showAwaitingIndicator={isAwaitingUserInput || isWidgetLoading}

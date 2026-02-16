@@ -309,15 +309,8 @@ function createConfigManager() {
 	}
 
 	function buildPlanModeContext() {
-		const createPlanSkill = getSkillByName("create-plan");
-		const agents = listAgents().filter(
-			(a) => a.name.toLowerCase() !== "visual presenter"
-		);
+		const agents = listAgents();
 		const sections = [];
-
-		if (createPlanSkill?.content) {
-			sections.push(createPlanSkill.content);
-		}
 
 		if (agents.length > 0) {
 			const agentLines = agents.map((a) => `- **${a.name}**: ${a.description}`);

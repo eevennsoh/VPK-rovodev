@@ -15,8 +15,12 @@ import {
 	type RovoUIMessage,
 	type RovoRenderableUIMessage,
 } from "@/lib/rovo-ui-messages";
-import { ThinkingIndicator } from "@/components/templates/shared/components/thinking-indicator";
-import { StreamingReasoningIndicator } from "@/components/templates/shared/components/streaming-reasoning-indicator";
+import { Message, MessageContent } from "@/components/ui-ai/message";
+import {
+	AdsReasoningTrigger,
+	Reasoning,
+	ReasoningContent,
+} from "@/components/ui-ai/reasoning";
 import styles from "./chat-messages.module.css";
 
 export interface ChatMessagesProps {
@@ -104,10 +108,10 @@ export function ChatMessages({
 	scrollSpacerRef,
 	contentTopPadding,
 	contentBottomPadding,
-	hideScrollbar = false,
+	hideScrollbar = true,
 	isStreaming = false,
 	messageMode = "plan",
-	thinkingLabel = "Thinking...",
+	thinkingLabel = "Thinking",
 	reasoningContent,
 	streamingIndicatorVariant = "thinking",
 	streamingIndicatorMessages,
@@ -154,16 +158,26 @@ export function ChatMessages({
 		streamingIndicatorSourceMessages.length > 0 &&
 		(lastStreamingSourceMessage?.role === "user" || isAssistantInThinkingState);
 
-	const thinkingStatusPart = isAssistantInThinkingState
-		? getLatestDataPart(lastStreamingSourceMessage, "data-thinking-status")
-		: null;
+	const thinkingStatusParts = isAssistantInThinkingState
+		? getAllDataParts(lastStreamingSourceMessage, "data-thinking-status")
+		: [];
+	const thinkingStatusPart =
+		thinkingStatusParts[thinkingStatusParts.length - 1] ?? null;
 	const resolvedThinkingLabel = thinkingStatusPart?.data.label ?? thinkingLabel;
 	const resolvedReasoningContent = isAssistantInThinkingState
-		? getAllDataParts(lastStreamingSourceMessage, "data-thinking-status")
+		? thinkingStatusParts
 				.map((part) => part.data.content)
 				.filter(Boolean)
 				.join("\n\n") || reasoningContent
 		: reasoningContent;
+	const shouldUseExpandedReasoning =
+		streamingIndicatorVariant === "reasoning-expanded";
+	const trimmedReasoningContent = resolvedReasoningContent?.trim() ?? "";
+	const hasResolvedReasoningContent = trimmedReasoningContent.length > 0;
+	const reasoningContentVersion = thinkingStatusParts.length;
+	const streamingReasoningKey = shouldUseExpandedReasoning
+		? `${lastStreamingSourceMessage?.id ?? "stream"}:${reasoningContentVersion}`
+		: `${lastStreamingSourceMessage?.id ?? "stream"}:${resolvedThinkingLabel}`;
 
 	const handleTargetScrollTop = useCallback(
 		(defaultTargetTop: number, { scrollElement }: { scrollElement: HTMLElement }) =>
@@ -223,20 +237,43 @@ export function ChatMessages({
 				)}
 				{shouldShowStreamingIndicator ? (
 					<div className="flex justify-start">
-						{streamingIndicatorVariant === "reasoning-expanded" ? (
-							<StreamingReasoningIndicator
-								label={resolvedThinkingLabel}
-								content={resolvedReasoningContent}
-								isStreaming={shouldShowStreamingIndicator}
-							/>
-						) : (
-							<ThinkingIndicator label={resolvedThinkingLabel} />
-						)}
+						<Message from="assistant" className="max-w-full">
+							<MessageContent className="px-3">
+								<Reasoning
+									key={streamingReasoningKey}
+									className="mb-0"
+									isStreaming={shouldShowStreamingIndicator}
+									defaultOpen={
+										shouldUseExpandedReasoning &&
+										hasResolvedReasoningContent
+									}
+								>
+									<AdsReasoningTrigger
+										label={resolvedThinkingLabel}
+										showChevron={
+											shouldUseExpandedReasoning &&
+											hasResolvedReasoningContent
+										}
+									/>
+									{shouldUseExpandedReasoning && hasResolvedReasoningContent ? (
+										<ReasoningContent>
+											{trimmedReasoningContent}
+										</ReasoningContent>
+									) : null}
+								</Reasoning>
+							</MessageContent>
+						</Message>
 					</div>
 				) : null}
 				{!shouldShowStreamingIndicator && showAwaitingIndicator ? (
 					<div className="flex justify-start">
-						<ThinkingIndicator label={awaitingIndicatorLabel} />
+						<Message from="assistant" className="max-w-full">
+							<MessageContent className="px-3">
+								<Reasoning className="mb-0" isStreaming>
+									<AdsReasoningTrigger label={awaitingIndicatorLabel} showChevron={false} />
+								</Reasoning>
+							</MessageContent>
+						</Message>
 					</div>
 				) : null}
 				<div ref={scrollSpacerRef} aria-hidden className="h-0 shrink-0" />

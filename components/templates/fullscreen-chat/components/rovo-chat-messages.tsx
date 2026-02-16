@@ -29,7 +29,7 @@ export default function RovoChatMessages({
 	scrollSpacerRef,
 	contentTopPadding,
 	contentBottomPadding,
-	hideScrollbar = false,
+	hideScrollbar = true,
 	isStreaming = false,
 	messageMode = "ask",
 }: Readonly<RovoChatMessagesProps>) {
@@ -44,6 +44,7 @@ export default function RovoChatMessages({
 			hideScrollbar={hideScrollbar}
 			isStreaming={isStreaming}
 			messageMode={messageMode}
+			streamingIndicatorVariant="reasoning-expanded"
 			renderEmptyState={() => (
 				<ChatEmptyState variant={variant} userName={userName} />
 			)}

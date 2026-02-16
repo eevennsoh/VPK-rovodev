@@ -1,11 +1,77 @@
+import {
+	AudioPlayer,
+	AudioPlayerControlBar,
+	AudioPlayerDurationDisplay,
+	AudioPlayerElement,
+	AudioPlayerMuteButton,
+	AudioPlayerPlayButton,
+	AudioPlayerSeekBackwardButton,
+	AudioPlayerSeekForwardButton,
+	AudioPlayerTimeDisplay,
+	AudioPlayerTimeRange,
+	AudioPlayerVolumeRange,
+} from "@/components/ui-ai/audio-player";
+
+const SAMPLE_AUDIO =
+	"https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3";
+
 export default function AudioPlayerDemo() {
 	return (
-		<div className="flex w-full items-center gap-2 rounded border p-2 text-xs text-muted-foreground">
-			<button type="button" className="rounded border p-1">▶</button>
-			<div className="h-1 flex-1 rounded-full bg-muted">
-				<div className="h-full w-1/3 rounded-full bg-primary" />
-			</div>
-			<span>0:42</span>
-		</div>
+		<AudioPlayer>
+			<AudioPlayerElement src={SAMPLE_AUDIO} />
+			<AudioPlayerControlBar>
+				<AudioPlayerPlayButton />
+				<AudioPlayerTimeDisplay />
+				<AudioPlayerTimeRange />
+				<AudioPlayerDurationDisplay />
+			</AudioPlayerControlBar>
+		</AudioPlayer>
+	);
+}
+
+export function AudioPlayerDemoFull() {
+	return (
+		<AudioPlayer>
+			<AudioPlayerElement src={SAMPLE_AUDIO} />
+			<AudioPlayerControlBar>
+				<AudioPlayerSeekBackwardButton />
+				<AudioPlayerPlayButton />
+				<AudioPlayerSeekForwardButton />
+				<AudioPlayerTimeDisplay />
+				<AudioPlayerTimeRange />
+				<AudioPlayerDurationDisplay />
+				<AudioPlayerMuteButton />
+				<AudioPlayerVolumeRange />
+			</AudioPlayerControlBar>
+		</AudioPlayer>
+	);
+}
+
+export function AudioPlayerDemoCompact() {
+	return (
+		<AudioPlayer>
+			<AudioPlayerElement src={SAMPLE_AUDIO} />
+			<AudioPlayerControlBar>
+				<AudioPlayerPlayButton />
+				<AudioPlayerTimeRange />
+				<AudioPlayerTimeDisplay />
+			</AudioPlayerControlBar>
+		</AudioPlayer>
+	);
+}
+
+export function AudioPlayerDemoWithVolume() {
+	return (
+		<AudioPlayer>
+			<AudioPlayerElement src={SAMPLE_AUDIO} />
+			<AudioPlayerControlBar>
+				<AudioPlayerPlayButton />
+				<AudioPlayerTimeDisplay />
+				<AudioPlayerTimeRange />
+				<AudioPlayerDurationDisplay />
+				<AudioPlayerMuteButton />
+				<AudioPlayerVolumeRange />
+			</AudioPlayerControlBar>
+		</AudioPlayer>
 	);
 }

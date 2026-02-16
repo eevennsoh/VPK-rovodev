@@ -250,15 +250,17 @@ export default function ImageGenerationDemo(): React.ReactElement {
 
 	return (
 		<main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-8">
-			<header className="flex flex-col gap-3">
-				<h1 className="text-2xl font-semibold">Image Generation</h1>
-				<p className="text-sm text-muted-foreground">
-					Sends a message to <code className="rounded bg-muted px-1.5 py-0.5 text-xs">/api/chat-sdk</code> in
-					pure chat mode. Switch your <code className="rounded bg-muted px-1.5 py-0.5 text-xs">.env.local</code>{" "}
-					<code className="rounded bg-muted px-1.5 py-0.5 text-xs">AI_GATEWAY_URL</code> to a Google/Gemini endpoint
-					to enable native image generation alongside text responses.
-				</p>
-			</header>
+				<header className="flex flex-col gap-3">
+					<h1 className="text-2xl font-semibold">Image Generation</h1>
+					<p className="text-sm text-muted-foreground">
+						Sends a message to <code className="rounded bg-muted px-1.5 py-0.5 text-xs">/api/chat-sdk</code> in
+						pure chat mode with <code className="rounded bg-muted px-1.5 py-0.5 text-xs">provider: &quot;google&quot;</code>.
+						Configure <code className="rounded bg-muted px-1.5 py-0.5 text-xs">AI_GATEWAY_URL_GOOGLE</code> in{" "}
+						<code className="rounded bg-muted px-1.5 py-0.5 text-xs">.env.local</code> (preferred), or point{" "}
+						<code className="rounded bg-muted px-1.5 py-0.5 text-xs">AI_GATEWAY_URL</code> to a Google/Gemini endpoint,
+						to enable native image generation alongside text responses.
+					</p>
+				</header>
 
 			{/* Input */}
 			<section className="flex flex-col gap-3 rounded-xl border bg-card p-4">

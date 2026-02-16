@@ -19,7 +19,15 @@ const { createConfigManager } = require("./lib/agents-team-config");
 const { genuiChatHandler } = require("./lib/genui-chat-handler");
 const { streamViaRovoDev, generateTextViaRovoDev } = require("./lib/rovodev-gateway");
 const { healthCheck: rovoDevHealthCheck } = require("./lib/rovodev-client");
-const { getEnvVars } = require("./lib/ai-gateway-helpers");
+const {
+	getEnvVars,
+	getAuthToken,
+	detectEndpointType,
+	getGatewayHeaders,
+	getModelId,
+	resolveGatewayUrl,
+	streamGoogleGatewayManualSse,
+} = require("./lib/ai-gateway-helpers");
 
 console.log("[STARTUP] Dependencies loaded");
 
@@ -1278,17 +1286,8 @@ app.post("/api/chat-sdk", async (req, res) => {
 		const {
 			messages,
 			contextDescription,
-			userName,
+			provider,
 		} = req.body || {};
-
-		// RovoDev Serve is required - no AI Gateway fallback
-		const useRovoDev = await isRovoDevAvailable();
-		if (!useRovoDev) {
-			return res.status(503).json({
-				error: "RovoDev Serve is required but not available",
-				details: "Please start RovoDev Serve with 'pnpm run rovodev' before using chat.",
-			});
-		}
 
 		const {
 			message: latestUserMessage,
@@ -1304,6 +1303,96 @@ app.post("/api/chat-sdk", async (req, res) => {
 			conversationHistory,
 			contextDescription
 		);
+
+		if (provider === "google") {
+			const ENV_VARS = getEnvVars();
+			const rawGatewayUrl = ENV_VARS.AI_GATEWAY_URL_GOOGLE || ENV_VARS.AI_GATEWAY_URL;
+			if (!rawGatewayUrl) {
+				return res.status(500).json({
+					error: "AI Gateway URL is not configured",
+					details: "Set AI_GATEWAY_URL_GOOGLE (preferred) or AI_GATEWAY_URL in .env.local.",
+				});
+			}
+
+			const resolvedGatewayUrl = resolveGatewayUrl(rawGatewayUrl) || rawGatewayUrl;
+			const endpointType = detectEndpointType(resolvedGatewayUrl);
+			if (endpointType !== "google") {
+				return res.status(400).json({
+					error: "Provider routing mismatch",
+					details: 'Requests with provider "google" require a Google endpoint in AI_GATEWAY_URL_GOOGLE.',
+				});
+			}
+
+			const stream = createUIMessageStream({
+				execute: async ({ writer }) => {
+					const textId = `text-${Date.now()}`;
+					let textStarted = false;
+
+					const emitTextDelta = (delta) => {
+						if (typeof delta !== "string" || delta.length === 0) {
+							return;
+						}
+
+						if (!textStarted) {
+							writer.write({ type: "text-start", id: textId });
+							textStarted = true;
+						}
+
+						writer.write({ type: "text-delta", id: textId, delta });
+					};
+
+					await streamGoogleGatewayManualSse({
+						gatewayUrl: resolvedGatewayUrl,
+						envVars: ENV_VARS,
+						model: getModelId(resolvedGatewayUrl),
+						prompt: userMessageText,
+						maxOutputTokens: 2000,
+						temperature: 1,
+						onTextDelta: emitTextDelta,
+						onFile: ({ mediaType, base64 }) => {
+							if (typeof base64 !== "string" || base64.length === 0) {
+								return;
+							}
+
+							const resolvedMediaType =
+								typeof mediaType === "string" && mediaType.trim()
+									? mediaType
+									: "image/png";
+							writer.write({
+								type: "file",
+								mediaType: resolvedMediaType,
+								url: `data:${resolvedMediaType};base64,${base64}`,
+							});
+						},
+					});
+
+					if (textStarted) {
+						writer.write({ type: "text-end", id: textId });
+					}
+				},
+				onError: (error) => {
+					if (error instanceof Error) {
+						return error.message;
+					}
+					return "Failed to stream Google AI response";
+				},
+			});
+
+			pipeUIMessageStreamToResponse({
+				response: res,
+				stream,
+			});
+			return;
+		}
+
+		// RovoDev Serve is required for default chat paths.
+		const useRovoDev = await isRovoDevAvailable();
+		if (!useRovoDev) {
+			return res.status(503).json({
+				error: "RovoDev Serve is required but not available",
+				details: "Please start RovoDev Serve with 'pnpm run rovodev' before using chat.",
+			});
+		}
 
 		const stream = createUIMessageStream({
 			execute: async ({ writer }) => {
@@ -1333,6 +1422,14 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 					writer.write({ type: "text-delta", id: textId, delta });
 					assistantText += delta;
+				};
+
+				const sanitizeThinkingLabel = (value) => {
+					if (typeof value !== "string") {
+						return "";
+					}
+
+					return value.replace(/(?:\s*(?:\.{3}|…))+$/u, "").trim();
 				};
 
 				const findNextMarkerIndex = (value) => {
@@ -1566,10 +1663,11 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 							try {
 								const parsedStatus = JSON.parse(jsonPayload);
+								const label = sanitizeThinkingLabel(parsedStatus.label);
 								writer.write({
 									type: "data-thinking-status",
 									data: {
-										label: parsedStatus.label || "Thinking...",
+										label: label || "Thinking",
 										content: parsedStatus.content,
 									},
 								});
@@ -1668,6 +1766,44 @@ app.post("/api/chat-sdk", async (req, res) => {
 				await streamViaRovoDev({
 					message: userMessageText,
 					onTextDelta: handleStreamTextDelta,
+					onThinkingStatus: (statusUpdate) => {
+						if (!statusUpdate || typeof statusUpdate !== "object") {
+							return;
+						}
+
+						const label = sanitizeThinkingLabel(statusUpdate.label);
+						if (!label) {
+							return;
+						}
+
+						const rawContent =
+							typeof statusUpdate.content === "string"
+								? statusUpdate.content.trim()
+								: "";
+
+						writer.write({
+							type: "data-thinking-status",
+							data: {
+								label,
+								content: rawContent.length > 0 ? rawContent : undefined,
+							},
+						});
+					},
+					onRetry: (() => {
+						let retryEmitted = false;
+						return () => {
+							if (retryEmitted) return;
+							retryEmitted = true;
+							const retryStatusId = `thinking-retry-${Date.now()}`;
+							writer.write({
+								type: "data-thinking-status",
+								id: retryStatusId,
+								data: {
+									label: "Retrying — previous chat still in progress",
+								},
+							});
+						};
+					})(),
 				});
 
 				processTextBuffer(true);
@@ -2002,16 +2138,6 @@ app.get("/api/agents-team/runs/:runId/summary", async (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/runs/:runId/visual-summary", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		const result = await agentsTeamRunManager.getRunVisualSummary(runId);
-		return res.status(200).json(result);
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to load visual summary:", error);
-		return res.status(500).json({ error: "Failed to load visual summary" });
-	}
-});
 
 // --- Skills CRUD ---
 

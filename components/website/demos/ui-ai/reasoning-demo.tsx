@@ -62,7 +62,7 @@ export function ReasoningDemoStreaming() {
 export function ReasoningDemoCustomLabel() {
 	return (
 		<Reasoning isStreaming defaultOpen={false}>
-			<AdsReasoningTrigger label="Using create-plan skill" />
+			<AdsReasoningTrigger label="Using vpk-design skill" />
 			<ReasoningContent>
 				Planning the implementation approach...
 			</ReasoningContent>

@@ -150,7 +150,7 @@ export function AppSidebar({
 					</div>
 				)}
 			</SidebarContent>
-			<SidebarFooterSlot className="absolute bottom-0 left-0 right-0 z-10 bg-bg-neutral-subtle p-0">
+			<SidebarFooterSlot className="absolute bottom-0 left-0 right-0 z-10 bg-surface p-0">
 				<SidebarFooter
 					skills={skills}
 					agents={agents}
