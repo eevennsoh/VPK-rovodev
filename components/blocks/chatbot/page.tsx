@@ -85,13 +85,11 @@ export default function AIChatbotBlock() {
 					<h2 className="font-semibold text-sm">AI Assistant</h2>
 				</div>
 				<ModelSelector>
-					<ModelSelectorTrigger>
-						<Button variant="outline" size="sm" className="gap-2">
-							<ModelSelectorLogoGroup>
-								<ModelSelectorLogo provider="anthropic" />
-							</ModelSelectorLogoGroup>
-							{selectedModel}
-						</Button>
+					<ModelSelectorTrigger render={<Button variant="outline" size="sm" className="gap-2" />}>
+						<ModelSelectorLogoGroup>
+							<ModelSelectorLogo provider="anthropic" />
+						</ModelSelectorLogoGroup>
+						{selectedModel}
 					</ModelSelectorTrigger>
 					<ModelSelectorContent>
 						<ModelSelectorInput placeholder="Search models..." />

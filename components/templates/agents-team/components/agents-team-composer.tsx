@@ -14,16 +14,11 @@ import {
 	PromptInputTextarea,
 	PromptInputTools,
 } from "@/components/ui-ai/prompt-input";
-import { Queue } from "@/components/ui-ai/queue";
+import { Queue, QueueItem, QueueItemActions, QueueItemContent, QueueItemIndicator, QueueList } from "@/components/ui-ai/queue";
 import { SpeechInput } from "@/components/ui-ai/speech-input";
 import { Button } from "@/components/ui/button";
-import {
-	composerUpwardShadow,
-	composerPromptInputClassName,
-	composerTextareaClassName,
-	textareaCSS,
-} from "@/components/blocks/shared-ui/composer-styles";
-import { ChatPromptQueue } from "@/components/templates/shared/components/chat-prompt-queue";
+import { composerUpwardShadow, composerPromptInputClassName, composerTextareaClassName, textareaCSS } from "@/components/blocks/shared-ui/composer-styles";
+import DeleteIcon from "@atlaskit/icon/core/delete";
 import AddIcon from "@atlaskit/icon/core/add";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
 import LinkIcon from "@atlaskit/icon/core/link";
@@ -70,11 +65,7 @@ export default function AgentsTeamComposer({
 		}
 
 		const trimmedPrompt = prompt.trimEnd();
-		onPromptChange(
-			trimmedPrompt
-				? `${trimmedPrompt} ${trimmedTranscription}`
-				: trimmedTranscription
-		);
+		onPromptChange(trimmedPrompt ? `${trimmedPrompt} ${trimmedTranscription}` : trimmedTranscription);
 	};
 
 	return (
@@ -82,22 +73,32 @@ export default function AgentsTeamComposer({
 			{hasQueuedPrompts ? (
 				<div className="pointer-events-none absolute bottom-full left-4 right-4 z-0">
 					<Queue className="pointer-events-auto rounded-b-none border-border border-b-0 bg-surface-raised px-2 pt-2 pb-2 shadow-none">
-						<ChatPromptQueue
-							queuedPrompts={queuedPrompts}
-							onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-						/>
+						<QueueList className="mt-0 mb-0 w-full [&_[data-slot=scroll-area-viewport]>div]:max-h-28 [&_[data-slot=scroll-area-viewport]>div]:pr-0 [&_ul]:w-full">
+							{queuedPrompts.map((queuedPrompt) => (
+								<QueueItem key={queuedPrompt.id} className="w-full bg-surface py-2 hover:bg-surface-hovered">
+									<div className="flex items-center gap-2">
+										<QueueItemIndicator />
+										<QueueItemContent className="text-text-subtle">{queuedPrompt.text}</QueueItemContent>
+										<QueueItemActions>
+											<Button
+												aria-label="Remove queued message"
+												onClick={() => onRemoveQueuedPrompt(queuedPrompt.id)}
+												size="icon-sm"
+												variant="ghost"
+												className="size-7 cursor-pointer rounded-full text-icon-subtle opacity-0 transition-opacity group-hover:opacity-100"
+											>
+												<DeleteIcon label="" size="small" />
+											</Button>
+										</QueueItemActions>
+									</div>
+								</QueueItem>
+							))}
+						</QueueList>
 					</Queue>
 				</div>
 			) : null}
-			<div
-				className="relative z-10 rounded-xl border border-border bg-surface px-4 pb-4 pt-4"
-				style={{ boxShadow: composerUpwardShadow }}
-			>
-				<PromptInput
-					allowOverflow
-					onSubmit={onSubmit}
-					className={`${composerPromptInputClassName} relative z-10`}
-				>
+			<div className="relative z-10 rounded-xl border border-border bg-surface px-4 pb-4 pt-4" style={{ boxShadow: composerUpwardShadow }}>
+				<PromptInput allowOverflow onSubmit={onSubmit} className={`${composerPromptInputClassName} relative z-10`}>
 					<PromptInputBody>
 						<PromptInputTextarea
 							value={prompt}
@@ -112,14 +113,7 @@ export default function AgentsTeamComposer({
 
 					<PromptInputFooter className="mt-3 justify-between px-0 pb-0">
 						<PromptInputTools>
-							<Button
-								type="button"
-								size="sm"
-								variant="outline"
-								aria-label="Agent team mode"
-								aria-pressed={isAgentTeamMode}
-								onClick={onAgentTeamModeToggle}
-							>
+							<Button type="button" size="sm" variant="outline" aria-label="Agent team mode" aria-pressed={isAgentTeamMode} onClick={onAgentTeamModeToggle}>
 								<AgentIcon label="" size="small" />
 								Agent team
 							</Button>
@@ -153,18 +147,8 @@ export default function AgentsTeamComposer({
 						</PromptInputTools>
 
 						<div className="flex items-center gap-1">
-							<SpeechInput
-								aria-label="Voice"
-								onTranscriptionChange={handleSpeechTranscription}
-								size="icon"
-							/>
-							<PromptInputSubmit
-								aria-label="Submit"
-								disabled={!isStreaming && !prompt.trim()}
-								onStop={onStop}
-								size="icon-sm"
-								status={isStreaming ? "streaming" : "ready"}
-							>
+							<SpeechInput aria-label="Voice" onTranscriptionChange={handleSpeechTranscription} size="icon" />
+							<PromptInputSubmit aria-label="Submit" disabled={!isStreaming && !prompt.trim()} onStop={onStop} size="icon-sm" status={isStreaming ? "streaming" : "ready"}>
 								<ArrowUpIcon label="" />
 							</PromptInputSubmit>
 						</div>

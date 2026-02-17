@@ -11,7 +11,6 @@ import {
 	PromptInputActionMenuTrigger,
 	PromptInputBody,
 	PromptInputButton,
-
 	PromptInputFooter,
 	PromptInputHeader,
 	PromptInputMicrophone,
@@ -20,13 +19,9 @@ import {
 	PromptInputTools,
 } from "@/components/ui-ai/prompt-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-	composerUpwardShadow,
-	composerPromptInputClassName,
-	composerTextareaClassName,
-	textareaCSS,
-} from "@/components/blocks/shared-ui/composer-styles";
-import { ChatPromptQueue } from "@/components/templates/shared/components/chat-prompt-queue";
+import { composerUpwardShadow, composerPromptInputClassName, composerTextareaClassName, textareaCSS } from "@/components/blocks/shared-ui/composer-styles";
+import { QueueItem, QueueItemActions, QueueItemContent, QueueItemIndicator, QueueList } from "@/components/ui-ai/queue";
+import DeleteIcon from "@atlaskit/icon/core/delete";
 import { Footer } from "@/components/ui/footer";
 import AddIcon from "@atlaskit/icon/core/add";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
@@ -47,15 +42,7 @@ interface ChatComposerProps {
 	onRemoveQueuedPrompt: (id: string) => void;
 }
 
-export default function ChatComposer({
-	prompt,
-	isStreaming,
-	queuedPrompts,
-	onPromptChange,
-	onSubmit,
-	onStop,
-	onRemoveQueuedPrompt,
-}: Readonly<ChatComposerProps>): React.ReactElement {
+export default function ChatComposer({ prompt, isStreaming, queuedPrompts, onPromptChange, onSubmit, onStop, onRemoveQueuedPrompt }: Readonly<ChatComposerProps>): React.ReactElement {
 	const [selectedReasoning, setSelectedReasoning] = useState("deep-research");
 	const [webResultsEnabled, setWebResultsEnabled] = useState(false);
 	const [companyKnowledgeEnabled, setCompanyKnowledgeEnabled] = useState(true);
@@ -64,20 +51,31 @@ export default function ChatComposer({
 
 	return (
 		<div className="px-1">
-			<div
-				className="rounded-xl border border-border bg-surface px-4 pb-3 pt-4"
-				style={{ boxShadow: composerUpwardShadow }}
-			>
-				<PromptInput
-					onSubmit={onSubmit}
-					className={`${composerPromptInputClassName} relative z-10`}
-				>
+			<div className="rounded-xl border border-border bg-surface px-4 pb-3 pt-4" style={{ boxShadow: composerUpwardShadow }}>
+				<PromptInput onSubmit={onSubmit} className={`${composerPromptInputClassName} relative z-10`}>
 					{queuedPrompts.length > 0 ? (
 						<PromptInputHeader className="px-0 pb-2 pt-0">
-							<ChatPromptQueue
-								queuedPrompts={queuedPrompts}
-								onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-							/>
+							<QueueList className="mt-0 mb-0 w-full [&_[data-slot=scroll-area-viewport]>div]:max-h-28 [&_[data-slot=scroll-area-viewport]>div]:pr-0 [&_ul]:w-full">
+								{queuedPrompts.map((queuedPrompt) => (
+									<QueueItem key={queuedPrompt.id} className="w-full bg-surface py-2 hover:bg-surface-hovered">
+										<div className="flex items-center gap-2">
+											<QueueItemIndicator />
+											<QueueItemContent className="text-text-subtle">{queuedPrompt.text}</QueueItemContent>
+											<QueueItemActions>
+												<Button
+													aria-label="Remove queued message"
+													onClick={() => onRemoveQueuedPrompt(queuedPrompt.id)}
+													size="icon-sm"
+													variant="ghost"
+													className="size-7 cursor-pointer rounded-full text-icon-subtle opacity-0 transition-opacity group-hover:opacity-100"
+												>
+													<DeleteIcon label="" size="small" />
+												</Button>
+											</QueueItemActions>
+										</div>
+									</QueueItem>
+								))}
+							</QueueList>
 						</PromptInputHeader>
 					) : null}
 					<PromptInputBody>
@@ -122,15 +120,7 @@ export default function ChatComposer({
 							</PromptInputActionMenu>
 
 							<Popover open={isCustomizeMenuOpen} onOpenChange={setIsCustomizeMenuOpen}>
-								<PopoverTrigger
-									render={
-										<PromptInputButton
-											aria-label="Customize"
-											size="icon-sm"
-											variant="ghost"
-										/>
-									}
-								>
+								<PopoverTrigger render={<PromptInputButton aria-label="Customize" size="icon-sm" variant="ghost" />}>
 									<CustomizeIcon label="" />
 								</PopoverTrigger>
 								<PopoverContent side="top" align="start" sideOffset={8} className="w-[330px] p-2">
@@ -149,13 +139,7 @@ export default function ChatComposer({
 
 						<div className="flex items-center gap-0.5">
 							<PromptInputMicrophone />
-							<PromptInputSubmit
-								aria-label="Submit"
-								disabled={!isStreaming && !prompt.trim()}
-								onStop={onStop}
-								size="icon-sm"
-								status={isStreaming ? "streaming" : "ready"}
-							>
+							<PromptInputSubmit aria-label="Submit" disabled={!isStreaming && !prompt.trim()} onStop={onStop} size="icon-sm" status={isStreaming ? "streaming" : "ready"}>
 								<ArrowUpIcon label="" />
 							</PromptInputSubmit>
 						</div>

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
 	Queue,
 	QueueList,
@@ -14,6 +15,8 @@ import {
 	QueueSectionLabel,
 	QueueSectionContent,
 } from "@/components/ui-ai/queue";
+import { Button } from "@/components/ui/button";
+import DeleteIcon from "@atlaskit/icon/core/delete";
 import { CheckIcon, CircleIcon, CopyIcon, PencilIcon, TrashIcon } from "lucide-react";
 
 // — Default: todo list with collapsible sections —
@@ -192,5 +195,65 @@ export function QueueDemoMinimal() {
 				</QueueItem>
 			</QueueList>
 		</Queue>
+	);
+}
+
+// — Prompt queue: chat-style removable prompt queue —
+
+const initialPrompts = [
+	{ id: "1", text: "Summarize the latest sprint retro notes" },
+	{ id: "2", text: "Draft a follow-up message for the design review" },
+	{ id: "3", text: "Find all open blockers in the current sprint" },
+];
+
+export function QueueDemoPromptQueue() {
+	const [prompts, setPrompts] = useState(initialPrompts);
+
+	const handleRemove = (id: string) => {
+		setPrompts((prev) => prev.filter((p) => p.id !== id));
+	};
+
+	const handleReset = () => {
+		setPrompts(initialPrompts);
+	};
+
+	if (prompts.length === 0) {
+		return (
+			<div className="flex w-full max-w-sm flex-col items-center gap-3">
+				<p className="text-sm text-muted-foreground">Queue empty</p>
+				<Button variant="outline" size="sm" onClick={handleReset}>
+					Reset queue
+				</Button>
+			</div>
+		);
+	}
+
+	return (
+		<div className="flex w-full max-w-sm flex-col gap-2">
+			<Queue className="border-border border-b-0 rounded-b-none bg-surface-raised px-2 pt-2 pb-2 shadow-none">
+				<QueueList className="mt-0 mb-0 w-full [&_[data-slot=scroll-area-viewport]>div]:max-h-28 [&_[data-slot=scroll-area-viewport]>div]:pr-0 [&_ul]:w-full">
+					{prompts.map((prompt) => (
+						<QueueItem key={prompt.id} className="h-8 w-full justify-center gap-0 bg-surface hover:bg-surface-hovered">
+							<div className="flex items-center gap-2">
+								<QueueItemIndicator className="mt-0" />
+								<QueueItemContent className="text-text-subtle">{prompt.text}</QueueItemContent>
+								<QueueItemActions>
+									<Button
+										aria-label="Remove queued message"
+										onClick={() => handleRemove(prompt.id)}
+										size="icon-sm"
+										variant="ghost"
+										className="size-7 cursor-pointer rounded-full text-icon-subtle opacity-0 transition-opacity group-hover:opacity-100"
+									>
+										<DeleteIcon label="" size="small" />
+									</Button>
+								</QueueItemActions>
+							</div>
+						</QueueItem>
+					))}
+				</QueueList>
+			</Queue>
+			<p className="text-center text-xs text-muted-foreground">Hover an item and click the delete icon to remove it</p>
+		</div>
 	);
 }

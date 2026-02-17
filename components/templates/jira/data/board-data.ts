@@ -1,14 +1,4 @@
-export type TagColor =
-	| "blue"
-	| "purple"
-	| "teal"
-	| "magenta"
-	| "orange"
-	| "lime"
-	| "green"
-	| "yellow"
-	| "grey"
-	| "red";
+export type TagColor = "blue" | "purple" | "discovery" | "teal" | "magenta" | "orange" | "lime" | "green" | "yellow" | "grey" | "red";
 
 export type Priority = "major" | "medium" | "minor";
 
@@ -41,7 +31,7 @@ export const BOARD_COLUMNS: readonly BoardColumnData[] = [
 				code: "CAID-118",
 				tags: [
 					{ text: "rovo-search", color: "blue" },
-					{ text: "jira", color: "purple" },
+					{ text: "jira", color: "discovery" },
 				],
 				priority: "major",
 				avatarSrc: "/avatar-human/andrea-wilson.png",
@@ -71,7 +61,7 @@ export const BOARD_COLUMNS: readonly BoardColumnData[] = [
 				code: "CAID-383",
 				tags: [
 					{ text: "search", color: "teal" },
-					{ text: "ai", color: "purple" },
+					{ text: "ai", color: "discovery" },
 					{ text: "discovery", color: "lime" },
 				],
 				priority: "minor",
@@ -130,7 +120,7 @@ export const BOARD_COLUMNS: readonly BoardColumnData[] = [
 				title: "3P Connectors",
 				code: "CAID-11",
 				tags: [
-					{ text: "connectors", color: "purple" },
+					{ text: "connectors", color: "discovery" },
 					{ text: "integration", color: "lime" },
 				],
 				priority: "major",
@@ -188,7 +178,7 @@ export const BOARD_COLUMNS: readonly BoardColumnData[] = [
 				tags: [
 					{ text: "editor", color: "red" },
 					{ text: "rovo", color: "blue" },
-					{ text: "commands", color: "purple" },
+					{ text: "commands", color: "discovery" },
 				],
 				priority: "major",
 				avatarSrc: "/avatar-human/aoife-burke.png",
@@ -197,7 +187,7 @@ export const BOARD_COLUMNS: readonly BoardColumnData[] = [
 				title: "Agent skills, slash commands and other",
 				code: "CAID-486",
 				tags: [
-					{ text: "ai-agents", color: "purple" },
+					{ text: "ai-agents", color: "discovery" },
 					{ text: "rovo", color: "blue" },
 				],
 				priority: "medium",
@@ -207,7 +197,7 @@ export const BOARD_COLUMNS: readonly BoardColumnData[] = [
 				title: "Long running AI tasks",
 				code: "CAID-488",
 				tags: [
-					{ text: "ai", color: "purple" },
+					{ text: "ai", color: "discovery" },
 					{ text: "performance", color: "orange" },
 				],
 				priority: "major",
@@ -223,7 +213,7 @@ export const BOARD_COLUMNS: readonly BoardColumnData[] = [
 				title: "AI Platform BB: Proactive Edit Suggestions in Confluence Editor",
 				code: "CAID-1",
 				tags: [
-					{ text: "ai", color: "purple" },
+					{ text: "ai", color: "discovery" },
 					{ text: "confluence", color: "blue" },
 				],
 				priority: "minor",
@@ -234,7 +224,7 @@ export const BOARD_COLUMNS: readonly BoardColumnData[] = [
 				code: "CAID-3",
 				tags: [
 					{ text: "vision", color: "magenta" },
-					{ text: "ai", color: "purple" },
+					{ text: "ai", color: "discovery" },
 				],
 				priority: "medium",
 				avatarSrc: "/avatar-human/darius-pavri.png",

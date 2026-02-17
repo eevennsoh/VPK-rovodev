@@ -32,17 +32,15 @@ function toSafeText(value: unknown): string {
 		return "";
 	}
 
-	if (
-		typeof value === "string" ||
-		typeof value === "number" ||
-		typeof value === "boolean" ||
-		typeof value === "bigint"
-	) {
+	if (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
 		return String(value);
 	}
 
 	if (Array.isArray(value)) {
-		return value.map((entry) => toSafeText(entry)).filter(Boolean).join(", ");
+		return value
+			.map((entry) => toSafeText(entry))
+			.filter(Boolean)
+			.join(", ");
 	}
 
 	if (isDynamicExpressionObject(value)) {
@@ -108,7 +106,7 @@ import { IconTile } from "@/components/ui/icon-tile";
 import { Breadcrumb as BreadcrumbRoot, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { PageHeader } from "@/components/ui/page-header";
 import { ButtonGroup as ButtonGroupPrimitive } from "@/components/ui/button-group";
-import { ProgressBar, ProgressBarLabel } from "@/components/ui/progress-bar";
+import { Progress as ProgressBar, ProgressLabel as ProgressBarLabel } from "@/components/ui/progress";
 import { ProgressTracker } from "@/components/ui/progress-tracker";
 
 // ── Lucide icons ──────────────────────────────────────────────
@@ -264,7 +262,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const description = toSafeOptionalText(props.description);
 			return (
 				<Card className={className ?? undefined}>
-					{(title || description) ? (
+					{title || description ? (
 						<CardHeader>
 							{title ? <CardTitle>{title}</CardTitle> : null}
 							{description ? <CardDescription>{description}</CardDescription> : null}
@@ -277,18 +275,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 
 		Grid: ({ props, children }) => {
 			const { columns = "2", gap = "md", className } = props;
-			return (
-				<div
-					className={cn(
-						"grid",
-						GRID_COL_CLASSES[columns ?? "2"],
-						GAP_CLASSES[gap ?? "md"],
-						className,
-					)}
-				>
-					{children}
-				</div>
-			);
+			return <div className={cn("grid", GRID_COL_CLASSES[columns ?? "2"], GAP_CLASSES[gap ?? "md"], className)}>{children}</div>;
 		},
 
 		// ── Typography ─────────────────────────────────
@@ -347,28 +334,10 @@ export const { registry, handlers } = defineRegistry(catalog, {
 					<p className="text-xs text-text-subtlest">{label}</p>
 					<div className="mt-1 flex items-center gap-2">
 						<p className="text-2xl font-semibold text-text">{value}</p>
-						{trend ? (
-							<TrendIcon
-								className={cn(
-									"size-4",
-									trend === "up" && "text-text-success",
-									trend === "down" && "text-text-danger",
-									trend === "neutral" && "text-text-subtle",
-								)}
-							/>
-						) : null}
+						{trend ? <TrendIcon className={cn("size-4", trend === "up" && "text-text-success", trend === "down" && "text-text-danger", trend === "neutral" && "text-text-subtle")} /> : null}
 					</div>
 					{detail ? (
-						<p
-							className={cn(
-								"mt-1 text-xs",
-								trend === "up" && "text-text-success",
-								trend === "down" && "text-text-danger",
-								(!trend || trend === "neutral") && "text-text-subtle",
-							)}
-						>
-							{detail}
-						</p>
+						<p className={cn("mt-1 text-xs", trend === "up" && "text-text-success", trend === "down" && "text-text-danger", (!trend || trend === "neutral") && "text-text-subtle")}>{detail}</p>
 					) : null}
 				</div>
 			);
@@ -405,34 +374,18 @@ export const { registry, handlers } = defineRegistry(catalog, {
 				: data;
 
 			if (!Array.isArray(data) || data.length === 0) {
-				return (
-					<div className="rounded-lg border border-border p-6 text-center text-sm text-text-subtle">
-						{emptyMessage ?? "No data available."}
-					</div>
-				);
+				return <div className="rounded-lg border border-border p-6 text-center text-sm text-text-subtle">{emptyMessage ?? "No data available."}</div>;
 			}
 
 			return (
 				<Table>
-						<TableHeader>
-							<TableRow>
-								{columns.map((col: { key: string; label: string }) => (
-									<TableHead
-										key={col.key}
-										className="cursor-pointer select-none"
-										onClick={() => handleSort(col.key)}
-									>
-										<div className="flex items-center gap-1">
-											{toSafeText(col.label)}
-											{sortKey === col.key ? (
-												sortDir === "asc" ? (
-													<ArrowUp className="size-3" />
-											) : (
-												<ArrowDown className="size-3" />
-											)
-										) : (
-											<ArrowUpDown className="size-3 opacity-40" />
-										)}
+					<TableHeader>
+						<TableRow>
+							{columns.map((col: { key: string; label: string }) => (
+								<TableHead key={col.key} className="cursor-pointer select-none" onClick={() => handleSort(col.key)}>
+									<div className="flex items-center gap-1">
+										{toSafeText(col.label)}
+										{sortKey === col.key ? sortDir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" /> : <ArrowUpDown className="size-3 opacity-40" />}
 									</div>
 								</TableHead>
 							))}
@@ -597,7 +550,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			return (
 				<div className={cn("rounded-lg border p-4", colorMap[type ?? "info"] || colorMap.info)}>
 					<div className="flex gap-2">
-						{icon ? <span className="shrink-0">{icon}</span> : ((type ?? "info") in iconMap ? <span className="shrink-0">{iconMap[type ?? "info"]}</span> : null)}
+						{icon ? <span className="shrink-0">{icon}</span> : (type ?? "info") in iconMap ? <span className="shrink-0">{iconMap[type ?? "info"]}</span> : null}
 						<div>
 							{title ? <p className="text-sm font-medium text-text">{title}</p> : null}
 							<p className="text-sm text-text-subtle">{content}</p>
@@ -626,12 +579,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			return (
 				<div className="space-y-4">
 					{items.map((item, i) => {
-						const dotColor =
-							item.status === "completed"
-								? "bg-bg-success-bold"
-								: item.status === "current"
-									? "bg-bg-brand-bold"
-									: "bg-bg-neutral";
+						const dotColor = item.status === "completed" ? "bg-bg-success-bold" : item.status === "current" ? "bg-bg-brand-bold" : "bg-bg-neutral";
 						return (
 							<div key={i} className="flex gap-3">
 								<div className="flex flex-col items-center">
@@ -674,7 +622,12 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			return (
 				<div className="space-y-2">
 					{label ? <Label>{toSafeText(label)}</Label> : null}
-					<Select value={value ?? ""} onValueChange={(v) => { if (v !== null) setValue(v); }}>
+					<Select
+						value={value ?? ""}
+						onValueChange={(v) => {
+							if (v !== null) setValue(v);
+						}}
+					>
 						<SelectTrigger>
 							<SelectValue placeholder={toSafeOptionalText(placeholder) ?? "Select..."} />
 						</SelectTrigger>
@@ -696,12 +649,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			return (
 				<div className="space-y-2">
 					{label ? <Label>{toSafeText(label)}</Label> : null}
-					<Input
-						type={nu(type)}
-						placeholder={toSafeOptionalText(placeholder)}
-						value={value ?? ""}
-						onChange={(e) => setValue(e.target.value)}
-					/>
+					<Input type={nu(type)} placeholder={toSafeOptionalText(placeholder)} value={value ?? ""} onChange={(e) => setValue(e.target.value)} />
 				</div>
 			);
 		},
@@ -719,12 +667,13 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		Avatar: ({ props }) => {
 			const { src, fallback, size = "default", shape = "circle" } = props;
 			const safeFallback = toSafeText(fallback);
-			const initials = safeFallback
-				.split(" ")
-				.filter(Boolean)
-				.slice(0, 2)
-				.map((w) => w[0]?.toUpperCase())
-				.join("") || "?";
+			const initials =
+				safeFallback
+					.split(" ")
+					.filter(Boolean)
+					.slice(0, 2)
+					.map((w) => w[0]?.toUpperCase())
+					.join("") || "?";
 			return (
 				<AvatarRoot size={size} shape={shape}>
 					{src ? <AvatarImage src={src} alt={safeFallback} /> : null}
@@ -735,12 +684,20 @@ export const { registry, handlers } = defineRegistry(catalog, {
 
 		Lozenge: ({ props }) => {
 			const { text, variant = "neutral", isBold = false } = props;
-			return <Lozenge variant={variant} isBold={isBold}>{toSafeText(text)}</Lozenge>;
+			return (
+				<Lozenge variant={variant} isBold={isBold}>
+					{toSafeText(text)}
+				</Lozenge>
+			);
 		},
 
 		Tag: ({ props }) => {
 			const { text, variant = "default", color } = props;
-			return <TagPrimitive variant={nu(variant)} color={nu(color)}>{toSafeText(text)}</TagPrimitive>;
+			return (
+				<TagPrimitive variant={nu(variant)} color={nu(color)}>
+					{toSafeText(text)}
+				</TagPrimitive>
+			);
 		},
 
 		TagGroup: ({ children }) => {
@@ -757,12 +714,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		},
 
 		CodeBlock: ({ props }) => {
-			return (
-				<AiCodeBlock
-					code={toSafeText(props.code)}
-					language={(toSafeOptionalText(props.language) ?? "text") as BundledLanguage}
-				/>
-			);
+			return <AiCodeBlock code={toSafeText(props.code)} language={(toSafeOptionalText(props.language) ?? "text") as BundledLanguage} />;
 		},
 
 		Kbd: ({ props }) => {
@@ -816,98 +768,55 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		},
 		MapWidget: ({ props, bindings }) => {
 			const markerEntries = Array.isArray(props.markers)
-				? props.markers.filter(
-						(marker) =>
-							typeof marker.id === "string" &&
-							Number.isFinite(marker.lat) &&
-							Number.isFinite(marker.lng) &&
-							typeof marker.title === "string",
-					)
+				? props.markers.filter((marker) => typeof marker.id === "string" && Number.isFinite(marker.lat) && Number.isFinite(marker.lng) && typeof marker.title === "string")
 				: [];
 
-			const [selectedMarkerId, setSelectedMarkerId] = useBoundProp<string>(
-				nu(props.selectedMarkerId),
-				bindings?.selectedMarkerId,
-			);
+			const [selectedMarkerId, setSelectedMarkerId] = useBoundProp<string>(nu(props.selectedMarkerId), bindings?.selectedMarkerId);
 			const activeMarkerId = selectedMarkerId ?? props.selectedMarkerId ?? markerEntries[0]?.id ?? "";
-			const activeMarker =
-				markerEntries.find((marker: { id: string }) => marker.id === activeMarkerId) ??
-				null;
-			const fallbackCenter = markerEntries[0]
-				? { lat: markerEntries[0].lat, lng: markerEntries[0].lng }
-				: { lat: 39.5, lng: -98.35 };
-			const center =
-				Number.isFinite(props.center?.lat) && Number.isFinite(props.center?.lng)
-					? props.center
-					: fallbackCenter;
+			const activeMarker = markerEntries.find((marker: { id: string }) => marker.id === activeMarkerId) ?? null;
+			const fallbackCenter = markerEntries[0] ? { lat: markerEntries[0].lat, lng: markerEntries[0].lng } : { lat: 39.5, lng: -98.35 };
+			const center = Number.isFinite(props.center?.lat) && Number.isFinite(props.center?.lng) ? props.center : fallbackCenter;
 			const zoom = Number.isFinite(props.zoom) ? props.zoom! : 4;
 			const height = Number.isFinite(props.height) ? props.height! : 320;
 
 			return (
 				<div className="space-y-3">
-					<div
-						className="overflow-hidden rounded-lg border border-border"
-						style={{ height: `${height}px` }}
-					>
-						<MapContainer
-							center={[center.lat, center.lng]}
-							zoom={zoom}
-							scrollWheelZoom
-							className="h-full w-full"
-						>
-							<TileLayer
-								attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-								url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-							/>
-							{markerEntries.map(
-								(marker) => {
-									const isActive = marker.id === activeMarkerId;
-									return (
-										<CircleMarker
-											key={marker.id}
-											center={[marker.lat, marker.lng]}
-											radius={isActive ? 9 : 7}
-											pathOptions={{
-												color: isActive ? "#1d4ed8" : "#2563eb",
-												fillColor: isActive ? "#1d4ed8" : "#60a5fa",
-												fillOpacity: 0.8,
-												weight: 2,
-											}}
-											eventHandlers={{
-												click: () => setSelectedMarkerId(marker.id),
-											}}
-										>
-											<Popup>
-												<p className="text-sm font-medium text-text">
-													{marker.title}
-												</p>
-												{marker.description ? (
-													<p className="text-xs text-text-subtle">
-														{marker.description}
-													</p>
-												) : null}
-											</Popup>
-										</CircleMarker>
-									);
-								},
-							)}
+					<div className="overflow-hidden rounded-lg border border-border" style={{ height: `${height}px` }}>
+						<MapContainer center={[center.lat, center.lng]} zoom={zoom} scrollWheelZoom className="h-full w-full">
+							<TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+							{markerEntries.map((marker) => {
+								const isActive = marker.id === activeMarkerId;
+								return (
+									<CircleMarker
+										key={marker.id}
+										center={[marker.lat, marker.lng]}
+										radius={isActive ? 9 : 7}
+										pathOptions={{
+											color: isActive ? "#1d4ed8" : "#2563eb",
+											fillColor: isActive ? "#1d4ed8" : "#60a5fa",
+											fillOpacity: 0.8,
+											weight: 2,
+										}}
+										eventHandlers={{
+											click: () => setSelectedMarkerId(marker.id),
+										}}
+									>
+										<Popup>
+											<p className="text-sm font-medium text-text">{marker.title}</p>
+											{marker.description ? <p className="text-xs text-text-subtle">{marker.description}</p> : null}
+										</Popup>
+									</CircleMarker>
+								);
+							})}
 						</MapContainer>
 					</div>
 					{activeMarker ? (
 						<div className="rounded-lg border border-border bg-surface-raised p-3">
-							<p className="text-sm font-medium text-text">
-								{activeMarker.title}
-							</p>
-							{activeMarker.description ? (
-								<p className="mt-1 text-xs text-text-subtle">
-									{activeMarker.description}
-								</p>
-							) : null}
+							<p className="text-sm font-medium text-text">{activeMarker.title}</p>
+							{activeMarker.description ? <p className="mt-1 text-xs text-text-subtle">{activeMarker.description}</p> : null}
 						</div>
 					) : (
-						<div className="rounded-lg border border-dashed border-border bg-surface p-3 text-xs text-text-subtle">
-							No marker selected.
-						</div>
+						<div className="rounded-lg border border-dashed border-border bg-surface p-3 text-xs text-text-subtle">No marker selected.</div>
 					)}
 				</div>
 			);
@@ -971,11 +880,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const [checked, setChecked] = useBoundProp<boolean>(nu(props.checked), bindings?.checked);
 			return (
 				<div className="flex items-center gap-2">
-					<CheckboxPrimitive
-						checked={checked ?? false}
-						onCheckedChange={(v) => setChecked(v as boolean)}
-						disabled={nu(disabled)}
-					/>
+					<CheckboxPrimitive checked={checked ?? false} onCheckedChange={(v) => setChecked(v as boolean)} disabled={nu(disabled)} />
 					{label ? <Label className="font-normal">{toSafeText(label)}</Label> : null}
 				</div>
 			);
@@ -986,12 +891,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const [checked, setChecked] = useBoundProp<boolean>(nu(props.checked), bindings?.checked);
 			return (
 				<div className="flex items-center gap-2">
-					<SwitchPrimitive
-						checked={checked ?? false}
-						onCheckedChange={setChecked}
-						size={nu(size)}
-						disabled={nu(disabled)}
-					/>
+					<SwitchPrimitive checked={checked ?? false} onCheckedChange={setChecked} size={nu(size)} disabled={nu(disabled)} />
 					{label ? <Label className="font-normal">{toSafeText(label)}</Label> : null}
 				</div>
 			);
@@ -1003,12 +903,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			return (
 				<div className="space-y-2">
 					{label ? <Label>{toSafeText(label)}</Label> : null}
-					<Textarea
-						placeholder={toSafeOptionalText(placeholder)}
-						value={value ?? ""}
-						onChange={(e) => setValue(e.target.value)}
-						rows={nu(rows)}
-					/>
+					<Textarea placeholder={toSafeOptionalText(placeholder)} value={value ?? ""} onChange={(e) => setValue(e.target.value)} rows={nu(rows)} />
 				</div>
 			);
 		},
@@ -1019,13 +914,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			return (
 				<div className="space-y-2">
 					{label ? <Label>{toSafeText(label)}</Label> : null}
-					<SliderPrimitive
-						value={[value ?? (min ?? 0)]}
-						onValueChange={(v) => setValue(Array.isArray(v) ? v[0] : v)}
-						min={nu(min)}
-						max={nu(max)}
-						step={nu(step)}
-					/>
+					<SliderPrimitive value={[value ?? min ?? 0]} onValueChange={(v) => setValue(Array.isArray(v) ? v[0] : v)} min={nu(min)} max={nu(max)} step={nu(step)} />
 				</div>
 			);
 		},
@@ -1034,12 +923,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const { text, variant = "default", size = "default" } = props;
 			const [pressed, setPressed] = useBoundProp<boolean>(nu(props.pressed), bindings?.pressed);
 			return (
-				<TogglePrimitive
-					variant={variant}
-					size={size}
-					pressed={pressed ?? false}
-					onPressedChange={setPressed}
-				>
+				<TogglePrimitive variant={variant} size={size} pressed={pressed ?? false} onPressedChange={setPressed}>
 					{toSafeText(text)}
 				</TogglePrimitive>
 			);
@@ -1048,9 +932,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		ToggleGroup: ({ props, bindings }) => {
 			const { options, type = "single" } = props;
 			const [value, setValue] = useBoundProp<string | string[]>(nu(props.value), bindings?.value);
-			const arrayValue = type === "multiple"
-				? (Array.isArray(value) ? value : (value ? [value] : []))
-				: (typeof value === "string" && value ? [value] : []);
+			const arrayValue = type === "multiple" ? (Array.isArray(value) ? value : value ? [value] : []) : typeof value === "string" && value ? [value] : [];
 			return (
 				<ToggleGroupPrimitive
 					value={arrayValue}
@@ -1088,14 +970,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 							<XAxis dataKey={aggregate ? "label" : xKey} tick={{ fontSize: 12 }} />
 							<YAxis tick={{ fontSize: 12 }} />
 							<ChartTooltip content={<ChartTooltipContent />} />
-							<Area
-								type="monotone"
-								dataKey={valueKey}
-								stroke={fillColor}
-								fill={fillColor}
-								fillOpacity={0.2}
-								strokeWidth={2}
-							/>
+							<Area type="monotone" dataKey={valueKey} stroke={fillColor} fill={fillColor} fillOpacity={0.2} strokeWidth={2} />
 						</RechartsAreaChart>
 					</ChartContainer>
 				</div>
@@ -1119,14 +994,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 							<PolarRadiusAxis tick={{ fontSize: 10 }} />
 							<ChartTooltip content={<ChartTooltipContent />} />
 							{categories.map((cat: string, i: number) => (
-								<Radar
-									key={cat}
-									name={cat}
-									dataKey={cat}
-									stroke={colors?.[i] ?? PIE_COLORS[i % PIE_COLORS.length]}
-									fill={colors?.[i] ?? PIE_COLORS[i % PIE_COLORS.length]}
-									fillOpacity={0.2}
-								/>
+								<Radar key={cat} name={cat} dataKey={cat} stroke={colors?.[i] ?? PIE_COLORS[i % PIE_COLORS.length]} fill={colors?.[i] ?? PIE_COLORS[i % PIE_COLORS.length]} fillOpacity={0.2} />
 							))}
 						</RechartsRadarChart>
 					</ChartContainer>
@@ -1136,17 +1004,19 @@ export const { registry, handlers } = defineRegistry(catalog, {
 
 		// ── 3D ─────────────────────────────────────────
 		Scene3D: ({ props, children }) => (
-			<Suspense fallback={<div className="flex items-center justify-center bg-bg-neutral rounded-lg" style={{ height: nu(props.height) }}>Loading 3D scene...</div>}>
+			<Suspense
+				fallback={
+					<div className="flex items-center justify-center bg-bg-neutral rounded-lg" style={{ height: nu(props.height) }}>
+						Loading 3D scene...
+					</div>
+				}
+			>
 				<Scene3DImpl props={{ background: nu(props.background), cameraPosition: nu(props.cameraPosition), height: nu(props.height), orbitControls: nu(props.orbitControls) }}>{children}</Scene3DImpl>
 			</Suspense>
 		),
 
 		Group3D: ({ props, children }) => (
-			<group
-				position={nu(props.position)}
-				rotation={nu(props.rotation)}
-				userData={{ animate: props.animate }}
-			>
+			<group position={nu(props.position)} rotation={nu(props.rotation)} userData={{ animate: props.animate }}>
 				{children}
 			</group>
 		),
@@ -1292,9 +1162,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 // ── Lazy wrappers for drei components ──────────────────────────
 const StarsImpl = lazy(() =>
 	import("@react-three/drei").then((mod) => ({
-		default: (p: { count?: number; radius?: number; depth?: number }) => (
-			<mod.Stars count={p.count} radius={p.radius} depth={p.depth} />
-		),
+		default: (p: { count?: number; radius?: number; depth?: number }) => <mod.Stars count={p.count} radius={p.radius} depth={p.depth} />,
 	})),
 );
 

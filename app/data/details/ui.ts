@@ -2,8 +2,7 @@ import type { ComponentDetail } from "@/app/data/component-detail-types";
 
 export const UI_DETAILS: Record<string, ComponentDetail> = {
 	button: {
-		description:
-			"A styled button component extending Base UI's ButtonPrimitive with configurable variants, icon-only sizes, and anchor rendering for link-style actions.",
+		description: "A styled button component extending Base UI's ButtonPrimitive with configurable variants, icon-only sizes, and anchor rendering for link-style actions.",
 		adsUrl: "https://atlassian.design/components/button/",
 		adsLinks: [
 			{ label: "{ Button } from @atlaskit/button/new", url: "https://atlassian.design/components/button/" },
@@ -89,8 +88,7 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 	// NOTE: ButtonExampleWithIcon already covered by "With icon" above
 
 	badge: {
-		description:
-			"A numeric status badge aligned with the latest Atlassian Badge styles, including semantic and legacy appearance aliases, optional icons, and built-in numeric capping.",
+		description: "A numeric status badge aligned with the latest Atlassian Badge styles, including semantic and legacy appearance aliases, optional icons, and built-in numeric capping.",
 		adsUrl: "https://atlassian.design/components/badge",
 		usage: `import { Badge } from "@/components/ui/badge";
 
@@ -209,8 +207,7 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 	},
 
 	dialog: {
-		description:
-			"A modal dialog component using Base UI with customizable header, content, footer, title, and description sub-components. Supports backdrop overlay with animations.",
+		description: "A modal dialog component using Base UI with customizable header, content, footer, title, and description sub-components. Supports backdrop overlay with animations.",
 		adsUrl: "https://atlassian.design/components/modal-dialog",
 		usage: `import {
   Dialog,
@@ -268,8 +265,7 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 	},
 
 	tabs: {
-		description:
-			"A tabbed interface component with configurable orientations and visual variants. Built on Base UI TabsPrimitive.",
+		description: "A tabbed interface component with configurable orientations and visual variants. Built on Base UI TabsPrimitive.",
 		adsUrl: "https://atlassian.design/components/tabs",
 		usage: `import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -318,8 +314,7 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 	},
 
 	select: {
-		description:
-			"A dropdown select component using Base UI with support for groups, scroll buttons, and keyboard navigation.",
+		description: "A dropdown select component using Base UI with support for groups, scroll buttons, and keyboard navigation.",
 		adsUrl: "https://atlassian.design/components/select",
 		usage: `import {
   Select,
@@ -437,9 +432,7 @@ import { Label } from "@/components/ui/label";
 			{ name: "onValueChange", type: "(value: string) => void", description: "Callback when selection changes." },
 			{ name: "disabled", type: "boolean", description: "Disable the radio group." },
 		],
-		subComponents: [
-			{ name: "RadioGroupItem", description: "Individual radio button." },
-		],
+		subComponents: [{ name: "RadioGroupItem", description: "Individual radio button." }],
 		examples: [
 			{ title: "Default", description: "Radio group with three options.", demoSlug: "radio-group-demo-default" },
 			{ title: "Horizontal", description: "Horizontal layout.", demoSlug: "radio-group-demo-horizontal" },
@@ -523,9 +516,7 @@ import { BoldIcon } from "lucide-react";
 			{ name: "spacing", type: "number", default: "0", description: "Gap between items in pixels." },
 			{ name: "orientation", type: '"horizontal" | "vertical"', default: '"horizontal"', description: "Layout direction." },
 		],
-		subComponents: [
-			{ name: "ToggleGroupItem", description: "Individual toggle button within the group." },
-		],
+		subComponents: [{ name: "ToggleGroupItem", description: "Individual toggle button within the group." }],
 		examples: [
 			{ title: "Default", description: "Single-select toggle group.", demoSlug: "toggle-group-demo-default" },
 			{ title: "Outline", description: "Outline variant.", demoSlug: "toggle-group-demo-outline" },
@@ -565,7 +556,8 @@ import { BoldIcon } from "lucide-react";
 	},
 
 	field: {
-		description: "A comprehensive form field layout system with support for labels, descriptions, errors, and responsive orientations. Composes Input (text field) and Textarea primitives with field layout components.",
+		description:
+			"A comprehensive form field layout system with support for labels, descriptions, errors, and responsive orientations. Composes Input (text field) and Textarea primitives with field layout components.",
 		adsUrl: "https://atlassian.design/components/textfield",
 		adsLinks: [
 			{ label: "@atlaskit/textfield", url: "https://atlassian.design/components/textfield" },
@@ -624,7 +616,7 @@ import { Textarea } from "@/components/ui/textarea";
 		],
 	},
 
-	"footer": {
+	footer: {
 		description: "A compact footer bar with an information icon and customizable text. Place below prompt inputs or chat composers to communicate AI usage or other contextual information.",
 		usage: `import { Footer } from "@/components/ui/footer";
 
@@ -744,9 +736,7 @@ import { Textarea } from "@/components/ui/textarea";
     </AlertDialogFooter>
   </AlertDialogContent>
 </AlertDialog>`,
-		props: [
-			{ name: "size", type: '"default" | "sm"', default: '"default"', description: "Size of the dialog content." },
-		],
+		props: [{ name: "size", type: '"default" | "sm"', default: '"default"', description: "Size of the dialog content." }],
 		subComponents: [
 			{ name: "AlertDialogTrigger", description: "Element that opens the dialog." },
 			{ name: "AlertDialogContent", description: "The dialog container." },
@@ -838,7 +828,8 @@ import { Textarea } from "@/components/ui/textarea";
 	},
 
 	"hover-card": {
-		description: "A floating preview card component built on Base UI PreviewCard that appears on hover. Covers the use cases of ADS InlineDialog and InlineMessage — contextual previews, inline info, and lightweight popups.",
+		description:
+			"A floating preview card component built on Base UI PreviewCard that appears on hover. Covers the use cases of ADS InlineDialog and InlineMessage — contextual previews, inline info, and lightweight popups.",
 		adsUrl: "https://atlassian.design/components/inline-dialog",
 		usage: `import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 
@@ -909,9 +900,7 @@ import { Textarea } from "@/components/ui/textarea";
     <DrawerHeader><DrawerTitle>Title</DrawerTitle></DrawerHeader>
   </DrawerContent>
 </Drawer>`,
-		props: [
-			{ name: "direction", type: '"top" | "right" | "bottom" | "left"', default: '"bottom"', description: "Direction the drawer opens from." },
-		],
+		props: [{ name: "direction", type: '"top" | "right" | "bottom" | "left"', default: '"bottom"', description: "Direction the drawer opens from." }],
 		subComponents: [
 			{ name: "DrawerTrigger", description: "Element that opens the drawer." },
 			{ name: "DrawerContent", description: "The drawer container." },
@@ -1008,9 +997,7 @@ import { Textarea } from "@/components/ui/textarea";
     <PaginationItem><PaginationNext href="#" /></PaginationItem>
   </PaginationContent>
 </Pagination>`,
-		props: [
-			{ name: "isActive", type: "boolean", description: "Marks the page link as active (on PaginationLink)." },
-		],
+		props: [{ name: "isActive", type: "boolean", description: "Marks the page link as active (on PaginationLink)." }],
 		subComponents: [
 			{ name: "PaginationContent", description: "Container for pagination items." },
 			{ name: "PaginationItem", description: "Wrapper for each pagination element." },
@@ -1065,9 +1052,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 <Separator />
 <Separator orientation="vertical" />`,
-		props: [
-			{ name: "orientation", type: '"horizontal" | "vertical"', default: '"horizontal"', description: "Direction of the separator." },
-		],
+		props: [{ name: "orientation", type: '"horizontal" | "vertical"', default: '"horizontal"', description: "Direction of the separator." }],
 		examples: [
 			{ title: "Default", description: "Horizontal separator.", demoSlug: "separator-demo-default" },
 			{ title: "Vertical", description: "Vertical separator.", demoSlug: "separator-demo-vertical" },
@@ -1111,12 +1096,25 @@ import { Textarea } from "@/components/ui/textarea";
 	},
 
 	progress: {
-		description: "A progress bar component built on Base UI Progress with track, indicator, and optional label/value display.",
-		usage: `import { Progress } from "@/components/ui/progress";
+		description: "Horizontal progress bar with track, indicator, label, and value. Built on Base UI Progress. Maps to @atlaskit/progress-bar.",
+		adsUrl: "https://atlassian.design/components/progress-bar",
+		usage: `import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 
-<Progress value={60} />`,
+<Progress value={60} />
+
+<Progress value={100} variant="success">
+  <ProgressLabel>Complete</ProgressLabel>
+  <ProgressValue />
+</Progress>`,
 		props: [
 			{ name: "value", type: "number", description: "Current progress value (0-100)." },
+			{
+				name: "variant",
+				type: '"default" | "success" | "inverse" | "transparent"',
+				default: '"default"',
+				description: "Visual variant. Default uses brand blue, success uses green, transparent hides the track.",
+			},
+			{ name: "isIndeterminate", type: "boolean", default: "false", description: "Show indeterminate pulsing animation." },
 		],
 		subComponents: [
 			{ name: "ProgressTrack", description: "Background track element." },
@@ -1126,11 +1124,14 @@ import { Textarea } from "@/components/ui/textarea";
 		],
 		examples: [
 			{ title: "Default", description: "Progress bar at 60%.", demoSlug: "progress-demo-default" },
+			{ title: "Variants", description: "All visual variants.", demoSlug: "progress-demo-variants" },
+			{ title: "Success progress bar", description: "Green indicator for completed or positive progress.", demoSlug: "progress-demo-success" },
+			{ title: "Transparent progress bar", description: "Progress bar with no visible track background.", demoSlug: "progress-demo-transparent" },
+			{ title: "Indeterminate", description: "Pulsing animation for unknown progress.", demoSlug: "progress-demo-indeterminate" },
 			{ title: "With label", description: "Progress with label and value.", demoSlug: "progress-demo-with-label" },
-			{ title: "Zero", description: "Empty progress bar.", demoSlug: "progress-demo-zero" },
-			{ title: "Controlled", description: "Controlled progress with animated value.", demoSlug: "progress-demo-controlled" },
+			{ title: "Controlled", description: "Controlled progress with slider.", demoSlug: "progress-demo-controlled" },
 			{ title: "File upload list", description: "Progress bars in a file upload list.", demoSlug: "progress-demo-file-upload-list" },
-			{ title: "Progress bar", description: "Standalone progress bar component.", demoSlug: "progress-demo-progress-bar" },
+			{ title: "Zero", description: "Empty progress bar.", demoSlug: "progress-demo-zero" },
 		],
 	},
 
@@ -1141,9 +1142,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 <Spinner />
 <Spinner className="size-8" />`,
-		props: [
-			{ name: "className", type: "string", description: "Additional CSS classes for sizing." },
-		],
+		props: [{ name: "className", type: "string", description: "Additional CSS classes for sizing." }],
 		examples: [
 			{ title: "Default", demoSlug: "spinner-demo-default" },
 			{ title: "Sizes", description: "Different spinner sizes.", demoSlug: "spinner-demo-sizes" },
@@ -1211,9 +1210,7 @@ import { Textarea } from "@/components/ui/textarea";
   <CardContent>Content</CardContent>
   <CardFooter>Footer</CardFooter>
 </Card>`,
-		props: [
-			{ name: "size", type: '"default" | "sm"', default: '"default"', description: "Size variant of the card." },
-		],
+		props: [{ name: "size", type: '"default" | "sm"', default: '"default"', description: "Size variant of the card." }],
 		subComponents: [
 			{ name: "CardHeader", description: "Top section with title and action." },
 			{ name: "CardTitle", description: "Primary heading." },
@@ -1289,9 +1286,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 <Skeleton className="h-4 w-48" />
 <Skeleton className="h-12 w-12 rounded-full" />`,
-		props: [
-			{ name: "className", type: "string", description: "CSS classes for sizing and shape." },
-		],
+		props: [{ name: "className", type: "string", description: "CSS classes for sizing and shape." }],
 		examples: [
 			{ title: "Default", description: "Basic skeleton shapes.", demoSlug: "skeleton-demo-default" },
 			{ title: "Card", description: "Card-shaped skeleton layout.", demoSlug: "skeleton-demo-card" },
@@ -1318,13 +1313,11 @@ import { Textarea } from "@/components/ui/textarea";
     <Button>Create new</Button>
   </EmptyContent>
 </Empty>`,
-		props: [
-			{ name: "width", type: `"wide" | "narrow"`, description: "Controls max-width. Wide (464px, default) or narrow (304px)." },
-		],
+		props: [{ name: "width", type: `"wide" | "narrow"`, description: "Controls max-width. Wide (464px, default) or narrow (304px)." }],
 		subComponents: [
 			{ name: "EmptyHeader", description: "Top section with media and text." },
-			{ name: "EmptyMedia", description: "Icon or image slot. Use variant=\"icon\" for icon backgrounds." },
-			{ name: "EmptyTitle", description: "Primary heading (h4). Accepts headingSize: \"medium\" (default) or \"xsmall\"." },
+			{ name: "EmptyMedia", description: 'Icon or image slot. Use variant="icon" for icon backgrounds.' },
+			{ name: "EmptyTitle", description: 'Primary heading (h4). Accepts headingSize: "medium" (default) or "xsmall".' },
 			{ name: "EmptyDescription", description: "Secondary description text." },
 			{ name: "EmptyContent", description: "Action area for buttons and links." },
 		],
@@ -1346,9 +1339,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 <Kbd>⌘</Kbd>
 <KbdGroup><Kbd>⌘</Kbd><Kbd>K</Kbd></KbdGroup>`,
-		subComponents: [
-			{ name: "KbdGroup", description: "Container for grouping multiple keys." },
-		],
+		subComponents: [{ name: "KbdGroup", description: "Container for grouping multiple keys." }],
 		examples: [
 			{ title: "Default", description: "Single keyboard keys.", demoSlug: "kbd-demo-default" },
 			{ title: "Group", description: "Grouped keyboard shortcut.", demoSlug: "kbd-demo-group" },
@@ -1727,9 +1718,7 @@ import SearchIcon from "@atlaskit/icon/core/search";
 <AspectRatio ratio={16 / 9}>
   <img src="/illustration/rich-icon/design/standard.png" alt="Photo" className="h-full w-full object-cover" />
 </AspectRatio>`,
-		props: [
-			{ name: "ratio", type: "number", required: true, description: "Aspect ratio to maintain (e.g., 16/9, 4/3, 1)." },
-		],
+		props: [{ name: "ratio", type: "number", required: true, description: "Aspect ratio to maintain (e.g., 16/9, 4/3, 1)." }],
 		examples: [
 			{ title: "Default", description: "16:9 aspect ratio.", demoSlug: "aspect-ratio-demo-default" },
 			{ title: "Square", description: "1:1 square aspect ratio.", demoSlug: "aspect-ratio-demo-square" },
@@ -1747,12 +1736,8 @@ import SearchIcon from "@atlaskit/icon/core/search";
 <ScrollArea className="h-48 w-48 rounded-md border">
   <div className="p-4">Scrollable content</div>
 </ScrollArea>`,
-		props: [
-			{ name: "orientation", type: '"vertical" | "horizontal"', default: '"vertical"', description: "Scrollbar orientation (on ScrollBar)." },
-		],
-		subComponents: [
-			{ name: "ScrollBar", description: "Custom styled scrollbar element." },
-		],
+		props: [{ name: "orientation", type: '"vertical" | "horizontal"', default: '"vertical"', description: "Scrollbar orientation (on ScrollBar)." }],
+		subComponents: [{ name: "ScrollBar", description: "Custom styled scrollbar element." }],
 		examples: [
 			{ title: "Default", description: "Vertical scrollable list.", demoSlug: "scroll-area-demo-default" },
 			{ title: "Horizontal", description: "Horizontal scroll with scrollbar.", demoSlug: "scroll-area-demo-horizontal" },
@@ -1795,9 +1780,7 @@ import SearchIcon from "@atlaskit/icon/core/search";
 <DirectionProvider direction="rtl">
   <div>Right-to-left content</div>
 </DirectionProvider>`,
-		props: [
-			{ name: "direction", type: '"ltr" | "rtl"', description: "Text direction." },
-		],
+		props: [{ name: "direction", type: '"ltr" | "rtl"', description: "Text direction." }],
 		examples: [
 			{ title: "Default", description: "Left-to-right direction.", demoSlug: "direction-demo-default" },
 			{ title: "RTL", description: "Right-to-left direction.", demoSlug: "direction-demo-rtl" },
@@ -1806,7 +1789,7 @@ import SearchIcon from "@atlaskit/icon/core/search";
 
 	"button-group": {
 		adsUrl: "https://atlassian.design/components/button/button-group",
-		description: "A group container for related buttons. Use variant=\"connected\" (default) for toolbar-style merged borders, or variant=\"separated\" for ADS-style spaced layout with 4px gaps.",
+		description: 'A group container for related buttons. Use variant="connected" (default) for toolbar-style merged borders, or variant="separated" for ADS-style spaced layout with 4px gaps.',
 		usage: `import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 
@@ -1857,8 +1840,7 @@ import { ButtonGroup } from "@/components/ui/button-group";
 	},
 
 	alert: {
-		description:
-			"Contextual message bar for informational, warning, success, destructive, and announcement states. Maps to @atlaskit/section-message.",
+		description: "Contextual message bar for informational, warning, success, destructive, and announcement states. Maps to @atlaskit/section-message.",
 		adsUrl: "https://atlassian.design/components/section-message",
 		usage: `import { Alert, AlertAction, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import WarningIcon from "@atlaskit/icon/core/status-warning";
@@ -2010,9 +1992,7 @@ const config = {
     <Bar dataKey="value" fill="var(--color-value)" />
   </BarChart>
 </ChartContainer>`,
-		props: [
-			{ name: "config", type: "ChartConfig", required: true, description: "Chart configuration mapping data keys to labels and colors." },
-		],
+		props: [{ name: "config", type: "ChartConfig", required: true, description: "Chart configuration mapping data keys to labels and colors." }],
 		subComponents: [
 			{ name: "ChartTooltip", description: "Tooltip wrapper for recharts." },
 			{ name: "ChartTooltipContent", description: "Styled tooltip content." },
@@ -2120,8 +2100,7 @@ toast.custom((id) => (
 	},
 
 	forms: {
-		description:
-			"TanStack Form examples using VPK field primitives, validation, arrays, and complex multi-control forms.",
+		description: "TanStack Form examples using VPK field primitives, validation, arrays, and complex multi-control forms.",
 		adsUrl: "https://atlassian.design/components/form/examples",
 		usage: `import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
@@ -2198,10 +2177,8 @@ const form = useForm({
 		],
 	},
 
-
 	icon: {
-		description:
-			"An accessible icon wrapper that renders any icon element with proper ARIA attributes. Wraps icons in a semantic span with role=\"img\".",
+		description: 'An accessible icon wrapper that renders any icon element with proper ARIA attributes. Wraps icons in a semantic span with role="img".',
 		adsUrl: "https://atlassian.design/components/icon",
 		usage: `import { Icon } from "@/components/ui/icon";
 import SearchIcon from "@atlaskit/icon/core/search";
@@ -2229,14 +2206,14 @@ import SearchIcon from "@atlaskit/icon/core/search";
 		examples: [
 			{ title: "Default", demoSlug: "icon-demo-default" },
 			{ title: "Multiple icons", description: "Several icons displayed together.", demoSlug: "icon-demo-multiple" },
-			{ title: "Sizes", description: "Pass size=\"small\" (12px) or size=\"medium\" (16px, default) directly to the Atlaskit icon.", demoSlug: "icon-demo-sized" },
+			{ title: "Sizes", description: 'Pass size="small" (12px) or size="medium" (16px, default) directly to the Atlaskit icon.', demoSlug: "icon-demo-sized" },
 			{ title: "Colors", description: "Icons with semantic color classes.", demoSlug: "icon-demo-colored" },
 		],
 	},
 
-		"icon-tile": {
-			description:
-				"A colored tile that wraps an icon, used for feature lists, navigation items, or visual indicators. Supports 20 color variants (10 subtle + 10 bold), 5 sizes, and square or circle shapes.",
+	"icon-tile": {
+		description:
+			"A colored tile that wraps an icon, used for feature lists, navigation items, or visual indicators. Supports 20 color variants (10 subtle + 10 bold), 5 sizes, and square or circle shapes.",
 		adsUrl: "https://atlassian.design/components/icon/icon-tile",
 		usage: `import { IconTile } from "@/components/ui/icon-tile";
 import SearchIcon from "@atlaskit/icon/core/search";
@@ -2285,8 +2262,7 @@ import SearchIcon from "@atlaskit/icon/core/search";
 	},
 
 	"inline-edit": {
-		description:
-			"An ADS-style inline editor with read and edit states, icon-based confirm/cancel controls, optional label/validation, and keyboard-friendly interactions.",
+		description: "An ADS-style inline editor with read and edit states, icon-based confirm/cancel controls, optional label/validation, and keyboard-friendly interactions.",
 		adsUrl: "https://atlassian.design/components/inline-edit/examples",
 		demoLayout: {
 			previewContentWidth: "full",
@@ -2373,8 +2349,7 @@ const [value, setValue] = useState("Default description value");
 	},
 
 	banner: {
-		description:
-			"Full-width message bar pinned to the top of the page for warnings, errors, and announcements. Maps to @atlaskit/banner.",
+		description: "Full-width message bar pinned to the top of the page for warnings, errors, and announcements. Maps to @atlaskit/banner.",
 		adsUrl: "https://atlassian.design/components/banner",
 		usage: `import { Banner } from "@/components/ui/banner";
 
@@ -2398,8 +2373,7 @@ const [value, setValue] = useState("Default description value");
 	},
 
 	blanket: {
-		description:
-			"Fullscreen overlay for modals and focus-trapping. Maps to @atlaskit/blanket.",
+		description: "Fullscreen overlay for modals and focus-trapping. Maps to @atlaskit/blanket.",
 		usage: `import { Blanket } from "@/components/ui/blanket"
 
 <Blanket onClick={handleClose} />`,
@@ -2419,8 +2393,7 @@ const [value, setValue] = useState("Default description value");
 	},
 
 	code: {
-		description:
-			"Inline code snippet for embedding code references in text. Maps to @atlaskit/code.",
+		description: "Inline code snippet for embedding code references in text. Maps to @atlaskit/code.",
 		usage: `import { Code } from "@/components/ui/code"
 
 <p>Use the <Code>useState</Code> hook for state.</p>`,
@@ -2434,8 +2407,7 @@ const [value, setValue] = useState("Default description value");
 	},
 
 	comment: {
-		description:
-			"Comment or discussion thread UI with avatar, author, timestamp, and actions. Maps to @atlaskit/comment.",
+		description: "Comment or discussion thread UI with avatar, author, timestamp, and actions. Maps to @atlaskit/comment.",
 		adsUrl: "https://atlassian.design/components/comment",
 		usage: `import { Comment, CommentAction } from "@/components/ui/comment"
 
@@ -2504,8 +2476,7 @@ const [value, setValue] = useState("Default description value");
 
 	"date-picker": {
 		adsUrl: "https://atlassian.design/components/datetime-picker",
-		description:
-			"Date selection input with calendar popover. Maps to @atlaskit/datetime-picker.",
+		description: "Date selection input with calendar popover. Maps to @atlaskit/datetime-picker.",
 		usage: `import { DatePicker } from "@/components/ui/date-picker"
 
 const [date, setDate] = useState<Date>()
@@ -2542,8 +2513,7 @@ const [date, setDate] = useState<Date>()
 	},
 
 	lozenge: {
-		description:
-			"A compact status indicator for labeling items with categorical status. Supports semantic and accent color variants with compact and spacious sizes.",
+		description: "A compact status indicator for labeling items with categorical status. Supports semantic and accent color variants with compact and spacious sizes.",
 		adsUrl: "https://atlassian.design/components/lozenge",
 		usage: `import { Lozenge } from "@/components/ui/lozenge";
 
@@ -2721,8 +2691,7 @@ import BugIcon from "@atlaskit/icon/core/bug";
 	},
 
 	"page-header": {
-		description:
-			"A page-level header component with title, description, breadcrumbs, and action slots. Provides consistent page header layout across views.",
+		description: "A page-level header component with title, description, breadcrumbs, and action slots. Provides consistent page header layout across views.",
 		usage: `import { PageHeader } from "@/components/ui/page-header";
 
 <PageHeader title="Projects" description="Manage your projects." />
@@ -2759,8 +2728,7 @@ import BugIcon from "@atlaskit/icon/core/bug";
 	},
 
 	popup: {
-		description:
-			"A positioned popup container component for displaying contextual content near a trigger element. Re-exports the Popover primitive with popup-specific naming for ADS compatibility.",
+		description: "A positioned popup container component for displaying contextual content near a trigger element. Re-exports the Popover primitive with popup-specific naming for ADS compatibility.",
 		usage: `import { Popup, PopupContent, PopupTrigger, PopupTitle } from "@/components/ui/popup";
 
 <Popup>
@@ -2810,50 +2778,25 @@ import BugIcon from "@atlaskit/icon/core/bug";
 		],
 	},
 
-	"progress-bar": {
-		description:
-			"Horizontal progress bar with track, indicator, label, and value. Maps to @atlaskit/progress-bar. Re-exports Progress components.",
-		adsUrl: "https://atlassian.design/components/progress-bar",
-		usage: `import { ProgressBar, ProgressBarTrack, ProgressBarIndicator, ProgressBarLabel, ProgressBarValue } from "@/components/ui/progress-bar"
-
-<ProgressBar value={60}>
-  <div className="flex justify-between text-sm">
-    <ProgressBarLabel>Loading…</ProgressBarLabel>
-    <ProgressBarValue />
-  </div>
-  <ProgressBarTrack>
-    <ProgressBarIndicator />
-  </ProgressBarTrack>
-</ProgressBar>`,
-		props: [
-			{ name: "value", type: "number", description: "Current progress value (0–100)." },
-		],
-		subComponents: [
-			{ name: "ProgressBarTrack", description: "The track background." },
-			{ name: "ProgressBarIndicator", description: "The filled indicator." },
-			{ name: "ProgressBarLabel", description: "Label text." },
-			{ name: "ProgressBarValue", description: "Percentage display." },
-		],
-		examples: [
-			{ title: "Default", demoSlug: "progress-bar-demo-default" },
-			{ title: "With label", demoSlug: "progress-bar-demo-with-label" },
-			{ title: "Zero", description: "Progress at 0%.", demoSlug: "progress-bar-demo-zero" },
-			{ title: "Complete", description: "Progress at 100%.", demoSlug: "progress-bar-demo-complete" },
-		],
-	},
-
 	"progress-indicator": {
-		description:
-			"Dot-based step indicator showing current position in a sequence. Maps to @atlaskit/progress-indicator.",
+		description: "Dot-based step indicator showing current position in a sequence. Maps to @atlaskit/progress-indicator.",
+		adsUrl: "https://atlassian.design/components/progress-indicator",
 		usage: `import { ProgressIndicator } from "@/components/ui/progress-indicator"
 
-<ProgressIndicator steps={5} currentStep={2} />`,
+<ProgressIndicator steps={5} currentStep={2} />
+<ProgressIndicator steps={5} currentStep={2} variant="primary" />
+<ProgressIndicator steps={5} currentStep={2} size="sm" />`,
 		props: [
 			{ name: "steps", type: "number", description: "Total number of steps." },
 			{ name: "currentStep", type: "number", description: "Current active step (0-indexed)." },
+			{ name: "variant", type: '"default" | "primary" | "discovery" | "inverted"', description: "Visual appearance of the indicator dots." },
+			{ name: "size", type: '"sm" | "md" | "lg"', description: "Size of the dots." },
 		],
 		examples: [
-			{ title: "Default", description: "Middle step active.", demoSlug: "progress-indicator-demo-default" },
+			{ title: "Default", description: "Default appearance with neutral selected dot.", demoSlug: "progress-indicator-demo-default" },
+			{ title: "Appearances", description: "Default, primary, discovery, and inverted variants.", demoSlug: "progress-indicator-demo-appearances" },
+			{ title: "Sizes", description: "Small, medium, and large dot sizes.", demoSlug: "progress-indicator-demo-sizes" },
+			{ title: "Interaction", description: "Navigate between steps with buttons.", demoSlug: "progress-indicator-demo-interaction" },
 			{ title: "Start", description: "First step active.", demoSlug: "progress-indicator-demo-start" },
 			{ title: "Complete", description: "Last step active.", demoSlug: "progress-indicator-demo-complete" },
 			{ title: "Three steps", description: "Three-step indicator.", demoSlug: "progress-indicator-demo-three-steps" },
@@ -2861,8 +2804,7 @@ import BugIcon from "@atlaskit/icon/core/bug";
 	},
 
 	"progress-tracker": {
-		description:
-			"Horizontal step tracker with labels and completion states. Maps to @atlaskit/progress-tracker.",
+		description: "Horizontal step tracker with labels and completion states. Maps to @atlaskit/progress-tracker.",
 		usage: `import { ProgressTracker, type ProgressTrackerStep } from "@/components/ui/progress-tracker"
 
 const steps: ProgressTrackerStep[] = [
@@ -2871,9 +2813,7 @@ const steps: ProgressTrackerStep[] = [
   { label: "Step 3", status: "todo" },
 ]
 <ProgressTracker steps={steps} />`,
-		props: [
-			{ name: "steps", type: "ProgressTrackerStep[]", description: "Array of step objects with label and status." },
-		],
+		props: [{ name: "steps", type: "ProgressTrackerStep[]", description: "Array of step objects with label and status." }],
 		examples: [
 			{ title: "Default", description: "Mixed step statuses.", demoSlug: "progress-tracker-demo-default" },
 			{ title: "All done", description: "All steps completed.", demoSlug: "progress-tracker-demo-all-done" },
@@ -2882,8 +2822,7 @@ const steps: ProgressTrackerStep[] = [
 	},
 
 	"split-button": {
-		description:
-			"Button with a primary action and a dropdown for secondary actions. Maps to @atlaskit/button SplitButton.",
+		description: "Button with a primary action and a dropdown for secondary actions. Maps to @atlaskit/button SplitButton.",
 		usage: `import { SplitButton } from "@/components/ui/split-button"
 
 <SplitButton
@@ -2909,8 +2848,7 @@ const steps: ProgressTrackerStep[] = [
 	},
 
 	tag: {
-		description:
-			"Categorization label with optional remove button and AvatarTag support. Maps to @atlaskit/tag (Tag + AvatarTag examples).",
+		description: "Categorization label with optional remove button and AvatarTag support. Maps to @atlaskit/tag (Tag + AvatarTag examples).",
 		adsUrl: "https://atlassian.design/components/tag/tag",
 		usage: `import { Tag } from "@/components/ui/tag"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -2930,7 +2868,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 </Tag>`,
 		props: [
 			{ name: "variant", type: '"default" | "rounded"', default: '"default"', description: "Tag shape style. Legacy variant values are still supported for compatibility." },
-			{ name: "color", type: '"standard" | "gray" | "blue" | "green" | "red" | "yellow" | "purple" | "lime" | "magenta" | "orange" | "teal"', default: '"standard"', description: "Accent color for border and leading icon." },
+			{
+				name: "color",
+				type: '"standard" | "gray" | "blue" | "green" | "red" | "yellow" | "purple" | "discovery" | "lime" | "magenta" | "orange" | "teal"',
+				default: '"standard"',
+				description: "Accent color for border and leading icon. Use 'discovery' for semantic purple (ADS discovery tokens).",
+			},
 			{ name: "type", type: '"default" | "user" | "other" | "agent"', default: '"default"', description: "AvatarTag mode. Use with `elemBefore` avatar content." },
 			{ name: "elemBefore", type: "ReactNode", description: "Element rendered before tag text (icon or avatar)." },
 			{ name: "isVerified", type: "boolean", default: "false", description: "Shows a verified icon for `type='other'` avatar tags." },
@@ -2953,8 +2896,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 	},
 
 	"time-picker": {
-		description:
-			"Time selection input using a native select dropdown. Maps to @atlaskit/datetime-picker TimePicker.",
+		description: "Time selection input using a native select dropdown. Maps to @atlaskit/datetime-picker TimePicker.",
 		usage: `import { TimePicker } from "@/components/ui/time-picker"
 
 const [value, setValue] = useState("")
@@ -2973,11 +2915,10 @@ const [value, setValue] = useState("")
 		],
 	},
 
-		tile: {
-			description:
-				"A base tile component — a rounded square that takes an asset and represents a noun. Supports 28 color variants across semantic, accent subtle, and accent bold categories.",
-			adsUrl: "https://atlassian.design/components/tile",
-			usage: `import { Tile } from "@/components/ui/tile";
+	tile: {
+		description: "A base tile component — a rounded square that takes an asset and represents a noun. Supports 28 color variants across semantic, accent subtle, and accent bold categories.",
+		adsUrl: "https://atlassian.design/components/tile",
+		usage: `import { Tile } from "@/components/ui/tile";
 import SearchIcon from "@atlaskit/icon/core/search";
 
 <Tile label="Search" variant="blueSubtle" size="medium">
@@ -3026,8 +2967,7 @@ import SearchIcon from "@atlaskit/icon/core/search";
 
 	"date-time-picker": {
 		adsUrl: "https://atlassian.design/components/datetime-picker",
-		description:
-			"Combined date and time picker. Maps to @atlaskit/datetime-picker DateTimePicker.",
+		description: "Combined date and time picker. Maps to @atlaskit/datetime-picker DateTimePicker.",
 		usage: `import { DateTimePicker, type DateTimePickerValue } from "@/components/ui/date-time-picker"
 
 const [value, setValue] = useState<DateTimePickerValue>({})

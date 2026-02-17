@@ -46,7 +46,7 @@ export const schema = defineSchema(
 			'CRITICAL: The "visible" field belongs on the element object, never inside props.',
 			'CRITICAL: The "on" field belongs on the element object, never inside props.',
 			'CRITICAL: The "repeat" field belongs on the element object, never inside props.',
-			'When using $state, $bindState, $bindItem, $item, $index, or repeat, include matching /state patches so bindings resolve.',
+			"When using $state, $bindState, $bindItem, $item, $index, or repeat, include matching /state patches so bindings resolve.",
 			'For two-way form values, use { "$bindState": "/path" } or { "$bindItem": "field" } on the natural value prop (value, checked, pressed).',
 		],
 	},
@@ -90,14 +90,21 @@ export const catalog = defineCatalog(schema, {
 		},
 		Breadcrumb: {
 			props: z.object({
-				items: z.array(z.object({
-					label: z.string(),
-					href: z.string().nullable(),
-				})),
+				items: z.array(
+					z.object({
+						label: z.string(),
+						href: z.string().nullable(),
+					}),
+				),
 			}),
 			slots: [],
 			description: "Breadcrumb navigation with links",
-			example: { items: [{ label: "Home", href: "/" }, { label: "Settings", href: null }] },
+			example: {
+				items: [
+					{ label: "Home", href: "/" },
+					{ label: "Settings", href: null },
+				],
+			},
 		},
 		PageHeader: {
 			props: z.object({
@@ -180,10 +187,12 @@ export const catalog = defineCatalog(schema, {
 		Table: {
 			props: z.object({
 				data: z.array(z.record(z.string(), z.unknown())),
-				columns: z.array(z.object({
-					key: z.string(),
-					label: z.string(),
-				})),
+				columns: z.array(
+					z.object({
+						key: z.string(),
+						label: z.string(),
+					}),
+				),
 				emptyMessage: z.string().nullable(),
 			}),
 			slots: [],
@@ -221,7 +230,26 @@ export const catalog = defineCatalog(schema, {
 		Lozenge: {
 			props: z.object({
 				text: z.string(),
-				variant: z.enum(["neutral", "success", "danger", "information", "discovery", "warning", "accent-red", "accent-orange", "accent-yellow", "accent-lime", "accent-green", "accent-teal", "accent-blue", "accent-purple", "accent-magenta", "accent-gray"]).nullable(),
+				variant: z
+					.enum([
+						"neutral",
+						"success",
+						"danger",
+						"information",
+						"discovery",
+						"warning",
+						"accent-red",
+						"accent-orange",
+						"accent-yellow",
+						"accent-lime",
+						"accent-green",
+						"accent-teal",
+						"accent-blue",
+						"accent-purple",
+						"accent-magenta",
+						"accent-gray",
+					])
+					.nullable(),
 				isBold: z.boolean().nullable(),
 			}),
 			slots: [],
@@ -232,7 +260,7 @@ export const catalog = defineCatalog(schema, {
 			props: z.object({
 				text: z.string(),
 				variant: z.enum(["default", "success", "removed", "inprogress", "new", "moved"]).nullable(),
-				color: z.enum(["standard", "green", "blue", "red", "purple", "teal", "orange", "yellow", "grey"]).nullable(),
+				color: z.enum(["standard", "green", "blue", "red", "purple", "discovery", "teal", "orange", "yellow", "grey"]).nullable(),
 			}),
 			slots: [],
 			description: "Display-only tag label for categories and labels",
@@ -331,7 +359,30 @@ export const catalog = defineCatalog(schema, {
 		IconTile: {
 			props: z.object({
 				label: z.string(),
-				variant: z.enum(["gray", "blue", "teal", "green", "lime", "yellow", "orange", "red", "magenta", "purple", "grayBold", "blueBold", "tealBold", "greenBold", "limeBold", "yellowBold", "orangeBold", "redBold", "magentaBold", "purpleBold"]).nullable(),
+				variant: z
+					.enum([
+						"gray",
+						"blue",
+						"teal",
+						"green",
+						"lime",
+						"yellow",
+						"orange",
+						"red",
+						"magenta",
+						"purple",
+						"grayBold",
+						"blueBold",
+						"tealBold",
+						"greenBold",
+						"limeBold",
+						"yellowBold",
+						"orangeBold",
+						"redBold",
+						"magentaBold",
+						"purpleBold",
+					])
+					.nullable(),
 				size: z.enum(["xsmall", "small", "medium", "large", "xlarge"]).nullable(),
 			}),
 			slots: [],
@@ -347,15 +398,17 @@ export const catalog = defineCatalog(schema, {
 				zoom: z.number().nullable(),
 				height: z.number().nullable(),
 				selectedMarkerId: z.string().nullable(),
-				markers: z.array(
-					z.object({
-						id: z.string(),
-						lat: z.number(),
-						lng: z.number(),
-						title: z.string(),
-						description: z.string().nullable(),
-					}),
-				).nullable(),
+				markers: z
+					.array(
+						z.object({
+							id: z.string(),
+							lat: z.number(),
+							lng: z.number(),
+							title: z.string(),
+							description: z.string().nullable(),
+						}),
+					)
+					.nullable(),
 			}),
 			slots: [],
 			description: "Leaflet/OpenStreetMap map with selectable markers and optional detail state. Use for maps, locations, pins, and directions.",
@@ -381,7 +434,10 @@ export const catalog = defineCatalog(schema, {
 			description: 'Bar chart visualization. Use { "$state": "/path" } to bind data. xKey is the category field, yKey is the numeric value field. Use aggregate to group by xKey.',
 			example: {
 				title: "Sales by Region",
-				data: [{ region: "North", revenue: 4500 }, { region: "South", revenue: 3200 }],
+				data: [
+					{ region: "North", revenue: 4500 },
+					{ region: "South", revenue: 3200 },
+				],
 				xKey: "region",
 				yKey: "revenue",
 			},
@@ -400,7 +456,10 @@ export const catalog = defineCatalog(schema, {
 			description: 'Line chart visualization. Use { "$state": "/path" } to bind data. xKey is the x-axis field, yKey is the numeric value field.',
 			example: {
 				title: "Weekly Visitors",
-				data: [{ week: "W1", visitors: 1200 }, { week: "W2", visitors: 1800 }],
+				data: [
+					{ week: "W1", visitors: 1200 },
+					{ week: "W2", visitors: 1800 },
+				],
 				xKey: "week",
 				yKey: "visitors",
 			},
@@ -417,7 +476,10 @@ export const catalog = defineCatalog(schema, {
 			description: 'Pie/donut chart for proportional data. Use { "$state": "/path" } to bind data. nameKey is the label field, valueKey is the numeric value field.',
 			example: {
 				title: "Traffic Sources",
-				data: [{ source: "Direct", visits: 4000 }, { source: "Organic", visits: 3200 }],
+				data: [
+					{ source: "Direct", visits: 4000 },
+					{ source: "Organic", visits: 3200 },
+				],
 				nameKey: "source",
 				valueKey: "visits",
 			},
@@ -436,7 +498,10 @@ export const catalog = defineCatalog(schema, {
 			description: 'Area chart visualization. Use { "$state": "/path" } to bind data. xKey is the x-axis field, yKey is the numeric value field.',
 			example: {
 				title: "Revenue Over Time",
-				data: [{ month: "Jan", revenue: 4200 }, { month: "Feb", revenue: 5100 }],
+				data: [
+					{ month: "Jan", revenue: 4200 },
+					{ month: "Feb", revenue: 5100 },
+				],
 				xKey: "month",
 				yKey: "revenue",
 			},
@@ -453,7 +518,10 @@ export const catalog = defineCatalog(schema, {
 			description: "Radar/spider chart for multi-dimensional comparison",
 			example: {
 				title: "Team Skills",
-				data: [{ skill: "Frontend", score: 85 }, { skill: "Backend", score: 72 }],
+				data: [
+					{ skill: "Frontend", score: 85 },
+					{ skill: "Backend", score: 72 },
+				],
 				dataKey: "skill",
 				categories: ["score"],
 			},
@@ -462,16 +530,21 @@ export const catalog = defineCatalog(schema, {
 		// ── Interactive ────────────────────────────────────
 		Tabs: {
 			props: z.object({
-				tabs: z.array(z.object({
-					value: z.string(),
-					label: z.string(),
-				})),
+				tabs: z.array(
+					z.object({
+						value: z.string(),
+						label: z.string(),
+					}),
+				),
 				defaultValue: z.string().nullable(),
 			}),
 			slots: ["default"],
 			description: "Tabbed content container. Children should be TabContent elements matching tab values.",
 			example: {
-				tabs: [{ value: "overview", label: "Overview" }, { value: "details", label: "Details" }],
+				tabs: [
+					{ value: "overview", label: "Overview" },
+					{ value: "details", label: "Details" },
+				],
 				defaultValue: "overview",
 			},
 		},
@@ -516,10 +589,12 @@ export const catalog = defineCatalog(schema, {
 		},
 		Accordion: {
 			props: z.object({
-				items: z.array(z.object({
-					title: z.string(),
-					content: z.string(),
-				})),
+				items: z.array(
+					z.object({
+						title: z.string(),
+						content: z.string(),
+					}),
+				),
 			}),
 			slots: [],
 			description: "Collapsible accordion sections for organizing detailed content",
@@ -527,12 +602,14 @@ export const catalog = defineCatalog(schema, {
 		},
 		Timeline: {
 			props: z.object({
-				items: z.array(z.object({
-					title: z.string(),
-					description: z.string().nullable(),
-					date: z.string().nullable(),
-					status: z.enum(["completed", "current", "upcoming"]).nullable(),
-				})),
+				items: z.array(
+					z.object({
+						title: z.string(),
+						description: z.string().nullable(),
+						date: z.string().nullable(),
+						status: z.enum(["completed", "current", "upcoming"]).nullable(),
+					}),
+				),
 			}),
 			slots: [],
 			description: "Vertical timeline showing ordered events, steps, or historical milestones",
@@ -545,10 +622,12 @@ export const catalog = defineCatalog(schema, {
 		},
 		RadioGroup: {
 			props: z.object({
-				options: z.array(z.object({
-					label: z.string(),
-					value: z.string(),
-				})),
+				options: z.array(
+					z.object({
+						label: z.string(),
+						value: z.string(),
+					}),
+				),
 				value: z.string().nullable(),
 				label: z.string().nullable(),
 			}),
@@ -557,15 +636,20 @@ export const catalog = defineCatalog(schema, {
 			example: {
 				label: "Choose one",
 				value: { $bindState: "/answer" },
-				options: [{ value: "a", label: "Option A" }, { value: "b", label: "Option B" }],
+				options: [
+					{ value: "a", label: "Option A" },
+					{ value: "b", label: "Option B" },
+				],
 			},
 		},
 		SelectInput: {
 			props: z.object({
-				options: z.array(z.object({
-					label: z.string(),
-					value: z.string(),
-				})),
+				options: z.array(
+					z.object({
+						label: z.string(),
+						value: z.string(),
+					}),
+				),
 				value: z.string().nullable(),
 				placeholder: z.string().nullable(),
 				label: z.string().nullable(),
@@ -576,7 +660,10 @@ export const catalog = defineCatalog(schema, {
 				label: "Country",
 				value: { $bindState: "/selectedCountry" },
 				placeholder: "Select a country",
-				options: [{ value: "us", label: "United States" }, { value: "uk", label: "United Kingdom" }],
+				options: [
+					{ value: "us", label: "United States" },
+					{ value: "uk", label: "United Kingdom" },
+				],
 			},
 		},
 		TextInput: {
@@ -663,16 +750,24 @@ export const catalog = defineCatalog(schema, {
 		},
 		ToggleGroup: {
 			props: z.object({
-				options: z.array(z.object({
-					label: z.string(),
-					value: z.string(),
-				})),
+				options: z.array(
+					z.object({
+						label: z.string(),
+						value: z.string(),
+					}),
+				),
 				value: z.string().nullable(),
 				type: z.enum(["single", "multiple"]).nullable(),
 			}),
 			slots: [],
 			description: "Group of toggle buttons for selection",
-			example: { options: [{ label: "Left", value: "left" }, { label: "Center", value: "center" }], type: "single" },
+			example: {
+				options: [
+					{ label: "Left", value: "left" },
+					{ label: "Center", value: "center" },
+				],
+				type: "single",
+			},
 		},
 		ProgressBar: {
 			props: z.object({
@@ -686,14 +781,22 @@ export const catalog = defineCatalog(schema, {
 		},
 		ProgressTracker: {
 			props: z.object({
-				steps: z.array(z.object({
-					label: z.string(),
-					state: z.enum(["todo", "current", "done"]).nullable(),
-				})),
+				steps: z.array(
+					z.object({
+						label: z.string(),
+						state: z.enum(["todo", "current", "done"]).nullable(),
+					}),
+				),
 			}),
 			slots: [],
 			description: "Multi-step progress tracker for workflows",
-			example: { steps: [{ label: "Planning", state: "done" }, { label: "Development", state: "current" }, { label: "Review", state: "todo" }] },
+			example: {
+				steps: [
+					{ label: "Planning", state: "done" },
+					{ label: "Development", state: "current" },
+					{ label: "Review", state: "todo" },
+				],
+			},
 		},
 
 		// ── 3D ─────────────────────────────────────────────
@@ -712,10 +815,12 @@ export const catalog = defineCatalog(schema, {
 			props: z.object({
 				position: z.tuple([z.number(), z.number(), z.number()]).nullable(),
 				rotation: z.tuple([z.number(), z.number(), z.number()]).nullable(),
-				animate: z.object({
-					rotateY: z.number().nullable(),
-					rotateX: z.number().nullable(),
-				}).nullable(),
+				animate: z
+					.object({
+						rotateY: z.number().nullable(),
+						rotateX: z.number().nullable(),
+					})
+					.nullable(),
 			}),
 			slots: ["default"],
 			description: "3D group / transform node with optional animation. Use to create orbits by animating rotation.",

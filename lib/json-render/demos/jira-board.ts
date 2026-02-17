@@ -15,11 +15,7 @@ export const jiraBoardSpec: Spec = {
 		breadcrumb: {
 			type: "Breadcrumb",
 			props: {
-				items: [
-					{ label: "Projects", href: "/" },
-					{ label: "AUTH", href: "/" },
-					{ label: "Board" },
-				],
+				items: [{ label: "Projects", href: "/" }, { label: "AUTH", href: "/" }, { label: "Board" }],
 			},
 		},
 		board: {
@@ -87,7 +83,7 @@ export const jiraBoardSpec: Spec = {
 		},
 		issueTodo2TagUx: {
 			type: "Tag",
-			props: { text: "ux", color: "purple" },
+			props: { text: "ux", color: "discovery" },
 		},
 
 		// In Progress column

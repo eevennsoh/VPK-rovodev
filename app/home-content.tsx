@@ -14,18 +14,19 @@ import { buildNavItems, UI_GROUPS, BLOCK_GROUPS } from "./data/nav-utils";
 export type HomeCategory = "ui" | "ui-ai" | "blocks" | "templates" | "utility" | "visual";
 
 const ADS_BLOCK_SLUGS = new Set([
-	"agents-team-summary",
+	"agent-grid",
+	"agent-summary",
 	"top-navigation",
 	"prompt-gallery",
 	"shared-ui",
 	"product-sidebar",
 	"sidebar-rail",
-	"work-items-widget",
+	"work-item-widget",
 	"question-card",
 	"approval-card",
 ]);
 const blockAdsResolver = (slug: string) => ADS_BLOCK_SLUGS.has(slug) ? "Atlassian Design System" : undefined;
-const ADS_AI_SLUGS = new Set(["code-block", "message", "plan", "prompt-input"]);
+const ADS_AI_SLUGS = new Set(["code-block", "message", "plan", "prompt-input", "queue"]);
 
 const staticPages = [{ name: "Home", href: "/" }];
 

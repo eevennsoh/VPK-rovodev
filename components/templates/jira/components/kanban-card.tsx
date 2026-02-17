@@ -31,7 +31,7 @@ function normalizeTagColor(color?: LegacyTagColor): TagColor {
 		return "green";
 	}
 	if (color === "magenta") {
-		return "purple";
+		return "discovery";
 	}
 	return color ?? "standard";
 }
@@ -62,9 +62,7 @@ export default function KanbanCard({ title, code, tags, priority, avatarSrc, onC
 			onMouseEnter={() => setIsHovered(true)}
 			onMouseLeave={() => setIsHovered(false)}
 			style={{
-				backgroundColor: isHovered
-					? token("color.background.neutral.subtle.hovered")
-					: token("elevation.surface"),
+				backgroundColor: isHovered ? token("color.background.neutral.subtle.hovered") : token("elevation.surface"),
 				borderRadius: token("radius.small"),
 				padding: token("space.150"),
 				cursor: "pointer",
@@ -95,9 +93,7 @@ export default function KanbanCard({ title, code, tags, priority, avatarSrc, onC
 					<div className="flex justify-between items-center">
 						<div className="flex items-center gap-2">
 							<TaskIcon label="Task" color={token("color.icon.brand")} />
-							<span className="text-xs font-semibold text-text-subtlest">
-								{code}
-							</span>
+							<span className="text-xs font-semibold text-text-subtlest">{code}</span>
 						</div>
 
 						<div className="flex items-center gap-1.5">

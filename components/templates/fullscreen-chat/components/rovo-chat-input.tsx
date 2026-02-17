@@ -3,14 +3,10 @@
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import type { QueuedPromptItem } from "@/app/contexts";
-import {
-	PromptInput,
-	PromptInputBody,
-	PromptInputFooter,
-	PromptInputHeader,
-	PromptInputTextarea,
-} from "@/components/ui-ai/prompt-input";
-import { ChatPromptQueue } from "@/components/templates/shared/components/chat-prompt-queue";
+import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputHeader, PromptInputTextarea } from "@/components/ui-ai/prompt-input";
+import { Button } from "@/components/ui/button";
+import { QueueItem, QueueItemActions, QueueItemContent, QueueItemIndicator, QueueList } from "@/components/ui-ai/queue";
+import DeleteIcon from "@atlaskit/icon/core/delete";
 import InputContextBar from "./input-context-bar";
 import InputFooterTools from "./input-footer-tools";
 import type { Product } from "../types";
@@ -68,9 +64,7 @@ export default function RovoChatInput({
 
 	return (
 		<div style={{ padding: "0 12px" }}>
-			{contextEnabled && (product === "confluence" || product === "jira") ? (
-				<InputContextBar product={product} />
-			) : null}
+			{contextEnabled && (product === "confluence" || product === "jira") ? <InputContextBar product={product} /> : null}
 
 			<div
 				style={{
@@ -85,19 +79,30 @@ export default function RovoChatInput({
 					...(customHeight ? { height: customHeight } : {}),
 				}}
 			>
-				<PromptInput
-					onSubmit={onSubmit}
-					className={cn(
-						"relative z-10 w-full",
-						customHeight ? "flex h-full flex-col" : undefined
-					)}
-				>
+				<PromptInput onSubmit={onSubmit} className={cn("relative z-10 w-full", customHeight ? "flex h-full flex-col" : undefined)}>
 					{queuedPrompts.length > 0 ? (
 						<PromptInputHeader className="px-0 pb-2 pt-0">
-							<ChatPromptQueue
-								queuedPrompts={queuedPrompts}
-								onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-							/>
+							<QueueList className="mt-0 mb-0 w-full [&_[data-slot=scroll-area-viewport]>div]:max-h-28 [&_[data-slot=scroll-area-viewport]>div]:pr-0 [&_ul]:w-full">
+								{queuedPrompts.map((queuedPrompt) => (
+									<QueueItem key={queuedPrompt.id} className="w-full bg-surface py-2 hover:bg-surface-hovered">
+										<div className="flex items-center gap-2">
+											<QueueItemIndicator />
+											<QueueItemContent className="text-text-subtle">{queuedPrompt.text}</QueueItemContent>
+											<QueueItemActions>
+												<Button
+													aria-label="Remove queued message"
+													onClick={() => onRemoveQueuedPrompt(queuedPrompt.id)}
+													size="icon-sm"
+													variant="ghost"
+													className="size-7 cursor-pointer rounded-full text-icon-subtle opacity-0 transition-opacity group-hover:opacity-100"
+												>
+													<DeleteIcon label="" size="small" />
+												</Button>
+											</QueueItemActions>
+										</div>
+									</QueueItem>
+								))}
+							</QueueList>
 						</PromptInputHeader>
 					) : null}
 					<PromptInputBody className={cn(customHeight ? "flex-1" : undefined)}>
@@ -112,10 +117,7 @@ export default function RovoChatInput({
 							placeholder={isListening ? "Listening..." : (placeholder ?? "Write a prompt, @someone, or use / for actions")}
 							rows={1}
 							aria-label="Chat message input"
-							className={cn(
-								"max-h-[120px] min-h-[24px] resize-none border-0 px-0 py-0 shadow-none focus-visible:ring-0",
-								customHeight ? "h-full max-h-none min-h-0" : undefined
-							)}
+							className={cn("max-h-[120px] min-h-[24px] resize-none border-0 px-0 py-0 shadow-none focus-visible:ring-0", customHeight ? "h-full max-h-none min-h-0" : undefined)}
 						/>
 					</PromptInputBody>
 
@@ -139,9 +141,7 @@ export default function RovoChatInput({
 
 			{!hideUsesAI ? (
 				<div className="flex items-center justify-center py-2">
-					<span style={{ font: token("font.body.small"), color: token("color.text.subtlest") }}>
-						Uses AI. Verify results.
-					</span>
+					<span style={{ font: token("font.body.small"), color: token("color.text.subtlest") }}>Uses AI. Verify results.</span>
 				</div>
 			) : null}
 		</div>

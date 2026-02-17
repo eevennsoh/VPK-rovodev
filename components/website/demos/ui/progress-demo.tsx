@@ -16,13 +16,7 @@ export function ProgressDemoControlled() {
 	return (
 		<div className="flex w-full flex-col gap-4">
 			<Progress value={value} className="w-full" />
-			<Slider
-				value={value}
-				onValueChange={(value) => setValue(value as number)}
-				min={0}
-				max={100}
-				step={1}
-			/>
+			<Slider value={value} onValueChange={(value) => setValue(value as number)} min={0} max={100} step={1} />
 		</div>
 	);
 }
@@ -59,7 +53,7 @@ export function ProgressDemoFileUploadList() {
 				timeRemaining: "Complete",
 			},
 		],
-		[]
+		[],
 	);
 
 	return (
@@ -76,9 +70,7 @@ export function ProgressDemoFileUploadList() {
 						<Progress value={file.progress} className="w-32" />
 					</ItemContent>
 					<ItemActions className="w-16 justify-end">
-						<span className="text-muted-foreground text-sm">
-							{file.timeRemaining}
-						</span>
+						<span className="text-text-subtle text-sm">{file.timeRemaining}</span>
 					</ItemActions>
 				</Item>
 			))}

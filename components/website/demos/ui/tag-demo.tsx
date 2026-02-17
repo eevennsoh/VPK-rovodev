@@ -9,7 +9,7 @@ export default function TagDemo() {
 		<div className="flex flex-wrap items-center gap-2">
 			<Tag>Default</Tag>
 			<Tag color="blue">Blue</Tag>
-			<Tag variant="rounded" color="purple">
+			<Tag variant="rounded" color="discovery">
 				Rounded
 			</Tag>
 			<Tag
@@ -45,6 +45,7 @@ export function TagDemoVariants() {
 			<Tag color="green">Green</Tag>
 			<Tag color="red">Red</Tag>
 			<Tag color="yellow">Yellow</Tag>
+			<Tag color="discovery">Discovery</Tag>
 			<Tag color="purple">Purple</Tag>
 			<Tag color="teal">Teal</Tag>
 			<Tag color="orange">Orange</Tag>
@@ -67,8 +68,8 @@ export function TagDemoRemovableVariants() {
 			<Tag color="blue" onRemove={() => {}}>
 				Blue
 			</Tag>
-			<Tag color="purple" onRemove={() => {}}>
-				Purple
+			<Tag color="discovery" onRemove={() => {}}>
+				Discovery
 			</Tag>
 		</div>
 	);
@@ -97,6 +98,7 @@ export function TagDemoColors() {
 			<Tag color="lime">Lime</Tag>
 			<Tag color="blue">Blue</Tag>
 			<Tag color="red">Red</Tag>
+			<Tag color="discovery">Discovery</Tag>
 			<Tag color="purple">Purple</Tag>
 			<Tag color="magenta">Magenta</Tag>
 			<Tag color="teal">Teal</Tag>

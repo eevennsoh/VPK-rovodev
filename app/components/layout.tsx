@@ -7,9 +7,21 @@ import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, TEMPLATE_COMPONENTS, UT
 import { buildNavItems, UI_GROUPS, BLOCK_GROUPS } from "@/app/data/nav-utils";
 
 const staticPages = [{ name: "Home", href: "/" }];
-const ADS_AI_SLUGS = new Set(["chain-of-thought", "code-block", "conversation", "message", "plan", "prompt-input", "reasoning", "shimmer", "sources", "speech-input", "suggestion", "task"]);
-const ADS_BLOCK_SLUGS = new Set(["agents-team-summary", "top-navigation", "prompt-gallery", "shared-ui", "product-sidebar", "sidebar-rail", "work-items-widget", "question-card", "approval-card"]);
-const blockAdsResolver = (slug: string) => ADS_BLOCK_SLUGS.has(slug) ? "Atlassian Design System" : undefined;
+const ADS_AI_SLUGS = new Set(["chain-of-thought", "code-block", "conversation", "message", "plan", "prompt-input", "queue", "reasoning", "shimmer", "sources", "speech-input", "suggestion", "task"]);
+const ADS_BLOCK_SLUGS = new Set([
+	"agent-grid",
+	"agent-progress",
+	"agent-summary",
+	"top-navigation",
+	"prompt-gallery",
+	"shared-ui",
+	"product-sidebar",
+	"sidebar-rail",
+	"work-item-widget",
+	"question-card",
+	"approval-card",
+]);
+const blockAdsResolver = (slug: string) => (ADS_BLOCK_SLUGS.has(slug) ? "Atlassian Design System" : undefined);
 
 const sections = [
 	{
@@ -24,7 +36,8 @@ const sections = [
 			name: c.name,
 			href: `/components/ui-ai/${c.slug}`,
 			adsPackage: ADS_AI_SLUGS.has(c.slug) ? "Atlassian Design System" : undefined,
-			adsTagVariant: (c.slug === "conversation" || c.slug === "shimmer" || c.slug === "sources" || c.slug === "speech-input" || c.slug === "suggestion" || c.slug === "task") ? "accent-purple" : undefined,
+			adsTagVariant:
+				c.slug === "conversation" || c.slug === "shimmer" || c.slug === "sources" || c.slug === "speech-input" || c.slug === "suggestion" || c.slug === "task" ? "accent-purple" : undefined,
 		})),
 	},
 	{

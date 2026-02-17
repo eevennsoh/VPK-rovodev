@@ -1,7 +1,7 @@
 "use client";
 
-import WorkItemsWidget from "@/components/blocks/work-items-widget/page";
-import type { WorkItemsData } from "@/components/blocks/work-items-widget/lib/types";
+import WorkItemsWidget from "@/components/blocks/work-item-widget/page";
+import type { WorkItemsData } from "@/components/blocks/work-item-widget/lib/types";
 
 const MOCK_DATA: WorkItemsData = {
 	items: [

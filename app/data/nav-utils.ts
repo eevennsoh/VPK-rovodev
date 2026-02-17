@@ -16,10 +16,23 @@ export const UI_GROUPS: Record<string, string[]> = {
 
 export const BLOCK_GROUPS: Record<string, string[]> = {
 	sidebar: [
-		"sidebar-01", "sidebar-02", "sidebar-03", "sidebar-04",
-		"sidebar-05", "sidebar-06", "sidebar-07", "sidebar-08",
-		"sidebar-09", "sidebar-10", "sidebar-11", "sidebar-12",
-		"sidebar-13", "sidebar-14", "sidebar-15", "sidebar-16",
+		"app-sidebar",
+		"sidebar-01",
+		"sidebar-02",
+		"sidebar-03",
+		"sidebar-04",
+		"sidebar-05",
+		"sidebar-06",
+		"sidebar-07",
+		"sidebar-08",
+		"sidebar-09",
+		"sidebar-10",
+		"sidebar-11",
+		"sidebar-12",
+		"sidebar-13",
+		"sidebar-14",
+		"sidebar-15",
+		"sidebar-16",
 	],
 	login: ["login-01", "login-02", "login-03", "login-04", "login-05"],
 	signup: ["signup-01", "signup-02", "signup-03", "signup-04", "signup-05"],
@@ -34,6 +47,7 @@ export function buildNavItems(
 	hrefPrefix: string,
 	groups: Record<string, string[]>,
 	adsResolver?: (slug: string) => string | undefined,
+	adsTagVariantResolver?: (slug: string) => NavItem["adsTagVariant"],
 ): NavItem[] {
 	const childSlugs = new Set<string>();
 	for (const children of Object.values(groups)) {
@@ -42,9 +56,11 @@ export function buildNavItems(
 		}
 	}
 
-	const resolveAds = adsResolver ?? ((slug: string) => {
-		return getAdsDisplayInfo(slug)?.displayText ?? (slug === "switch" ? "Atlassian Design System" : undefined);
-	});
+	const resolveAds =
+		adsResolver ??
+		((slug: string) => {
+			return getAdsDisplayInfo(slug)?.displayText ?? (slug === "switch" ? "Atlassian Design System" : undefined);
+		});
 
 	const componentsBySlug = new Map<string, ComponentLike>();
 	for (const c of components) {
@@ -75,6 +91,7 @@ export function buildNavItems(
 								name: child.name,
 								href: `${hrefPrefix}${child.slug}`,
 								adsPackage: resolveAds(child.slug),
+								adsTagVariant: adsTagVariantResolver?.(child.slug),
 							})),
 					});
 				}
@@ -89,6 +106,7 @@ export function buildNavItems(
 			name: c.name,
 			href: `${hrefPrefix}${c.slug}`,
 			adsPackage: resolveAds(c.slug),
+			adsTagVariant: adsTagVariantResolver?.(c.slug),
 		};
 
 		const childSlugsForParent = groups[c.slug];
@@ -101,6 +119,7 @@ export function buildNavItems(
 					name: child.name,
 					href: `${hrefPrefix}${child.slug}`,
 					adsPackage: resolveAds(child.slug),
+					adsTagVariant: adsTagVariantResolver?.(child.slug),
 				}));
 		}
 

@@ -1,14 +1,19 @@
+"use client";
+
+import { useState, useCallback, useRef } from "react";
 import type { Spec } from "@json-render/react";
 import { RunSummarySection } from "@/app/agents-team/runs/[runId]/run-summary-section";
-import type {
-	AgentRun,
-	AgentRunSummary,
-	AgentRunVisualSummary,
-	AgentRunGenuiSummary,
-} from "@/lib/agents-team-run-types";
+import { Button } from "@/components/ui/button";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
+import type { AgentRun, AgentRunSummary, AgentRunVisualSummary, AgentRunGenuiSummary } from "@/lib/agents-team-run-types";
 import { token } from "@/lib/tokens";
+import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
+import MicrophoneIcon from "@atlaskit/icon/core/microphone";
+import { AgentSummarySidebar } from "./components/agent-summary-sidebar";
+import SummaryTitleRow from "./components/summary-title-row";
 
-const MOCK_RUN_ID = "run_demo_agents_team_summary";
+const MOCK_RUN_ID = "run_demo_agent_summary";
 const MOCK_CREATED_AT = "2026-02-17T15:18:00.000Z";
 const MOCK_COMPLETED_AT = "2026-02-17T15:24:00.000Z";
 
@@ -35,7 +40,7 @@ const MOCK_VISUAL_SUMMARY_HTML = [
 	"<head>",
 	'<meta charset="utf-8" />',
 	'<meta name="viewport" content="width=device-width, initial-scale=1" />',
-	"<title>Agents Team Summary</title>",
+	"<title>Agent Summary</title>",
 	"<style>",
 	"body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f7f8f9; color: #172b4d; }",
 	".page { max-width: 940px; margin: 20px auto; padding: 20px; background: #ffffff; border: 1px solid #dfe1e6; border-radius: 12px; }",
@@ -53,8 +58,8 @@ const MOCK_VISUAL_SUMMARY_HTML = [
 	'<main class="page">',
 	'<div class="hero">',
 	"<div>",
-	"<h1 style=\"margin: 0; font-size: 24px;\">Agents Team Delivery Summary</h1>",
-	"<p style=\"margin: 6px 0 0; color: #44546f;\">Cross-functional execution completed across planning, implementation, and QA.</p>",
+	'<h1 style="margin: 0; font-size: 24px;">Agents Team Delivery Summary</h1>',
+	'<p style="margin: 6px 0 0; color: #44546f;">Cross-functional execution completed across planning, implementation, and QA.</p>',
 	"</div>",
 	'<span class="badge">Completed</span>',
 	"</div>",
@@ -418,66 +423,135 @@ function groupTasksByAgent(run: AgentRun) {
 	return Array.from(groups.values());
 }
 
-export default function AgentsTeamSummaryBlock() {
+function AgentSummaryMainContent({ groupedOutputs }: Readonly<{ groupedOutputs: ReturnType<typeof groupTasksByAgent> }>) {
+	return (
+		<div className="flex flex-col gap-6">
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<p className="text-xs uppercase tracking-wide text-text-subtlest">Run summary</p>
+					<h1 style={{ font: token("font.heading.medium") }} className="mt-1 text-text">
+						{MOCK_RUN.plan.emoji ? `${MOCK_RUN.plan.emoji} ` : ""}
+						{MOCK_RUN.plan.title}
+					</h1>
+					<p className="mt-1 text-sm text-text-subtle">
+						Status: {MOCK_RUN.status} · Started {formatDateTime(MOCK_RUN.createdAt)} · Finished {formatDateTime(MOCK_RUN.completedAt)}
+					</p>
+				</div>
+			</div>
+
+			<RunSummarySection runId={MOCK_RUN_ID} initialRun={MOCK_RUN} initialSummary={MOCK_SUMMARY} initialVisualSummary={MOCK_VISUAL_SUMMARY} initialGenuiSummary={MOCK_GENUI_SUMMARY} />
+
+			<section className="rounded-xl border border-border bg-surface-raised p-5">
+				<h2 className="text-base font-semibold text-text">Agent outputs</h2>
+				<div className="mt-4 flex flex-col gap-4">
+					{groupedOutputs.map((group) => (
+						<div key={group.agentId} className="rounded-lg border border-border bg-surface p-4">
+							<h3 className="text-sm font-semibold text-text">{group.agentName}</h3>
+							<div className="mt-3 flex flex-col gap-3">
+								{group.tasks.map((task) => (
+									<div key={task.id} className="rounded-md border border-border bg-surface-sunken p-3">
+										<div className="flex flex-wrap items-center gap-2 text-xs text-text-subtle">
+											<span className="rounded bg-bg-neutral px-1.5 py-0.5">{task.id}</span>
+											<span>{task.status}</span>
+											<span>Attempts: {task.attempts}</span>
+										</div>
+										<p className="mt-2 text-sm font-medium text-text">{task.label}</p>
+										<pre className="mt-2 whitespace-pre-wrap text-sm text-text-subtle">{task.output || task.error || "No output recorded."}</pre>
+									</div>
+								))}
+							</div>
+						</div>
+					))}
+				</div>
+			</section>
+		</div>
+	);
+}
+
+export default function AgentSummaryBlock() {
+	const [isOpen, setIsOpen] = useState(true);
+	const [isHovered, setIsHovered] = useState(false);
+	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const groupedOutputs = groupTasksByAgent(MOCK_RUN);
 
+	const handleHoverEnter = useCallback(() => {
+		if (hoverTimeoutRef.current) {
+			clearTimeout(hoverTimeoutRef.current);
+			hoverTimeoutRef.current = null;
+		}
+		setIsHovered(true);
+	}, []);
+
+	const handleHoverLeave = useCallback(() => {
+		hoverTimeoutRef.current = setTimeout(() => {
+			setIsHovered(false);
+		}, 100);
+	}, []);
+
+	const handlePinSidebar = useCallback(() => {
+		setIsOpen(true);
+		setIsHovered(false);
+	}, []);
+
 	return (
-		<div className="bg-surface">
-			<div className="mx-auto flex min-h-svh w-full max-w-[1040px] flex-col gap-6 px-4 py-8 md:px-6">
-				<div className="flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<p className="text-xs uppercase tracking-wide text-text-subtlest">Run summary</p>
-						<h1
-							style={{ font: token("font.heading.medium") }}
-							className="mt-1 text-text"
-						>
-							{MOCK_RUN.plan.emoji ? `${MOCK_RUN.plan.emoji} ` : ""}
-							{MOCK_RUN.plan.title}
-						</h1>
-						<p className="mt-1 text-sm text-text-subtle">
-							Status: {MOCK_RUN.status} · Started {formatDateTime(MOCK_RUN.createdAt)} · Finished{" "}
-							{formatDateTime(MOCK_RUN.completedAt)}
-						</p>
-					</div>
-				</div>
-
-				<RunSummarySection
-					runId={MOCK_RUN_ID}
-					initialRun={MOCK_RUN}
-					initialSummary={MOCK_SUMMARY}
-					initialVisualSummary={MOCK_VISUAL_SUMMARY}
-					initialGenuiSummary={MOCK_GENUI_SUMMARY}
-				/>
-
-				<section className="rounded-xl border border-border bg-surface-raised p-5">
-					<h2 className="text-base font-semibold text-text">Agent outputs</h2>
-					<div className="mt-4 flex flex-col gap-4">
-						{groupedOutputs.map((group) => (
-							<div key={group.agentId} className="rounded-lg border border-border bg-surface p-4">
-								<h3 className="text-sm font-semibold text-text">{group.agentName}</h3>
-								<div className="mt-3 flex flex-col gap-3">
-									{group.tasks.map((task) => (
-										<div
-											key={task.id}
-											className="rounded-md border border-border bg-surface-sunken p-3"
-										>
-											<div className="flex flex-wrap items-center gap-2 text-xs text-text-subtle">
-												<span className="rounded bg-bg-neutral px-1.5 py-0.5">{task.id}</span>
-												<span>{task.status}</span>
-												<span>Attempts: {task.attempts}</span>
-											</div>
-											<p className="mt-2 text-sm font-medium text-text">{task.label}</p>
-											<pre className="mt-2 whitespace-pre-wrap text-sm text-text-subtle">
-												{task.output || task.error || "No output recorded."}
-											</pre>
-										</div>
-									))}
+		<SidebarProvider
+			open={isOpen || isHovered}
+			onOpenChange={setIsOpen}
+			style={
+				{
+					"--sidebar-width": "320px",
+				} as React.CSSProperties
+			}
+			className={cn("[&_[data-slot=sidebar-gap]]:ease-[var(--ease-in-out)] [&_[data-slot=sidebar-container]]:ease-[var(--ease-in-out)]", !isOpen && isHovered && "[&_[data-slot=sidebar-gap]]:w-0!")}
+		>
+			<AgentSummarySidebar isOverlay={!isOpen && isHovered} onPinSidebar={handlePinSidebar} onMouseEnter={handleHoverEnter} onMouseLeave={handleHoverLeave} />
+			<SidebarInset className="h-svh overflow-hidden">
+				<div className="flex h-full min-h-0 flex-col">
+					<SummaryTitleRow
+						title="A longer name name name name name"
+						subtitle="URL of this summary"
+						onNewChat={() => {}}
+						sidebarOpen={isOpen}
+						sidebarHovered={isHovered}
+						onExpandSidebar={() => setIsOpen(true)}
+						onHoverEnter={handleHoverEnter}
+						onHoverLeave={handleHoverLeave}
+					/>
+					<main className="relative min-h-0 flex-1 overflow-y-auto bg-surface-sunken">
+						<div className="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-3 pb-28 pt-6 md:px-4">
+							<div className="flex justify-center">
+								<div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1">
+									<button type="button" className="rounded-md border border-border bg-bg-neutral px-3 py-1 text-sm text-text">
+										Summary
+									</button>
+									<button type="button" className="rounded-md px-3 py-1 text-sm text-text-subtle">
+										Files
+									</button>
 								</div>
 							</div>
-						))}
-					</div>
-				</section>
-			</div>
-		</div>
+
+							<AgentSummaryMainContent groupedOutputs={groupedOutputs} />
+						</div>
+
+						<div className="sticky bottom-0 border-t border-transparent bg-gradient-to-t from-surface-sunken via-surface-sunken to-transparent px-3 pb-4 pt-6 md:px-4">
+							<div
+								className="mx-auto flex w-full max-w-[860px] items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3"
+								style={{ boxShadow: token("elevation.shadow.overlay") }}
+							>
+								<p className="text-sm text-text-subtlest">Ask, @mention, or / for actions</p>
+								<div className="flex items-center gap-1">
+									<Button aria-label="Voice input" variant="ghost" size="icon-sm">
+										<MicrophoneIcon label="" size="small" />
+									</Button>
+									<Button aria-label="Send" variant="outline" size="icon-sm" disabled>
+										<ArrowUpIcon label="" size="small" />
+									</Button>
+								</div>
+							</div>
+						</div>
+					</main>
+				</div>
+			</SidebarInset>
+		</SidebarProvider>
 	);
 }

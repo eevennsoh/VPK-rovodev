@@ -1,27 +1,49 @@
-"use client"
+"use client";
 
-import { Progress as ProgressPrimitive } from "@base-ui/react/progress"
+import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
-type ProgressVariant = "default" | "success" | "inverse"
+const progressIndicatorVariants = cva("h-full rounded-full transition-all", {
+	variants: {
+		variant: {
+			default: "bg-primary",
+			success: "bg-success",
+			inverse: "bg-foreground",
+		},
+	},
+	defaultVariants: {
+		variant: "default",
+	},
+});
 
-export interface ProgressProps extends ProgressPrimitive.Root.Props {
-	variant?: ProgressVariant
-	isIndeterminate?: boolean
+const progressTrackVariants = cva("relative flex h-1.5 w-full items-center overflow-x-hidden rounded-full", {
+	variants: {
+		variant: {
+			default: "bg-bg-neutral",
+			success: "bg-bg-neutral",
+			inverse: "bg-bg-neutral",
+			transparent: "bg-transparent",
+		},
+	},
+	defaultVariants: {
+		variant: "default",
+	},
+});
+
+type ProgressVariant = "default" | "success" | "inverse" | "transparent";
+
+export interface ProgressProps extends Omit<ProgressPrimitive.Root.Props, "value"> {
+	value?: number | null;
+	variant?: ProgressVariant;
+	isIndeterminate?: boolean;
 }
 
-function Progress({
-	className,
-	children,
-	value,
-	variant = "default",
-	isIndeterminate = false,
-	...props
-}: Readonly<ProgressProps>) {
+function Progress({ className, children, value, variant = "default", isIndeterminate = false, ...props }: Readonly<ProgressProps>) {
 	return (
 		<ProgressPrimitive.Root
-			value={isIndeterminate ? null : value ?? null}
+			value={isIndeterminate ? null : (value ?? null)}
 			data-slot="progress"
 			data-variant={variant}
 			data-indeterminate={isIndeterminate}
@@ -29,70 +51,39 @@ function Progress({
 			{...props}
 		>
 			{children}
-			<ProgressTrack>
-				<ProgressIndicator />
+			<ProgressTrack variant={variant}>
+				<ProgressIndicator variant={variant === "transparent" ? "default" : variant} />
 			</ProgressTrack>
 		</ProgressPrimitive.Root>
-	)
+	);
 }
 
-function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
-	return (
-		<ProgressPrimitive.Track
-			className={cn(
-				"bg-muted h-1 rounded-full relative flex w-full items-center overflow-x-hidden",
-				className
-			)}
-			data-slot="progress-track"
-			{...props}
-		/>
-	)
+interface ProgressTrackProps extends ProgressPrimitive.Track.Props {
+	variant?: ProgressVariant;
 }
 
-function ProgressIndicator({
-	className,
-	...props
-}: ProgressPrimitive.Indicator.Props) {
+function ProgressTrack({ className, variant = "default", ...props }: Readonly<ProgressTrackProps>) {
+	return <ProgressPrimitive.Track className={cn(progressTrackVariants({ variant }), className)} data-slot="progress-track" {...props} />;
+}
+
+interface ProgressIndicatorProps extends ProgressPrimitive.Indicator.Props, VariantProps<typeof progressIndicatorVariants> {}
+
+function ProgressIndicator({ className, variant = "default", ...props }: Readonly<ProgressIndicatorProps>) {
 	return (
 		<ProgressPrimitive.Indicator
 			data-slot="progress-indicator"
-			className={cn(
-				"h-full transition-all",
-				"group-data-[variant=default]/progress:bg-primary",
-				"group-data-[variant=success]/progress:bg-success",
-				"group-data-[variant=inverse]/progress:bg-foreground",
-				"group-data-[indeterminate=true]/progress:animate-pulse",
-				className
-			)}
+			className={cn(progressIndicatorVariants({ variant }), "group-data-[indeterminate=true]/progress:animate-pulse", className)}
 			{...props}
 		/>
-	)
+	);
 }
 
 function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
-	return (
-		<ProgressPrimitive.Label
-			className={cn("text-sm font-medium", className)}
-			data-slot="progress-label"
-			{...props}
-		/>
-	)
+	return <ProgressPrimitive.Label className={cn("text-sm font-medium text-text", className)} data-slot="progress-label" {...props} />;
 }
 
 function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
-	return (
-		<ProgressPrimitive.Value
-			className={cn("text-muted-foreground ml-auto text-sm tabular-nums", className)}
-			data-slot="progress-value"
-			{...props}
-		/>
-	)
+	return <ProgressPrimitive.Value className={cn("ml-auto text-sm tabular-nums text-text-subtle", className)} data-slot="progress-value" {...props} />;
 }
 
-export {
-	Progress,
-	ProgressTrack,
-	ProgressIndicator,
-	ProgressLabel,
-	ProgressValue,
-}
+export { Progress, ProgressTrack, ProgressIndicator, ProgressLabel, ProgressValue, progressIndicatorVariants, progressTrackVariants, type ProgressTrackProps, type ProgressIndicatorProps };

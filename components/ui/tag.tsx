@@ -1,13 +1,13 @@
-import * as React from "react"
+import * as React from "react";
 
-import CrossIcon from "@atlaskit/icon/core/cross"
-import StatusVerifiedIcon from "@atlaskit/icon/core/status-verified"
+import CrossIcon from "@atlaskit/icon/core/cross";
+import StatusVerifiedIcon from "@atlaskit/icon/core/status-verified";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
-type LegacyTagVariant = "success" | "removed" | "inprogress" | "new" | "moved"
+type LegacyTagVariant = "success" | "removed" | "inprogress" | "new" | "moved";
 
-type TagVariant = "default" | "rounded" | LegacyTagVariant
+type TagVariant = "default" | "rounded" | LegacyTagVariant;
 
 type TagColor =
 	| "standard"
@@ -18,6 +18,7 @@ type TagColor =
 	| "red"
 	| "yellow"
 	| "purple"
+	| "discovery"
 	| "lime"
 	| "magenta"
 	| "orange"
@@ -32,11 +33,11 @@ type TagColor =
 	| "limeLight"
 	| "magentaLight"
 	| "orangeLight"
-	| "tealLight"
+	| "tealLight";
 
-type ResolvedTagColor = "gray" | "blue" | "green" | "red" | "yellow" | "purple" | "lime" | "magenta" | "orange" | "teal"
+type ResolvedTagColor = "gray" | "blue" | "green" | "red" | "yellow" | "purple" | "discovery" | "lime" | "magenta" | "orange" | "teal";
 
-type TagType = "default" | "user" | "other" | "agent"
+type TagType = "default" | "user" | "other" | "agent";
 
 const legacyVariantToColor: Record<TagVariant, TagColor> = {
 	default: "standard",
@@ -46,7 +47,7 @@ const legacyVariantToColor: Record<TagVariant, TagColor> = {
 	inprogress: "blue",
 	new: "purple",
 	moved: "yellow",
-}
+};
 
 const colorAliases: Record<TagColor, ResolvedTagColor> = {
 	standard: "gray",
@@ -63,6 +64,7 @@ const colorAliases: Record<TagColor, ResolvedTagColor> = {
 	yellow: "yellow",
 	yellowLight: "yellow",
 	purple: "purple",
+	discovery: "discovery",
 	purpleLight: "purple",
 	lime: "lime",
 	limeLight: "lime",
@@ -72,7 +74,7 @@ const colorAliases: Record<TagColor, ResolvedTagColor> = {
 	orangeLight: "orange",
 	teal: "teal",
 	tealLight: "teal",
-}
+};
 
 const tagColorClasses: Record<ResolvedTagColor, { border: string; icon: string }> = {
 	gray: { border: "border-neutral-500", icon: "text-neutral-500" },
@@ -81,24 +83,25 @@ const tagColorClasses: Record<ResolvedTagColor, { border: string; icon: string }
 	red: { border: "border-red-500", icon: "text-red-600" },
 	yellow: { border: "border-yellow-400", icon: "text-yellow-400" },
 	purple: { border: "border-purple-500", icon: "text-purple-500" },
+	discovery: { border: "border-border-discovery", icon: "text-icon-discovery" },
 	lime: { border: "border-lime-400", icon: "text-lime-400" },
 	magenta: { border: "border-pink-500", icon: "text-pink-500" },
 	orange: { border: "border-orange-400", icon: "text-orange-400" },
 	teal: { border: "border-teal-400", icon: "text-teal-400" },
-}
+};
 
 interface TagProps extends Omit<React.ComponentProps<"span">, "color"> {
-	children: React.ReactNode
-	variant?: TagVariant
-	color?: TagColor
-	shape?: "default" | "rounded"
-	type?: TagType
-	disabled?: boolean
-	onRemove?: () => void
-	removeButtonLabel?: string
-	elemBefore?: React.ReactNode
-	isVerified?: boolean
-	maxWidth?: React.CSSProperties["maxWidth"]
+	children: React.ReactNode;
+	variant?: TagVariant;
+	color?: TagColor;
+	shape?: "default" | "rounded";
+	type?: TagType;
+	disabled?: boolean;
+	onRemove?: () => void;
+	removeButtonLabel?: string;
+	elemBefore?: React.ReactNode;
+	isVerified?: boolean;
+	maxWidth?: React.CSSProperties["maxWidth"];
 }
 
 function Tag({
@@ -118,21 +121,21 @@ function Tag({
 	onClick,
 	...props
 }: Readonly<TagProps>) {
-	const resolvedColor = colorAliases[color ?? legacyVariantToColor[variant]]
-	const colorClasses = tagColorClasses[resolvedColor]
-	const hasAvatarTagStyles = type !== "default" && Boolean(elemBefore)
-	const isUserAvatarTag = hasAvatarTagStyles && type === "user"
-	const isOtherAvatarTag = hasAvatarTagStyles && type === "other"
-	const isAgentAvatarTag = hasAvatarTagStyles && type === "agent"
-	const isRounded = shape === "rounded" || variant === "rounded"
-	const isInteractive = Boolean(onClick)
-	const shouldShowVerifiedIcon = isOtherAvatarTag && isVerified
-	const removeButtonShapeClass = isUserAvatarTag ? "rounded-full" : "rounded-xs"
-	const removeButtonMarginClass = hasAvatarTagStyles ? "mr-[-2px]" : "-mx-0.5"
+	const resolvedColor = colorAliases[color ?? legacyVariantToColor[variant]];
+	const colorClasses = tagColorClasses[resolvedColor];
+	const hasAvatarTagStyles = type !== "default" && Boolean(elemBefore);
+	const isUserAvatarTag = hasAvatarTagStyles && type === "user";
+	const isOtherAvatarTag = hasAvatarTagStyles && type === "other";
+	const isAgentAvatarTag = hasAvatarTagStyles && type === "agent";
+	const isRounded = shape === "rounded" || variant === "rounded";
+	const isInteractive = Boolean(onClick);
+	const shouldShowVerifiedIcon = isOtherAvatarTag && isVerified;
+	const removeButtonShapeClass = isUserAvatarTag ? "rounded-full" : "rounded-xs";
+	const removeButtonMarginClass = hasAvatarTagStyles ? "mr-[-2px]" : "-mx-0.5";
 
-	const childText = typeof children === "string" || typeof children === "number" ? String(children) : undefined
-	const resolvedRemoveButtonLabel = childText ? `${removeButtonLabel} ${childText}` : removeButtonLabel
-	const resolvedStyle = maxWidth !== undefined ? { ...style, maxWidth } : style
+	const childText = typeof children === "string" || typeof children === "number" ? String(children) : undefined;
+	const resolvedRemoveButtonLabel = childText ? `${removeButtonLabel} ${childText}` : removeButtonLabel;
+	const resolvedStyle = maxWidth !== undefined ? { ...style, maxWidth } : style;
 
 	return (
 		<span
@@ -144,16 +147,11 @@ function Tag({
 				"focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3 focus-visible:outline-none",
 				colorClasses.border,
 				hasAvatarTagStyles
-					? cn(
-							"h-6 gap-1 py-0 ps-0.5",
-							isUserAvatarTag && "rounded-full pe-1.5",
-							isOtherAvatarTag && "rounded-sm pe-1",
-							isAgentAvatarTag && "rounded-r-sm rounded-l-none pe-1"
-						)
+					? cn("h-6 gap-1 py-0 ps-0.5", isUserAvatarTag && "rounded-full pe-1.5", isOtherAvatarTag && "rounded-sm pe-1", isAgentAvatarTag && "rounded-sm pe-1")
 					: cn("h-5 gap-1 px-[3px] py-0.5", isRounded ? "rounded-full" : "rounded-sm"),
 				isInteractive ? "cursor-pointer hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed" : "cursor-default",
 				disabled && "pointer-events-none opacity-(--opacity-disabled)",
-				className
+				className,
 			)}
 			data-slot="tag"
 			data-type={type}
@@ -163,11 +161,7 @@ function Tag({
 				<span
 					className={cn(
 						"flex shrink-0 items-center justify-center",
-						hasAvatarTagStyles
-							? cn(
-									"size-5 overflow-hidden border border-transparent -ml-px [&>*]:size-full"
-								)
-							: cn(colorClasses.icon, "[&>svg]:size-3")
+						hasAvatarTagStyles ? cn("size-5 overflow-hidden border border-transparent -ml-px [&>*]:size-full") : cn(colorClasses.icon, "[&>svg]:size-3"),
 					)}
 					data-slot="tag-before"
 				>
@@ -189,13 +183,13 @@ function Tag({
 						aria-label={resolvedRemoveButtonLabel}
 						disabled={disabled}
 						onClick={(event) => {
-							event.stopPropagation()
-							onRemove()
+							event.stopPropagation();
+							onRemove();
 						}}
 						className={cn(
 							"inline-flex size-4 shrink-0 items-center justify-center border-0 bg-bg-neutral-subtle text-text transition-colors hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3 focus-visible:outline-none disabled:pointer-events-none",
 							removeButtonShapeClass,
-							removeButtonMarginClass
+							removeButtonMarginClass,
 						)}
 					>
 						<CrossIcon label="" size="small" color="currentColor" />
@@ -203,13 +197,13 @@ function Tag({
 				</span>
 			) : null}
 		</span>
-	)
+	);
 }
 
-type TagGroupProps = React.ComponentProps<"div">
+type TagGroupProps = React.ComponentProps<"div">;
 
 function TagGroup({ className, ...props }: Readonly<TagGroupProps>) {
-	return <div data-slot="tag-group" className={cn("flex flex-wrap gap-2", className)} {...props} />
+	return <div data-slot="tag-group" className={cn("flex flex-wrap gap-2", className)} {...props} />;
 }
 
-export { Tag, TagGroup, type TagProps, type TagGroupProps, type TagVariant, type TagColor, type TagType }
+export { Tag, TagGroup, type TagProps, type TagGroupProps, type TagVariant, type TagColor, type TagType };

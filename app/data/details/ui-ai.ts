@@ -647,27 +647,45 @@ import {
 
 	plan: {
 		description:
-			"A collapsible plan/outline card component with shimmer loading effects for streamed content. Organizes steps or plan details in an expandable Card container.",
+			"A collapsible plan/outline card component with shimmer loading effects for streamed content. Includes composable sub-components for avatars, agent bars, numbered task lists with overflow handling, and animated task items.",
 		usage: `import {
   Plan,
   PlanHeader,
+  PlanAvatar,
   PlanTitle,
   PlanDescription,
+  PlanAction,
+  PlanChevronTrigger,
   PlanContent,
-  PlanTrigger,
+  PlanAgentBar,
+  PlanTaskList,
+  PlanTaskItem,
+  type PlanTask,
 } from "@/components/ui-ai/plan";
 
-<Plan>
-  <PlanHeader>
-    <PlanTitle>Implementation plan</PlanTitle>
-    <PlanDescription>Steps to complete the feature</PlanDescription>
-    <PlanTrigger />
+<Plan open={isOpen} onOpenChange={setIsOpen}>
+  <PlanHeader className="items-center px-4 pt-4">
+    <div className="flex min-w-0 items-center gap-3">
+      <PlanAvatar emoji="✌️" />
+      <div className="min-w-0">
+        <PlanTitle className="truncate text-sm leading-5 font-semibold text-text">
+          Implementation plan
+        </PlanTitle>
+        <PlanDescription className="text-xs leading-4 text-text-subtlest">
+          4 tasks
+        </PlanDescription>
+      </div>
+    </div>
+    <PlanAction className="self-center">
+      <PlanChevronTrigger isOpen={isOpen} onClick={() => setIsOpen(prev => !prev)} />
+    </PlanAction>
   </PlanHeader>
-  <PlanContent>
-    <ol>
-      <li>Set up the database schema</li>
-      <li>Implement the API endpoints</li>
-    </ol>
+  <PlanContent className="px-3 pb-4">
+    <PlanAgentBar agents={["Strategist", "Copywriter"]} className="mb-2" />
+    <PlanTaskList>
+      <PlanTaskItem index={1} label="Set up the database schema" agent="Strategist" />
+      <PlanTaskItem index={2} label="Implement the API endpoints" blockedByLabels={["Task 1"]} agent="Copywriter" />
+    </PlanTaskList>
   </PlanContent>
 </Plan>`,
 		props: [
@@ -685,10 +703,16 @@ import {
 		],
 		subComponents: [
 			{ name: "PlanHeader", description: "Top section of the plan card." },
+			{ name: "PlanAvatar", description: "Emoji avatar in a circular badge. Accepts `emoji` prop (default \"✌️\")." },
 			{ name: "PlanTitle", description: "Title text with shimmer support." },
 			{ name: "PlanDescription", description: "Description text with shimmer support." },
+			{ name: "PlanAction", description: "Action slot in the header (e.g. for triggers)." },
+			{ name: "PlanChevronTrigger", description: "Chevron toggle button with rotation animation. Accepts `isOpen` prop." },
 			{ name: "PlanContent", description: "Collapsible content area." },
-			{ name: "PlanTrigger", description: "Toggle button for expand/collapse." },
+			{ name: "PlanAgentBar", description: "Agent count row with people icon. Accepts `agents` string array." },
+			{ name: "PlanTaskList", description: "Ordered list with overflow detection and \"Show more\" button." },
+			{ name: "PlanTaskItem", description: "Animated numbered task row with optional `blockedByLabels` and `agent` badge." },
+			{ name: "PlanTrigger", description: "Legacy toggle button for expand/collapse (ChevronsUpDown icon)." },
 			{ name: "PlanFooter", description: "Bottom section for actions." },
 		],
 	},
@@ -863,6 +887,7 @@ import AddIcon from "@atlaskit/icon/core/add";
 			{ name: "QueueItemImage", description: "Small thumbnail image (32x32) with rounded border." },
 		],
 		examples: [
+			{ title: "Prompt queue", description: "Chat-style prompt queue with removable items, as used in agent team composers.", demoSlug: "queue-demo-prompt-queue" },
 			{ title: "With actions", description: "Items with hover-revealed edit, copy, and delete action buttons.", demoSlug: "queue-demo-with-actions" },
 			{ title: "With attachments", description: "Items with file attachment badges.", demoSlug: "queue-demo-with-attachments" },
 			{ title: "Minimal", description: "Simple flat list without collapsible sections.", demoSlug: "queue-demo-minimal" },

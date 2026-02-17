@@ -4,4 +4,5 @@ export {
 	ProgressLabel as ProgressBarLabel,
 	ProgressTrack as ProgressBarTrack,
 	ProgressValue as ProgressBarValue,
-} from "@/components/ui/progress"
+	type ProgressProps as ProgressBarProps,
+} from "@/components/ui/progress";

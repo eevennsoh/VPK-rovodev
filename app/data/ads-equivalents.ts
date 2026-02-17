@@ -43,7 +43,7 @@ export const ADS_EQUIVALENTS: Record<string, AdsEquivalent> = {
 	pagination: "@atlaskit/pagination",
 	popover: "@atlaskit/popup",
 	popup: "@atlaskit/popup",
-	"progress-bar": "@atlaskit/progress-bar",
+	progress: "@atlaskit/progress-bar",
 	"progress-indicator": "@atlaskit/progress-indicator",
 	"progress-tracker": "@atlaskit/progress-tracker",
 	radio: "@atlaskit/radio",
