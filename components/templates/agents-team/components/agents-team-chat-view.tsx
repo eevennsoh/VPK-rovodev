@@ -36,7 +36,6 @@ import { useDismissibleCards } from "../hooks/use-dismissible-cards";
 
 const CHAT_COMPOSER_BASE_BOTTOM_PADDING = "128px";
 const CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING = "320px";
-const AWAITING_INDICATOR_BOTTOM_PADDING = "112px";
 const OVERLAY_CARD_BOTTOM_PADDING = "520px";
 
 interface AgentsTeamChatViewProps {
@@ -59,6 +58,7 @@ interface AgentsTeamChatViewProps {
 	onClarificationSubmit: (answers: ClarificationAnswers) => void;
 	onApprovalSubmit: (selection: PlanApprovalSelection) => void;
 	onSuggestedQuestionClick: (question: string) => Promise<void> | void;
+	onRetryPlanWidget?: () => void;
 	onDeleteMessage?: (messageId: string) => void;
 }
 
@@ -82,6 +82,7 @@ export default function AgentsTeamChatView({
 	onClarificationSubmit,
 	onApprovalSubmit,
 	onSuggestedQuestionClick,
+	onRetryPlanWidget,
 	onDeleteMessage,
 }: Readonly<AgentsTeamChatViewProps>) {
 	const { conversationContextRef, scrollSpacerRef } = useScrollAnchoring({
@@ -105,24 +106,23 @@ export default function AgentsTeamChatView({
 					: "Processing your request";
 
 	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isWidgetLoading && !isStreaming;
-	const gatedShouldShowApprovalCard = shouldShowApprovalCard && isPlanResponseComplete;
+	const gatedShouldShowApprovalCard = shouldShowApprovalCard && isPlanResponseComplete && !isStreaming;
 	const hasPendingResponseCard = gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
-	const shouldCollapsePendingCard = hasPendingResponseCard && showScrollButton;
-	const showQuestionCardOverlay = gatedShouldShowQuestionCard && !shouldCollapsePendingCard;
-	const showApprovalCardOverlay = gatedShouldShowApprovalCard && !shouldCollapsePendingCard;
+	const showQuestionCardOverlay = gatedShouldShowQuestionCard;
+	const showApprovalCardOverlay = gatedShouldShowApprovalCard;
 	const showBottomOverlayCard = showQuestionCardOverlay || showApprovalCardOverlay;
 	const isAwaitingUserInput = hasPendingResponseCard;
 	const chatComposerBottomPadding = queuedPrompts.length > 0 ? CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING : CHAT_COMPOSER_BASE_BOTTOM_PADDING;
-	const contentBottomPadding = showBottomOverlayCard ? OVERLAY_CARD_BOTTOM_PADDING : hasPendingResponseCard ? AWAITING_INDICATOR_BOTTOM_PADDING : chatComposerBottomPadding;
+	const contentBottomPadding = showBottomOverlayCard ? OVERLAY_CARD_BOTTOM_PADDING : chatComposerBottomPadding;
 	const shouldShowBottomGradient = showBottomOverlayCard || !hasPendingResponseCard;
 
 	useEffect(() => {
-		if (!showBottomOverlayCard || showScrollButton) return;
+		if (!showBottomOverlayCard) return;
 		void conversationContextRef.current?.scrollToBottom({
 			animation: "instant",
 			ignoreEscapes: true,
 		});
-	}, [conversationContextRef, showBottomOverlayCard, showScrollButton]);
+	}, [conversationContextRef, showBottomOverlayCard]);
 
 	return (
 		<div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -140,13 +140,18 @@ export default function AgentsTeamChatView({
 						contentBottomPadding={contentBottomPadding}
 						isStreaming={isStreaming}
 						streamingIndicatorVariant="reasoning-expanded"
-						thinkingLabel="Reasoning"
+						thinkingLabel="Thinking"
 						showFeedbackActions={false}
 						showFollowUpSuggestions={!isAwaitingUserInput}
 						showAwaitingIndicator={isAwaitingUserInput || isWidgetLoading}
 						awaitingIndicatorLabel={
 							isWidgetLoading ? widgetLoadingLabel : gatedShouldShowQuestionCard ? "Waiting for your answers" : gatedShouldShowApprovalCard ? "Waiting for your approval" : "Processing your request"
 						}
+						onRetryWidget={(widgetType) => {
+							if (widgetType === "plan") {
+								onRetryPlanWidget?.();
+							}
+						}}
 						renderWidget={(widget, message) => {
 							if (widget.type !== "plan") return null;
 
@@ -333,6 +338,23 @@ function BottomOverlayContent({
 	) : null;
 }
 
+function stripTaskMarkdownDecorators(label: string): string {
+	return label
+		.replace(/\*\*([^*\n]+)\*\*/g, "$1")
+		.replace(/__([^_\n]+)__/g, "$1")
+		.replace(/^[*_`\s]+/, "")
+		.replace(/[\s*_`]+$/, "")
+		.trim();
+}
+
+function extractTaskHeading(label: string): string {
+	const normalizedLabel = stripTaskMarkdownDecorators(label);
+	const emDashIndex = normalizedLabel.indexOf("\u2014"); // em-dash "—"
+	if (emDashIndex === -1) return normalizedLabel;
+	const heading = stripTaskMarkdownDecorators(normalizedLabel.slice(0, emDashIndex));
+	return heading.length > 0 ? heading : normalizedLabel;
+}
+
 function resolveBlockedByLabels(task: PlanTask, allTasks: PlanTask[]): string[] {
 	return task.blockedBy
 		.map((blockedById) => {
@@ -394,7 +416,7 @@ function PlanCardWidgetInline({ title, tasks, agents = [], description, emoji = 
 
 				<PlanTaskList>
 					{visibleTasks.slice(0, revealedCount).map((task, index) => (
-						<PlanTaskItem key={task.id} index={index + 1} label={task.label} blockedByLabels={resolveBlockedByLabels(task, tasks)} agent={task.agent} />
+						<PlanTaskItem key={task.id} index={index + 1} label={extractTaskHeading(task.label)} blockedByLabels={resolveBlockedByLabels(task, tasks)} agent={task.agent} />
 					))}
 				</PlanTaskList>
 			</PlanContent>

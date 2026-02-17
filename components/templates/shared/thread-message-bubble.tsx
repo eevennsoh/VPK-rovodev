@@ -2,8 +2,10 @@
 
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
 	getAllDataParts,
+	hasCreatePlanSkillSignal,
 	getLatestDataPart,
 	getMessageReasoning,
 	getMessageSources,
@@ -23,6 +25,7 @@ import {
 	MessageResponse,
 } from "@/components/ui-ai/message";
 import {
+	extractPlanRenderableText,
 	removeActionItemsSection,
 	removeLeadingSingleCharacterFragment,
 	removeTrailingSingleCharacterLine,
@@ -50,6 +53,7 @@ interface ThreadMessageBubbleProps {
 		widget: { type: string; data: unknown },
 		message: RovoRenderableUIMessage
 	) => ReactNode;
+	onRetryWidget?: (widgetType: string) => void;
 }
 
 export function ThreadMessageBubble({
@@ -65,6 +69,7 @@ export function ThreadMessageBubble({
 	showWidgetSections,
 	renderLoadingWidget,
 	renderWidget,
+	onRetryWidget,
 }: Readonly<ThreadMessageBubbleProps>): ReactNode {
 	const rawMessageText = getMessageText(message);
 
@@ -74,19 +79,34 @@ export function ThreadMessageBubble({
 
 	const widgetLoadingPart = getLatestDataPart(message, "data-widget-loading");
 	const widgetDataPart = getLatestDataPart(message, "data-widget-data");
+	const widgetErrorPart = getLatestDataPart(message, "data-widget-error");
 	const suggestedQuestionsPart = getLatestDataPart(message, "data-suggested-questions");
 	const thinkingStatusPart = getLatestDataPart(message, "data-thinking-status");
 	const isStreaming = isMessageTextStreaming(message);
-	const widgetType = widgetDataPart?.data.type ?? widgetLoadingPart?.data.type;
+	const widgetType =
+		widgetDataPart?.data.type ??
+		widgetLoadingPart?.data.type ??
+		widgetErrorPart?.data.type;
 	const isWidgetLoading = widgetLoadingPart?.data.loading ?? false;
 	const normalizedWidgetText = widgetType
 		? removeLeadingSingleCharacterFragment(rawMessageText)
 		: rawMessageText;
+	const isCreatePlanSkillFlow = hasCreatePlanSkillSignal(message);
+	const isPlanWidgetFlow =
+		widgetType === "plan" ||
+		widgetLoadingPart?.data.type === "plan" ||
+		widgetErrorPart?.data.type === "plan";
+	const planRenderableText =
+		widgetType === "plan" && isCreatePlanSkillFlow
+			? extractPlanRenderableText(normalizedWidgetText, { maxSummaryLines: 2 })
+			: null;
 	const messageText =
 		widgetType === "question-card"
 			? removeTrailingSingleCharacterLine(normalizedWidgetText)
 			: widgetType === "plan"
-				? removeActionItemsSection(normalizedWidgetText)
+				? isCreatePlanSkillFlow
+					? planRenderableText?.text ?? ""
+					: removeActionItemsSection(normalizedWidgetText)
 			: normalizedWidgetText;
 	const suggestedQuestions = suggestedQuestionsPart?.data.questions ?? [];
 	const reasoning = getMessageReasoning(message);
@@ -99,10 +119,22 @@ export function ThreadMessageBubble({
 	const shouldShowFollowUpSuggestions = showFollowUpSuggestions ?? surface === "fullscreen";
 	const shouldRenderPlainTextWhileStreaming =
 		isStreaming && assistantStreamingRenderMode === "text-first";
+	const shouldSuppressStreamingText =
+		shouldShowWidgetSections &&
+		isStreaming &&
+		Boolean(isPlanWidgetFlow) &&
+		isCreatePlanSkillFlow &&
+		assistantStreamingRenderMode !== "text-first";
 	const isRetryThinkingStatus = thinkingStatusPart?.data.label?.includes("Retrying") ?? false;
 	const showThinkingStatus = showThinkingStatusSection && Boolean(thinkingStatusPart) && (!isStreaming || Boolean(messageText)) && !(isRetryThinkingStatus && !isStreaming);
+	const shouldShowWidgetError =
+		shouldShowWidgetSections && Boolean(widgetErrorPart) && !isWidgetLoading;
 	const renderedWidget =
-		shouldShowWidgetSections && widgetDataPart && !isWidgetLoading
+		shouldShowWidgetSections &&
+		widgetDataPart &&
+		!isWidgetLoading &&
+		!shouldShowWidgetError &&
+		(widgetType !== "plan" || !isStreaming)
 			? renderWidget?.(
 					{
 						type: widgetType ?? "widget",
@@ -112,9 +144,12 @@ export function ThreadMessageBubble({
 				)
 			: null;
 	const shouldRenderPlanWidgetFirst = widgetType === "plan";
-	const hasRenderedWidget = Boolean(renderedWidget);
+	const hasRenderedWidget = Boolean(renderedWidget) || shouldShowWidgetError;
 	const shouldSuppressTextForWidget =
-		(widgetType === "plan" && (isStreaming || isWidgetLoading)) ||
+		shouldSuppressStreamingText ||
+		(widgetType === "plan" &&
+			isCreatePlanSkillFlow &&
+			(isWidgetLoading || shouldShowWidgetError)) ||
 		(shouldShowWidgetSections && widgetType === "question-card" && !isStreaming);
 	const shouldRenderMessageText = Boolean(messageText) && !shouldSuppressTextForWidget;
 	const showFeedback = shouldShowFeedbackActions && !isStreaming && shouldRenderMessageText && !hasRenderedWidget;
@@ -127,6 +162,7 @@ export function ThreadMessageBubble({
 		sources.length > 0 ||
 		showSuggestions ||
 		(shouldShowWidgetSections && isWidgetLoading) ||
+		shouldShowWidgetError ||
 		Boolean(renderedWidget);
 	if (!hasRenderableContent) {
 		return null;
@@ -138,6 +174,26 @@ export function ThreadMessageBubble({
 				? renderLoadingWidget?.(widgetType)
 				: null}
 			{renderedWidget}
+			{shouldShowWidgetError && widgetErrorPart ? (
+				<div className="px-3 pb-2">
+					<div className="rounded-lg border border-border-danger bg-bg-danger p-3">
+						<p className="text-sm leading-5 text-text">
+							{widgetErrorPart.data.message}
+						</p>
+						{widgetErrorPart.data.canRetry && onRetryWidget ? (
+							<div className="mt-3">
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => onRetryWidget(widgetType ?? "widget")}
+								>
+									Retry
+								</Button>
+							</div>
+						) : null}
+					</div>
+				</div>
+			) : null}
 		</>
 	);
 
@@ -160,9 +216,6 @@ export function ThreadMessageBubble({
 						<Reasoning className="mb-0" defaultOpen={hasContent} isStreaming={isStreaming}>
 							<AdsReasoningTrigger
 								label={thinkingStatusPart.data.label}
-								completedLabel={() =>
-									thinkingStatusPart.data.label.replace(/^Using /, "Used ")
-								}
 								showChevron={hasContent}
 							/>
 							{accumulatedContent ? (

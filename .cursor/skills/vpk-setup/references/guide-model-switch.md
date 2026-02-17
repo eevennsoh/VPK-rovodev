@@ -59,7 +59,7 @@ Instruct user: "Restart dev servers with `pnpm run dev`"
 
 ## How It Works
 
-The VPK backend (`backend/server.js`) and config (`rovo/config.js`) automatically detect the endpoint type from the `AI_GATEWAY_URL` and format the payload accordingly:
+The VPK backend AI Gateway helpers automatically detect the endpoint type from `AI_GATEWAY_URL` and format payloads accordingly:
 
 - **Bedrock endpoint** (`/v1/bedrock/model/`): Uses Claude format with `anthropic_version` and `max_tokens`
 - **GPT endpoint** (`/v1/openai/`): Uses GPT format with `model` in payload and `max_completion_tokens`
@@ -131,7 +131,7 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/mode
 
 ---
 
-## Default Models (defined in rovo/config.js)
+## Default Models (defined in backend/lib/ai-gateway-helpers.js)
 
 ```javascript
 const DEFAULT_MODELS = {
@@ -157,7 +157,7 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/mode
 ### For GPT Models
 
 1. Set the URL to GPT endpoint in `.env.local`
-2. Edit `rovo/config.js` and change the model in `DEFAULT_MODELS`:
+2. Edit `backend/lib/ai-gateway-helpers.js` and change `DEFAULT_MODELS.openai`:
 
 ```javascript
 const DEFAULT_MODELS = {
@@ -165,8 +165,6 @@ const DEFAULT_MODELS = {
   openai: "gpt-4.1-2025-04-14",  // Change to your preferred GPT model
 };
 ```
-
-3. Also update the same in `backend/server.js` (search for `DEFAULT_MODELS`)
 
 ---
 
@@ -226,7 +224,7 @@ Use one of the models listed in `offerings`.
 
 ### "Unsupported parameter: 'max_tokens'"
 
-You're using a newer GPT model that requires `max_completion_tokens` instead of `max_tokens`. This is already handled in the codebase - make sure you have the latest `rovo/config.js`.
+You're using a newer GPT model that requires `max_completion_tokens` instead of `max_tokens`. This is already handled in the codebase - make sure you have the latest `backend/lib/ai-gateway-helpers.js`.
 
 ### "not available for the OpenAI vendor"
 
@@ -236,6 +234,31 @@ Fix:
 - Ensure `AI_GATEWAY_URL_GOOGLE` is set
 - Route voice requests through `/api/sound-generation` (Google synth path)
 - Restart backend dev server to clear stale endpoint logic
+
+### Bedrock returns `403 poco: rejected authenticated request` but OpenAI works
+
+If OpenAI endpoint calls succeed but Bedrock fails, check for legacy URL translation in your branch.
+Older code rewrote Bedrock URLs from:
+
+`/v1/bedrock/model/{MODEL_ID}/invoke-with-response-stream`
+
+to:
+
+`/provider/bedrock/format/openai/v1/chat/completions`
+
+That rewritten path can fail POCO auth in some environments.
+
+Fix:
+- Pull latest changes where Bedrock URLs are kept unchanged in `backend/lib/ai-gateway-helpers.js` (`resolveGatewayUrl` should return the original Bedrock URL).
+- Restart backend dev server after updating.
+- Re-test with a simple route such as `POST /api/chat-title`.
+
+If Bedrock still fails after the fix, verify principal/model access with:
+
+```bash
+atlas ml aigateway usecase view --id YOUR-USE-CASE-ID -e stg-east --active
+atlas ml aigateway model view --modelId anthropic.claude-3-5-haiku-20241022-v1:0
+```
 
 ### Changes not taking effect
 
@@ -334,5 +357,6 @@ When using the Gemini endpoint with a model that supports image generation (e.g.
 | File | Purpose |
 |------|---------|
 | `.env.local` | Contains `AI_GATEWAY_URL` (default provider) and optional `AI_GATEWAY_URL_GOOGLE` (Google chat/image routing + voice route derivation) |
-| `rovo/config.js` | Contains `DEFAULT_MODELS` and `buildAIGatewayPayload()` |
-| `backend/server.js` | Backend with fallback model definitions and per-request provider routing |
+| `backend/lib/ai-gateway-helpers.js` | Contains `DEFAULT_MODELS`, endpoint detection, and provider-specific request/stream helpers |
+| `backend/server.js` | Backend routing, fallback behavior, and endpoint handlers |
+| `rovo/config.js` | Rovo user-message formatting (`buildUserMessage`) |

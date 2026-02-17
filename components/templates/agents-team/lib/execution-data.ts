@@ -47,14 +47,6 @@ function runTaskStatusToTaskStatus(runTaskStatus: AgentRunTask["status"]): TaskS
 	return "todo";
 }
 
-function runTaskStatusToAgentStatus(
-	runTaskStatus: AgentRunTask["status"] | null
-): AgentExecutionStatus {
-	if (runTaskStatus === "done") return "completed";
-	if (runTaskStatus === "failed" || runTaskStatus === "blocked-failed") return "failed";
-	return "working";
-}
-
 export function extractAgentExecutionUpdates(
 	messages: ReadonlyArray<RovoUIMessage>
 ): AgentExecutionUpdate[] {
@@ -78,19 +70,23 @@ export function extractAgentExecutionUpdates(
 export function buildTaskExecutions(
 	updates: AgentExecutionUpdate[]
 ): TaskExecution[] {
-	const latestByTask = new Map<string, TaskExecution>();
+	const latestByAgent = new Map<string, TaskExecution>();
 
 	for (const update of updates) {
-		const existing = latestByTask.get(update.taskId);
+		const existing = latestByAgent.get(update.agentId);
 		if (existing) {
+			const hasTaskChanged = existing.taskId !== update.taskId;
 			existing.status = update.status;
-			existing.agentId = update.agentId;
 			existing.agentName = update.agentName;
+			existing.taskId = update.taskId;
+			existing.taskLabel = update.taskLabel;
 			if (update.content) {
-				existing.content += update.content;
+				existing.content = hasTaskChanged
+					? update.content
+					: `${existing.content}${update.content}`;
 			}
 		} else {
-			latestByTask.set(update.taskId, {
+			latestByAgent.set(update.agentId, {
 				taskId: update.taskId,
 				taskLabel: update.taskLabel,
 				agentId: update.agentId,
@@ -101,7 +97,7 @@ export function buildTaskExecutions(
 		}
 	}
 
-	return Array.from(latestByTask.values());
+	return Array.from(latestByAgent.values());
 }
 
 export function computeTaskStatusGroups(
@@ -191,30 +187,43 @@ export function deriveTaskExecutionsFromRun(
 	run: AgentRun | null,
 	updates: ReadonlyArray<AgentExecutionUpdate> = []
 ): TaskExecution[] {
-	const streamedExecutions = buildTaskExecutions([...updates]);
-	if (streamedExecutions.length > 0) {
+	const streamedExecutions = buildTaskExecutions([...updates]).filter(
+		(execution) => execution.status === "working"
+	);
+	if (!run) {
 		return streamedExecutions;
 	}
 
-	if (!run) {
-		return [];
-	}
+	const activeExecutions: TaskExecution[] = run.agents
+		.filter((agent) => agent.status === "working")
+		.flatMap((agent) => {
+			const activeTask =
+				(agent.currentTaskId
+					? run.tasks.find((task) => task.id === agent.currentTaskId)
+					: null) ||
+				run.tasks.find(
+					(task) => task.agentId === agent.agentId && task.status === "in-progress"
+				);
 
-	return run.tasks
-		.filter((task) => task.status !== "todo")
-		.map((task) => {
-			const agent = run.agents.find((a) => a.agentId === task.agentId);
-			return {
-				taskId: task.id,
-				taskLabel: task.label,
-				agentId: task.agentId,
-				agentName: task.agentName,
-				status: runTaskStatusToAgentStatus(task.status),
-				content:
-					(agent?.latestContent) ||
-					task.output ||
-					task.outputSummary ||
-					"",
-			};
+			if (!activeTask) {
+				return [];
+			}
+
+			return [
+				{
+					taskId: activeTask.id,
+					taskLabel: activeTask.label,
+					agentId: agent.agentId,
+					agentName: agent.agentName,
+					status: "working" as const,
+					content:
+						agent.latestContent ||
+						activeTask.outputSummary ||
+						activeTask.output ||
+						"",
+				},
+			];
 		});
+
+	return activeExecutions.length > 0 ? activeExecutions : streamedExecutions;
 }

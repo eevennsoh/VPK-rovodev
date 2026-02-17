@@ -13,8 +13,6 @@ import { SpeechInput } from "@/components/ui-ai/speech-input";
 import type { TaskExecution } from "../lib/execution-data";
 import { AgentScreen } from "./agent-screen";
 
-const MAX_VISIBLE_AGENTS = 4;
-
 interface ExecutionGridViewProps {
 	taskExecutions: TaskExecution[];
 	onAddTask?: (message: string) => void;
@@ -62,20 +60,10 @@ function getSpanClass(span: 1 | 2 | 3): string | undefined {
 	return undefined;
 }
 
-function selectVisibleExecutions(
-	executions: ReadonlyArray<TaskExecution>,
-	maxVisible: number
+function selectActiveExecutions(
+	executions: ReadonlyArray<TaskExecution>
 ): TaskExecution[] {
-	const working = executions.filter((e) => e.status === "working");
-	if (working.length >= maxVisible) {
-		return working.slice(0, maxVisible);
-	}
-
-	const finished = executions.filter(
-		(e) => e.status === "completed" || e.status === "failed"
-	);
-	const backfillCount = maxVisible - working.length;
-	return [...working, ...finished.slice(-backfillCount)];
+	return executions.filter((execution) => execution.status === "working");
 }
 
 export const ExecutionGridView = memo(function ExecutionGridView({
@@ -84,7 +72,7 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 }: Readonly<ExecutionGridViewProps>) {
 	const [inputValue, setInputValue] = useState("");
 	const visibleExecutions = useMemo(
-		() => selectVisibleExecutions(taskExecutions, MAX_VISIBLE_AGENTS),
+		() => selectActiveExecutions(taskExecutions),
 		[taskExecutions]
 	);
 	const columnCount = getGridColumns(visibleExecutions.length);
@@ -125,33 +113,33 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 							"--execution-grid-rows": rowCount,
 						} as React.CSSProperties
 					}
-				>
-					{visibleExecutions.map((execution, index) => (
-						<div
-							key={execution.taskId}
-							className={getSpanClass(
-								getLastRowSpan(index, visibleExecutions.length, columnCount)
-							)}
-						>
-							<AgentScreen
-								execution={execution}
-								className="h-full"
-							/>
-						</div>
-					))}
-
-					{visibleExecutions.length === 0 ? (
-						<div className="col-span-full flex items-center justify-center">
-							<div className="flex flex-col items-center gap-3 text-center">
-								<div className="size-10 animate-spin rounded-full border-2 border-border border-t-text-subtle" />
-								<span className="text-sm text-text-subtlest">
-									Initializing tasks...
-								</span>
+					>
+						{visibleExecutions.map((execution, index) => (
+							<div
+								key={execution.agentId}
+								className={getSpanClass(
+									getLastRowSpan(index, visibleExecutions.length, columnCount)
+								)}
+							>
+								<AgentScreen
+									execution={execution}
+									className="h-full"
+								/>
 							</div>
-						</div>
-					) : null}
+						))}
+
+						{visibleExecutions.length === 0 ? (
+							<div className="col-span-full flex items-center justify-center">
+								<div className="flex flex-col items-center gap-3 text-center">
+									<div className="size-10 animate-spin rounded-full border-2 border-border border-t-text-subtle" />
+									<span className="text-sm text-text-subtlest">
+										Waiting for agents to claim tasks...
+									</span>
+								</div>
+							</div>
+						) : null}
+					</div>
 				</div>
-			</div>
 
 			{onAddTask ? (
 				<div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-4">

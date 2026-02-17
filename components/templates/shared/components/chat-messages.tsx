@@ -50,6 +50,7 @@ export interface ChatMessagesProps {
 		widget: { type: string; data: unknown },
 		message: RovoRenderableUIMessage
 	) => ReactNode;
+	onRetryWidget?: (widgetType: string) => void;
 }
 
 /**
@@ -126,6 +127,7 @@ export function ChatMessages({
 	renderEmptyState,
 	renderLoadingWidget,
 	renderWidget,
+	onRetryWidget,
 }: Readonly<ChatMessagesProps>): ReactNode {
 	const renderableMessages = useMemo(
 		() => uiMessages.filter(isRenderableRovoUIMessage),
@@ -267,6 +269,7 @@ export function ChatMessages({
 									showWidgetSections={!isPureMode}
 									renderLoadingWidget={renderLoadingWidget}
 									renderWidget={renderWidget}
+									onRetryWidget={onRetryWidget}
 								/>
 						)}
 					/>

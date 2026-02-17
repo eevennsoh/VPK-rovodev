@@ -53,13 +53,15 @@ export default function SidebarChatHistory({
 							style={{ font: token("font.heading.xsmall") }}
 							aria-label="Generating chat title"
 						>
-							<Shimmer
-								as="span"
-								duration={1}
-								className="max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
-							>
-								Generating chat title
-							</Shimmer>
+							<div className="min-w-0 flex flex-1 items-center">
+								<Shimmer
+									as="span"
+									duration={1}
+									className="block max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+								>
+									Generating chat title
+								</Shimmer>
+							</div>
 						</div>
 					) : null}
 					{items.map((item) => (
@@ -109,13 +111,13 @@ function ChatHistoryRow({
 				isActive ? "bg-bg-neutral" : "hover:bg-bg-neutral-subtle-hovered",
 			)}
 		>
-			<div style={{ font: token("font.heading.xsmall") }} className="min-w-0 flex-1">
+			<div style={{ font: token("font.heading.xsmall") }} className="min-w-0 flex flex-1 items-center">
 				{isPendingTitle ? (
 					<Shimmer
 						key={`${item.id}:${item.title}`}
 						as="span"
 						duration={1}
-						className="max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+						className="block max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
 					>
 						{item.title}
 					</Shimmer>

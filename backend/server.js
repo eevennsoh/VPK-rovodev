@@ -17,17 +17,18 @@ const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
 const { createRunManager } = require("./lib/agents-team-runs");
 const { createConfigManager } = require("./lib/agents-team-config");
 const { genuiChatHandler } = require("./lib/genui-chat-handler");
-const { streamViaRovoDev, generateTextViaRovoDev } = require("./lib/rovodev-gateway");
+const { streamViaRovoDev, generateTextViaRovoDev, isChatInProgressError } = require("./lib/rovodev-gateway");
+const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
 const { healthCheck: rovoDevHealthCheck, cancelChat: rovoDevCancelChat } = require("./lib/rovodev-client");
 const {
 	getEnvVars,
-	getAuthToken,
 	detectEndpointType,
-	getGatewayHeaders,
 	getModelId,
 	resolveGatewayUrl,
+	streamBedrockGatewayManualSse,
 	streamGoogleGatewayManualSse,
 } = require("./lib/ai-gateway-helpers");
+const { synthesizeSound } = require("./lib/sound-generation");
 const {
 	extractPlanWidgetPayloadFromText,
 	extractProgressivePlanWidgetPayloadFromText,
@@ -126,6 +127,7 @@ async function isRovoDevAvailable() {
 const app = express();
 const port = process.env.PORT || 8080;
 console.log(`[STARTUP] Port configured: ${port}`);
+const aiGatewayProvider = createAIGatewayProvider({ logger: console });
 
 // Debug logging
 const DEBUG = process.env.DEBUG === "true";
@@ -135,73 +137,199 @@ function debugLog(section, message, data) {
 	}
 }
 
+const CLARIFICATION_WIDGET_TYPE = "question-card";
+const CLARIFICATION_MAX_ROUNDS = 3;
+const CLARIFICATION_MAX_PRESET_OPTIONS = 3;
+
+function isTruthyFlag(value) {
+	if (typeof value !== "string") {
+		return false;
+	}
+
+	return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+function isAIGatewayFallbackEnabled() {
+	return isTruthyFlag(process.env.AUTO_FALLBACK_TO_AI_GATEWAY);
+}
+
+function resolveGatewayUrlForProvider(envVars, preferredProvider, providedGatewayUrl) {
+	if (typeof providedGatewayUrl === "string" && providedGatewayUrl.trim().length > 0) {
+		return providedGatewayUrl.trim();
+	}
+
+	if (preferredProvider === "google") {
+		return envVars.AI_GATEWAY_URL_GOOGLE || envVars.AI_GATEWAY_URL;
+	}
+
+	return envVars.AI_GATEWAY_URL || envVars.AI_GATEWAY_URL_GOOGLE;
+}
+
+function getAIGatewayConfigReport(envVars = getEnvVars()) {
+	return {
+		AI_GATEWAY_URL: envVars.AI_GATEWAY_URL ? "SET" : "MISSING",
+		AI_GATEWAY_URL_GOOGLE: envVars.AI_GATEWAY_URL_GOOGLE ? "SET" : "MISSING",
+		AI_GATEWAY_USE_CASE_ID: envVars.AI_GATEWAY_USE_CASE_ID ? "SET" : "MISSING",
+		AI_GATEWAY_CLOUD_ID: envVars.AI_GATEWAY_CLOUD_ID ? "SET" : "MISSING",
+		AI_GATEWAY_USER_ID: envVars.AI_GATEWAY_USER_ID ? "SET" : "MISSING",
+		ASAP_ISSUER: process.env.ASAP_ISSUER ? "SET" : "MISSING",
+		ASAP_KID: process.env.ASAP_KID ? "SET" : "MISSING",
+		ASAP_PRIVATE_KEY: process.env.ASAP_PRIVATE_KEY ? "SET" : "MISSING",
+	};
+}
+
+function hasGatewayUrlConfigured(envVars = getEnvVars()) {
+	return Boolean(envVars.AI_GATEWAY_URL || envVars.AI_GATEWAY_URL_GOOGLE);
+}
+
+function classifyAIGatewayFailureStage(error) {
+	const message = error instanceof Error ? error.message : String(error ?? "");
+
+	if (
+		/AI Gateway URL is not configured|Server configuration error|AI_GATEWAY_URL|AI_GATEWAY_USE_CASE_ID|AI_GATEWAY_CLOUD_ID|AI_GATEWAY_USER_ID/i.test(message)
+	) {
+		return "config";
+	}
+
+	if (/ASAP_|authentication|Authorization|status 401|status 403|auth/i.test(message)) {
+		return "auth";
+	}
+
+	if (/stream|SSE|response body is empty|timeout|timed out/i.test(message)) {
+		return "stream";
+	}
+
+	return "request";
+}
+
+function createRovoDevUnavailableError() {
+	const error = new Error(
+		"RovoDev Serve is required but not available. " +
+		"Please start RovoDev Serve with 'pnpm run rovodev' before using this feature."
+	);
+	error.code = "ROVODEV_UNAVAILABLE";
+	error.backendSelected = "rovodev";
+	error.failureStage = "unavailable";
+	return error;
+}
+
+function normalizeAIGatewayError(error) {
+	const normalizedError = error instanceof Error ? error : new Error(String(error));
+	normalizedError.backendSelected = "ai-gateway";
+	normalizedError.failureStage = classifyAIGatewayFailureStage(normalizedError);
+	return normalizedError;
+}
+
+async function resolvePreferredBackend({ allowFallback = true } = {}) {
+	const rovoDevAvailable = await isRovoDevAvailable();
+	const fallbackEnabled = allowFallback && isAIGatewayFallbackEnabled();
+
+	if (rovoDevAvailable) {
+		return {
+			backend: "rovodev",
+			rovoDevAvailable,
+			fallbackEnabled,
+		};
+	}
+
+	if (fallbackEnabled) {
+		return {
+			backend: "ai-gateway",
+			rovoDevAvailable,
+			fallbackEnabled,
+		};
+	}
+
+	return {
+		backend: null,
+		rovoDevAvailable,
+		fallbackEnabled,
+	};
+}
+
+function sendGatewayErrorResponse(res, error, fallbackErrorMessage) {
+	if (error && error.code === "ROVODEV_UNAVAILABLE") {
+		return res.status(503).json({
+			error: "RovoDev Serve is required but not available",
+			details: error.message,
+			backendSelected: "rovodev",
+			failureStage: "unavailable",
+		});
+	}
+
+	if (error && error.backendSelected === "ai-gateway") {
+		const stage = error.failureStage || classifyAIGatewayFailureStage(error);
+		const statusCode = stage === "config" ? 500 : 502;
+		return res.status(statusCode).json({
+			error: fallbackErrorMessage || "AI Gateway request failed",
+			details: error.message,
+			backendSelected: "ai-gateway",
+			failureStage: stage,
+		});
+	}
+
+	return res.status(500).json({
+		error: fallbackErrorMessage || "Internal server error",
+		details: error instanceof Error ? error.message : String(error),
+		backendSelected: "unknown",
+		failureStage: "request",
+	});
+}
+
+async function streamTextViaAIGateway({
+	system,
+	prompt,
+	messages,
+	maxOutputTokens = 2000,
+	temperature = 1,
+	provider,
+	gatewayUrl,
+	onTextDelta,
+	onFile,
+}) {
+	const envVars = getEnvVars();
+	const rawGatewayUrl = resolveGatewayUrlForProvider(
+		envVars,
+		typeof provider === "string" ? provider.trim() : null,
+		gatewayUrl
+	);
+
+	if (!rawGatewayUrl) {
+		throw new Error("AI Gateway URL is not configured.");
+	}
+
+	const resolvedGatewayUrl = resolveGatewayUrl(rawGatewayUrl) || rawGatewayUrl;
+	const endpointType = detectEndpointType(resolvedGatewayUrl);
+
+	if (endpointType === "bedrock") {
+		return streamBedrockGatewayManualSse({
+			gatewayUrl: resolvedGatewayUrl,
+			envVars,
+			system: typeof system === "string" ? system : undefined,
+			prompt: typeof prompt === "string" ? prompt : undefined,
+			maxOutputTokens,
+			onTextDelta,
+		});
+	}
+
+	return streamGoogleGatewayManualSse({
+		gatewayUrl: resolvedGatewayUrl,
+		envVars,
+		model: getModelId(resolvedGatewayUrl),
+		system: typeof system === "string" ? system : undefined,
+		prompt: typeof prompt === "string" ? prompt : undefined,
+		messages,
+		maxOutputTokens,
+		temperature,
+		onTextDelta,
+		onFile,
+	});
+}
+
 app.use(cors());
 app.use(express.json());
 
 console.log("[STARTUP] Middleware configured");
-
-function buildSpeechEndpointUrl(gatewayUrl, endpointType) {
-	if (typeof gatewayUrl !== "string" || !gatewayUrl.trim()) {
-		return null;
-	}
-
-	try {
-		const parsedUrl = new URL(gatewayUrl);
-		const pathname = parsedUrl.pathname;
-
-		if (endpointType === "google") {
-			if (pathname.endsWith("/v1/google/v1/text:synthesize")) {
-				return parsedUrl.toString();
-			}
-
-			if (/\/v1\/google\/publishers\/google\/v1\/chat\/completions$/.test(pathname)) {
-				parsedUrl.pathname = pathname.replace(
-					/\/v1\/google\/publishers\/google\/v1\/chat\/completions$/,
-					"/v1/google/v1/text:synthesize"
-				);
-				return parsedUrl.toString();
-			}
-
-			if (/\/v1\/google\/v1\/chat\/completions$/.test(pathname)) {
-				parsedUrl.pathname = pathname.replace(
-					/\/v1\/google\/v1\/chat\/completions$/,
-					"/v1/google/v1/text:synthesize"
-				);
-				return parsedUrl.toString();
-			}
-
-			if (pathname.endsWith("/chat/completions")) {
-				parsedUrl.pathname = pathname.replace(/\/chat\/completions$/, "/text:synthesize");
-				return parsedUrl.toString();
-			}
-
-			return null;
-		}
-
-		if (pathname.endsWith("/audio/speech")) {
-			return parsedUrl.toString();
-		}
-
-		if (pathname.endsWith("/chat/completions")) {
-			parsedUrl.pathname = pathname.replace(/\/chat\/completions$/, "/audio/speech");
-			return parsedUrl.toString();
-		}
-
-		if (pathname.endsWith("/responses")) {
-			parsedUrl.pathname = pathname.replace(/\/responses$/, "/audio/speech");
-			return parsedUrl.toString();
-		}
-
-		if (pathname.endsWith("/v1/openai/v1")) {
-			parsedUrl.pathname = `${pathname}/audio/speech`;
-			return parsedUrl.toString();
-		}
-
-		return null;
-	} catch {
-		return null;
-	}
-}
 
 let buildUserMessage;
 try {
@@ -223,23 +351,56 @@ try {
 
 /**
  * Generates text using the best available backend.
- *
- * Priority:
- *   1. RovoDev Serve (if running — detected via `.dev-rovodev-port` file)
- *   2. AI Gateway — manual SSE for Bedrock, AI SDK for OpenAI/Google
  */
-async function generateTextViaGateway({ system, prompt }) {
-	// RovoDev Serve is required - no AI Gateway fallback
-	const useRovoDev = await isRovoDevAvailable();
-	if (!useRovoDev) {
-		throw new Error(
-			"RovoDev Serve is required but not available. " +
-			"Please start RovoDev Serve with 'pnpm run rovodev' before using this feature."
-		);
+async function generateTextViaGateway({
+	system,
+	prompt,
+	messages,
+	maxOutputTokens = 2000,
+	temperature = 0.4,
+	provider,
+	gatewayUrl,
+}) {
+	const backendSelection = await resolvePreferredBackend({ allowFallback: true });
+	if (backendSelection.backend === "rovodev") {
+		debugLog("GENERATE", "Routing through RovoDev Serve");
+		try {
+			return await generateTextViaRovoDev({ system, prompt });
+		} catch (rovoDevError) {
+			const is409Timeout =
+				rovoDevError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT" ||
+				isChatInProgressError(rovoDevError);
+			const canFallback =
+				is409Timeout &&
+				isAIGatewayFallbackEnabled() &&
+				hasGatewayUrlConfigured();
+			if (!canFallback) {
+				throw rovoDevError;
+			}
+			console.warn(
+				"[generateTextViaGateway] RovoDev 409 timeout — falling back to AI Gateway"
+			);
+		}
 	}
 
-	debugLog("GENERATE", "Routing through RovoDev Serve");
-	return generateTextViaRovoDev({ system, prompt });
+	if (backendSelection.backend !== "ai-gateway" && backendSelection.backend !== "rovodev") {
+		throw createRovoDevUnavailableError();
+	}
+
+	debugLog("GENERATE", "Routing through AI Gateway fallback");
+	try {
+		return await aiGatewayProvider.generateText({
+			system,
+			prompt,
+			messages,
+			maxOutputTokens,
+			temperature,
+			provider,
+			gatewayUrl,
+		});
+	} catch (error) {
+		throw normalizeAIGatewayError(error);
+	}
 }
 
 function extractTextFromUiParts(parts) {
@@ -303,6 +464,8 @@ const agentsTeamRunManager = createRunManager({
 	buildSystemPrompt: null, // Not used in RovoDev-only mode
 	configManager: agentsTeamConfigManager,
 	logger: console,
+	isRovoDevAvailable,
+	isAIGatewayFallbackEnabled,
 });
 
 function createSuggestedQuestionsPrompt(message, conversationHistory, assistantResponse) {
@@ -833,6 +996,25 @@ function hasCompleteMermaidDiagram(value) {
 	return /```mermaid\b[\s\S]*?```/.test(value);
 }
 
+function hasMermaidDependencyEdges(value) {
+	if (typeof value !== "string" || value.length === 0) {
+		return false;
+	}
+
+	const mermaidBlocks = value.match(/```mermaid\b[\s\S]*?```/gi);
+	if (!mermaidBlocks || mermaidBlocks.length === 0) {
+		return false;
+	}
+
+	const edgePattern =
+		/\b[A-Za-z0-9_-]+\s*(?:-->|==>|-.->)\s*(?:\|[^|\n]+\|\s*)?[A-Za-z0-9_-]+\b/;
+	return mermaidBlocks.some((block) => edgePattern.test(block));
+}
+
+function hasValidMermaidDiagram(value) {
+	return hasCompleteMermaidDiagram(value) && hasMermaidDependencyEdges(value);
+}
+
 function hasUnclosedMermaidFence(value) {
 	if (typeof value !== "string" || value.length === 0) {
 		return false;
@@ -904,7 +1086,7 @@ function createUniqueMermaidNodeId(baseId, usedNodeIds) {
 }
 
 function escapeMermaidLabel(label) {
-	return label.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+	return label.replace(/#/g, "#35;").replace(/"/g, "#quot;");
 }
 
 function generateMermaidFromPlan(planPayload) {
@@ -948,6 +1130,21 @@ function generateMermaidFromPlan(planPayload) {
 
 			seenEdges.add(edgeKey);
 			edgeLines.push(`  ${fromNodeId} --> ${node.nodeId}`);
+		}
+	}
+
+	// Ensure the diagram still represents dependencies when blockedBy metadata is absent.
+	if (edgeLines.length === 0 && nodeEntries.length > 1) {
+		for (let index = 1; index < nodeEntries.length; index += 1) {
+			const fromNodeId = nodeEntries[index - 1].nodeId;
+			const toNodeId = nodeEntries[index].nodeId;
+			const edgeKey = `${fromNodeId}->${toNodeId}`;
+			if (seenEdges.has(edgeKey)) {
+				continue;
+			}
+
+			seenEdges.add(edgeKey);
+			edgeLines.push(`  ${fromNodeId} --> ${toNodeId}`);
 		}
 	}
 
@@ -1000,11 +1197,7 @@ function normalizeApprovalSubmission(value) {
 
 function getApprovalDecisionLabel(decision) {
 	if (decision === "auto-accept") {
-		return "Yes, let's cook!";
-	}
-
-	if (decision === "manual-approve") {
-		return "Yes, and manually approve edits";
+		return "Yes, let's start cooking";
 	}
 
 	if (decision === "continue-planning") {
@@ -1471,10 +1664,7 @@ User message: ${message.trim()}`;
 		return res.json({ title });
 	} catch (error) {
 		console.error("Chat title API error:", error);
-		return res.status(503).json({
-			error: "RovoDev Serve is required but not available",
-			details: "Please start RovoDev Serve with 'pnpm run rovodev' before using chat.",
-		});
+		return sendGatewayErrorResponse(res, error, "Failed to generate chat title");
 	}
 });
 
@@ -1584,13 +1774,74 @@ app.post("/api/chat-sdk", async (req, res) => {
 			return;
 		}
 
-		// RovoDev Serve is required for default chat paths.
-		const useRovoDev = await isRovoDevAvailable();
-		if (!useRovoDev) {
-			return res.status(503).json({
-				error: "RovoDev Serve is required but not available",
-				details: "Please start RovoDev Serve with 'pnpm run rovodev' before using chat.",
+		const backendSelection = await resolvePreferredBackend({ allowFallback: true });
+		if (backendSelection.backend === "ai-gateway") {
+			const stream = createUIMessageStream({
+				execute: async ({ writer }) => {
+					const textId = `text-${Date.now()}`;
+					let textStarted = false;
+
+					const emitTextDelta = (delta) => {
+						if (typeof delta !== "string" || delta.length === 0) {
+							return;
+						}
+
+						if (!textStarted) {
+							writer.write({ type: "text-start", id: textId });
+							textStarted = true;
+						}
+
+						writer.write({ type: "text-delta", id: textId, delta });
+					};
+
+					await streamTextViaAIGateway({
+						prompt: userMessageText,
+						maxOutputTokens: 2000,
+						temperature: 1,
+						provider: typeof provider === "string" ? provider : undefined,
+						onTextDelta: emitTextDelta,
+						onFile: ({ mediaType, base64 }) => {
+							if (typeof base64 !== "string" || base64.length === 0) {
+								return;
+							}
+
+							const resolvedMediaType =
+								typeof mediaType === "string" && mediaType.trim()
+									? mediaType
+									: "image/png";
+							writer.write({
+								type: "file",
+								mediaType: resolvedMediaType,
+								url: `data:${resolvedMediaType};base64,${base64}`,
+							});
+						},
+					});
+
+					if (textStarted) {
+						writer.write({ type: "text-end", id: textId });
+					}
+				},
+				onError: (error) => {
+					if (error instanceof Error) {
+						return error.message;
+					}
+					return "Failed to stream AI Gateway response";
+				},
 			});
+
+			pipeUIMessageStreamToResponse({
+				response: res,
+				stream,
+			});
+			return;
+		}
+
+		if (backendSelection.backend !== "rovodev") {
+			return sendGatewayErrorResponse(
+				res,
+				createRovoDevUnavailableError(),
+				"Failed to stream chat response"
+			);
 		}
 
 		// Create an AbortController so we can cancel the RovoDev stream when
@@ -1609,22 +1860,28 @@ app.post("/api/chat-sdk", async (req, res) => {
 				const widgetDataPrefix = "WIDGET_DATA:";
 				const thinkingStatusPrefix = "THINKING_STATUS:";
 				const agentExecutionPrefix = "AGENT_EXECUTION:";
-					const partialMarkerBufferLength =
-						Math.max(widgetLoadingPrefix.length, widgetDataPrefix.length, thinkingStatusPrefix.length, agentExecutionPrefix.length) - 1;
-					let textBuffer = "";
-					const textId = `text-${Date.now()}`;
-					const widgetId = `widget-${Date.now()}`;
-					let textStarted = false;
-					let assistantText = "";
-					let widgetType = null;
-					let latestPlanPayload = null;
-					let hasEmittedQuestionCard = false;
-					let hasEmittedPlanWidget = false;
-					let hasEmittedPlanLoadingState = false;
-					let latestProgressivePlanFingerprint = null;
-					let hasExplicitPlanPayload = false;
-					const emittedQuestionCardToolCalls = new Set();
-					let pendingQuestionCardLoadingWidgetId = null;
+				const partialMarkerBufferLength =
+					Math.max(
+						widgetLoadingPrefix.length,
+						widgetDataPrefix.length,
+						thinkingStatusPrefix.length,
+						agentExecutionPrefix.length
+					) - 1;
+				let textBuffer = "";
+				const textId = `text-${Date.now()}`;
+				const widgetId = `widget-${Date.now()}`;
+				let textStarted = false;
+				let assistantText = "";
+				let widgetType = null;
+				let latestPlanPayload = null;
+				let hasEmittedQuestionCard = false;
+				let hasEmittedPlanWidget = false;
+				let hasSeenPlanWidgetSignal = false;
+				let hasEmittedPlanLoadingState = false;
+				let latestProgressivePlanFingerprint = null;
+				let hasExplicitPlanPayload = false;
+				const emittedQuestionCardToolCalls = new Set();
+				let pendingQuestionCardLoadingWidgetId = null;
 
 				const emitTextDelta = (delta) => {
 					if (!delta) {
@@ -1640,78 +1897,105 @@ app.post("/api/chat-sdk", async (req, res) => {
 					assistantText += delta;
 				};
 
-					const sanitizeThinkingLabel = (value) => {
-						if (typeof value !== "string") {
-							return "";
+				const sanitizeThinkingLabel = (value) => {
+					if (typeof value !== "string") {
+						return "";
+					}
+
+					return value.replace(/(?:\s*(?:\.{3}|…))+$/u, "").trim();
+				};
+
+				const emitPlanWidgetLoading = (loading) => {
+					writer.write({
+						type: "data-widget-loading",
+						id: widgetId,
+						data: {
+							type: "plan",
+							loading,
+						},
+					});
+					hasSeenPlanWidgetSignal = true;
+					hasEmittedPlanLoadingState = loading;
+				};
+
+				const emitPlanWidgetData = (payload) => {
+					writer.write({
+						type: "data-widget-data",
+						id: widgetId,
+						data: {
+							type: "plan",
+							payload,
+						},
+					});
+					hasSeenPlanWidgetSignal = true;
+				};
+
+				const emitWidgetError = ({
+					type,
+					message,
+					canRetry = true,
+					id = widgetId,
+				}) => {
+					if (typeof type !== "string" || !type.trim()) {
+						return;
+					}
+					if (typeof message !== "string" || !message.trim()) {
+						return;
+					}
+
+					writer.write({
+						type: "data-widget-error",
+						id,
+						data: {
+							type,
+							message: message.trim(),
+							canRetry: Boolean(canRetry),
+						},
+					});
+				};
+
+				const maybeEmitProgressivePlanUpdate = () => {
+					if (hasEmittedQuestionCard || hasExplicitPlanPayload) {
+						return;
+					}
+
+					const progressivePlanPayload = extractProgressivePlanWidgetPayloadFromText(
+						assistantText,
+						{
+							minTasks: 1,
+							requireActionItemsHeading: true,
 						}
+					);
+					if (!progressivePlanPayload) {
+						return;
+					}
 
-						return value.replace(/(?:\s*(?:\.{3}|…))+$/u, "").trim();
-					};
+					let nextFingerprint = null;
+					try {
+						nextFingerprint = JSON.stringify(progressivePlanPayload);
+					} catch {
+						nextFingerprint = null;
+					}
 
-					const emitPlanWidgetLoading = (loading) => {
-						writer.write({
-							type: "data-widget-loading",
-							id: widgetId,
-							data: {
-								type: "plan",
-								loading,
-							},
-						});
-						hasEmittedPlanLoadingState = loading;
-					};
+					if (
+						nextFingerprint &&
+						nextFingerprint === latestProgressivePlanFingerprint
+					) {
+						return;
+					}
 
-					const emitPlanWidgetData = (payload) => {
-						writer.write({
-							type: "data-widget-data",
-							id: widgetId,
-							data: {
-								type: "plan",
-								payload,
-							},
-						});
-					};
+					latestProgressivePlanFingerprint = nextFingerprint;
+					latestPlanPayload = progressivePlanPayload;
+					hasEmittedPlanWidget = true;
+					hasSeenPlanWidgetSignal = true;
+					widgetType = "plan";
 
-					const maybeEmitProgressivePlanUpdate = () => {
-						if (hasEmittedQuestionCard || hasExplicitPlanPayload) {
-							return;
-						}
+					if (!hasEmittedPlanLoadingState) {
+						emitPlanWidgetLoading(true);
+					}
 
-						const progressivePlanPayload = extractProgressivePlanWidgetPayloadFromText(
-							assistantText,
-							{
-								minTasks: 1,
-								requireActionItemsHeading: true,
-							}
-						);
-						if (!progressivePlanPayload) {
-							return;
-						}
-
-						let nextFingerprint = null;
-						try {
-							nextFingerprint = JSON.stringify(progressivePlanPayload);
-						} catch {
-							nextFingerprint = null;
-						}
-
-						if (
-							nextFingerprint &&
-							nextFingerprint === latestProgressivePlanFingerprint
-						) {
-							return;
-						}
-
-						latestProgressivePlanFingerprint = nextFingerprint;
-						latestPlanPayload = progressivePlanPayload;
-						hasEmittedPlanWidget = true;
-						widgetType = "plan";
-
-						if (!hasEmittedPlanLoadingState) {
-							emitPlanWidgetLoading(true);
-						}
-
-						emitPlanWidgetData(progressivePlanPayload);
-					};
+					emitPlanWidgetData(progressivePlanPayload);
+				};
 
 				const emitRequestUserInputQuestionCard = (toolCall) => {
 					if (!toolCall || typeof toolCall !== "object") {
@@ -1855,47 +2139,48 @@ app.post("/api/chat-sdk", async (req, res) => {
 							return;
 						}
 
-							if (markerIndex > 0) {
-								emitTextDelta(textBuffer.slice(0, markerIndex));
-								textBuffer = textBuffer.slice(markerIndex);
-								continue;
+						if (markerIndex > 0) {
+							emitTextDelta(textBuffer.slice(0, markerIndex));
+							textBuffer = textBuffer.slice(markerIndex);
+							continue;
+						}
+
+						if (textBuffer.startsWith(widgetLoadingPrefix)) {
+							const loadingMatch = textBuffer.match(
+								/^WIDGET_LOADING:([A-Za-z0-9_-]+)/
+							);
+							if (!loadingMatch) {
+								if (textBuffer.length > widgetLoadingPrefix.length) {
+									emitTextDelta(widgetLoadingPrefix);
+									textBuffer = textBuffer.slice(widgetLoadingPrefix.length);
+									continue;
+								}
+								if (isFinalChunk) {
+									emitTextDelta(textBuffer);
+									textBuffer = "";
+								}
+								return;
 							}
 
-							if (textBuffer.startsWith(widgetLoadingPrefix)) {
-								const loadingMatch = textBuffer.match(
-									/^WIDGET_LOADING:([A-Za-z0-9_-]+)/
-								);
-								if (!loadingMatch) {
-									if (textBuffer.length > widgetLoadingPrefix.length) {
-										emitTextDelta(widgetLoadingPrefix);
-										textBuffer = textBuffer.slice(widgetLoadingPrefix.length);
-										continue;
-									}
-									if (isFinalChunk) {
-										emitTextDelta(textBuffer);
-										textBuffer = "";
-									}
-									return;
-								}
-
-								widgetType = loadingMatch[1];
-								if (widgetType === "plan") {
-									hasEmittedPlanLoadingState = true;
-								}
-								writer.write({
-									type: "data-widget-loading",
-									id: widgetId,
-									data: {
-										type: widgetType,
-										loading: true,
-									},
-								});
-
-								textBuffer = textBuffer
-									.slice(loadingMatch[0].length)
-									.replace(/^[\r\n\t ]+/, "");
-								continue;
+							widgetType = loadingMatch[1];
+							if (widgetType === "plan") {
+								hasSeenPlanWidgetSignal = true;
+								hasEmittedPlanLoadingState = true;
 							}
+							writer.write({
+								type: "data-widget-loading",
+								id: widgetId,
+								data: {
+									type: widgetType,
+									loading: true,
+								},
+							});
+
+							textBuffer = textBuffer
+								.slice(loadingMatch[0].length)
+								.replace(/^[\r\n\t ]+/, "");
+							continue;
+						}
 
 						if (textBuffer.startsWith(widgetDataPrefix)) {
 							let jsonStartIndex = widgetDataPrefix.length;
@@ -1941,21 +2226,22 @@ app.post("/api/chat-sdk", async (req, res) => {
 								.slice(jsonEndIndex + 1)
 								.replace(/^[\r\n\t ]+/, "");
 
-								try {
-									const parsedWidget = JSON.parse(jsonPayload);
-									const resolvedWidgetType =
-										parsedWidget?.type ?? widgetType ?? "widget";
-									widgetType = resolvedWidgetType;
-									if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
-										hasEmittedQuestionCard = true;
-										pendingQuestionCardLoadingWidgetId = widgetId;
-									}
-									if (resolvedWidgetType === "plan") {
-										latestPlanPayload = parsedWidget;
-										hasEmittedPlanWidget = true;
-										hasExplicitPlanPayload = true;
-										latestProgressivePlanFingerprint = null;
-									}
+							try {
+								const parsedWidget = JSON.parse(jsonPayload);
+								const resolvedWidgetType =
+									parsedWidget?.type ?? widgetType ?? "widget";
+								widgetType = resolvedWidgetType;
+								if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
+									hasEmittedQuestionCard = true;
+									pendingQuestionCardLoadingWidgetId = widgetId;
+								}
+								if (resolvedWidgetType === "plan") {
+									latestPlanPayload = parsedWidget;
+									hasEmittedPlanWidget = true;
+									hasSeenPlanWidgetSignal = true;
+									hasExplicitPlanPayload = true;
+									latestProgressivePlanFingerprint = null;
+								}
 
 								writer.write({
 									type: "data-widget-data",
@@ -1966,24 +2252,24 @@ app.post("/api/chat-sdk", async (req, res) => {
 									},
 								});
 
-									if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
-										continue;
-									}
+								if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
+									continue;
+								}
 
-									writer.write({
-										type: "data-widget-loading",
-										id: widgetId,
-										data: {
-											type: resolvedWidgetType,
-											loading: false,
+								writer.write({
+									type: "data-widget-loading",
+									id: widgetId,
+									data: {
+										type: resolvedWidgetType,
+										loading: false,
 									},
-									});
-									if (resolvedWidgetType === "plan") {
-										hasEmittedPlanLoadingState = false;
-									}
-								} catch (error) {
-									console.error("Failed to parse widget payload:", error);
-									emitTextDelta(`${widgetDataPrefix}${jsonPayload}`);
+								});
+								if (resolvedWidgetType === "plan") {
+									hasEmittedPlanLoadingState = false;
+								}
+							} catch (error) {
+								console.error("Failed to parse widget payload:", error);
+								emitTextDelta(`${widgetDataPrefix}${jsonPayload}`);
 							}
 
 							continue;
@@ -2137,53 +2423,101 @@ app.post("/api/chat-sdk", async (req, res) => {
 				// RovoDev Serve: route through the local agent loop
 				console.log("[CHAT-SDK] Routing through RovoDev Serve");
 				let retryOccurred = false;
-				await streamViaRovoDev({
-					message: userMessageText,
-					onTextDelta: handleStreamTextDelta,
-					onToolCallStart: emitRequestUserInputQuestionCard,
-					signal: abortController.signal,
-					onThinkingStatus: (statusUpdate) => {
-						if (!statusUpdate || typeof statusUpdate !== "object") {
-							return;
-						}
+				let rovoDevFellBackToGateway = false;
+				try {
+					await streamViaRovoDev({
+						message: userMessageText,
+						onTextDelta: handleStreamTextDelta,
+						onToolCallStart: emitRequestUserInputQuestionCard,
+						signal: abortController.signal,
+						onThinkingStatus: (statusUpdate) => {
+							if (!statusUpdate || typeof statusUpdate !== "object") {
+								return;
+							}
 
-						const label = sanitizeThinkingLabel(statusUpdate.label);
-						if (!label) {
-							return;
-						}
+							const label = sanitizeThinkingLabel(statusUpdate.label);
+							if (!label) {
+								return;
+							}
 
-						const rawContent =
-							typeof statusUpdate.content === "string"
-								? statusUpdate.content.trim()
-								: "";
+							const rawContent =
+								typeof statusUpdate.content === "string"
+									? statusUpdate.content.trim()
+									: "";
 
-						writer.write({
-							type: "data-thinking-status",
-							data: {
-								label,
-								content: rawContent.length > 0 ? rawContent : undefined,
-							},
-						});
-					},
-					onRetry: (() => {
-						let retryEmitted = false;
-						return () => {
-							retryOccurred = true;
-							if (retryEmitted) return;
-							retryEmitted = true;
-							const retryStatusId = `thinking-retry-${Date.now()}`;
 							writer.write({
 								type: "data-thinking-status",
-								id: retryStatusId,
 								data: {
-									label: "Retrying — previous chat still in progress",
+									label,
+									content: rawContent.length > 0 ? rawContent : undefined,
 								},
 							});
-						};
-					})(),
-				});
+						},
+						onRetry: (() => {
+							let retryEmitted = false;
+							return () => {
+								retryOccurred = true;
+								if (retryEmitted) return;
+								retryEmitted = true;
+								const retryStatusId = `thinking-retry-${Date.now()}`;
+								writer.write({
+									type: "data-thinking-status",
+									id: retryStatusId,
+									data: {
+										label: "Retrying — previous chat still in progress",
+									},
+								});
+							};
+						})(),
+					});
+				} catch (rovoDevStreamError) {
+					const canFallbackToGateway =
+						rovoDevStreamError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT" &&
+						isAIGatewayFallbackEnabled() &&
+						hasGatewayUrlConfigured();
 
-				if (retryOccurred) {
+					if (!canFallbackToGateway) {
+						if (rovoDevStreamError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT") {
+							handleStreamTextDelta(
+								`\n\n⚠️ RovoDev is still finishing the previous response. Please try again.`
+							);
+						} else {
+							throw rovoDevStreamError;
+						}
+					} else {
+						console.warn(
+							"[CHAT-SDK] RovoDev 409 timeout — falling back to AI Gateway for this request"
+						);
+						writer.write({
+							type: "data-thinking-status",
+							data: { label: "Switching to AI Gateway..." },
+						});
+						rovoDevFellBackToGateway = true;
+						await streamTextViaAIGateway({
+							prompt: userMessageText,
+							maxOutputTokens: 2000,
+							temperature: 1,
+							provider: typeof provider === "string" ? provider : undefined,
+							onTextDelta: handleStreamTextDelta,
+							onFile: ({ mediaType, base64 }) => {
+								if (typeof base64 !== "string" || base64.length === 0) {
+									return;
+								}
+								const resolvedMediaType =
+									typeof mediaType === "string" && mediaType.trim()
+										? mediaType
+										: "image/png";
+								writer.write({
+									type: "file",
+									mediaType: resolvedMediaType,
+									url: `data:${resolvedMediaType};base64,${base64}`,
+								});
+							},
+						});
+					}
+				}
+
+				if (retryOccurred && !rovoDevFellBackToGateway) {
 					writer.write({
 						type: "data-thinking-status",
 						data: { label: "Reconnected" },
@@ -2213,6 +2547,23 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 				}
 
+				const shouldEmitPlanWidgetError =
+					hasSeenPlanWidgetSignal &&
+					!hasEmittedQuestionCard &&
+					!hasEmittedPlanWidget;
+				if (shouldEmitPlanWidgetError) {
+					if (hasEmittedPlanLoadingState) {
+						emitPlanWidgetLoading(false);
+					}
+
+					emitWidgetError({
+						type: "plan",
+						message:
+							"I couldn't finish building the plan card. Retry and I'll regenerate it.",
+						canRetry: true,
+					});
+				}
+
 				if (
 					hasEmittedPlanWidget &&
 					!hasExplicitPlanPayload &&
@@ -2221,8 +2572,8 @@ app.post("/api/chat-sdk", async (req, res) => {
 					emitPlanWidgetLoading(false);
 				}
 
-				// Generate mermaid fallback if plan widget was emitted but no diagram
-				if (latestPlanPayload !== null && !hasCompleteMermaidDiagram(assistantText)) {
+				// Generate mermaid fallback if plan widget was emitted but no dependency map.
+				if (latestPlanPayload !== null && !hasValidMermaidDiagram(assistantText)) {
 					const fallbackMermaid = generateMermaidFromPlan(latestPlanPayload);
 					if (fallbackMermaid) {
 						if (hasUnclosedMermaidFence(assistantText)) {
@@ -2283,10 +2634,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 		});
 	} catch (error) {
 		console.error("Chat SDK API error:", error);
-		res.status(500).json({
-			error: "Internal server error",
-			details: error.message,
-		});
+		return sendGatewayErrorResponse(res, error, "Failed to process chat request");
 	}
 });
 
@@ -2301,192 +2649,34 @@ app.post("/api/chat-cancel", async (req, res) => {
 	}
 });
 
-app.post("/api/genui-chat", genuiChatHandler);
+app.post("/api/genui-chat", (req, res) =>
+	genuiChatHandler(req, res, {
+		isRovoDevAvailable,
+		isAIGatewayFallbackEnabled,
+		aiGatewayProvider,
+	})
+);
 
 app.post("/api/sound-generation", async (req, res) => {
 	try {
-		const {
-			input,
-			voice,
-			languageCode,
-			speed,
-			model,
-			provider,
-			responseFormat,
-		} = req.body || {};
+		const synthesisResult = await synthesizeSound(req.body || {});
+		const filename = `speech-${Date.now()}.${synthesisResult.extension}`;
 
-		const normalizedInput = getNonEmptyString(input);
-		if (!normalizedInput) {
-			return res.status(400).json({ error: "Input text is required" });
-		}
-
-		if (normalizedInput.length > 4096) {
-			return res.status(400).json({
-				error: "Input text must be 4096 characters or fewer",
-			});
-		}
-
-		const normalizedVoice = getNonEmptyString(voice);
-		const normalizedFormat = getNonEmptyString(responseFormat) || "mp3";
-		const normalizedLanguageCode = getNonEmptyString(languageCode) || "en-US";
-		const normalizedRequestedModel = getNonEmptyString(model);
-		const normalizedRequestedProvider = getNonEmptyString(provider);
-
-		if (normalizedRequestedModel && normalizedRequestedModel !== "tts-latest") {
-			return res.status(400).json({
-				error:
-					"Sound generation only supports Google tts-latest in this endpoint.",
-			});
-		}
-
-		if (normalizedRequestedProvider && normalizedRequestedProvider !== "google") {
-			return res.status(400).json({
-				error:
-					"Sound generation only supports provider: google in this endpoint.",
-			});
-		}
-
-		const normalizedFormatLower = normalizedFormat.toLowerCase();
-		const audioEncodingByFormat = {
-			mp3: "MP3",
-			wav: "LINEAR16",
-			pcm: "LINEAR16",
-			ogg: "OGG_OPUS",
-		};
-		const resolvedAudioEncoding = audioEncodingByFormat[normalizedFormatLower] || "MP3";
-		const contentTypeByEncoding = {
-			MP3: "audio/mpeg",
-			LINEAR16: "audio/wav",
-			OGG_OPUS: "audio/ogg",
-		};
-
-		let normalizedSpeed = 1;
-		if (typeof speed === "number" && Number.isFinite(speed)) {
-			normalizedSpeed = speed;
-		}
-
-		if (normalizedSpeed < 0.25 || normalizedSpeed > 4) {
-			return res.status(400).json({
-				error: "Speed must be between 0.25 and 4.0",
-			});
-		}
-
-		const ENV_VARS = getEnvVars();
-		const resolvedGatewayUrl =
-			ENV_VARS.AI_GATEWAY_URL_GOOGLE || ENV_VARS.AI_GATEWAY_URL;
-
-		if (!resolvedGatewayUrl) {
-			return res.status(500).json({ error: "Server configuration error" });
-		}
-
-		const endpointType = detectEndpointType(resolvedGatewayUrl);
-		if (endpointType !== "google") {
-			return res.status(400).json({
-				error:
-					"Sound generation is configured to use Google TTS (tts-latest). Set AI_GATEWAY_URL_GOOGLE to a Google endpoint.",
-			});
-		}
-
-		const speechEndpointUrl = buildSpeechEndpointUrl(resolvedGatewayUrl, endpointType);
-		if (!speechEndpointUrl) {
-			return res.status(500).json({
-				error:
-					"Unable to derive speech endpoint URL from AI_GATEWAY_URL. Expected a path ending in /chat/completions or /responses.",
-			});
-		}
-
-		let token;
-		try {
-			token = await getAuthToken();
-		} catch (tokenError) {
-			console.error("Sound generation token error:", tokenError);
-			return res.status(500).json({ error: "Authentication failed" });
-		}
-
-		const speechPayload = {
-			input: {
-				text: normalizedInput,
-			},
-			voice: {
-				languageCode: normalizedLanguageCode,
-				...(normalizedVoice ? { name: normalizedVoice } : {}),
-			},
-			audioConfig: {
-				audioEncoding: resolvedAudioEncoding,
-				speakingRate: normalizedSpeed,
-			},
-		};
-
-		const gatewayResponse = await fetch(speechEndpointUrl, {
-			method: "POST",
-			headers: getGatewayHeaders(ENV_VARS, token),
-			body: JSON.stringify(speechPayload),
-		});
-
-		if (!gatewayResponse.ok) {
-			const errorText = await gatewayResponse.text();
-			console.error(
-				"Sound generation gateway error:",
-				gatewayResponse.status,
-				errorText.substring(0, 500)
-			);
-
-			let errorMessage = "Failed to generate audio";
-			if (errorText.trim()) {
-				try {
-					const parsed = JSON.parse(errorText);
-					errorMessage =
-						getNonEmptyString(parsed?.error?.message) ||
-						getNonEmptyString(parsed?.message) ||
-						getNonEmptyString(parsed?.error) ||
-						getNonEmptyString(parsed?.details) ||
-						errorText.trim();
-				} catch {
-					errorMessage = errorText.trim();
-				}
-			}
-
-			return res.status(gatewayResponse.status).json({
-				error: errorMessage,
-			});
-		}
-
-		const responseContentType = gatewayResponse.headers.get("content-type") || "";
-		let audioBytes;
-
-		if (responseContentType.includes("application/json")) {
-			const result = await gatewayResponse.json();
-			const audioContent =
-				getNonEmptyString(result?.audioContent) ||
-				getNonEmptyString(result?.audio?.data) ||
-				getNonEmptyString(result?.outputAudio?.audioContent);
-
-			if (!audioContent) {
-				return res.status(502).json({
-					error: "Google TTS response did not include audioContent",
-				});
-			}
-
-			audioBytes = Buffer.from(audioContent, "base64");
-		} else {
-			audioBytes = Buffer.from(await gatewayResponse.arrayBuffer());
-		}
-
-		const contentType =
-			contentTypeByEncoding[resolvedAudioEncoding] ||
-			gatewayResponse.headers.get("content-type") ||
-			"audio/mpeg";
-		const extension = normalizedFormatLower.replace(/[^a-z0-9]/gi, "") || "mp3";
-		const filename = `speech-${Date.now()}.${extension}`;
-
-		res.setHeader("Content-Type", contentType);
-		res.setHeader("Content-Length", String(audioBytes.length));
+		res.setHeader("Content-Type", synthesisResult.contentType);
+		res.setHeader("Content-Length", String(synthesisResult.audioBytes.length));
 		res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-		return res.status(200).send(audioBytes);
+		return res.status(200).send(synthesisResult.audioBytes);
 	} catch (error) {
 		console.error("Sound generation API error:", error);
-		return res.status(500).json({
-			error: "Internal server error",
+		const statusCode =
+			typeof error?.statusCode === "number" ? error.statusCode : 500;
+		return res.status(statusCode).json({
+			error:
+				statusCode >= 500
+					? "Internal server error"
+					: error instanceof Error
+						? error.message
+						: "Request failed",
 			details: error instanceof Error ? error.message : String(error),
 		});
 	}
@@ -2527,6 +2717,78 @@ app.get("/api/agents-team/runs/:runId", async (req, res) => {
 	} catch (error) {
 		console.error("[AGENTS-RUN] Failed to get run:", error);
 		return res.status(500).json({ error: "Failed to load run" });
+	}
+});
+
+app.post("/api/agents-team/runs/:runId/tasks", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const {
+			planDelta,
+			prompt,
+			contextPrompt,
+			conversation,
+			customInstruction,
+		} = req.body || {};
+		const result = await agentsTeamRunManager.appendTasks(runId, {
+			planDelta,
+			prompt,
+			contextPrompt,
+			conversation,
+			customInstruction,
+		});
+
+		if (result?.error) {
+			return res.status(400).json({ error: result.error });
+		}
+
+		return res.status(200).json(result);
+	} catch (error) {
+		console.error("[AGENTS-RUN] Failed to append run tasks:", error);
+		const message = error instanceof Error ? error.message : "Failed to append tasks";
+		return res.status(400).json({ error: message });
+	}
+});
+
+app.get("/api/agents-team/runs/:runId/files", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const rawArtifactId = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
+		const artifactId = getNonEmptyString(rawArtifactId);
+		const rawDownload = Array.isArray(req.query.download)
+			? req.query.download[0]
+			: req.query.download;
+		const shouldDownload = rawDownload === "1" || rawDownload === "true";
+
+		if (artifactId) {
+			const artifactFile = await agentsTeamRunManager.getRunFile(runId, artifactId);
+			if (!artifactFile) {
+				return res.status(404).json({ error: "Artifact not found" });
+			}
+
+			if (artifactFile.type === "redirect") {
+				return res.redirect(artifactFile.url);
+			}
+
+			res.setHeader("Content-Type", artifactFile.mimeType || "application/octet-stream");
+			res.setHeader("Content-Length", String(artifactFile.buffer.length));
+			res.setHeader(
+				"Content-Disposition",
+				`${shouldDownload ? "attachment" : "inline"}; filename="${artifactFile.fileName}"`
+			);
+			return res.status(200).send(artifactFile.buffer);
+		}
+
+		const filesPayload = await agentsTeamRunManager.getRunFiles(runId);
+		if (!filesPayload) {
+			return res.status(404).json({ error: "Run not found" });
+		}
+
+		return res.status(200).json(filesPayload);
+	} catch (error) {
+		console.error("[AGENTS-RUN] Failed to load run files:", error);
+		const message = error instanceof Error ? error.message : "Failed to load run files";
+		return res.status(500).json({ error: message });
 	}
 });
 
@@ -2718,10 +2980,16 @@ app.get("/api/health", async (req, res) => {
 
 	const key = process.env.ASAP_PRIVATE_KEY;
 	const rovoDevAvailable = await isRovoDevAvailable();
+	const envVars = getEnvVars();
+	const fallbackEnabled = isAIGatewayFallbackEnabled();
+	const aiGatewayConfigured = hasGatewayUrlConfigured(envVars);
+	const fallbackActive = !rovoDevAvailable && fallbackEnabled;
 
 	debugLog("HEALTH", "Auth configuration", {
 		hasAsapKey: !!key,
 		rovoDevAvailable,
+		fallbackEnabled,
+		aiGatewayConfigured,
 	});
 
 	const response = {
@@ -2731,6 +2999,13 @@ app.get("/api/health", async (req, res) => {
 		authMethod: "ASAP",
 		debugMode: DEBUG,
 		rovoDevMode: rovoDevAvailable,
+		llmRouting: {
+			rovodevAvailable: rovoDevAvailable,
+			fallbackEnabled,
+			fallbackActive,
+			aiGatewayConfigured,
+			aiGatewayConfig: getAIGatewayConfigReport(envVars),
+		},
 		envCheck: {
 			ASAP_PRIVATE_KEY: key ? "SET" : "MISSING",
 			ROVODEV_PORT: process.env.ROVODEV_PORT ? "SET" : "MISSING",
@@ -2804,10 +3079,21 @@ const server = app.listen(port, "0.0.0.0", async () => {
 
 	// Check for RovoDev Serve at startup
 	const rovoDevReady = await refreshRovoDevAvailability();
-	console.log(`\n🤖 Chat Backend: ${rovoDevReady ? "RovoDev Serve (agent loop)" : "AI Gateway (direct)"}`);
+	const fallbackEnabled = isAIGatewayFallbackEnabled();
+	const aiGatewayConfigured = hasGatewayUrlConfigured(getEnvVars());
+	let chatBackendLabel = "RovoDev required (fallback disabled)";
+	if (rovoDevReady) {
+		chatBackendLabel = "RovoDev Serve (agent loop)";
+	} else if (fallbackEnabled && aiGatewayConfigured) {
+		chatBackendLabel = "AI Gateway fallback";
+	} else if (fallbackEnabled) {
+		chatBackendLabel = "AI Gateway fallback (misconfigured)";
+	}
+	console.log(`\n🤖 Chat Backend: ${chatBackendLabel}`);
 	if (rovoDevReady) {
 		console.log(`  ROVODEV_PORT: ${process.env.ROVODEV_PORT}`);
 	}
+	console.log(`  AUTO_FALLBACK_TO_AI_GATEWAY: ${fallbackEnabled ? "ENABLED" : "DISABLED"}`);
 	console.log(`${"=".repeat(60)}\n`);
 
 	if (DEBUG) {

@@ -19,6 +19,14 @@ export interface ParsedPlanWidgetPayload {
 	agents: string[];
 }
 
+const MERMAID_BLOCK_REGEX = /```mermaid\b[\s\S]*?```/gi;
+const MERMAID_EDGE_REGEX =
+	/\b[A-Za-z0-9_-]+\s*(?:-->|==>|-.->)\s*(?:\|[^|\n]+\|\s*)?[A-Za-z0-9_-]+\b/;
+
+function createMermaidBlockRegex(): RegExp {
+	return new RegExp(MERMAID_BLOCK_REGEX.source, MERMAID_BLOCK_REGEX.flags);
+}
+
 function isStringRecord(value: unknown): value is StringRecord {
 	return typeof value === "object" && value !== null;
 }
@@ -115,6 +123,33 @@ export function parsePlanWidgetPayload(
 		tasks,
 		agents,
 	};
+}
+
+export function extractMermaidBlocksFromText(value: string): string[] {
+	if (!value.trim()) {
+		return [];
+	}
+
+	return Array.from(value.matchAll(createMermaidBlockRegex()), (match) =>
+		match[0].trim()
+	);
+}
+
+export function stripMermaidBlocksFromText(value: string): string {
+	if (!value.trim()) {
+		return "";
+	}
+
+	return value.replace(createMermaidBlockRegex(), "").trim();
+}
+
+export function hasDependencyEdgesInMermaid(value: string): boolean {
+	const mermaidBlocks = extractMermaidBlocksFromText(value);
+	if (mermaidBlocks.length === 0) {
+		return false;
+	}
+
+	return mermaidBlocks.some((block) => MERMAID_EDGE_REGEX.test(block));
 }
 
 export function getLatestPlanWidgetPayload(

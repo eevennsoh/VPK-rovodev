@@ -90,6 +90,26 @@ Action items
 	);
 });
 
+test("strips inline markdown bold markers from checklist labels", () => {
+	const input = `# Conference planning plan
+
+Action items
+- [ ] **Define conference identity and date** — choose theme
+- [ ] **Draft budget and funding model** — estimate costs`;
+	const result = extractProgressivePlanWidgetPayloadFromText(input, {
+		requireActionItemsHeading: true,
+	});
+
+	assert.ok(result);
+	assert.deepEqual(
+		result.tasks.map((task) => task.label),
+		[
+			"Define conference identity and date — choose theme",
+			"Draft budget and funding model — estimate costs",
+		]
+	);
+});
+
 test("progressive extractor expands tasks as more list items appear", () => {
 	const partialInput = `Execution plan\n- Define conference goals`;
 	const completeInput = `${partialInput}\n- Secure venue`;
@@ -113,4 +133,68 @@ test("progressive extractor ignores generic lists without plan signal", () => {
 	const input = `Shopping list\n- Apples\n- Oranges`;
 	const result = extractProgressivePlanWidgetPayloadFromText(input);
 	assert.equal(result, null);
+});
+
+test("extractPlanWidgetPayloadFromText infers DAG dependencies", () => {
+	const input = [
+		"# Project plan",
+		"",
+		"Action items",
+		"- Research authentication options",
+		"- Design authentication flow",
+		"- Implement authentication service",
+		"- Test authentication service",
+	].join("\n");
+
+	const result = extractPlanWidgetPayloadFromText(input);
+	assert.ok(result);
+	assert.equal(result.tasks.length, 4);
+	// Research (phase 0) has no deps
+	assert.deepEqual(result.tasks[0].blockedBy, []);
+	// Design (phase 1) depends on Research (shared "authentication")
+	assert.deepEqual(result.tasks[1].blockedBy, ["task-1"]);
+	// Implement (phase 2) depends on Design
+	assert.deepEqual(result.tasks[2].blockedBy, ["task-2"]);
+	// Test (phase 3) depends on Implement
+	assert.deepEqual(result.tasks[3].blockedBy, ["task-3"]);
+});
+
+test("extractProgressivePlanWidgetPayloadFromText infers DAG dependencies", () => {
+	const input = [
+		"Rollout plan",
+		"1. Design frontend layout",
+		"2. Design backend architecture",
+		"3. Build frontend components",
+		"4. Build backend services",
+	].join("\n");
+
+	const result = extractProgressivePlanWidgetPayloadFromText(input);
+	assert.ok(result);
+	assert.equal(result.tasks.length, 4);
+	// Design tasks are same-phase, independent
+	assert.deepEqual(result.tasks[0].blockedBy, []);
+	assert.deepEqual(result.tasks[1].blockedBy, []);
+	// Build frontend depends on Design frontend
+	assert.deepEqual(result.tasks[2].blockedBy, ["task-1"]);
+	// Build backend depends on Design backend
+	assert.deepEqual(result.tasks[3].blockedBy, ["task-2"]);
+});
+
+test("flat tasks with no phase keywords remain independent after inference", () => {
+	const input = [
+		"# Todo",
+		"",
+		"Action items",
+		"- Send email to stakeholders",
+		"- Update spreadsheet",
+		"- Schedule meeting",
+	].join("\n");
+
+	const result = extractPlanWidgetPayloadFromText(input);
+	assert.ok(result);
+	assert.equal(result.tasks.length, 3);
+	// None of these labels match phase keywords, so all stay independent
+	assert.deepEqual(result.tasks[0].blockedBy, []);
+	assert.deepEqual(result.tasks[1].blockedBy, []);
+	assert.deepEqual(result.tasks[2].blockedBy, []);
 });

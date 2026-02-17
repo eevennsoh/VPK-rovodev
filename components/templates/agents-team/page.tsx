@@ -189,19 +189,15 @@ export default function AgentsTeamView() {
 		activeChatId !== null && pendingTitleChatId === activeChatId;
 
 	useEffect(() => {
-		if (!runId) {
+		if (!runId || executionState === "idle") {
+			hasNavigatedToSummaryRef.current = false;
 			return;
 		}
 
-		if (executionState === "completed" || executionState === "failed") {
-			if (!hasNavigatedToSummaryRef.current) {
-				hasNavigatedToSummaryRef.current = true;
-				router.push(`/agents-team/runs/${runId}`);
-			}
-			return;
+		if (!hasNavigatedToSummaryRef.current) {
+			hasNavigatedToSummaryRef.current = true;
+			router.push(`/agents-team/runs/${runId}`);
 		}
-
-		hasNavigatedToSummaryRef.current = false;
 	}, [executionState, router, runId]);
 
 	const handleClarificationSubmit = useCallback(
@@ -229,9 +225,7 @@ export default function AgentsTeamView() {
 				selection,
 				activePlanWidget
 			);
-			const shouldStartRun =
-				selection.decision === "auto-accept" ||
-				selection.decision === "manual-approve";
+			const shouldStartRun = selection.decision === "auto-accept";
 
 			if (shouldStartRun && activePlanWidget) {
 				void startExecution({
@@ -285,6 +279,15 @@ export default function AgentsTeamView() {
 			toggleAgentTeamMode();
 		}
 	}, [isAgentTeamMode, toggleAgentTeamMode]);
+
+	const handleRetryPlanWidget = useCallback(() => {
+		const retryPrompt = latestUserPrompt.trim();
+		if (!retryPrompt) {
+			return;
+		}
+
+		void handleSuggestedQuestionClick(retryPrompt);
+	}, [handleSuggestedQuestionClick, latestUserPrompt]);
 
 	return (
 		<SidebarProvider
@@ -381,7 +384,8 @@ export default function AgentsTeamView() {
 										onClarificationSubmit={handleClarificationSubmit}
 										onApprovalSubmit={handleApprovalSubmit}
 										onSuggestedQuestionClick={handleSuggestedQuestionClick}
-									onDeleteMessage={handleDeleteMessage}
+										onRetryPlanWidget={handleRetryPlanWidget}
+										onDeleteMessage={handleDeleteMessage}
 									/>
 								)}
 							</div>

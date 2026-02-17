@@ -318,10 +318,11 @@ async function streamViaRovoDev({
 		}
 	} catch (err) {
 		if (isChatInProgressError(err)) {
-			onTextDelta(
-				`\\n\\n⚠️ RovoDev is still finishing the previous response after ${Math.ceil(RETRY_TIMEOUT_MS / 1000)} seconds. Please try again.`
+			const timeoutError = new Error(
+				`RovoDev chat in progress timeout after ${Math.ceil(RETRY_TIMEOUT_MS / 1000)}s`
 			);
-			return;
+			timeoutError.code = "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT";
+			throw timeoutError;
 		}
 		throw err;
 	}
@@ -348,6 +349,7 @@ async function generateTextViaRovoDev({
 	system,
 	prompt,
 	conflictPolicy = "cancel-and-retry",
+	timeoutMs,
 }) {
 	// Combine system + prompt since RovoDev takes a single message
 	let fullMessage = "";
@@ -356,15 +358,20 @@ async function generateTextViaRovoDev({
 	}
 	fullMessage += prompt;
 
+	const syncOptions =
+		typeof timeoutMs === "number" && timeoutMs > 0
+			? { timeoutMs }
+			: undefined;
+
 	const runGenerate = async () => {
 		try {
-			return await sendMessageSync(fullMessage);
+			return await sendMessageSync(fullMessage, syncOptions);
 		} catch (err) {
 			if (isChatInProgressError(err)) {
 				const waitForTurn = conflictPolicy === "wait-for-turn";
 				try {
 					const { value } = await retryChatInProgress(
-						() => sendMessageSync(fullMessage),
+						() => sendMessageSync(fullMessage, syncOptions),
 						{
 							logPrefix: "generateTextViaRovoDev",
 							timeoutMs: waitForTurn ? WAIT_FOR_TURN_TIMEOUT_MS : RETRY_TIMEOUT_MS,
@@ -378,7 +385,7 @@ async function generateTextViaRovoDev({
 							"[generateTextViaRovoDev] wait-for-turn timed out; falling back to cancel-and-retry."
 						);
 						const { value } = await retryChatInProgress(
-							() => sendMessageSync(fullMessage),
+							() => sendMessageSync(fullMessage, syncOptions),
 							{
 								logPrefix: "generateTextViaRovoDev",
 								timeoutMs: RETRY_TIMEOUT_MS,
@@ -404,4 +411,5 @@ async function generateTextViaRovoDev({
 module.exports = {
 	streamViaRovoDev,
 	generateTextViaRovoDev,
+	isChatInProgressError,
 };

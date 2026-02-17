@@ -30,6 +30,11 @@ export type RovoDataParts = {
 		type?: string;
 		payload: unknown;
 	};
+	"widget-error": {
+		type?: string;
+		message: string;
+		canRetry?: boolean;
+	};
 	"suggested-questions": {
 		questions: string[];
 	};
@@ -61,6 +66,8 @@ export type RovoRenderableUIMessage = RovoUIMessage & {
 };
 export type RovoToolPart = ToolUIPart | DynamicToolUIPart;
 export type RovoSourcePart = SourceUrlUIPart | SourceDocumentUIPart;
+
+const CREATE_PLAN_SIGNAL_REGEX = /\bcreate[-_\s]?plan\b/i;
 
 export function createAssistantTextMessage(
 	id: string,
@@ -193,4 +200,39 @@ export function getMessageToolParts(
 
 export function getToolPartName(toolPart: RovoToolPart): string {
 	return getToolName(toolPart);
+}
+
+function hasCreatePlanSignal(value: unknown): boolean {
+	if (typeof value !== "string") {
+		return false;
+	}
+
+	return CREATE_PLAN_SIGNAL_REGEX.test(value);
+}
+
+export function hasCreatePlanSkillSignal(
+	message: Pick<RovoUIMessage, "parts">
+): boolean {
+	if (hasCreatePlanSignal(getMessageText(message))) {
+		return true;
+	}
+
+	const thinkingStatusParts = getAllDataParts(message, "data-thinking-status");
+	for (const part of thinkingStatusParts) {
+		if (
+			hasCreatePlanSignal(part.data.label) ||
+			hasCreatePlanSignal(part.data.content)
+		) {
+			return true;
+		}
+	}
+
+	const toolParts = getMessageToolParts(message);
+	for (const toolPart of toolParts) {
+		if (hasCreatePlanSignal(getToolPartName(toolPart))) {
+			return true;
+		}
+	}
+
+	return false;
 }

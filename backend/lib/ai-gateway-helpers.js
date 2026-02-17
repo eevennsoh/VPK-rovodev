@@ -160,20 +160,6 @@ function getGatewayHeaders(envVars, token, stream = false) {
 	return headers;
 }
 
-function translateBedrockUrl(gatewayUrl) {
-	if (!gatewayUrl || typeof gatewayUrl !== "string") {
-		return gatewayUrl;
-	}
-
-	const bedrockInvokePattern = /\/v1\/bedrock\/model\/[^/]+\/invoke-with-response-stream$/;
-	if (!bedrockInvokePattern.test(gatewayUrl)) {
-		return gatewayUrl;
-	}
-
-	const baseUrl = gatewayUrl.replace(/\/v1\/bedrock\/model\/[^/]+\/invoke-with-response-stream$/, "");
-	return `${baseUrl}/provider/bedrock/format/openai/v1/chat/completions`;
-}
-
 function translateGoogleUrl(gatewayUrl) {
 	if (!gatewayUrl || typeof gatewayUrl !== "string") {
 		return gatewayUrl;
@@ -206,9 +192,13 @@ function resolveGatewayUrl(gatewayUrl) {
 		return null;
 	}
 
-	let resolved = translateBedrockUrl(gatewayUrl);
-	resolved = translateGoogleUrl(resolved);
-	return resolved;
+	// Keep Bedrock URLs unchanged. Rewriting them to provider/bedrock/openai can
+	// fail auth checks in some environments even when direct Bedrock works.
+	if (detectEndpointType(gatewayUrl) === "bedrock") {
+		return gatewayUrl;
+	}
+
+	return translateGoogleUrl(gatewayUrl);
 }
 
 function resolveBaseURL(gatewayUrl) {

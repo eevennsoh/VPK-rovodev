@@ -98,11 +98,23 @@ export async function proxyToBackend(
 		return NextResponse.json(data, { status: response.status });
 	}
 
-	const text = await response.text();
-	return new NextResponse(text, {
+	const headers = new Headers();
+	if (contentType) {
+		headers.set("Content-Type", contentType);
+	}
+
+	const contentDisposition = response.headers.get("content-disposition");
+	if (contentDisposition) {
+		headers.set("Content-Disposition", contentDisposition);
+	}
+
+	const contentLength = response.headers.get("content-length");
+	if (contentLength) {
+		headers.set("Content-Length", contentLength);
+	}
+
+	return new NextResponse(response.body, {
 		status: response.status,
-		headers: {
-			"Content-Type": contentType || "text/plain; charset=utf-8",
-		},
+		headers,
 	});
 }

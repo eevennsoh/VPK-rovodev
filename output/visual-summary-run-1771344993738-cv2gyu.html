@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tech Conference Plan — Summary</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-deep: #0a0e1a;
+  --bg-card: #111827;
+  --bg-card-hover: #1a2235;
+  --bg-accent: #10b981;
+  --bg-accent-subtle: rgba(16, 185, 129, 0.08);
+  --bg-accent-muted: rgba(16, 185, 129, 0.15);
+  --bg-warning: #f59e0b;
+  --bg-warning-subtle: rgba(245, 158, 11, 0.1);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-accent: #34d399;
+  --text-warning: #fbbf24;
+  --border-subtle: rgba(148, 163, 184, 0.08);
+  --border-card: rgba(148, 163, 184, 0.12);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.2);
+  --shadow-glow: 0 0 40px rgba(16, 185, 129, 0.06);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+/* ── Header ── */
+.header {
+  margin-bottom: 56px;
+  position: relative;
+}
+
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: -28px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, var(--bg-accent), transparent 70%);
+  opacity: 0.3;
+}
+
+.run-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.run-id .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--bg-accent);
+  display: inline-block;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+h1 {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--text-primary), var(--text-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  font-size: 17px;
+  color: var(--text-secondary);
+  max-width: 640px;
+  line-height: 1.6;
+}
+
+/* ── Status Banner ── */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding: 24px 32px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+  margin-bottom: 48px;
+  box-shadow: var(--shadow-card);
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-accent);
+}
+
+.status-badge .icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-accent-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.stat-group {
+  display: flex;
+  gap: 32px;
+  margin-left: auto;
+}
+
+.stat {
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Key Outcomes ── */
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.outcomes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 56px;
+}
+
+.outcome-card {
+  padding: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.outcome-card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+.outcome-icon {
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+
+.outcome-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.outcome-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.outcome-detail {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* ── Task List ── */
+.task-list {
+  margin-bottom: 56px;
+}
+
+.task-item {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: start;
+  gap: 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+.task-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-accent-subtle);
+  color: var(--text-accent);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.task-content h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.task-content p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.task-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--bg-accent-subtle);
+  color: var(--text-accent);
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+/* ── Risks ── */
+.risks-section {
+  margin-bottom: 56px;
+}
+
+.risk-list {
+  display: grid;
+  gap: 12px;
+}
+
+.risk-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--bg-warning-subtle);
+  border: 1px solid rgba(245, 158, 11, 0.12);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.risk-icon {
+  color: var(--text-warning);
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Next Actions ── */
+.next-actions {
+  margin-bottom: 56px;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.action-card {
+  padding: 20px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.action-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-accent);
+  background: var(--bg-accent-subtle);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.action-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.action-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── Footer ── */
+.footer {
+  padding-top: 32px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.confidence {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.confidence-bar {
+  width: 120px;
+  height: 4px;
+  background: rgba(148, 163, 184, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  width: 85%;
+  background: linear-gradient(90deg, var(--bg-accent), #6ee7b7);
+  border-radius: 2px;
+}
+
+@media (max-width: 768px) {
+  h1 { font-size: 28px; }
+  .status-banner { flex-direction: column; align-items: flex-start; gap: 20px; }
+  .stat-group { margin-left: 0; }
+  .outcomes-grid { grid-template-columns: 1fr; }
+  .action-grid { grid-template-columns: 1fr; }
+  .task-item { grid-template-columns: 32px 1fr; }
+  .task-status { grid-column: 2; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="run-id"><span class="dot"></span> run-1771344993738-cv2gyu</div>
+    <h1>Tech Conference Setup Plan</h1>
+    <p class="subtitle">A comprehensive 11-step roadmap to launch a 500-attendee, multi-track technology conference focused on ML/AI, Cloud Native, and Developer Productivity — targeting March 15–16, 2024.</p>
+  </header>
+
+  <!-- Status Banner -->
+  <div class="status-banner">
+    <div class="status-badge">
+      <span class="icon">✓</span>
+      Plan Completed
+    </div>
+    <div class="stat-group">
+      <div class="stat">
+        <div class="stat-value">11</div>
+        <div class="stat-label">Tasks</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">11</div>
+        <div class="stat-label">Completed</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">0</div>
+        <div class="stat-label">Remaining</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">85%</div>
+        <div class="stat-label">Confidence</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Outcomes -->
+  <div class="section-title">Key Outcomes</div>
+  <div class="outcomes-grid">
+    <div class="outcome-card">
+      <div class="outcome-icon">🎯</div>
+      <div class="outcome-label">Target Audience</div>
+      <div class="outcome-value">500 Attendees</div>
+      <div class="outcome-detail">Software engineers, tech managers, research scientists, and startup founders</div>
+    </div>
+    <div class="outcome-card">
+      <div class="outcome-icon">💰</div>
+      <div class="outcome-label">Projected Revenue</div>
+      <div class="outcome-value">$150K – $250K</div>
+      <div class="outcome-detail">Multi-stream: ticket tiers, 3 sponsorship levels, and grants</div>
+    </div>
+    <div class="outcome-card">
+      <div class="outcome-icon">📅</div>
+      <div class="outcome-label">Event Format</div>
+      <div class="outcome-value">2-Day Multi-Track</div>
+      <div class="outcome-detail">March 15–16, 2024 — keynotes, deep-dives, and lightning talks</div>
+    </div>
+    <div class="outcome-card">
+      <div class="outcome-icon">👥</div>
+      <div class="outcome-label">Organizing Team</div>
+      <div class="outcome-value">5 Core Roles</div>
+      <div class="outcome-detail">Program chair, sponsorship, marketing, logistics, and volunteer leads</div>
+    </div>
+  </div>
+
+  <!-- Task-by-Task Results -->
+  <div class="section-title">Task-by-Task Results</div>
+  <div class="task-list">
+
+    <div class="task-item">
+      <div class="task-number">1</div>
+      <div class="task-content">
+        <h3>Define Conference Identity &amp; Date</h3>
+        <p>Selected ML/AI, Cloud Native, and Developer Productivity as focus areas. Targeting 500 technical professionals in a multi-track, 2-day format for March 15–16, 2024. Primary audience: software engineers (50%), tech managers (25%), researchers (15%), founders (10%).</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">2</div>
+      <div class="task-content">
+        <h3>Draft Budget &amp; Funding Model</h3>
+        <p>Itemized costs across venue ($20–50K), AV ($10–15K), catering ($100/person), and marketing ($5–10K). Established 3 ticket tiers (Early Bird $299, Regular $399, VIP $599) and 3 sponsorship levels (Platinum $25K, Gold $15K, Silver $7.5K). Break-even at 350 tickets.</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">3</div>
+      <div class="task-content">
+        <h3>Recruit Organizing Team &amp; Tools</h3>
+        <p>Defined 5 core roles with clear ownership. Set up Jira board for task tracking, Confluence space for documentation, and Slack channel for real-time coordination. Established weekly sync meeting cadence.</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">4</div>
+      <div class="task-content">
+        <h3>Secure Venue &amp; Contract Vendors</h3>
+        <p>Established venue criteria (capacity, 100+ Mbps Wi-Fi, AV infrastructure, accessibility). Created RFP workflow for catering, AV/production, and photography vendors. Budget range: $25–75K. Included force majeure clauses and backup venue options.</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">5</div>
+      <div class="task-content">
+        <h3>Launch Sponsorship Outreach</h3>
+        <p>Created tiered prospectus: Platinum ($15K — keynote slot + prime booth), Gold ($10K — session + booth), Silver ($5K — logo + passes). Strategy targets 30–50 companies with personalized outreach 6+ months before event.</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">6</div>
+      <div class="task-content">
+        <h3>Open CFP &amp; Recruit Speakers</h3>
+        <p>Designed review rubric (technical depth 30pts, expertise 25pts, quality 20pts, novelty 15pts, relevance 10pts). Three talk formats: 45-min keynotes, 30-min deep-dives, 15-min lightning talks. Targeting 50% underrepresented speakers. CFP deadline 3–4 months before event.</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">7</div>
+      <div class="task-content">
+        <h3>Set Up Ticketing &amp; Registration</h3>
+        <p>Evaluated platforms (Tito, Eventbrite, Ticket Tailor, Pretix). Configured 4 ticket types: Early Bird ($199, 100 seats), Regular ($299, 300 seats), Student ($99, 50 seats), Diversity ($49, 25 seats). Early bird launch 4–5 months out.</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">8</div>
+      <div class="task-content">
+        <h3>Execute Marketing Campaign</h3>
+        <p>Planned static conference website with hero, speakers, schedule, and registration CTA. Multi-channel social strategy (Twitter, LinkedIn, Instagram, Reddit/HN). Email sequence from announcement through final push. UTM tracking on all campaigns.</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">9</div>
+      <div class="task-content">
+        <h3>Plan Day-of Logistics &amp; Volunteers</h3>
+        <p>Targeting 15–30 volunteers across 4 roles: registration desk (4–6), session management (6–8), technical support (2–4), and logistics (2–3). Created minute-by-minute run-of-show template. Defined speaker green room setup with Wi-Fi, power, and refreshments.</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">10</div>
+      <div class="task-content">
+        <h3>Validate with Dry Run &amp; Risk Mitigation</h3>
+        <p>Comprehensive venue walkthrough 1–2 weeks before. AV/streaming/Wi-Fi load testing (min 500 Mbps). Contingency plans for speaker no-shows (pre-recorded backups), AV failures (redundant equipment), medical emergencies (on-site first aid), and overcrowding (fire marshal compliance).</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+    <div class="task-item">
+      <div class="task-number">11</div>
+      <div class="task-content">
+        <h3>Execute Post-Event Follow-Up</h3>
+        <p>Attendee survey within 48 hours targeting 40–50% response rate. Talk recordings published within 2 weeks. Personalized sponsor recap reports with attendance, engagement, and lead data. 90-minute team retrospective documented in Confluence. Thank-you comms to all stakeholders.</p>
+      </div>
+      <div class="task-status">done</div>
+    </div>
+
+  </div>
+
+  <!-- Open Risks -->
+  <div class="risks-section">
+    <div class="section-title">Open Risks &amp; Decisions</div>
+    <div class="risk-list">
+      <div class="risk-item">
+        <span class="risk-icon">⚠</span>
+        <span><strong>Sponsorship pipeline completion</strong> — Final sponsor commitments and signed contracts still pending. Early outreach is critical to hit revenue targets.</span>
+      </div>
+      <div class="risk-item">
+        <span class="risk-icon">⚠</span>
+        <span><strong>Speaker lineup confirmation</strong> — Keynote invitations sent but not yet accepted. Maintain a waitlist of alternate speakers as backup.</span>
+      </div>
+      <div class="risk-item">
+        <span class="risk-icon">⚠</span>
+        <span><strong>Venue capacity adjustments</strong> — Final attendee count may require scaling venue up or down. Flexible contract terms are essential.</span>
+      </div>
+      <div class="risk-item">
+        <span class="risk-icon">⚠</span>
+        <span><strong>Marketing performance</strong> — Ticket sales velocity needs monitoring. If early bird uptake is low, consider extending the early bird window or adjusting pricing.</span>
+      </div>
+      <div class="risk-item">
+        <span class="risk-icon">⚠</span>
+        <span><strong>Volunteer recruitment</strong> — 15–30 volunteers needed. Start outreach to university programs and local tech communities early.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Next Actions -->
+  <div class="next-actions">
+    <div class="section-title">Recommended Next Actions</div>
+    <div class="action-grid">
+      <div class="action-card">
+        <div class="action-num">1</div>
+        <div class="action-text"><strong>Launch CFP</strong> — Open the Call for Papers and send direct keynote speaker invitations immediately.</div>
+      </div>
+      <div class="action-card">
+        <div class="action-num">2</div>
+        <div class="action-text"><strong>Start sponsorship outreach</strong> — Send personalized prospectus to the first batch of 10–15 target companies.</div>
+      </div>
+      <div class="action-card">
+        <div class="action-num">3</div>
+        <div class="action-text"><strong>Finalize venue contracts</strong> — Complete site visits and sign venue + vendor contracts with cancellation clauses.</div>
+      </div>
+      <div class="action-card">
+        <div class="action-num">4</div>
+        <div class="action-text"><strong>Begin volunteer recruitment</strong> — Post volunteer applications to university programs and local tech meetup groups.</div>
+      </div>
+      <div class="action-card">
+        <div class="action-num">5</div>
+        <div class="action-text"><strong>Build marketing content calendar</strong> — Map milestone announcements to social, email, and community channels.</div>
+      </div>
+      <div class="action-card">
+        <div class="action-num">6</div>
+        <div class="action-text"><strong>Validate pricing strategy</strong> — Conduct market research to confirm ticket tiers and sponsorship pricing are competitive.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="confidence">
+      <span>Project Confidence</span>
+      <div class="confidence-bar">
+        <div class="confidence-fill"></div>
+      </div>
+      <span>85%</span>
+    </div>
+    <div>Generated Feb 18, 2026</div>
+  </footer>
+
+</div>
+</body>
+</html>

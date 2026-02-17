@@ -1,3 +1,5 @@
+const { inferTaskDependencies } = require("./dag-inference");
+
 const MAX_TASKS = 20;
 const DEFAULT_MIN_TASKS = 2;
 const DEFAULT_PROGRESSIVE_MIN_TASKS = 1;
@@ -7,11 +9,14 @@ function normalizeWhitespace(value) {
 }
 
 function stripMarkdownDecorators(value) {
-	return normalizeWhitespace(
-		value
-			.replace(/^[*_`\s]+/, "")
-			.replace(/[\s*_`]+$/, "")
-	);
+	const withoutInlineStrong = value
+		.replace(/\*\*([^*\n]+)\*\*/g, "$1")
+		.replace(/__([^_\n]+)__/g, "$1");
+	const withoutEdgeDecorators = withoutInlineStrong
+		.replace(/^[*_`\s]+/, "")
+		.replace(/[\s*_`]+$/, "");
+
+	return normalizeWhitespace(withoutEdgeDecorators);
 }
 
 function isLikelySectionHeading(line) {
@@ -230,7 +235,9 @@ function extractPlanWidgetPayloadFromText(rawText, options = {}) {
 		return null;
 	}
 
-	const tasks = collectPlanTasks(lines, actionItemsHeadingIndex + 1, maxTasks);
+	const tasks = inferTaskDependencies(
+		collectPlanTasks(lines, actionItemsHeadingIndex + 1, maxTasks)
+	);
 
 	if (tasks.length < minTasks) {
 		return null;
@@ -283,7 +290,9 @@ function extractProgressivePlanWidgetPayloadFromText(rawText, options = {}) {
 		return null;
 	}
 
-	const tasks = collectPlanTasks(lines, listStartIndex, maxTasks);
+	const tasks = inferTaskDependencies(
+		collectPlanTasks(lines, listStartIndex, maxTasks)
+	);
 	if (tasks.length < minTasks) {
 		return null;
 	}

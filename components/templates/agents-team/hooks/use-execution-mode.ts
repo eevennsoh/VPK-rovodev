@@ -162,34 +162,39 @@ function getErrorMessage(error: unknown): string {
 	return "Request failed";
 }
 
-type TaskExecutionById = Record<string, TaskExecution>;
+type TaskExecutionByAgentId = Record<string, TaskExecution>;
 
 function applyExecutionUpdate(
-	previousById: TaskExecutionById,
+	previousByAgentId: TaskExecutionByAgentId,
 	update: AgentExecutionUpdate
-): TaskExecutionById {
+): TaskExecutionByAgentId {
 	if (!update.agentId || !update.taskId) {
-		return previousById;
+		return previousByAgentId;
 	}
 
-	const existingExecution = previousById[update.taskId];
-	if (existingExecution && existingExecution.taskId === update.taskId) {
+	const existingExecution = previousByAgentId[update.agentId];
+	if (existingExecution && existingExecution.agentId === update.agentId) {
+		const hasTaskChanged = existingExecution.taskId !== update.taskId;
 		const nextContent = update.content
-			? `${existingExecution.content}${update.content}`
+			? hasTaskChanged
+				? update.content
+				: `${existingExecution.content}${update.content}`
 			: existingExecution.content;
 		const hasChanged =
 			existingExecution.agentName !== update.agentName ||
+			existingExecution.taskId !== update.taskId ||
 			existingExecution.taskLabel !== update.taskLabel ||
 			existingExecution.status !== update.status ||
 			existingExecution.content !== nextContent;
 		if (!hasChanged) {
-			return previousById;
+			return previousByAgentId;
 		}
 
 		return {
-			...previousById,
-			[update.taskId]: {
+			...previousByAgentId,
+			[update.agentId]: {
 				...existingExecution,
+				taskId: update.taskId,
 				agentName: update.agentName,
 				taskLabel: update.taskLabel,
 				status: update.status,
@@ -214,37 +219,37 @@ function applyExecutionUpdate(
 		existingExecution.status === nextExecution.status &&
 		existingExecution.content === nextExecution.content
 	) {
-		return previousById;
+		return previousByAgentId;
 	}
 
 	return {
-		...previousById,
-		[update.taskId]: nextExecution,
+		...previousByAgentId,
+		[update.agentId]: nextExecution,
 	};
 }
 
 function mergeStreamedExecutions(
 	baseExecutions: ReadonlyArray<TaskExecution>,
-	streamedExecutionsById: TaskExecutionById
+	streamedExecutionsByAgentId: TaskExecutionByAgentId
 ): TaskExecution[] {
-	const streamedExecutions = Object.values(streamedExecutionsById);
+	const streamedExecutions = Object.values(streamedExecutionsByAgentId);
 	if (streamedExecutions.length === 0) {
 		return [...baseExecutions];
 	}
 
 	const mergedById = new Map(
-		baseExecutions.map((execution) => [execution.taskId, execution] as const)
+		baseExecutions.map((execution) => [execution.agentId, execution] as const)
 	);
 	for (const streamedExecution of streamedExecutions) {
-		mergedById.set(streamedExecution.taskId, streamedExecution);
+		mergedById.set(streamedExecution.agentId, streamedExecution);
 	}
 
 	const orderedExecutions = baseExecutions.map(
-		(execution) => mergedById.get(execution.taskId) ?? execution
+		(execution) => mergedById.get(execution.agentId) ?? execution
 	);
-	const baseTaskIds = new Set(baseExecutions.map((execution) => execution.taskId));
+	const baseAgentIds = new Set(baseExecutions.map((execution) => execution.agentId));
 	for (const streamedExecution of streamedExecutions) {
-		if (!baseTaskIds.has(streamedExecution.taskId)) {
+		if (!baseAgentIds.has(streamedExecution.agentId)) {
 			orderedExecutions.push(streamedExecution);
 		}
 	}
@@ -258,8 +263,8 @@ export function useExecutionMode(): UseExecutionModeReturn {
 	const [run, setRun] = useState<AgentRun | null>(null);
 	const [runId, setRunId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const [streamedExecutionsByTaskId, setStreamedExecutionsByTaskId] =
-		useState<TaskExecutionById>({});
+	const [streamedExecutionsByAgentId, setStreamedExecutionsByAgentId] =
+		useState<TaskExecutionByAgentId>({});
 	const activeRunIdRef = useRef<string | null>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const queuedExecutionUpdatesRef = useRef<AgentExecutionUpdate[]>([]);
@@ -285,8 +290,8 @@ export function useExecutionMode(): UseExecutionModeReturn {
 		}
 
 		queuedExecutionUpdatesRef.current = [];
-		setStreamedExecutionsByTaskId((previousById) => {
-			let nextById = previousById;
+		setStreamedExecutionsByAgentId((previousByAgentId) => {
+			let nextById = previousByAgentId;
 			for (const update of queuedUpdates) {
 				nextById = applyExecutionUpdate(nextById, update);
 			}
@@ -325,7 +330,7 @@ export function useExecutionMode(): UseExecutionModeReturn {
 			if (activeRunIdRef.current !== nextRun.runId) {
 				activeRunIdRef.current = nextRun.runId;
 				clearQueuedExecutionUpdates();
-				setStreamedExecutionsByTaskId({});
+				setStreamedExecutionsByAgentId({});
 			}
 
 			setRun(nextRun);
@@ -348,8 +353,8 @@ export function useExecutionMode(): UseExecutionModeReturn {
 
 			flushQueuedExecutionUpdates();
 			if ("update" in event && event.update) {
-				setStreamedExecutionsByTaskId((previousById) =>
-					applyExecutionUpdate(previousById, event.update as AgentExecutionUpdate)
+				setStreamedExecutionsByAgentId((previousByAgentId) =>
+					applyExecutionUpdate(previousByAgentId, event.update as AgentExecutionUpdate)
 				);
 			}
 
@@ -404,7 +409,7 @@ export function useExecutionMode(): UseExecutionModeReturn {
 			setCachedPlan(options.plan);
 			setRun(null);
 			setRunId(null);
-			setStreamedExecutionsByTaskId({});
+			setStreamedExecutionsByAgentId({});
 			activeRunIdRef.current = null;
 
 			const response = await fetch(API_ENDPOINTS.AGENTS_TEAM_RUNS, {
@@ -526,8 +531,8 @@ export function useExecutionMode(): UseExecutionModeReturn {
 			baseExecutions = deriveTaskExecutionsFromRun(run);
 		}
 
-		return mergeStreamedExecutions(baseExecutions, streamedExecutionsByTaskId);
-	}, [run, streamedExecutionsByTaskId]);
+		return mergeStreamedExecutions(baseExecutions, streamedExecutionsByAgentId);
+	}, [run, streamedExecutionsByAgentId]);
 
 	const isExecuting = executionState === "executing";
 	const isExecutionActive = executionState !== "idle";

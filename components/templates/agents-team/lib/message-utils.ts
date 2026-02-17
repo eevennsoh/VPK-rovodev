@@ -1,5 +1,6 @@
 import {
 	getLatestDataPart,
+	hasCreatePlanSkillSignal,
 	getMessageText,
 	isMessageTextStreaming,
 	type RovoUIMessage,
@@ -46,6 +47,31 @@ export function hasCompleteMermaidDiagram(message: RovoUIMessage): boolean {
 	return /```mermaid\b[\s\S]*?```/.test(text);
 }
 
+function isPlanWidgetLoading(message: RovoUIMessage): boolean {
+	if (message.role !== "assistant") {
+		return false;
+	}
+
+	const loadingPart = getLatestDataPart(message, "data-widget-loading");
+	return (
+		loadingPart?.data.type === "plan" &&
+		loadingPart.data.loading === true
+	);
+}
+
+function hasPlanWidgetError(message: RovoUIMessage): boolean {
+	if (message.role !== "assistant") {
+		return false;
+	}
+
+	const errorPart = getLatestDataPart(message, "data-widget-error");
+	if (!errorPart) {
+		return false;
+	}
+
+	return errorPart.data.type === "plan";
+}
+
 function getLatestPlanMessage(
 	messages: ReadonlyArray<RovoUIMessage>
 ): RovoUIMessage | null {
@@ -69,7 +95,11 @@ export function isPlanResponseComplete(messages: ReadonlyArray<RovoUIMessage>): 
 		return false;
 	}
 
-	return hasCompleteMermaidDiagram(latestPlanMessage);
+	if (isPlanWidgetLoading(latestPlanMessage)) {
+		return false;
+	}
+
+	return !hasPlanWidgetError(latestPlanMessage);
 }
 
 function stripAssistantTextParts(message: RovoUIMessage): RovoUIMessage {
@@ -123,7 +153,11 @@ export function normalizeAgentsTeamMessages(
 			latestHiddenSubmissionIndex !== -1 &&
 			index > latestHiddenSubmissionIndex;
 		const shouldSuppressPlanText =
-			hasPlanWidgetPart(message) && !hasCompleteMermaidDiagram(message);
+			hasPlanWidgetPart(message) &&
+			hasCreatePlanSkillSignal(message) &&
+			(isMessageTextStreaming(message) ||
+				isPlanWidgetLoading(message) ||
+				hasPlanWidgetError(message));
 		const shouldSuppressQuestionCardText = hasQuestionCardWidgetPart(message);
 		const shouldSuppressText =
 			shouldSuppressStreamingText ||

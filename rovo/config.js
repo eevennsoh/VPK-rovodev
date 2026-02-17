@@ -1,20 +1,9 @@
 /**
- * Rovo Configuration (RovoDev Serve mode)
+ * Rovo configuration helpers.
  *
- * This module provides minimal utilities for chat with RovoDev Serve.
- * System prompts, widget protocols, and plan/ask modes are now handled by RovoDev.
+ * Model routing/defaults are defined in backend AI Gateway helpers.
+ * This module only owns user-message formatting for RovoDev chat calls.
  */
-
-const DEFAULT_MODELS = {
-	bedrock: "anthropic.claude-3-5-haiku-20241022-v1:0",
-	openai: "gpt-5.2-2025-12-11",
-	google: "gemini-3-pro-image-preview",
-};
-
-const ROVO_CONFIG = {
-	userName: "User",
-	userTitle: "Team Member",
-};
 
 /**
  * Formats user message with conversation history for RovoDev.
@@ -30,24 +19,6 @@ function buildUserMessage(message, conversationHistory, contextDescription) {
 	return baseMessage;
 }
 
-/**
- * Detects endpoint type from gateway URL (for reference only).
- * Not used in RovoDev-only mode.
- */
-function detectEndpointType(url) {
-	const aiGatewayUrl = url || process.env.AI_GATEWAY_URL || "";
-	if (/\/v1\/bedrock\/model\//.test(aiGatewayUrl)) {
-		return "bedrock";
-	}
-	if (/\/v1\/google\//.test(aiGatewayUrl)) {
-		return "google";
-	}
-	return "openai";
-}
-
 module.exports = {
-	ROVO_CONFIG,
-	DEFAULT_MODELS,
 	buildUserMessage,
-	detectEndpointType,
 };

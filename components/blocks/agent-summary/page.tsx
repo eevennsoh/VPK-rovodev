@@ -345,6 +345,9 @@ const MOCK_RUN: AgentRun = {
 			content: "Plan accepted. Executing and preparing summary artifacts.",
 		},
 	],
+	iteration: 1,
+	artifacts: [],
+	activeBatchId: null,
 };
 
 function formatMetadataTimestamp(value: string | null): string {

@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { token } from "@/lib/tokens";
 import type {
 	AgentRun,
+	AgentRunArtifact,
 	AgentRunSummary,
 	AgentRunVisualSummary,
 	AgentRunGenuiSummary,
 } from "@/lib/agents-team-run-types";
-import { RunSummarySection } from "./run-summary-section";
+import { RunWorkspace } from "@/components/templates/agents-team/components/run-workspace";
+
+interface RunResponse {
+	run?: AgentRun;
+	error?: string;
+}
 
 interface RunSummaryResponse {
 	run?: AgentRun;
@@ -17,12 +22,23 @@ interface RunSummaryResponse {
 	error?: string;
 }
 
+interface RunFilesResponse {
+	run?: AgentRun;
+	artifacts?: AgentRunArtifact[];
+	error?: string;
+}
+
 interface RunSummaryPageProps {
 	params: Promise<{ runId: string }>;
 }
 
 interface HeaderLike {
 	get(name: string): string | null;
+}
+
+interface FetchJsonResult<TPayload> {
+	payload: TPayload | null;
+	error: string | null;
 }
 
 function getRequestOrigin(headersList: HeaderLike): string {
@@ -38,7 +54,8 @@ function getRequestOrigin(headersList: HeaderLike): string {
 		return `${forwardedProto}://${host}`;
 	}
 
-	const inferredProtocol = host.includes("localhost") || host.startsWith("127.0.0.1") ? "http" : "https";
+	const inferredProtocol =
+		host.includes("localhost") || host.startsWith("127.0.0.1") ? "http" : "https";
 	return `${inferredProtocol}://${host}`;
 }
 
@@ -72,49 +89,33 @@ function parseFetchFailure(error: unknown, fallbackMessage: string): string {
 
 	const trimmedMessage = error.message.trim();
 	if (trimmedMessage.toLowerCase().includes("fetch failed")) {
-		return "Unable to reach the run summary service. Check that the frontend and backend dev servers are running.";
+		return "Unable to reach the agents-team run service. Check that the frontend and backend dev servers are running.";
 	}
 
 	return trimmedMessage;
 }
 
-function formatDateTime(value: string | null): string {
-	if (!value) {
-		return "-";
-	}
-
-	const parsedDate = new Date(value);
-	if (Number.isNaN(parsedDate.valueOf())) {
-		return value;
-	}
-
-	return new Intl.DateTimeFormat(undefined, {
-		dateStyle: "medium",
-		timeStyle: "short",
-	}).format(parsedDate);
-}
-
-function groupTasksByAgent(run: AgentRun) {
-	const groups = new Map<
-		string,
-		{ agentId: string; agentName: string; tasks: AgentRun["tasks"] }
-	>();
-
-	for (const task of run.tasks) {
-		const existingGroup = groups.get(task.agentId);
-		if (existingGroup) {
-			existingGroup.tasks.push(task);
-			continue;
+async function fetchJson<TPayload>(url: string, fallbackMessage: string): Promise<FetchJsonResult<TPayload>> {
+	try {
+		const response = await fetch(url, { cache: "no-store" });
+		if (!response.ok) {
+			const errorPayload = (await response.json().catch(() => null)) as unknown;
+			return {
+				payload: null,
+				error: parseApiError(errorPayload, fallbackMessage),
+			};
 		}
 
-		groups.set(task.agentId, {
-			agentId: task.agentId,
-			agentName: task.agentName,
-			tasks: [task],
-		});
+		return {
+			payload: (await response.json()) as TPayload,
+			error: null,
+		};
+	} catch (error) {
+		return {
+			payload: null,
+			error: parseFetchFailure(error, fallbackMessage),
+		};
 	}
-
-	return Array.from(groups.values());
 }
 
 export const dynamic = "force-dynamic";
@@ -123,30 +124,34 @@ export default async function AgentsTeamRunSummaryPage({ params }: Readonly<RunS
 	const { runId } = await params;
 	const headersList = await headers();
 	const requestOrigin = getRequestOrigin(headersList);
-	const summaryPath = `/api/agents-team/runs/${encodeURIComponent(runId)}/summary`;
-	let payload: RunSummaryResponse | null = null;
-	let errorMessage: string | null = null;
+	const encodedRunId = encodeURIComponent(runId);
 
-	try {
-		const summaryResponse = await fetch(`${requestOrigin}${summaryPath}`, { cache: "no-store" });
+	const [runResult, summaryResult, filesResult] = await Promise.all([
+		fetchJson<RunResponse>(
+			`${requestOrigin}/api/agents-team/runs/${encodedRunId}`,
+			"Failed to load run data."
+		),
+		fetchJson<RunSummaryResponse>(
+			`${requestOrigin}/api/agents-team/runs/${encodedRunId}/summary`,
+			"Failed to load run summary."
+		),
+		fetchJson<RunFilesResponse>(
+			`${requestOrigin}/api/agents-team/runs/${encodedRunId}/files`,
+			"Failed to load run files."
+		),
+	]);
 
-		if (!summaryResponse.ok) {
-			const errorPayload = (await summaryResponse.json().catch(() => null)) as unknown;
-			errorMessage = parseApiError(errorPayload, "Failed to load run summary.");
-		} else {
-			payload = (await summaryResponse.json()) as RunSummaryResponse;
-		}
-	} catch (error) {
-		errorMessage = parseFetchFailure(error, "Failed to load run summary.");
-	}
+	const resolvedRun =
+		runResult.payload?.run ?? summaryResult.payload?.run ?? filesResult.payload?.run ?? null;
+	const errorMessage = runResult.error || summaryResult.error || filesResult.error;
 
-	if (!payload?.run || errorMessage) {
+	if (!resolvedRun) {
 		return (
 			<div className="mx-auto flex min-h-svh w-full max-w-[960px] flex-col gap-4 px-4 py-10">
 				<div className="rounded-xl border border-border bg-surface p-6">
-					<h1 className="text-lg font-semibold text-text">Run summary unavailable</h1>
+					<h1 className="text-lg font-semibold text-text">Run workspace unavailable</h1>
 					<p className="mt-2 text-sm text-text-subtle">
-						{errorMessage ?? payload?.error ?? "No data found."}
+						{errorMessage ?? "No run data found."}
 					</p>
 					<div className="mt-5">
 						<Link
@@ -161,71 +166,25 @@ export default async function AgentsTeamRunSummaryPage({ params }: Readonly<RunS
 		);
 	}
 
-	const groupedOutputs = groupTasksByAgent(payload.run);
+	const initialSummary =
+		summaryResult.payload?.summary ?? resolvedRun.summary ?? null;
+	const initialVisualSummary =
+		summaryResult.payload?.visualSummary ?? resolvedRun.visualSummary ?? null;
+	const initialGenuiSummary =
+		summaryResult.payload?.genuiSummary ?? resolvedRun.genuiSummary ?? null;
+	const initialArtifacts =
+		filesResult.payload?.artifacts ?? resolvedRun.artifacts ?? [];
 
 	return (
 		<div className="bg-surface">
-			<div className="mx-auto flex min-h-svh w-full max-w-[1040px] flex-col gap-6 px-4 py-8 md:px-6">
-				<div className="flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<p className="text-xs uppercase tracking-wide text-text-subtlest">Run summary</p>
-						<h1
-							style={{ font: token("font.heading.medium") }}
-							className="mt-1 text-text"
-						>
-							{payload.run.plan.emoji ? `${payload.run.plan.emoji} ` : ""}
-							{payload.run.plan.title}
-						</h1>
-						<p className="mt-1 text-sm text-text-subtle">
-							Status: {payload.run.status} · Started {formatDateTime(payload.run.createdAt)} · Finished{" "}
-							{formatDateTime(payload.run.completedAt)}
-						</p>
-					</div>
-					<Link
-						href="/agents-team"
-						className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
-					>
-						Back to agents team
-					</Link>
-				</div>
-
-				<RunSummarySection
-					runId={runId}
-					initialRun={payload.run}
-					initialSummary={payload.summary ?? null}
-					initialVisualSummary={payload.visualSummary ?? null}
-					initialGenuiSummary={payload.genuiSummary ?? null}
-				/>
-
-				<section className="rounded-xl border border-border bg-surface-raised p-5">
-					<h2 className="text-base font-semibold text-text">Agent outputs</h2>
-					<div className="mt-4 flex flex-col gap-4">
-						{groupedOutputs.map((group) => (
-							<div key={group.agentId} className="rounded-lg border border-border bg-surface p-4">
-								<h3 className="text-sm font-semibold text-text">{group.agentName}</h3>
-								<div className="mt-3 flex flex-col gap-3">
-									{group.tasks.map((task) => (
-										<div
-											key={task.id}
-											className="rounded-md border border-border bg-surface-sunken p-3"
-										>
-											<div className="flex flex-wrap items-center gap-2 text-xs text-text-subtle">
-												<span className="rounded bg-bg-neutral px-1.5 py-0.5">{task.id}</span>
-												<span>{task.status}</span>
-												<span>Attempts: {task.attempts}</span>
-											</div>
-											<p className="mt-2 text-sm font-medium text-text">{task.label}</p>
-											<pre className="mt-2 whitespace-pre-wrap text-sm text-text-subtle">
-												{task.output || task.error || "No output recorded."}
-											</pre>
-										</div>
-									))}
-								</div>
-							</div>
-						))}
-					</div>
-				</section>
-			</div>
+			<RunWorkspace
+				runId={runId}
+				initialRun={resolvedRun}
+				initialSummary={initialSummary}
+				initialVisualSummary={initialVisualSummary}
+				initialGenuiSummary={initialGenuiSummary}
+				initialArtifacts={initialArtifacts}
+			/>
 		</div>
 	);
 }
