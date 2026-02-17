@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { HomeContent, type HomeCategory } from "../home-content";
+import { getCategoryDisplayName } from "@/lib/template-page-title";
 
 interface PageProps {
 	params: Promise<{ category: string }>;
@@ -14,6 +16,12 @@ function isValidCategory(value: string): value is ValidCategory {
 
 export function generateStaticParams() {
 	return VALID_CATEGORIES.map((category) => ({ category }));
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+	const { category } = await params;
+	if (!isValidCategory(category)) return {};
+	return { title: getCategoryDisplayName(category) };
 }
 
 export default async function CategoryPage({ params }: PageProps) {

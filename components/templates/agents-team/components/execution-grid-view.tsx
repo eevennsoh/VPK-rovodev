@@ -1,8 +1,8 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
-import { cn } from "@/lib/utils";
+import { memo, useCallback, useMemo, useState } from "react";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
+import { cn } from "@/lib/utils";
 import {
 	PromptInput,
 	PromptInputBody,
@@ -93,78 +93,74 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 			? Math.ceil(visibleExecutions.length / columnCount)
 			: 1;
 
-	const handleSubmit = (message: { text: string }) => {
-		const trimmed = message.text.trim();
-		if (!trimmed || !onAddTask) {
-			return;
-		}
+	const handleSubmit = useCallback(
+		(message: { text: string }) => {
+			const trimmed = message.text.trim();
+			if (!trimmed || !onAddTask) return;
+			onAddTask(trimmed);
+			setInputValue("");
+		},
+		[onAddTask],
+	);
 
-		onAddTask(trimmed);
-		setInputValue("");
-	};
-	const handleSpeechTranscription = (text: string) => {
-		const trimmedTranscription = text.trim();
-		if (!trimmedTranscription) {
-			return;
-		}
-
-		setInputValue((previous) => {
-			const trimmedPrevious = previous.trimEnd();
-			return trimmedPrevious
-				? `${trimmedPrevious} ${trimmedTranscription}`
-				: trimmedTranscription;
+	const handleSpeechTranscription = useCallback((text: string) => {
+		const trimmed = text.trim();
+		if (!trimmed) return;
+		setInputValue((prev) => {
+			const trimmedPrev = prev.trimEnd();
+			return trimmedPrev ? `${trimmedPrev} ${trimmed}` : trimmed;
 		});
-	};
+	}, []);
 
 	return (
-		<div className="relative h-full min-h-0 overflow-y-auto">
-			<div
-				className={cn(
-					"grid h-full min-h-0 grid-cols-1 auto-rows-[minmax(280px,1fr)] pb-24 md:[grid-template-columns:repeat(var(--execution-grid-columns),minmax(0,1fr))] md:[grid-template-rows:repeat(var(--execution-grid-rows),minmax(280px,1fr))]"
-				)}
-				style={
-					{
-						"--execution-grid-columns": columnCount,
-						"--execution-grid-rows": rowCount,
-					} as React.CSSProperties
-				}
-			>
-				{visibleExecutions.map((execution, index) => (
-					<div
-						key={execution.taskId}
-						className={getSpanClass(
-							getLastRowSpan(index, visibleExecutions.length, columnCount)
-						)}
-					>
-						<AgentScreen
-							execution={execution}
-							className="h-full"
-						/>
-					</div>
-				))}
-
-				{visibleExecutions.length === 0 ? (
-					<div className="col-span-full flex items-center justify-center">
-						<div className="flex flex-col items-center gap-3 text-center">
-							<div className="size-10 animate-spin rounded-full border-2 border-border border-t-text-subtle" />
-							<span className="text-sm text-text-subtlest">
-								Initializing tasks...
-							</span>
+		<div className="relative h-full min-h-0 min-w-0 overflow-hidden">
+			<div className="h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+				<div
+					className={cn(
+						"grid h-full min-h-0 grid-cols-1 auto-rows-[minmax(280px,1fr)] pb-24 md:[grid-template-columns:repeat(var(--execution-grid-columns),minmax(0,1fr))] md:[grid-template-rows:repeat(var(--execution-grid-rows),minmax(280px,1fr))]"
+					)}
+					style={
+						{
+							"--execution-grid-columns": columnCount,
+							"--execution-grid-rows": rowCount,
+						} as React.CSSProperties
+					}
+				>
+					{visibleExecutions.map((execution, index) => (
+						<div
+							key={execution.taskId}
+							className={getSpanClass(
+								getLastRowSpan(index, visibleExecutions.length, columnCount)
+							)}
+						>
+							<AgentScreen
+								execution={execution}
+								className="h-full"
+							/>
 						</div>
-					</div>
-				) : null}
+					))}
+
+					{visibleExecutions.length === 0 ? (
+						<div className="col-span-full flex items-center justify-center">
+							<div className="flex flex-col items-center gap-3 text-center">
+								<div className="size-10 animate-spin rounded-full border-2 border-border border-t-text-subtle" />
+								<span className="text-sm text-text-subtlest">
+									Initializing tasks...
+								</span>
+							</div>
+						</div>
+					) : null}
+				</div>
 			</div>
 
 			{onAddTask ? (
-				<div className="absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-4">
+				<div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-4">
 					<PromptInput
 						onSubmit={handleSubmit}
-						className="w-full max-w-[800px] rounded-full border border-border bg-surface px-4 py-2"
-						style={{
-							boxShadow: "0px -2px 50px 0px rgba(30,31,33,0.08)",
-						}}
+						variant="floating"
+						className="pointer-events-auto max-w-[800px]"
 					>
-						<PromptInputBody className="flex items-center gap-2">
+						<PromptInputBody className="flex w-full items-center justify-between gap-2">
 							<PromptInputTextarea
 								value={inputValue}
 								onChange={(e) => setInputValue(e.currentTarget.value)}
@@ -172,19 +168,21 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 								rows={1}
 								className="min-h-0 flex-1 py-0"
 							/>
-							<SpeechInput
-								aria-label="Voice"
-								onTranscriptionChange={handleSpeechTranscription}
-								size="icon-sm"
-								variant="ghost"
-							/>
-							<PromptInputSubmit
-								disabled={!inputValue.trim()}
-								size="icon-sm"
-								aria-label="Submit"
-							>
-								<ArrowUpIcon label="" />
-							</PromptInputSubmit>
+							<div className="flex shrink-0 items-center gap-1">
+								<SpeechInput
+									aria-label="Voice"
+									onTranscriptionChange={handleSpeechTranscription}
+									size="icon-sm"
+									variant="ghost"
+								/>
+								<PromptInputSubmit
+									disabled={!inputValue.trim()}
+									size="icon-sm"
+									aria-label="Submit"
+								>
+									<ArrowUpIcon label="" />
+								</PromptInputSubmit>
+							</div>
 						</PromptInputBody>
 					</PromptInput>
 				</div>

@@ -20,6 +20,7 @@ export interface TaskExecution {
 	taskLabel: string;
 	agentId: string;
 	agentName: string;
+	agentAvatarUrl?: string;
 	status: AgentExecutionStatus;
 	content: string;
 }

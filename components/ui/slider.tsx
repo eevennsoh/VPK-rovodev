@@ -7,14 +7,7 @@ import { cn } from "@/lib/utils";
 
 export type SliderProps = SliderPrimitive.Root.Props;
 
-function Slider({
-	className,
-	defaultValue,
-	value,
-	min = 0,
-	max = 100,
-	...props
-}: Readonly<SliderProps>) {
+function Slider({ className, defaultValue, value, min = 0, max = 100, ...props }: Readonly<SliderProps>) {
 	const values = React.useMemo(() => {
 		if (Array.isArray(value)) return value;
 		if (typeof value === "number") return [value];
@@ -39,10 +32,7 @@ function Slider({
 					data-slot="slider-track"
 					className="bg-bg-neutral rounded-full relative grow overflow-hidden select-none data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1.5"
 				>
-					<SliderPrimitive.Indicator
-						data-slot="slider-range"
-						className="bg-bg-neutral-bold select-none data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
-					/>
+					<SliderPrimitive.Indicator data-slot="slider-range" className="bg-bg-neutral-bold select-none data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full" />
 				</SliderPrimitive.Track>
 				{Array.from({ length: values.length }, (_, index) => (
 					<SliderPrimitive.Thumb

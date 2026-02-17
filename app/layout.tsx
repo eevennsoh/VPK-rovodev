@@ -35,7 +35,10 @@ function getThemeDefaults() {
 }
 
 export const metadata: Metadata = {
-	title: "V—P—K: Venn Prototype Kit",
+	title: {
+		default: "V—P—K: Venn Prototype Kit",
+		template: "%s — VPK",
+	},
 	description: "A prototype kit to vibe code Atlassian products",
 	openGraph: {
 		title: "V—P—K: Venn Prototype Kit",

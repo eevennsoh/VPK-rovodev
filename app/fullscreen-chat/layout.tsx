@@ -5,7 +5,7 @@ export const metadata: Metadata = {
 	title: getTemplatePageTitle("fullscreen-chat"),
 	description: "Fullscreen AI chat interface",
 	openGraph: {
-		title: getTemplatePageTitle("fullscreen-chat"),
+		title: `${getTemplatePageTitle("fullscreen-chat")} — VPK`,
 		description: "Fullscreen AI chat interface",
 	},
 	icons: {

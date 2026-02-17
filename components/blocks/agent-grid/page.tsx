@@ -14,6 +14,7 @@ const MOCK_EXECUTIONS: TaskExecution[] = [
 		taskLabel: "Research competitor analysis",
 		agentId: "agent-1",
 		agentName: "Researcher",
+		agentAvatarUrl: "/avatar-agent/strategy-agents/wildcard-1.svg",
 		status: "working",
 		content:
 			"I'm currently analyzing the top 5 competitors in the market. So far I've identified key differentiators in pricing strategy and feature sets. The analysis covers market positioning, user demographics, and growth trajectories.",
@@ -23,6 +24,7 @@ const MOCK_EXECUTIONS: TaskExecution[] = [
 		taskLabel: "Draft product requirements",
 		agentId: "agent-2",
 		agentName: "Product Manager",
+		agentAvatarUrl: "/avatar-agent/product-agents/wildcard-1.svg",
 		status: "working",
 		content:
 			"Drafting the PRD based on stakeholder interviews. Key sections include user stories, acceptance criteria, and technical constraints. I've completed the executive summary and am now working on the detailed requirements.",
@@ -32,6 +34,7 @@ const MOCK_EXECUTIONS: TaskExecution[] = [
 		taskLabel: "Design system audit",
 		agentId: "agent-3",
 		agentName: "Designer",
+		agentAvatarUrl: "/avatar-agent/dev-agents/code-reviewer.svg",
 		status: "working",
 		content: "Auditing the current design system for consistency issues. Found 12 color token mismatches and 3 spacing inconsistencies across the component library. Preparing a remediation plan.",
 	},
@@ -40,6 +43,7 @@ const MOCK_EXECUTIONS: TaskExecution[] = [
 		taskLabel: "API schema validation",
 		agentId: "agent-4",
 		agentName: "Engineer",
+		agentAvatarUrl: "/avatar-agent/dev-agents/basic-coding-agent-template.svg",
 		status: "completed",
 		content: "Completed validation of all 24 API endpoints. All schemas conform to OpenAPI 3.1 specification. No breaking changes detected. Generated compatibility report for the team.",
 	},
@@ -91,11 +95,11 @@ export default function AgentGridPage() {
 					"--sidebar-width": "320px",
 				} as React.CSSProperties
 			}
-			className={cn("[&_[data-slot=sidebar-gap]]:ease-[var(--ease-in-out)] [&_[data-slot=sidebar-container]]:ease-[var(--ease-in-out)]", !isOpen && isHovered && "[&_[data-slot=sidebar-gap]]:w-0!")}
+			className={cn("overflow-hidden [&_[data-slot=sidebar-gap]]:ease-[var(--ease-in-out)] [&_[data-slot=sidebar-container]]:ease-[var(--ease-in-out)]", !isOpen && isHovered && "[&_[data-slot=sidebar-gap]]:w-0!")}
 		>
 			<AgentGridSidebar isOverlay={!isOpen && isHovered} onPinSidebar={handlePinSidebar} onMouseEnter={handleHoverEnter} onMouseLeave={handleHoverLeave} />
-			<SidebarInset className="h-svh overflow-hidden">
-				<div className="flex h-full min-h-0 flex-col">
+			<SidebarInset className="h-svh min-w-0 overflow-hidden">
+				<div className="flex h-full min-h-0 min-w-0 flex-col">
 					<GridTitleRow
 						title="Flexible Friday Plan"
 						onNewChat={() => {}}
@@ -105,7 +109,7 @@ export default function AgentGridPage() {
 						onHoverEnter={handleHoverEnter}
 						onHoverLeave={handleHoverLeave}
 					/>
-					<div className="min-h-0 flex-1">
+					<div className="min-h-0 min-w-0 flex-1">
 						<ExecutionGridView taskExecutions={executions} onAddTask={handleAddTask} />
 					</div>
 				</div>

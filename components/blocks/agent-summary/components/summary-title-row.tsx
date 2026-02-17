@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import AddIcon from "@atlaskit/icon/core/add";
+import RetryIcon from "@atlaskit/icon/core/retry";
 import ShareIcon from "@atlaskit/icon/core/share";
 import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
 
@@ -48,7 +49,10 @@ export default function SummaryTitleRow({ title, subtitle, onNewChat, sidebarOpe
 			</div>
 			<div className="ml-3 flex shrink-0 items-center gap-2">
 				<Button variant="outline" className="hidden md:inline-flex">
-					Re-run
+					<span className="inline-flex size-3 items-center justify-center [&_svg]:size-3">
+						<RetryIcon label="" size="small" />
+					</span>
+					<span>Re-run</span>
 				</Button>
 				<Button variant="outline" className="hidden md:inline-flex">
 					<span className="inline-flex size-3 items-center justify-center [&_svg]:size-3">

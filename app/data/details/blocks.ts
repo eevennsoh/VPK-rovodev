@@ -3,6 +3,9 @@ import type { ComponentDetail } from "@/app/data/component-detail-types";
 export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 	"agent-grid": {
 		description: "Agent execution grid with live task tiles and minimal prompt input.",
+		demoLayout: {
+			previewContentWidth: "full",
+		},
 	},
 	"agent-progress": {
 		description: "ADS-style agent progress tracker with expandable task status groups, live elapsed timer, and agent attribution.",

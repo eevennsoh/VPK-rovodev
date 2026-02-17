@@ -31,7 +31,6 @@ import {
 	PromptInputHoverCard,
 	PromptInputHoverCardContent,
 	PromptInputHoverCardTrigger,
-	PromptInputMicrophone,
 	PromptInputProvider,
 	PromptInputSelect,
 	PromptInputSelectContent,
@@ -48,9 +47,9 @@ import {
 	usePromptInputController,
 	usePromptInputReferencedSources,
 } from "@/components/ui-ai/prompt-input";
+import { SpeechInput } from "@/components/ui-ai/speech-input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Footer } from "@/components/ui/footer";
 import AddIcon from "@atlaskit/icon/core/add";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
 import CustomizeIcon from "@atlaskit/icon/core/customize";
@@ -88,13 +87,20 @@ export function PromptInputDemoChatComposer() {
 	const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 	const [isCustomizeMenuOpen, setIsCustomizeMenuOpen] = useState(false);
 
+	const handleSpeechTranscription = useCallback((text: string) => {
+		const trimmed = text.trim();
+		if (!trimmed) return;
+		setPrompt((prev) => (prev.trimEnd() ? `${prev.trimEnd()} ${trimmed}` : trimmed));
+	}, []);
+
 	return (
 		<DemoFrame>
 			<div className="px-1">
 				<div
-					className="rounded-xl border border-border bg-surface px-4 pb-3 pt-4 shadow-[0px_-2px_50px_8px_rgba(30,31,33,0.08)]"
+					className="rounded-xl border border-border bg-surface px-4 pb-4 pt-4 shadow-[0px_-2px_50px_8px_rgba(30,31,33,0.08)]"
 				>
 					<PromptInput
+						allowOverflow
 						onSubmit={() => {
 							setPrompt("");
 						}}
@@ -167,8 +173,8 @@ export function PromptInputDemoChatComposer() {
 								</Popover>
 							</PromptInputTools>
 
-							<div className="flex items-center gap-0.5">
-								<PromptInputMicrophone />
+							<div className="flex items-center gap-1">
+								<SpeechInput aria-label="Voice" onTranscriptionChange={handleSpeechTranscription} size="icon" />
 								<PromptInputSubmit aria-label="Submit" disabled={!prompt.trim()} size="icon-sm">
 									<ArrowUpIcon label="" />
 								</PromptInputSubmit>
@@ -179,7 +185,6 @@ export function PromptInputDemoChatComposer() {
 					<style>{textareaCSS}</style>
 				</div>
 
-				<Footer />
 			</div>
 		</DemoFrame>
 	);
@@ -762,6 +767,52 @@ function ProviderControlledPromptInput() {
 					Last submitted: <span className="font-medium text-text">{lastSubmittedPrompt}</span>
 				</p>
 			) : null}
+		</DemoFrame>
+	);
+}
+
+export function PromptInputDemoFloatingBar() {
+	const [prompt, setPrompt] = useState("");
+
+	const handleSpeechTranscription = useCallback(
+		(transcription: string) => {
+			setPrompt((prev) => (prev ? `${prev} ${transcription}` : transcription));
+		},
+		[],
+	);
+
+	return (
+		<DemoFrame>
+			<PromptInput
+				variant="floating"
+				allowOverflow
+				onSubmit={() => {
+					setPrompt("");
+				}}
+			>
+				<PromptInputBody className="flex w-full items-center justify-between gap-2">
+					<PromptInputTextarea
+						value={prompt}
+						onChange={(e) => setPrompt(e.currentTarget.value)}
+						placeholder="Ask, @mention, or / for actions"
+						rows={1}
+						className="min-h-0 flex-1 py-0"
+					/>
+					<div className="flex shrink-0 items-center gap-1">
+						<SpeechInput
+							aria-label="Voice"
+							onTranscriptionChange={handleSpeechTranscription}
+							variant="ghost"
+						/>
+						<PromptInputSubmit
+							disabled={!prompt.trim()}
+							aria-label="Submit"
+						>
+							<ArrowUpIcon label="" />
+						</PromptInputSubmit>
+					</div>
+				</PromptInputBody>
+			</PromptInput>
 		</DemoFrame>
 	);
 }

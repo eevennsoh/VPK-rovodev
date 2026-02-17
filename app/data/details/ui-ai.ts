@@ -796,6 +796,12 @@ import AddIcon from "@atlaskit/icon/core/add";
 				type: "string",
 				description: "Additional classes applied to the form wrapper.",
 			},
+			{
+				name: "variant",
+				type: '"default" | "floating"',
+				default: '"default"',
+				description: 'Visual variant. "floating" applies rounded border, input background, padding, and elevated shadow for overlay use.',
+			},
 		],
 		subComponents: [
 			{ name: "PromptInputProvider", description: "Optional provider for externally controlled text input and attachments." },
@@ -821,6 +827,7 @@ import AddIcon from "@atlaskit/icon/core/add";
 			{ title: "Submit status", description: "Preview submitted, streaming, error, and stop button behaviors.", demoSlug: "prompt-input-demo-submit-status" },
 			{ title: "Model selects", description: "Compose with model and response-style dropdown controls.", demoSlug: "prompt-input-demo-model-select" },
 			{ title: "Provider controlled", description: "Drive PromptInput externally with PromptInputProvider and controller hooks.", demoSlug: "prompt-input-demo-provider-controlled" },
+			{ title: "Floating bar", description: 'Uses variant="floating" for a minimal single-line input with elevated shadow, ideal for overlaying on content areas.', demoSlug: "prompt-input-demo-floating-bar" },
 		],
 	},
 

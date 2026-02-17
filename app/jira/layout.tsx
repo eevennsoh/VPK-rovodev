@@ -5,7 +5,7 @@ export const metadata: Metadata = {
 	title: getTemplatePageTitle("jira"),
 	description: "Jira board view",
 	openGraph: {
-		title: getTemplatePageTitle("jira"),
+		title: `${getTemplatePageTitle("jira")} — VPK`,
 		description: "Jira board view",
 	},
 };

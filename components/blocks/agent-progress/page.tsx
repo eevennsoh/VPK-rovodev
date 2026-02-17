@@ -242,25 +242,25 @@ export default function AgentsProgress({
 							<span className="text-xs leading-4 text-text-subtlest">•</span>
 							{runStatus === "running" ? (
 								<>
-								<style dangerouslySetInnerHTML={{ __html: `@keyframes dot-reveal { 0%, 20% { opacity: 0; } 40%, 100% { opacity: 1; } }` }} />
-								<span className="inline-flex items-baseline text-xs leading-4 text-text-subtlest">
-									{statusText}
-									<span className="inline-flex items-baseline" aria-hidden="true">
-										{DOT_COLORS.map((color, i) => (
-											<span
-												key={i}
-												className="text-xs leading-none"
-												style={{
-													color,
-													animation: "dot-reveal 1.2s ease-in-out infinite",
-													animationDelay: `${i * 0.2}s`,
-												}}
-											>
-												.
-											</span>
-										))}
+									<style dangerouslySetInnerHTML={{ __html: `@keyframes dot-reveal { 0%, 20% { opacity: 0; } 40%, 100% { opacity: 1; } }` }} />
+									<span className="inline-flex items-baseline text-xs leading-4 text-text-subtlest">
+										{statusText}
+										<span className="inline-flex items-baseline" aria-hidden="true">
+											{DOT_COLORS.map((color, i) => (
+												<span
+													key={i}
+													className="text-xs leading-none"
+													style={{
+														color,
+														animation: "dot-reveal 1.2s ease-in-out infinite",
+														animationDelay: `${i * 0.2}s`,
+													}}
+												>
+													.
+												</span>
+											))}
+										</span>
 									</span>
-								</span>
 								</>
 							) : (
 								<>
@@ -276,22 +276,22 @@ export default function AgentsProgress({
 			{!collapsed ? (
 				<div className="mx-1 mb-1 rounded-b-xl rounded-t-md bg-surface-sunken p-2">
 					<div className="flex flex-col">
-					{statusGroups
-						.filter((group) => group.tasks.length > 0)
-						.map((group, index, visible) => {
-							const isLast = index === visible.length - 1;
-							return (
-								<div key={group.key} className="flex gap-1">
-									<div className="flex w-5 shrink-0 flex-col items-center">
-										<div className="flex h-8 shrink-0 items-center justify-center">
-											<TaskStatusIcon status={group.iconStatus} />
+						{statusGroups
+							.filter((group) => group.tasks.length > 0)
+							.map((group, index, visible) => {
+								const isLast = index === visible.length - 1;
+								return (
+									<div key={group.key} className="flex gap-1">
+										<div className="flex w-5 shrink-0 flex-col items-center">
+											<div className="flex h-8 shrink-0 items-center justify-center">
+												<TaskStatusIcon status={group.iconStatus} />
+											</div>
+											{!isLast ? <div className="min-h-2 w-px flex-1 bg-border" /> : null}
 										</div>
-										{!isLast ? <div className="min-h-2 w-px flex-1 bg-border" /> : null}
+										<TaskGroupRow label={group.label} count={group.tasks.length} tasks={group.tasks} defaultExpanded={group.defaultExpanded} />
 									</div>
-									<TaskGroupRow label={group.label} count={group.tasks.length} tasks={group.tasks} defaultExpanded={group.defaultExpanded} />
-								</div>
-							);
-						})}
+								);
+							})}
 					</div>
 				</div>
 			) : null}

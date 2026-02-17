@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+	title: "Shadows — Visual Preview",
+};
+
 export default function ShadowsPage() {
 	const boxShadows = [
 		{ className: "shadow-2xs", token: "--ds-shadow-raised" },

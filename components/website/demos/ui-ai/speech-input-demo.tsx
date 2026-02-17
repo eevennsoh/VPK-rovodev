@@ -29,7 +29,6 @@ export function SpeechInputDemoSizes() {
 		<div className="flex items-center gap-4">
 			<SpeechInput size="sm" />
 			<SpeechInput size="default" />
-			<SpeechInput size="lg" />
 		</div>
 	);
 }

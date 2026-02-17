@@ -36,8 +36,6 @@ const sections = [
 			name: c.name,
 			href: `/components/ui-ai/${c.slug}`,
 			adsPackage: ADS_AI_SLUGS.has(c.slug) ? "Atlassian Design System" : undefined,
-			adsTagVariant:
-				c.slug === "conversation" || c.slug === "shimmer" || c.slug === "sources" || c.slug === "speech-input" || c.slug === "suggestion" || c.slug === "task" ? "accent-purple" : undefined,
 		})),
 	},
 	{

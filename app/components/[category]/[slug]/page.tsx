@@ -1,12 +1,21 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, TEMPLATE_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS, findComponent } from "@/app/data/components";
 import { ComponentDoc } from "@/components/website/component-doc/page";
+import { getComponentPageTitle } from "@/lib/template-page-title";
 
 interface PageProps {
 	params: Promise<{
 		category: string;
 		slug: string;
 	}>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+	const { category, slug } = await params;
+	const component = findComponent(category, slug);
+	if (!component) return {};
+	return { title: getComponentPageTitle(component.name, component.category) };
 }
 
 export function generateStaticParams() {

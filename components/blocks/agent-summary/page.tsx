@@ -2,20 +2,36 @@
 
 import { useState, useCallback, useRef } from "react";
 import type { Spec } from "@json-render/react";
-import { RunSummarySection } from "@/app/agents-team/runs/[runId]/run-summary-section";
-import { Button } from "@/components/ui/button";
+import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
+import {
+	AudioPlayer,
+	AudioPlayerControlBar,
+	AudioPlayerDurationDisplay,
+	AudioPlayerElement,
+	AudioPlayerPlayButton,
+	AudioPlayerTimeDisplay,
+	AudioPlayerTimeRange,
+} from "@/components/ui-ai/audio-player";
+import {
+	PromptInput,
+	PromptInputBody,
+	PromptInputSubmit,
+	PromptInputTextarea,
+} from "@/components/ui-ai/prompt-input";
+import { SpeechInput } from "@/components/ui-ai/speech-input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import type { AgentRun, AgentRunSummary, AgentRunVisualSummary, AgentRunGenuiSummary } from "@/lib/agents-team-run-types";
 import { token } from "@/lib/tokens";
-import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
-import MicrophoneIcon from "@atlaskit/icon/core/microphone";
 import { AgentSummarySidebar } from "./components/agent-summary-sidebar";
 import SummaryTitleRow from "./components/summary-title-row";
 
 const MOCK_RUN_ID = "run_demo_agent_summary";
 const MOCK_CREATED_AT = "2026-02-17T15:18:00.000Z";
 const MOCK_COMPLETED_AT = "2026-02-17T15:24:00.000Z";
+const SAMPLE_AUDIO =
+	"https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3";
 
 const MOCK_MARKDOWN_SUMMARY = `## Executive summary
 The agent team completed the scoped release preparation plan for the summary experience with no blocking issues.
@@ -34,56 +50,7 @@ The agent team completed the scoped release preparation plan for the summary exp
 2. Add persisted summary versioning to compare run revisions.
 3. Track summary generation latency and fallback frequency.`;
 
-const MOCK_VISUAL_SUMMARY_HTML = [
-	"<!DOCTYPE html>",
-	'<html lang="en">',
-	"<head>",
-	'<meta charset="utf-8" />',
-	'<meta name="viewport" content="width=device-width, initial-scale=1" />',
-	"<title>Agent Summary</title>",
-	"<style>",
-	"body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f7f8f9; color: #172b4d; }",
-	".page { max-width: 940px; margin: 20px auto; padding: 20px; background: #ffffff; border: 1px solid #dfe1e6; border-radius: 12px; }",
-	".hero { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }",
-	".badge { display: inline-flex; align-items: center; border-radius: 9999px; padding: 4px 10px; font-size: 12px; background: #e3fcef; color: #216e4e; }",
-	".grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; }",
-	".card { background: #f7f8f9; border: 1px solid #dfe1e6; border-radius: 10px; padding: 12px; }",
-	".card h3 { margin: 0; font-size: 12px; color: #44546f; }",
-	".card p { margin: 6px 0 0; font-size: 20px; font-weight: 600; }",
-	"h2 { margin: 16px 0 8px; font-size: 16px; }",
-	"ul { margin: 0; padding-left: 20px; line-height: 1.5; }",
-	"</style>",
-	"</head>",
-	"<body>",
-	'<main class="page">',
-	'<div class="hero">',
-	"<div>",
-	'<h1 style="margin: 0; font-size: 24px;">Agents Team Delivery Summary</h1>',
-	'<p style="margin: 6px 0 0; color: #44546f;">Cross-functional execution completed across planning, implementation, and QA.</p>',
-	"</div>",
-	'<span class="badge">Completed</span>',
-	"</div>",
-	'<section class="grid">',
-	'<article class="card"><h3>Tasks completed</h3><p>5/5</p></article>',
-	'<article class="card"><h3>Active agents</h3><p>4</p></article>',
-	'<article class="card"><h3>Elapsed time</h3><p>6m 00s</p></article>',
-	"</section>",
-	"<h2>Highlights</h2>",
-	"<ul>",
-	"<li>Summary generation and visual presentation shipped in one run.</li>",
-	"<li>No blocked tasks at completion.</li>",
-	"<li>Interactive dashboard generated successfully.</li>",
-	"</ul>",
-	"<h2>Next actions</h2>",
-	"<ul>",
-	"<li>Add regression snapshots for the summary iframe output.</li>",
-	"<li>Instrument summary generation latency metrics.</li>",
-	"<li>Add downloadable report export.</li>",
-	"</ul>",
-	"</main>",
-	"</body>",
-	"</html>",
-].join("\n");
+const MOCK_VISUAL_SUMMARY_HTML = "";
 
 const MOCK_GENUI_SPEC: Spec = {
 	root: "root",
@@ -380,15 +347,10 @@ const MOCK_RUN: AgentRun = {
 	],
 };
 
-function formatDateTime(value: string | null): string {
-	if (!value) {
-		return "-";
-	}
-
+function formatMetadataTimestamp(value: string | null): string {
+	if (!value) return "-";
 	const parsedDate = new Date(value);
-	if (Number.isNaN(parsedDate.valueOf())) {
-		return value;
-	}
+	if (Number.isNaN(parsedDate.valueOf())) return value;
 
 	return new Intl.DateTimeFormat(undefined, {
 		dateStyle: "medium",
@@ -396,73 +358,33 @@ function formatDateTime(value: string | null): string {
 	}).format(parsedDate);
 }
 
-function groupTasksByAgent(run: AgentRun) {
-	const groups = new Map<
-		string,
-		{
-			agentId: string;
-			agentName: string;
-			tasks: AgentRun["tasks"];
-		}
-	>();
-
-	for (const task of run.tasks) {
-		const existingGroup = groups.get(task.agentId);
-		if (existingGroup) {
-			existingGroup.tasks.push(task);
-			continue;
-		}
-
-		groups.set(task.agentId, {
-			agentId: task.agentId,
-			agentName: task.agentName,
-			tasks: [task],
-		});
-	}
-
-	return Array.from(groups.values());
-}
-
-function AgentSummaryMainContent({ groupedOutputs }: Readonly<{ groupedOutputs: ReturnType<typeof groupTasksByAgent> }>) {
+function AgentSummaryMainContent() {
 	return (
 		<div className="flex flex-col gap-6">
-			<div className="flex flex-wrap items-start justify-between gap-3">
+			<div className="flex flex-col items-center gap-3 text-center">
 				<div>
-					<p className="text-xs uppercase tracking-wide text-text-subtlest">Run summary</p>
-					<h1 style={{ font: token("font.heading.medium") }} className="mt-1 text-text">
-						{MOCK_RUN.plan.emoji ? `${MOCK_RUN.plan.emoji} ` : ""}
+					<h1 style={{ font: token("font.heading.medium") }} className="text-text">
 						{MOCK_RUN.plan.title}
 					</h1>
-					<p className="mt-1 text-sm text-text-subtle">
-						Status: {MOCK_RUN.status} · Started {formatDateTime(MOCK_RUN.createdAt)} · Finished {formatDateTime(MOCK_RUN.completedAt)}
+						<div className="mt-3 w-full max-w-[520px]">
+							<AudioPlayer>
+								<AudioPlayerElement src={SAMPLE_AUDIO} />
+								<AudioPlayerControlBar>
+								<AudioPlayerPlayButton />
+								<AudioPlayerTimeDisplay />
+								<AudioPlayerTimeRange />
+								<AudioPlayerDurationDisplay />
+							</AudioPlayerControlBar>
+						</AudioPlayer>
+					</div>
+					<p className="mt-2 text-sm text-text-subtle">
+						{formatMetadataTimestamp(MOCK_RUN.createdAt)}
 					</p>
 				</div>
 			</div>
 
-			<RunSummarySection runId={MOCK_RUN_ID} initialRun={MOCK_RUN} initialSummary={MOCK_SUMMARY} initialVisualSummary={MOCK_VISUAL_SUMMARY} initialGenuiSummary={MOCK_GENUI_SUMMARY} />
-
-			<section className="rounded-xl border border-border bg-surface-raised p-5">
-				<h2 className="text-base font-semibold text-text">Agent outputs</h2>
-				<div className="mt-4 flex flex-col gap-4">
-					{groupedOutputs.map((group) => (
-						<div key={group.agentId} className="rounded-lg border border-border bg-surface p-4">
-							<h3 className="text-sm font-semibold text-text">{group.agentName}</h3>
-							<div className="mt-3 flex flex-col gap-3">
-								{group.tasks.map((task) => (
-									<div key={task.id} className="rounded-md border border-border bg-surface-sunken p-3">
-										<div className="flex flex-wrap items-center gap-2 text-xs text-text-subtle">
-											<span className="rounded bg-bg-neutral px-1.5 py-0.5">{task.id}</span>
-											<span>{task.status}</span>
-											<span>Attempts: {task.attempts}</span>
-										</div>
-										<p className="mt-2 text-sm font-medium text-text">{task.label}</p>
-										<pre className="mt-2 whitespace-pre-wrap text-sm text-text-subtle">{task.output || task.error || "No output recorded."}</pre>
-									</div>
-								))}
-							</div>
-						</div>
-					))}
-				</div>
+			<section className="overflow-hidden rounded-xl border border-border bg-surface-raised">
+				<div className="h-[620px] w-full bg-bg-neutral" />
 			</section>
 		</div>
 	);
@@ -472,7 +394,6 @@ export default function AgentSummaryBlock() {
 	const [isOpen, setIsOpen] = useState(true);
 	const [isHovered, setIsHovered] = useState(false);
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const groupedOutputs = groupTasksByAgent(MOCK_RUN);
 
 	const handleHoverEnter = useCallback(() => {
 		if (hoverTimeoutRef.current) {
@@ -507,47 +428,51 @@ export default function AgentSummaryBlock() {
 			<AgentSummarySidebar isOverlay={!isOpen && isHovered} onPinSidebar={handlePinSidebar} onMouseEnter={handleHoverEnter} onMouseLeave={handleHoverLeave} />
 			<SidebarInset className="h-svh overflow-hidden">
 				<div className="flex h-full min-h-0 flex-col">
-					<SummaryTitleRow
-						title="A longer name name name name name"
-						subtitle="URL of this summary"
-						onNewChat={() => {}}
-						sidebarOpen={isOpen}
-						sidebarHovered={isHovered}
+						<SummaryTitleRow
+							title="A longer name name name name name"
+							subtitle="URL of this summary"
+							onNewChat={() => {}}
+							sidebarOpen={isOpen}
+							sidebarHovered={isHovered}
 						onExpandSidebar={() => setIsOpen(true)}
 						onHoverEnter={handleHoverEnter}
 						onHoverLeave={handleHoverLeave}
 					/>
-					<main className="relative min-h-0 flex-1 overflow-y-auto bg-surface-sunken">
-						<div className="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-3 pb-28 pt-6 md:px-4">
-							<div className="flex justify-center">
-								<div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1">
-									<button type="button" className="rounded-md border border-border bg-bg-neutral px-3 py-1 text-sm text-text">
-										Summary
-									</button>
-									<button type="button" className="rounded-md px-3 py-1 text-sm text-text-subtle">
-										Files
-									</button>
+						<main className="relative min-h-0 flex-1 overflow-y-auto bg-surface">
+							<div className="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-3 pb-28 pt-6 md:px-4">
+								<div className="flex justify-center">
+									<Tabs defaultValue="summary">
+										<TabsList>
+											<TabsTrigger value="chat">Chat</TabsTrigger>
+											<TabsTrigger value="summary">Summary</TabsTrigger>
+											<TabsTrigger value="files">Files</TabsTrigger>
+										</TabsList>
+									</Tabs>
 								</div>
+
+								<AgentSummaryMainContent />
 							</div>
 
-							<AgentSummaryMainContent groupedOutputs={groupedOutputs} />
-						</div>
-
-						<div className="sticky bottom-0 border-t border-transparent bg-gradient-to-t from-surface-sunken via-surface-sunken to-transparent px-3 pb-4 pt-6 md:px-4">
-							<div
-								className="mx-auto flex w-full max-w-[860px] items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3"
-								style={{ boxShadow: token("elevation.shadow.overlay") }}
+						<div className="sticky bottom-0 z-20 flex justify-center px-4 pb-4 pt-6">
+							<PromptInput
+								variant="floating"
+								onSubmit={() => {}}
+								className="max-w-[800px]"
 							>
-								<p className="text-sm text-text-subtlest">Ask, @mention, or / for actions</p>
-								<div className="flex items-center gap-1">
-									<Button aria-label="Voice input" variant="ghost" size="icon-sm">
-										<MicrophoneIcon label="" size="small" />
-									</Button>
-									<Button aria-label="Send" variant="outline" size="icon-sm" disabled>
-										<ArrowUpIcon label="" size="small" />
-									</Button>
-								</div>
-							</div>
+								<PromptInputBody className="flex w-full items-center justify-between gap-2">
+									<PromptInputTextarea
+										placeholder="Ask, @mention, or / for actions"
+										rows={1}
+										className="min-h-0 flex-1 py-0"
+									/>
+									<div className="flex shrink-0 items-center gap-1">
+										<SpeechInput aria-label="Voice" variant="ghost" />
+										<PromptInputSubmit aria-label="Submit" disabled>
+											<ArrowUpIcon label="" />
+										</PromptInputSubmit>
+									</div>
+								</PromptInputBody>
+							</PromptInput>
 						</div>
 					</main>
 				</div>

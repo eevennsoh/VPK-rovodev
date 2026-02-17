@@ -5,7 +5,7 @@ export const metadata: Metadata = {
 	title: getTemplatePageTitle("search"),
 	description: "Search results page",
 	openGraph: {
-		title: getTemplatePageTitle("search"),
+		title: `${getTemplatePageTitle("search")} — VPK`,
 		description: "Search results page",
 	},
 	icons: {

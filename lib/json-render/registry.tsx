@@ -71,6 +71,7 @@ function cloneStateModel<TState extends Record<string, unknown>>(state: TState):
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Banner } from "@/components/ui/banner";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -316,6 +317,10 @@ export const { registry, handlers } = defineRegistry(catalog, {
 					<AlertDescription>{description}</AlertDescription>
 				</Alert>
 			);
+		},
+		Banner: ({ props }) => {
+			const text = toSafeText(props.text);
+			return <Banner variant={nu(props.variant)}>{text}</Banner>;
 		},
 
 		Separator: ({ props }) => {
@@ -763,8 +768,8 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		},
 
 		IconTile: ({ props }) => {
-			const { label, variant = "gray", size = "medium" } = props;
-			return <IconTile icon={null} label={toSafeText(label)} variant={nu(variant)} size={nu(size)} />;
+			const { label, variant = "gray", size = "medium", shape = "square" } = props;
+			return <IconTile icon={null} label={toSafeText(label)} variant={nu(variant)} size={nu(size)} shape={nu(shape)} />;
 		},
 		MapWidget: ({ props, bindings }) => {
 			const markerEntries = Array.isArray(props.markers)

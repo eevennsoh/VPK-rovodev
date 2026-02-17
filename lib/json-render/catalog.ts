@@ -149,7 +149,7 @@ export const catalog = defineCatalog(schema, {
 		Badge: {
 			props: z.object({
 				text: z.string(),
-				variant: z.enum(["default", "secondary", "destructive", "outline"]).nullable(),
+				variant: z.enum(["default", "neutral", "secondary", "destructive", "danger", "success", "warning", "info", "information", "discovery", "outline"]).nullable(),
 			}),
 			slots: [],
 			description: "Status badge for labels and counts",
@@ -164,6 +164,15 @@ export const catalog = defineCatalog(schema, {
 			slots: [],
 			description: "Alert message bar with status and announcement variants",
 			example: { title: "Update available", description: "A new version is ready.", variant: "info" },
+		},
+		Banner: {
+			props: z.object({
+				text: z.string(),
+				variant: z.enum(["warning", "error", "announcement"]).nullable(),
+			}),
+			slots: [],
+			description: "Full-width status banner for critical warnings, errors, and announcements",
+			example: { text: "Scheduled maintenance Saturday 2am-4am", variant: "warning" },
 		},
 		Separator: {
 			props: z.object({
@@ -259,8 +268,8 @@ export const catalog = defineCatalog(schema, {
 		Tag: {
 			props: z.object({
 				text: z.string(),
-				variant: z.enum(["default", "success", "removed", "inprogress", "new", "moved"]).nullable(),
-				color: z.enum(["standard", "green", "blue", "red", "purple", "discovery", "teal", "orange", "yellow", "grey"]).nullable(),
+				variant: z.enum(["default", "rounded", "success", "removed", "inprogress", "new", "moved"]).nullable(),
+				color: z.enum(["standard", "gray", "grey", "green", "blue", "red", "purple", "discovery", "teal", "orange", "yellow", "lime", "magenta"]).nullable(),
 			}),
 			slots: [],
 			description: "Display-only tag label for categories and labels",
@@ -331,7 +340,7 @@ export const catalog = defineCatalog(schema, {
 			props: z.object({
 				title: z.string(),
 				description: z.string().nullable(),
-				appearance: z.enum(["default", "info", "warning", "success", "destructive"]).nullable(),
+				appearance: z.enum(["default", "info", "warning", "success", "discovery", "danger", "error", "announcement", "destructive"]).nullable(),
 			}),
 			slots: [],
 			description: "Section-level alert message for page-wide announcements",
@@ -384,6 +393,7 @@ export const catalog = defineCatalog(schema, {
 					])
 					.nullable(),
 				size: z.enum(["xsmall", "small", "medium", "large", "xlarge"]).nullable(),
+				shape: z.enum(["square", "circle"]).nullable(),
 			}),
 			slots: [],
 			description: "Colored icon tile with label",
@@ -685,8 +695,8 @@ export const catalog = defineCatalog(schema, {
 		Button: {
 			props: z.object({
 				label: z.string(),
-				variant: z.enum(["default", "destructive", "outline", "secondary", "ghost", "link"]).nullable(),
-				size: z.enum(["default", "sm", "lg", "icon"]).nullable(),
+				variant: z.enum(["default", "destructive", "outline", "secondary", "ghost", "link", "warning", "discovery"]).nullable(),
+				size: z.enum(["default", "xs", "sm", "lg", "icon"]).nullable(),
 				disabled: z.boolean().nullable(),
 			}),
 			slots: [],
@@ -773,7 +783,7 @@ export const catalog = defineCatalog(schema, {
 			props: z.object({
 				value: z.number(),
 				label: z.string().nullable(),
-				appearance: z.enum(["default", "success", "inverse"]).nullable(),
+				appearance: z.enum(["default", "success", "inverse", "transparent"]).nullable(),
 			}),
 			slots: [],
 			description: "Styled progress bar with variant",

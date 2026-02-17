@@ -5,7 +5,7 @@ export const metadata: Metadata = {
 	title: getTemplatePageTitle("confluence"),
 	description: "Confluence page editor",
 	openGraph: {
-		title: getTemplatePageTitle("confluence"),
+		title: `${getTemplatePageTitle("confluence")} — VPK`,
 		description: "Confluence page editor",
 	},
 	icons: {

@@ -5,7 +5,8 @@ import type { ComponentProps, MouseEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { MicIcon, SquareIcon } from "lucide-react";
+import MicrophoneIcon from "@atlaskit/icon/core/microphone";
+import VideoStopIcon from "@atlaskit/icon/core/video-stop";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type SpeechInputMode = "speech-recognition" | "media-recorder" | "none";
@@ -60,22 +61,14 @@ const resolveSpeechInputButtonSize = (
   return size;
 };
 
-const resolveSpeechInputIconClassName = (
+const resolveSpeechInputIconSize = (
   size: SpeechInputProps["size"]
-): string => {
-  if (size === "icon-xs") {
-    return "size-3.5";
+): "small" | "medium" => {
+  if (size === "icon-xs" || size === "icon-sm") {
+    return "small"; // 12px
   }
 
-  if (size === "icon-sm") {
-    return "size-4";
-  }
-
-  if (size === "icon-lg") {
-    return "size-6";
-  }
-
-  return "size-5";
+  return "medium"; // 16px
 };
 
 export const SpeechInput = ({
@@ -289,9 +282,7 @@ export const SpeechInput = ({
   );
 
   const resolvedButtonSize = resolveSpeechInputButtonSize(size);
-  const resolvedIconClassName = resolveSpeechInputIconClassName(
-    resolvedButtonSize
-  );
+  const resolvedIconSize = resolveSpeechInputIconSize(resolvedButtonSize);
   const resolvedVariant = isListening ? "destructive" : variant;
 
   // Determine if button should be disabled
@@ -327,7 +318,7 @@ export const SpeechInput = ({
           "relative z-10 aspect-square shrink-0 rounded-full p-0 transition-all duration-300",
           isListening
             ? "bg-destructive text-primary-foreground hover:bg-destructive/80 hover:text-primary-foreground"
-            : null,
+            : "text-icon-subtle",
           className
         )}
         disabled={isDisabled}
@@ -338,10 +329,10 @@ export const SpeechInput = ({
       >
         {isProcessing && <Spinner />}
         {!isProcessing && isListening && (
-          <SquareIcon className={resolvedIconClassName} />
+          <VideoStopIcon label="" size={resolvedIconSize} />
         )}
         {!(isProcessing || isListening) && (
-          <MicIcon className={resolvedIconClassName} />
+          <MicrophoneIcon label="" size={resolvedIconSize} />
         )}
       </Button>
     </div>

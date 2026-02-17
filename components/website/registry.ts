@@ -970,6 +970,7 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"prompt-input-demo-submit-status": dynamic(() => import("./demos/ui-ai/prompt-input-demo").then((mod) => ({ default: mod.PromptInputDemoSubmitStatus })), { ssr: false }),
 	"prompt-input-demo-model-select": dynamic(() => import("./demos/ui-ai/prompt-input-demo").then((mod) => ({ default: mod.PromptInputDemoModelSelect })), { ssr: false }),
 	"prompt-input-demo-provider-controlled": dynamic(() => import("./demos/ui-ai/prompt-input-demo").then((mod) => ({ default: mod.PromptInputDemoProviderControlled })), { ssr: false }),
+	"prompt-input-demo-floating-bar": dynamic(() => import("./demos/ui-ai/prompt-input-demo").then((mod) => ({ default: mod.PromptInputDemoFloatingBar })), { ssr: false }),
 	"queue-demo-prompt-queue": dynamic(() => import("./demos/ui-ai/queue-demo").then((mod) => ({ default: mod.QueueDemoPromptQueue })), { ssr: false }),
 	"queue-demo-with-actions": dynamic(() => import("./demos/ui-ai/queue-demo").then((mod) => ({ default: mod.QueueDemoWithActions })), { ssr: false }),
 	"queue-demo-with-attachments": dynamic(() => import("./demos/ui-ai/queue-demo").then((mod) => ({ default: mod.QueueDemoWithAttachments })), { ssr: false }),

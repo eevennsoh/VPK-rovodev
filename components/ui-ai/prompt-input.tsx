@@ -55,6 +55,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { cva, type VariantProps } from "class-variance-authority";
 import {
   CornerDownLeftIcon,
   ImageIcon,
@@ -363,35 +364,50 @@ export interface PromptInputMessage {
   files: FileUIPart[];
 }
 
+const promptInputVariants = cva("w-full", {
+  variants: {
+    variant: {
+      default: "",
+      floating:
+        "rounded-xl border border-border bg-bg-input p-4 shadow-[0px_-2px_50px_8px_rgba(30,31,33,0.08)]",
+    },
+  },
+  defaultVariants: {
+    variant: "default",
+  },
+});
+
 export type PromptInputProps = Omit<
   HTMLAttributes<HTMLFormElement>,
   "onSubmit" | "onError"
-> & {
-  // e.g., "image/*" or leave undefined for any
-  accept?: string;
-  multiple?: boolean;
-  // When true, accepts drops anywhere on document. Default false (opt-in).
-  globalDrop?: boolean;
-  // Render a hidden input with given name and keep it in sync for native form posts. Default false.
-  syncHiddenInput?: boolean;
-  // When true, allows children (e.g. animated pulse rings) to render outside bounds.
-  allowOverflow?: boolean;
-  // Minimal constraints
-  maxFiles?: number;
-  // bytes
-  maxFileSize?: number;
-  onError?: (err: {
-    code: "max_files" | "max_file_size" | "accept";
-    message: string;
-  }) => void;
-  onSubmit: (
-    message: PromptInputMessage,
-    event: FormEvent<HTMLFormElement>
-  ) => void | Promise<void>;
-};
+> &
+  VariantProps<typeof promptInputVariants> & {
+    // e.g., "image/*" or leave undefined for any
+    accept?: string;
+    multiple?: boolean;
+    // When true, accepts drops anywhere on document. Default false (opt-in).
+    globalDrop?: boolean;
+    // Render a hidden input with given name and keep it in sync for native form posts. Default false.
+    syncHiddenInput?: boolean;
+    // When true, allows children (e.g. animated pulse rings) to render outside bounds.
+    allowOverflow?: boolean;
+    // Minimal constraints
+    maxFiles?: number;
+    // bytes
+    maxFileSize?: number;
+    onError?: (err: {
+      code: "max_files" | "max_file_size" | "accept";
+      message: string;
+    }) => void;
+    onSubmit: (
+      message: PromptInputMessage,
+      event: FormEvent<HTMLFormElement>
+    ) => void | Promise<void>;
+  };
 
 export const PromptInput = ({
   className,
+  variant,
   accept,
   multiple,
   globalDrop,
@@ -797,7 +813,7 @@ export const PromptInput = ({
         type="file"
       />
       <form
-        className={cn("w-full", className)}
+        className={cn(promptInputVariants({ variant }), className)}
         onSubmit={handleSubmit}
         ref={formRef}
         {...props}
