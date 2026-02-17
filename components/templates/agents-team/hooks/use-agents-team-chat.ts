@@ -196,27 +196,20 @@ interface UseAgentsTeamChatReturn {
 	handleNewChat: () => void;
 	handleSelectChat: (id: string) => void;
 	handleDeleteChat: (id: string) => void;
+	handleDeleteMessage: (messageId: string) => void;
 }
 
 export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
-	const initialThreadLookupState = useMemo(() => loadInitialThreadLookupState(), []);
 	const [prompt, setPrompt] = useState("");
 	const [isAgentTeamMode, setIsAgentTeamMode] = useState(false);
 	const [agentTeamPlanningSession, setAgentTeamPlanningSession] =
 		useState<AgentTeamPlanningSession | null>(null);
-	const [isChatMode, setIsChatMode] = useState(
-		initialThreadLookupState.activeChatId !== null
-	);
-	const [threads, setThreads] = useState<AgentsTeamThread[]>(
-		initialThreadLookupState.threads
-	);
-	const [activeChatId, setActiveChatId] = useState<string | null>(
-		initialThreadLookupState.activeChatId
-	);
+	const [isChatMode, setIsChatMode] = useState(false);
+	const [threads, setThreads] = useState<AgentsTeamThread[]>([]);
+	const [activeChatId, setActiveChatId] = useState<string | null>(null);
 	const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
 	const [pendingTitleChatId, setPendingTitleChatId] = useState<string | null>(null);
 	const pendingTitleChatIdRef = useRef<string | null>(null);
-	const hasRestoredInitialThreadRef = useRef(false);
 	const activeChatIdRef = useRef<string | null>(null);
 	const uiMessagesRef = useRef<RovoUIMessage[]>([]);
 	const threadsRef = useRef<AgentsTeamThread[]>([]);
@@ -248,6 +241,23 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			})),
 		[threads]
 	);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const persisted = loadInitialThreadLookupState();
+		const hydrationRestoreTimeout = setTimeout(() => {
+			setThreads((previousThreads) =>
+				previousThreads.length > 0 ? previousThreads : persisted.threads
+			);
+		}, 0);
+
+		return () => {
+			clearTimeout(hydrationRestoreTimeout);
+		};
+	}, []);
 
 	useEffect(() => {
 		activeChatIdRef.current = activeChatId;
@@ -291,28 +301,6 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	}, []);
 
 	useEffect(() => {
-		if (hasRestoredInitialThreadRef.current) {
-			return;
-		}
-
-		hasRestoredInitialThreadRef.current = true;
-		const initialActiveChatId = initialThreadLookupState.activeChatId;
-		if (!initialActiveChatId) {
-			return;
-		}
-
-		const activeThread = getThreadById({
-			threads: initialThreadLookupState.threads,
-			chatId: initialActiveChatId,
-		});
-		if (!activeThread) {
-			return;
-		}
-
-		restoreThreadMessages(activeThread.messages);
-	}, [initialThreadLookupState, restoreThreadMessages]);
-
-	useEffect(() => {
 		if (typeof window === "undefined") {
 			return;
 		}
@@ -321,7 +309,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			AGENTS_TEAM_THREAD_STORAGE_KEY,
 			serializeThreadLookupState({
 				threads,
-				activeChatId,
+				activeChatId: null,
 				maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
 			})
 		);
@@ -814,6 +802,49 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		[resetChat],
 	);
 
+	const handleDeleteMessage = useCallback(
+		(messageId: string) => {
+			const currentMessages = uiMessagesRef.current;
+			const messageIndex = currentMessages.findIndex((m) => m.id === messageId);
+			if (messageIndex < 0) {
+				return;
+			}
+
+			if (isStreaming) {
+				stopStreaming();
+			}
+
+			const remainingMessages = currentMessages.slice(0, messageIndex);
+			setAgentTeamPlanningSession(null);
+
+			if (remainingMessages.length === 0) {
+				const chatId = activeChatIdRef.current;
+				if (chatId) {
+					setThreads((prev) => deleteThread({ threads: prev, chatId }));
+					if (pendingTitleChatIdRef.current === chatId) {
+						pendingTitleChatIdRef.current = null;
+						pendingTitleMessageRef.current = null;
+						setPendingTitleChatId(null);
+						setIsGeneratingTitle(false);
+					}
+				}
+				resetChat();
+				setPrompt("");
+				setIsChatMode(false);
+				setActiveChatId(null);
+				setIsGeneratingTitle(false);
+				setPendingTitleChatId(null);
+				pendingTitleChatIdRef.current = null;
+				pendingTitleMessageRef.current = null;
+				hasStreamedOnceRef.current = false;
+			} else {
+				replaceMessages(remainingMessages);
+				snapshotThreadMessages(activeChatIdRef.current, remainingMessages);
+			}
+		},
+		[isStreaming, replaceMessages, resetChat, snapshotThreadMessages, stopStreaming]
+	);
+
 	const toggleAgentTeamMode = useCallback(() => {
 		setAgentTeamModeEnabled(!isAgentTeamMode);
 	}, [isAgentTeamMode, setAgentTeamModeEnabled]);
@@ -841,5 +872,6 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		handleNewChat,
 		handleSelectChat,
 		handleDeleteChat,
+		handleDeleteMessage,
 	};
 }

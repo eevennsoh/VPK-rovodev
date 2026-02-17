@@ -12,6 +12,7 @@ import {
 	getAllDataParts,
 	getLatestDataPart,
 	getMessageText,
+	isMessageTextStreaming,
 	type RovoUIMessage,
 	type RovoRenderableUIMessage,
 } from "@/lib/rovo-ui-messages";
@@ -26,6 +27,7 @@ import styles from "./chat-messages.module.css";
 export interface ChatMessagesProps {
 	uiMessages: RovoUIMessage[];
 	onSuggestedQuestionClick?: (question: string) => void;
+	onDeleteMessage?: (messageId: string) => void;
 	conversationContextRef: React.RefObject<StickToBottomContext | null>;
 	scrollSpacerRef?: React.RefObject<HTMLDivElement | null>;
 	contentTopPadding?: string;
@@ -104,6 +106,7 @@ function computeLatestTurnScrollTop(
 export function ChatMessages({
 	uiMessages,
 	onSuggestedQuestionClick,
+	onDeleteMessage,
 	conversationContextRef,
 	scrollSpacerRef,
 	contentTopPadding,
@@ -138,6 +141,37 @@ export function ChatMessages({
 		}
 		return null;
 	}, [renderableMessages]);
+	const latestAssistantMessage = useMemo(() => {
+		for (let i = renderableMessages.length - 1; i >= 0; i--) {
+			if (renderableMessages[i].role === "assistant") {
+				return renderableMessages[i];
+			}
+		}
+		return null;
+	}, [renderableMessages]);
+	const hasInlineThinkingStatus = useMemo(() => {
+		if (!latestAssistantMessage) {
+			return false;
+		}
+
+		const thinkingStatusPart = getLatestDataPart(
+			latestAssistantMessage,
+			"data-thinking-status"
+		);
+		if (!thinkingStatusPart) {
+			return false;
+		}
+
+		const messageText = getMessageText(latestAssistantMessage);
+		const messageIsStreaming = isMessageTextStreaming(latestAssistantMessage);
+		const isRetryThinkingStatus =
+			thinkingStatusPart.data.label?.includes("Retrying") ?? false;
+
+		return (
+			(!messageIsStreaming || Boolean(messageText)) &&
+			!(isRetryThinkingStatus && !messageIsStreaming)
+		);
+	}, [latestAssistantMessage]);
 
 	const streamingIndicatorSourceMessages = useMemo(
 		() =>
@@ -156,7 +190,8 @@ export function ChatMessages({
 	const shouldShowStreamingIndicator =
 		isStreaming &&
 		streamingIndicatorSourceMessages.length > 0 &&
-		(lastStreamingSourceMessage?.role === "user" || isAssistantInThinkingState);
+		(lastStreamingSourceMessage?.role === "user" || isAssistantInThinkingState) &&
+		!hasInlineThinkingStatus;
 
 	const thinkingStatusParts = isAssistantInThinkingState
 		? getAllDataParts(lastStreamingSourceMessage, "data-thinking-status")
@@ -226,6 +261,7 @@ export function ChatMessages({
 									showFeedbackActions={showFeedbackActions}
 									showFollowUpSuggestions={showFollowUpSuggestions}
 									onSuggestionClick={onSuggestedQuestionClick}
+									onDeleteMessage={onDeleteMessage}
 									showThinkingStatusSection={message.role === "assistant" && message.id === lastAssistantMessageId}
 									showToolsSection={!isPureMode}
 									showWidgetSections={!isPureMode}

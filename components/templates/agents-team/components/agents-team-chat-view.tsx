@@ -52,6 +52,7 @@ interface AgentsTeamChatViewProps {
 	onClarificationSubmit: (answers: ClarificationAnswers) => void;
 	onApprovalSubmit: (selection: PlanApprovalSelection) => void;
 	onSuggestedQuestionClick: (question: string) => Promise<void> | void;
+	onDeleteMessage?: (messageId: string) => void;
 }
 
 export default function AgentsTeamChatView({
@@ -74,6 +75,7 @@ export default function AgentsTeamChatView({
 	onClarificationSubmit,
 	onApprovalSubmit,
 	onSuggestedQuestionClick,
+	onDeleteMessage,
 }: Readonly<AgentsTeamChatViewProps>) {
 	const { conversationContextRef, scrollSpacerRef } = useScrollAnchoring({
 		uiMessages,
@@ -119,6 +121,7 @@ export default function AgentsTeamChatView({
 						streamingIndicatorMessages={streamingUiMessages}
 						hideScrollbar
 						onSuggestedQuestionClick={onSuggestedQuestionClick}
+						onDeleteMessage={onDeleteMessage}
 						conversationContextRef={conversationContextRef}
 						scrollSpacerRef={scrollSpacerRef}
 						contentTopPadding="24px"

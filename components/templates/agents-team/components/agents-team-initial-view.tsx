@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { QueuedPromptItem } from "@/app/contexts";
 import Image from "next/image";
 import PromptGallery from "@/components/blocks/prompt-gallery/page";
+import { Footer } from "@/components/ui/footer";
 import { token } from "@/lib/tokens";
 import { useTheme } from "@/components/utils/theme-wrapper";
 import { getAgentTeamModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
@@ -41,7 +42,7 @@ export default function AgentsTeamInitialView({
 		: modeCopy.illustration.light;
 
 	return (
-		<div className={`relative flex flex-1 flex-col items-center px-4 ${galleryExpanded ? "justify-start pt-16" : "justify-center"}`}>
+		<div className={`relative flex h-full min-h-0 flex-1 flex-col items-center px-4 pb-8 ${galleryExpanded ? "justify-start pt-16" : "justify-center"}`}>
 			<div className="flex w-full max-w-[800px] flex-col items-center gap-2">
 				<div className="flex flex-col items-center gap-6 px-4 py-6">
 					<Image
@@ -78,6 +79,10 @@ export default function AgentsTeamInitialView({
 						onExpandChange={setGalleryExpanded}
 					/>
 				</div>
+			</div>
+
+			<div className="absolute inset-x-0 bottom-0 z-10 flex justify-center">
+				<Footer />
 			</div>
 		</div>
 	);

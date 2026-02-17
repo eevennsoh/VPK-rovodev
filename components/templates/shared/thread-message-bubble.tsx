@@ -39,6 +39,7 @@ interface ThreadMessageBubbleProps {
 	surface: "sidebar" | "fullscreen";
 	assistantStreamingRenderMode?: "rich" | "text-first";
 	onSuggestionClick?: (question: string) => void;
+	onDeleteMessage?: (messageId: string) => void;
 	showFeedbackActions?: boolean;
 	showFollowUpSuggestions?: boolean;
 	showToolsSection?: boolean;
@@ -56,6 +57,7 @@ export function ThreadMessageBubble({
 	surface,
 	assistantStreamingRenderMode = "rich",
 	onSuggestionClick,
+	onDeleteMessage,
 	showFeedbackActions: showFeedbackActionsProp,
 	showFollowUpSuggestions,
 	showToolsSection,
@@ -67,7 +69,7 @@ export function ThreadMessageBubble({
 	const rawMessageText = getMessageText(message);
 
 	if (message.role === "user") {
-		return <UserMessageBubble surface={surface} messageText={rawMessageText} />;
+		return <UserMessageBubble surface={surface} messageText={rawMessageText} onDelete={onDeleteMessage ? () => onDeleteMessage(message.id) : undefined} />;
 	}
 
 	const widgetLoadingPart = getLatestDataPart(message, "data-widget-loading");

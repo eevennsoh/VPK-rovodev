@@ -68,6 +68,7 @@ export default function AgentsTeamView() {
 		handleNewChat,
 		handleSelectChat,
 		handleDeleteChat,
+		handleDeleteMessage,
 	} = useAgentsTeamChat();
 
 	const {
@@ -389,6 +390,7 @@ export default function AgentsTeamView() {
 										onClarificationSubmit={handleClarificationSubmit}
 										onApprovalSubmit={handleApprovalSubmit}
 										onSuggestedQuestionClick={handleSuggestedQuestionClick}
+									onDeleteMessage={handleDeleteMessage}
 									/>
 								)}
 							</div>

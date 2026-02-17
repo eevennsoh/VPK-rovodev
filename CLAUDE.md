@@ -538,6 +538,7 @@ Note: `.claude.local.md` should be added to `.gitignore` if used for personal/lo
 - Never import transitive pnpm dependencies directly — pnpm's strict isolation only allows imports from `package.json` direct dependencies. Use internal mechanisms (e.g., `globalThis.__PLATFORM_FEATURE_FLAGS__`) or add the package explicitly. <!-- added: 2026-02-12 -->
 - For ADS Toggle parity work, lock geometry before token polish: use ADS content-box geometry, keep the regular thumb at 12px, and use `@atlaskit/icon/core/check-mark` + `@atlaskit/icon/core/cross` (`size="small"`) wrapped in VPK `Icon`. <!-- added: 2026-02-16 -->
 - On pages that render multiple Sonner demos, give each `<Toaster />` a unique `id` and pass matching `toasterId` in `toast.*` calls so a single action does not render through multiple toasters. <!-- added: 2026-02-16 -->
+- Frontend message deletion (`handleDeleteMessage`) does not clear RovoDev Serve's server-side conversation history. After deleting messages, the AI may still reference prior context. Restart `pnpm run dev` for a full reset. <!-- added: 2026-02-17 -->
 
 ## Appendix
 
