@@ -1,0 +1,483 @@
+import type { Spec } from "@json-render/react";
+import { RunSummarySection } from "@/app/agents-team/runs/[runId]/run-summary-section";
+import type {
+	AgentRun,
+	AgentRunSummary,
+	AgentRunVisualSummary,
+	AgentRunGenuiSummary,
+} from "@/lib/agents-team-run-types";
+import { token } from "@/lib/tokens";
+
+const MOCK_RUN_ID = "run_demo_agents_team_summary";
+const MOCK_CREATED_AT = "2026-02-17T15:18:00.000Z";
+const MOCK_COMPLETED_AT = "2026-02-17T15:24:00.000Z";
+
+const MOCK_MARKDOWN_SUMMARY = `## Executive summary
+The agent team completed the scoped release preparation plan for the summary experience with no blocking issues.
+
+## Key outcomes
+- Implemented a run summary page with final synthesis, interactive summary, and visual summary sections.
+- Added graceful loading states and polling while summary artifacts are generated.
+- Preserved task-by-agent output visibility for auditability.
+
+## Open risks and decisions
+- Visual summary generation depends on HTML synthesis quality from the presenter model.
+- Interactive summary generation fails safely when no renderable spec is returned.
+
+## Recommended next actions
+1. Add screenshot regression checks for the summary view.
+2. Add persisted summary versioning to compare run revisions.
+3. Track summary generation latency and fallback frequency.`;
+
+const MOCK_VISUAL_SUMMARY_HTML = [
+	"<!DOCTYPE html>",
+	'<html lang="en">',
+	"<head>",
+	'<meta charset="utf-8" />',
+	'<meta name="viewport" content="width=device-width, initial-scale=1" />',
+	"<title>Agents Team Summary</title>",
+	"<style>",
+	"body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f7f8f9; color: #172b4d; }",
+	".page { max-width: 940px; margin: 20px auto; padding: 20px; background: #ffffff; border: 1px solid #dfe1e6; border-radius: 12px; }",
+	".hero { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }",
+	".badge { display: inline-flex; align-items: center; border-radius: 9999px; padding: 4px 10px; font-size: 12px; background: #e3fcef; color: #216e4e; }",
+	".grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; }",
+	".card { background: #f7f8f9; border: 1px solid #dfe1e6; border-radius: 10px; padding: 12px; }",
+	".card h3 { margin: 0; font-size: 12px; color: #44546f; }",
+	".card p { margin: 6px 0 0; font-size: 20px; font-weight: 600; }",
+	"h2 { margin: 16px 0 8px; font-size: 16px; }",
+	"ul { margin: 0; padding-left: 20px; line-height: 1.5; }",
+	"</style>",
+	"</head>",
+	"<body>",
+	'<main class="page">',
+	'<div class="hero">',
+	"<div>",
+	"<h1 style=\"margin: 0; font-size: 24px;\">Agents Team Delivery Summary</h1>",
+	"<p style=\"margin: 6px 0 0; color: #44546f;\">Cross-functional execution completed across planning, implementation, and QA.</p>",
+	"</div>",
+	'<span class="badge">Completed</span>',
+	"</div>",
+	'<section class="grid">',
+	'<article class="card"><h3>Tasks completed</h3><p>5/5</p></article>',
+	'<article class="card"><h3>Active agents</h3><p>4</p></article>',
+	'<article class="card"><h3>Elapsed time</h3><p>6m 00s</p></article>',
+	"</section>",
+	"<h2>Highlights</h2>",
+	"<ul>",
+	"<li>Summary generation and visual presentation shipped in one run.</li>",
+	"<li>No blocked tasks at completion.</li>",
+	"<li>Interactive dashboard generated successfully.</li>",
+	"</ul>",
+	"<h2>Next actions</h2>",
+	"<ul>",
+	"<li>Add regression snapshots for the summary iframe output.</li>",
+	"<li>Instrument summary generation latency metrics.</li>",
+	"<li>Add downloadable report export.</li>",
+	"</ul>",
+	"</main>",
+	"</body>",
+	"</html>",
+].join("\n");
+
+const MOCK_GENUI_SPEC: Spec = {
+	root: "root",
+	state: {
+		outcomes: [
+			{
+				name: "Completed tasks",
+				value: "5/5",
+				detail: "All planned execution steps finished",
+			},
+			{
+				name: "Agent handoffs",
+				value: "3",
+				detail: "Cross-agent dependency transitions",
+			},
+			{
+				name: "Failed tasks",
+				value: "0",
+				detail: "No blocked or failed executions",
+			},
+		],
+		nextActions: [
+			{
+				owner: "QA",
+				action: "Add visual snapshot regression suite for summary iframe content",
+				priority: "High",
+			},
+			{
+				owner: "Platform",
+				action: "Track summary synthesis latency and fallback rates",
+				priority: "Medium",
+			},
+			{
+				owner: "Frontend",
+				action: "Add export-to-markdown action in run summary header",
+				priority: "Medium",
+			},
+		],
+	},
+	elements: {
+		root: {
+			type: "Stack",
+			props: { direction: "vertical", gap: "md" },
+			children: ["title", "metrics", "actions"],
+		},
+		title: {
+			type: "PageHeader",
+			props: {
+				title: "Interactive summary dashboard",
+				description: "Execution outcomes and follow-up actions for this run.",
+			},
+		},
+		metrics: {
+			type: "Grid",
+			props: { columns: "3", gap: "md" },
+			children: ["metricCompleted", "metricHandoffs", "metricFailures"],
+		},
+		metricCompleted: {
+			type: "Metric",
+			props: {
+				label: "Completed tasks",
+				value: "5/5",
+				detail: "All tasks",
+				trend: "up",
+			},
+		},
+		metricHandoffs: {
+			type: "Metric",
+			props: {
+				label: "Agent handoffs",
+				value: "3",
+				detail: "Dependency transitions",
+				trend: "up",
+			},
+		},
+		metricFailures: {
+			type: "Metric",
+			props: {
+				label: "Failed tasks",
+				value: "0",
+				detail: "No failures",
+				trend: "up",
+			},
+		},
+		actions: {
+			type: "Card",
+			props: {
+				title: "Recommended next actions",
+			},
+			children: ["actionsTable"],
+		},
+		actionsTable: {
+			type: "Table",
+			props: {
+				data: {
+					$state: "/nextActions",
+				} as unknown as Array<Record<string, unknown>>,
+				columns: [
+					{ key: "owner", label: "Owner" },
+					{ key: "action", label: "Action" },
+					{ key: "priority", label: "Priority" },
+				],
+			},
+		},
+	},
+};
+
+const MOCK_SUMMARY: AgentRunSummary = {
+	content: MOCK_MARKDOWN_SUMMARY,
+	partial: false,
+	createdAt: MOCK_COMPLETED_AT,
+};
+
+const MOCK_VISUAL_SUMMARY: AgentRunVisualSummary = {
+	html: MOCK_VISUAL_SUMMARY_HTML,
+	partial: false,
+	createdAt: MOCK_COMPLETED_AT,
+	agentName: "Visual Presenter",
+	status: "ready",
+};
+
+const MOCK_GENUI_SUMMARY: AgentRunGenuiSummary = {
+	spec: MOCK_GENUI_SPEC,
+	partial: false,
+	createdAt: MOCK_COMPLETED_AT,
+	status: "ready",
+};
+
+const MOCK_RUN: AgentRun = {
+	runId: MOCK_RUN_ID,
+	status: "completed",
+	error: null,
+	createdAt: MOCK_CREATED_AT,
+	updatedAt: MOCK_COMPLETED_AT,
+	completedAt: MOCK_COMPLETED_AT,
+	plan: {
+		title: "Ship agents-team summary experience",
+		description: "Synthesize multi-agent output into final markdown, interactive spec, and visual HTML.",
+		emoji: "🧠",
+		agents: ["Planner", "Frontend Engineer", "QA Engineer", "Visual Presenter"],
+		tasks: [
+			{ id: "T1", label: "Audit existing summary flow", agent: "Planner", blockedBy: [] },
+			{
+				id: "T2",
+				label: "Implement summary page layout",
+				agent: "Frontend Engineer",
+				blockedBy: ["T1"],
+			},
+			{
+				id: "T3",
+				label: "Wire visual summary iframe",
+				agent: "Frontend Engineer",
+				blockedBy: ["T2"],
+			},
+			{
+				id: "T4",
+				label: "Validate fallback states and polling UX",
+				agent: "QA Engineer",
+				blockedBy: ["T2", "T3"],
+			},
+			{
+				id: "T5",
+				label: "Generate presentation-ready visual report",
+				agent: "Visual Presenter",
+				blockedBy: ["T4"],
+			},
+		],
+	},
+	tasks: [
+		{
+			id: "T1",
+			label: "Audit existing summary flow",
+			agentName: "Planner",
+			agentId: "agent_planner",
+			blockedBy: [],
+			status: "done",
+			attempts: 1,
+			startedAt: "2026-02-17T15:18:00.000Z",
+			completedAt: "2026-02-17T15:19:10.000Z",
+			error: null,
+			output: "Mapped routing, polling lifecycle, and artifact rendering boundaries for the run summary page.",
+			outputSummary: "Mapped run summary architecture.",
+		},
+		{
+			id: "T2",
+			label: "Implement summary page layout",
+			agentName: "Frontend Engineer",
+			agentId: "agent_frontend",
+			blockedBy: ["T1"],
+			status: "done",
+			attempts: 1,
+			startedAt: "2026-02-17T15:19:15.000Z",
+			completedAt: "2026-02-17T15:21:05.000Z",
+			error: null,
+			output: "Added top-level run header, final synthesis card, and grouped task output panels.",
+			outputSummary: "Implemented page shell and output panels.",
+		},
+		{
+			id: "T3",
+			label: "Wire visual summary iframe",
+			agentName: "Frontend Engineer",
+			agentId: "agent_frontend",
+			blockedBy: ["T2"],
+			status: "done",
+			attempts: 1,
+			startedAt: "2026-02-17T15:21:05.000Z",
+			completedAt: "2026-02-17T15:22:00.000Z",
+			error: null,
+			output: "Embedded presenter-generated HTML with iframe `srcDoc` and isolated sandbox rendering.",
+			outputSummary: "Integrated visual summary iframe.",
+		},
+		{
+			id: "T4",
+			label: "Validate fallback states and polling UX",
+			agentName: "QA Engineer",
+			agentId: "agent_qa",
+			blockedBy: ["T2", "T3"],
+			status: "done",
+			attempts: 1,
+			startedAt: "2026-02-17T15:22:05.000Z",
+			completedAt: "2026-02-17T15:23:20.000Z",
+			error: null,
+			output: "Verified loading placeholders, timeout messaging, and manual refresh for delayed summaries.",
+			outputSummary: "Validated summary generation states.",
+		},
+		{
+			id: "T5",
+			label: "Generate presentation-ready visual report",
+			agentName: "Visual Presenter",
+			agentId: "agent_visual",
+			blockedBy: ["T4"],
+			status: "done",
+			attempts: 1,
+			startedAt: "2026-02-17T15:23:20.000Z",
+			completedAt: "2026-02-17T15:24:00.000Z",
+			error: null,
+			output: "Produced a polished HTML summary with outcomes, highlights, and next-action guidance.",
+			outputSummary: "Generated visual summary document.",
+		},
+	],
+	agents: [
+		{
+			agentId: "agent_planner",
+			agentName: "Planner",
+			status: "idle",
+			currentTaskId: null,
+			currentTaskLabel: null,
+			latestContent: "Analysis complete.",
+			updatedAt: MOCK_COMPLETED_AT,
+		},
+		{
+			agentId: "agent_frontend",
+			agentName: "Frontend Engineer",
+			status: "idle",
+			currentTaskId: null,
+			currentTaskLabel: null,
+			latestContent: "Summary layout shipped.",
+			updatedAt: MOCK_COMPLETED_AT,
+		},
+		{
+			agentId: "agent_qa",
+			agentName: "QA Engineer",
+			status: "idle",
+			currentTaskId: null,
+			currentTaskLabel: null,
+			latestContent: "Validation passed.",
+			updatedAt: MOCK_COMPLETED_AT,
+		},
+		{
+			agentId: "agent_visual",
+			agentName: "Visual Presenter",
+			status: "idle",
+			currentTaskId: null,
+			currentTaskLabel: null,
+			latestContent: "Visual summary delivered.",
+			updatedAt: MOCK_COMPLETED_AT,
+		},
+	],
+	directives: [],
+	summary: MOCK_SUMMARY,
+	visualSummary: MOCK_VISUAL_SUMMARY,
+	genuiSummary: MOCK_GENUI_SUMMARY,
+	userPrompt: "Build and present a complete summary page for the latest agents-team run.",
+	customInstruction: "Prioritize clarity, fallback safety, and presentable output.",
+	conversationContext: [
+		{
+			type: "user",
+			content: "Generate a final synthesis with interactive and visual outputs.",
+		},
+		{
+			type: "assistant",
+			content: "Plan accepted. Executing and preparing summary artifacts.",
+		},
+	],
+};
+
+function formatDateTime(value: string | null): string {
+	if (!value) {
+		return "-";
+	}
+
+	const parsedDate = new Date(value);
+	if (Number.isNaN(parsedDate.valueOf())) {
+		return value;
+	}
+
+	return new Intl.DateTimeFormat(undefined, {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(parsedDate);
+}
+
+function groupTasksByAgent(run: AgentRun) {
+	const groups = new Map<
+		string,
+		{
+			agentId: string;
+			agentName: string;
+			tasks: AgentRun["tasks"];
+		}
+	>();
+
+	for (const task of run.tasks) {
+		const existingGroup = groups.get(task.agentId);
+		if (existingGroup) {
+			existingGroup.tasks.push(task);
+			continue;
+		}
+
+		groups.set(task.agentId, {
+			agentId: task.agentId,
+			agentName: task.agentName,
+			tasks: [task],
+		});
+	}
+
+	return Array.from(groups.values());
+}
+
+export default function AgentsTeamSummaryBlock() {
+	const groupedOutputs = groupTasksByAgent(MOCK_RUN);
+
+	return (
+		<div className="bg-surface">
+			<div className="mx-auto flex min-h-svh w-full max-w-[1040px] flex-col gap-6 px-4 py-8 md:px-6">
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<p className="text-xs uppercase tracking-wide text-text-subtlest">Run summary</p>
+						<h1
+							style={{ font: token("font.heading.medium") }}
+							className="mt-1 text-text"
+						>
+							{MOCK_RUN.plan.emoji ? `${MOCK_RUN.plan.emoji} ` : ""}
+							{MOCK_RUN.plan.title}
+						</h1>
+						<p className="mt-1 text-sm text-text-subtle">
+							Status: {MOCK_RUN.status} · Started {formatDateTime(MOCK_RUN.createdAt)} · Finished{" "}
+							{formatDateTime(MOCK_RUN.completedAt)}
+						</p>
+					</div>
+				</div>
+
+				<RunSummarySection
+					runId={MOCK_RUN_ID}
+					initialRun={MOCK_RUN}
+					initialSummary={MOCK_SUMMARY}
+					initialVisualSummary={MOCK_VISUAL_SUMMARY}
+					initialGenuiSummary={MOCK_GENUI_SUMMARY}
+				/>
+
+				<section className="rounded-xl border border-border bg-surface-raised p-5">
+					<h2 className="text-base font-semibold text-text">Agent outputs</h2>
+					<div className="mt-4 flex flex-col gap-4">
+						{groupedOutputs.map((group) => (
+							<div key={group.agentId} className="rounded-lg border border-border bg-surface p-4">
+								<h3 className="text-sm font-semibold text-text">{group.agentName}</h3>
+								<div className="mt-3 flex flex-col gap-3">
+									{group.tasks.map((task) => (
+										<div
+											key={task.id}
+											className="rounded-md border border-border bg-surface-sunken p-3"
+										>
+											<div className="flex flex-wrap items-center gap-2 text-xs text-text-subtle">
+												<span className="rounded bg-bg-neutral px-1.5 py-0.5">{task.id}</span>
+												<span>{task.status}</span>
+												<span>Attempts: {task.attempts}</span>
+											</div>
+											<p className="mt-2 text-sm font-medium text-text">{task.label}</p>
+											<pre className="mt-2 whitespace-pre-wrap text-sm text-text-subtle">
+												{task.output || task.error || "No output recorded."}
+											</pre>
+										</div>
+									))}
+								</div>
+							</div>
+						))}
+					</div>
+				</section>
+			</div>
+		</div>
+	);
+}

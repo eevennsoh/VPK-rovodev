@@ -1054,6 +1054,7 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 
 const BLOCK_DEMOS: Record<string, ComponentType> = {
 	"app-sidebar": dynamic(() => import("./demos/blocks/app-sidebar-demo"), { ssr: false }),
+	"agents-team-summary": dynamic(() => import("./demos/blocks/agents-team-summary-demo"), { ssr: false }),
 	"dashboard-01": dynamic(() => import("./demos/blocks/dashboard-01-demo"), { ssr: false }),
 	"sidebar-01": dynamic(() => import("./demos/blocks/sidebar-01-demo"), { ssr: false }),
 	"sidebar-02": dynamic(() => import("./demos/blocks/sidebar-02-demo"), { ssr: false }),
