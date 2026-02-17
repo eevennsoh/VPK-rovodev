@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import PeopleGroupIcon from "@atlaskit/icon/core/people-group";
 import {
@@ -17,7 +17,8 @@ import { motion } from "motion/react";
 import type { ParsedPlanTask } from "@/components/templates/shared/lib/plan-widget";
 
 const DEFAULT_VISIBLE_TASKS = 6;
-const COLLAPSED_LIST_HEIGHT_CLASS = "max-h-[280px]";
+const COLLAPSED_LIST_MAX_HEIGHT_PX = 320;
+const COLLAPSED_LIST_HEIGHT_CLASS = "max-h-[320px]";
 
 interface PlanCardWidgetProps {
 	title: string;
@@ -48,6 +49,9 @@ export function PlanCardWidget({
 	const [isExpanded, setIsExpanded] = useState(false);
 	const visibleTasks = tasks.filter((task) => task.label.trim().length > 0);
 	const [streamRevealCount, setStreamRevealCount] = useState(0);
+	const [hasOverflow, setHasOverflow] = useState(false);
+	const [hasMeasuredOverflow, setHasMeasuredOverflow] = useState(false);
+	const listRef = useRef<HTMLOListElement | null>(null);
 
 	useEffect(() => {
 		if (!isStreaming || streamRevealCount >= visibleTasks.length) return;
@@ -63,13 +67,48 @@ export function PlanCardWidget({
 		? streamRevealCount
 		: visibleTasks.length;
 
+	useEffect(() => {
+		if (isExpanded || !listRef.current) return;
+
+		const listElement = listRef.current;
+		const updateOverflowState = () => {
+			const contentOverflowsVisibleHeight =
+				listElement.scrollHeight - listElement.clientHeight > 1;
+			const contentOverflowsCollapsedHeight =
+				listElement.scrollHeight - COLLAPSED_LIST_MAX_HEIGHT_PX > 1;
+			setHasOverflow(
+				contentOverflowsVisibleHeight || contentOverflowsCollapsedHeight
+			);
+			setHasMeasuredOverflow(true);
+		};
+
+		const rafId = requestAnimationFrame(updateOverflowState);
+
+		if (typeof ResizeObserver === "undefined") {
+			return () => cancelAnimationFrame(rafId);
+		}
+
+		const resizeObserver = new ResizeObserver(() => {
+			updateOverflowState();
+		});
+
+		resizeObserver.observe(listElement);
+
+		return () => {
+			cancelAnimationFrame(rafId);
+			resizeObserver.disconnect();
+		};
+	}, [isExpanded, isOpen, revealedCount, visibleTasks.length]);
+
 	if (visibleTasks.length === 0 || !title.trim()) {
 		return null;
 	}
 
 	const safeCollapsedVisibleTasks = Math.max(1, collapsedVisibleTasks);
-	const canShowMore = visibleTasks.length > safeCollapsedVisibleTasks;
-	const showCollapsedState = canShowMore ? !isExpanded : false;
+	const fallbackCanShowMore = visibleTasks.length > safeCollapsedVisibleTasks;
+	const canShowMore = hasMeasuredOverflow ? hasOverflow : fallbackCanShowMore;
+	const showCollapsedState = !isExpanded;
+	const showCollapsedControls = showCollapsedState && canShowMore;
 	const descriptionText = description?.trim()
 		? description
 		: `${visibleTasks.length} tasks`;
@@ -132,6 +171,7 @@ export function PlanCardWidget({
 
 				<div className="relative">
 					<ol
+						ref={listRef}
 						className={cn(
 							"flex flex-col gap-1",
 							showCollapsedState
@@ -148,31 +188,31 @@ export function PlanCardWidget({
 								className="flex min-h-8 items-start gap-2 rounded-lg bg-surface px-2 py-1.5"
 								style={{ willChange: "transform, opacity" }}
 							>
-								<span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">
-									{index + 1}
-								</span>
-								<div className="flex min-w-0 flex-1 flex-col gap-0.5">
-									<span className="text-sm leading-5 font-medium text-text">
-										{task.label}
+									<span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">
+										{index + 1}
 									</span>
-									{task.blockedBy.length > 0 ? (() => {
-									const blockedByLabels = task.blockedBy
-										.map((blockedById) => {
-											const taskIndex = tasks.findIndex(
-												(t) => t.id === blockedById
-											);
-											return taskIndex >= 0
-												? `Task ${taskIndex + 1}`
-												: null;
-										})
-										.filter((label): label is string => label !== null);
-									return blockedByLabels.length > 0 ? (
-										<span className="text-xs leading-4 text-text-subtlest">
-											Blocked by: {blockedByLabels.join(", ")}
+									<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+										<span className="text-sm leading-5 font-medium text-text">
+											{task.label}
 										</span>
-									) : null;
-								})() : null}
-								</div>
+										{task.blockedBy.length > 0 ? (() => {
+											const blockedByLabels = task.blockedBy
+												.map((blockedById) => {
+													const taskIndex = tasks.findIndex(
+														(t) => t.id === blockedById
+													);
+													return taskIndex >= 0
+														? `Task ${taskIndex + 1}`
+														: null;
+												})
+												.filter((label): label is string => label !== null);
+											return blockedByLabels.length > 0 ? (
+												<span className="text-xs leading-4 text-text-subtlest">
+													Blocked by: {blockedByLabels.join(", ")}
+												</span>
+											) : null;
+										})() : null}
+									</div>
 								{task.agent ? (
 									<span className="mt-0.5 shrink-0 rounded-md bg-bg-neutral px-1.5 py-0.5 text-xs leading-4 font-medium text-text-subtle">
 										{task.agent}
@@ -182,9 +222,9 @@ export function PlanCardWidget({
 						))}
 					</ol>
 
-					{showCollapsedState ? (
+					{showCollapsedControls ? (
 						<>
-							<div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-surface to-transparent" />
+							<div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface via-surface to-transparent" />
 							<div className="absolute inset-x-0 bottom-2 flex justify-center">
 								<Button
 									size="xs"
