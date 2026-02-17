@@ -4,6 +4,9 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 	"app-sidebar": {
 		description: "Application sidebar with main navigation, documents, secondary nav, and user menu.",
 	},
+	"agents-team-summary": {
+		description: "Agents Team run summary block with final synthesis, interactive dashboard, visual iframe preview, and grouped agent outputs.",
+	},
 	"dashboard-01": {
 		description: "A full dashboard layout with sidebar navigation, charts, and data tables.",
 	},

@@ -14,6 +14,7 @@ import { buildNavItems, UI_GROUPS, BLOCK_GROUPS } from "./data/nav-utils";
 export type HomeCategory = "ui" | "ui-ai" | "blocks" | "templates" | "utility" | "visual";
 
 const ADS_BLOCK_SLUGS = new Set([
+	"agents-team-summary",
 	"top-navigation",
 	"prompt-gallery",
 	"shared-ui",
