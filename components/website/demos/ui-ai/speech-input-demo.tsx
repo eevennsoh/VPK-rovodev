@@ -12,14 +12,8 @@ export function SpeechInputDemoWithTranscript() {
 
 	return (
 		<div className="flex flex-col items-center gap-4">
-			<SpeechInput
-				onTranscriptionChange={(text) =>
-					setTranscript((prev) => (prev ? `${prev} ${text}` : text))
-				}
-			/>
-			<div className="min-h-[3rem] w-full max-w-sm rounded-lg border border-border p-3 text-sm text-text-subtle">
-				{transcript || "Press the mic button and start speaking..."}
-			</div>
+			<SpeechInput onTranscriptionChange={(text) => setTranscript((prev) => (prev ? `${prev} ${text}` : text))} />
+			<div className="min-h-[3rem] w-full max-w-sm rounded-lg border border-border p-3 text-sm text-text-subtle">{transcript || "Press the mic button and start speaking..."}</div>
 		</div>
 	);
 }
