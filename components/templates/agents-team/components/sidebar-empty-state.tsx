@@ -3,8 +3,13 @@
 import { Button } from "@/components/ui/button";
 import Heading from "@/components/blocks/shared-ui/heading";
 
-export default function SidebarEmptyState() {
+interface SidebarEmptyStateProps {
+	onCreateOne: () => void;
+}
+
+export default function SidebarEmptyState({ onCreateOne }: Readonly<SidebarEmptyStateProps>) {
 	const handleCreateOne = () => {
+		onCreateOne();
 		const textarea = document.querySelector<HTMLTextAreaElement>(
 			'textarea[aria-label="Chat message input"]',
 		);

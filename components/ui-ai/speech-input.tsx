@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import type { ComponentProps, MouseEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -38,11 +38,55 @@ const detectSpeechInputMode = (): SpeechInputMode => {
   return "none";
 };
 
+const resolveSpeechInputButtonSize = (
+  size: SpeechInputProps["size"]
+): SpeechInputProps["size"] => {
+  if (size === "xs") {
+    return "icon-xs";
+  }
+
+  if (size === "sm") {
+    return "icon-sm";
+  }
+
+  if (size === "lg") {
+    return "icon-lg";
+  }
+
+  if (size == null || size === "default") {
+    return "icon";
+  }
+
+  return size;
+};
+
+const resolveSpeechInputIconClassName = (
+  size: SpeechInputProps["size"]
+): string => {
+  if (size === "icon-xs") {
+    return "size-3.5";
+  }
+
+  if (size === "icon-sm") {
+    return "size-4";
+  }
+
+  if (size === "icon-lg") {
+    return "size-6";
+  }
+
+  return "size-5";
+};
+
 export const SpeechInput = ({
   className,
   onTranscriptionChange,
   onAudioRecorded,
   lang = "en-US",
+  size,
+  variant = "ghost",
+  disabled: disabledProp,
+  onClick,
   ...props
 }: SpeechInputProps) => {
   const [isListening, setIsListening] = useState(false);
@@ -231,44 +275,74 @@ export const SpeechInput = ({
     }
   }, [mode, isListening, startMediaRecorder, stopMediaRecorder]);
 
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      onClick?.(event as Parameters<NonNullable<SpeechInputProps["onClick"]>>[0]);
+
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      toggleListening();
+    },
+    [onClick, toggleListening]
+  );
+
+  const resolvedButtonSize = resolveSpeechInputButtonSize(size);
+  const resolvedIconClassName = resolveSpeechInputIconClassName(
+    resolvedButtonSize
+  );
+  const resolvedVariant = isListening ? "destructive" : variant;
+
   // Determine if button should be disabled
   const isDisabled =
     mode === "none" ||
     (mode === "speech-recognition" && !isRecognitionReady) ||
     (mode === "media-recorder" && !onAudioRecorded) ||
-    isProcessing;
+    isProcessing ||
+    Boolean(disabledProp);
 
   return (
-    <div className="relative inline-flex items-center justify-center">
+    <div className="relative z-10 inline-flex items-center justify-center overflow-visible">
       {/* Animated pulse rings */}
       {isListening &&
         [0, 1, 2].map((index) => (
           <div
-            className="absolute inset-0 animate-ping rounded-full border-2 border-red-400/30"
+            className={cn(
+              "pointer-events-none absolute animate-pulse rounded-full border-2 border-destructive/30",
+              index === 0 ? "inset-0" : index === 1 ? "-inset-px" : "-inset-1"
+            )}
             key={index}
             style={{
-              animationDelay: `${index * 0.3}s`,
-              animationDuration: "2s",
+              animationDelay: `${index * 0.2}s`,
+              animationDuration: "1.4s",
             }}
           />
         ))}
 
       {/* Main record button */}
       <Button
+        {...props}
         className={cn(
-          "relative z-10 rounded-full transition-all duration-300",
+          "relative z-10 aspect-square shrink-0 rounded-full p-0 transition-all duration-300",
           isListening
             ? "bg-destructive text-primary-foreground hover:bg-destructive/80 hover:text-primary-foreground"
-            : "bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground",
+            : null,
           className
         )}
         disabled={isDisabled}
-        onClick={toggleListening}
-        {...props}
+        onClick={handleClick}
+        size={resolvedButtonSize}
+        variant={resolvedVariant}
+        type="button"
       >
         {isProcessing && <Spinner />}
-        {!isProcessing && isListening && <SquareIcon className="size-4" />}
-        {!(isProcessing || isListening) && <MicIcon className="size-4" />}
+        {!isProcessing && isListening && (
+          <SquareIcon className={resolvedIconClassName} />
+        )}
+        {!(isProcessing || isListening) && (
+          <MicIcon className={resolvedIconClassName} />
+        )}
       </Button>
     </div>
   );

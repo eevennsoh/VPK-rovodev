@@ -1,6 +1,8 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { generateTextViaRovoDev } = require("./rovodev-gateway");
+const { getGenuiSummarySystemPrompt } = require("./genui-system-prompt");
+const { analyzeGeneratedText, pickBestSpec } = require("./genui-spec-utils");
 
 const TERMINAL_TASK_STATUSES = new Set(["done", "failed", "blocked-failed"]);
 const FAILURE_TASK_STATUSES = new Set(["failed", "blocked-failed"]);
@@ -171,6 +173,9 @@ function buildRunPaths(baseDir, runId) {
 		runFilePath: path.join(runDir, "run.json"),
 		summaryJsonPath: path.join(runDir, "summary.json"),
 		summaryMarkdownPath: path.join(runDir, "summary.md"),
+		visualSummaryJsonPath: path.join(runDir, "visual-summary.json"),
+		visualSummaryHtmlPath: path.join(runDir, "visual-summary.html"),
+		genuiSummaryJsonPath: path.join(runDir, "genui-summary.json"),
 		agentsDir: path.join(runDir, "agents"),
 		tasksDir: path.join(runDir, "tasks"),
 	};
@@ -233,6 +238,8 @@ function createInitialRun({ runId, plan, userPrompt, conversationContext, custom
 		agents,
 		directives: [],
 		summary: null,
+		visualSummary: null,
+		genuiSummary: null,
 		userPrompt: userPrompt || "",
 		customInstruction: customInstruction || undefined,
 		conversationContext,
@@ -254,6 +261,8 @@ function toSerializableRun(run) {
 		agents: run.agents,
 		directives: run.directives,
 		summary: run.summary,
+		visualSummary: run.visualSummary,
+		genuiSummary: run.genuiSummary,
 		userPrompt: run.userPrompt,
 		customInstruction: run.customInstruction,
 		conversationContext: run.conversationContext,
@@ -292,16 +301,16 @@ function toTaskSummaryText(task) {
 	return `${cleanedText.slice(0, 317)}...`;
 }
 
+function createSkillSection(skillContents) {
+	return Array.isArray(skillContents) && skillContents.length > 0
+		? skillContents
+				.map((skill) => `### ${skill.name}\n${skill.content}`)
+				.join("\n\n")
+		: null;
+}
+
 function createTaskPrompt(run, task, dependencyOutputs, directivesForAgent, skillContents) {
-	const skillSection =
-		Array.isArray(skillContents) && skillContents.length > 0
-			? skillContents
-					.map(
-						(skill) =>
-							`### ${skill.name}\n${skill.content}`
-					)
-					.join("\n\n")
-			: null;
+	const skillSection = createSkillSection(skillContents);
 	const dependencySection =
 		dependencyOutputs.length > 0
 			? dependencyOutputs
@@ -398,10 +407,165 @@ function createFallbackSummary(run) {
 	return lines.filter(Boolean).join("\n\n");
 }
 
+function createVisualSummaryPrompt(run, summaryContent, skillContents) {
+	const taskSections = run.tasks
+		.map((task) => {
+			return [
+				`Task ${task.id} (${task.agentName})`,
+				`Label: ${task.label}`,
+				`Status: ${task.status}`,
+				"Output:",
+				task.output?.trim() || task.error || "No output generated.",
+			].join("\n");
+		})
+		.join("\n\n---\n\n");
+
+	const skillSection = createSkillSection(skillContents);
+
+	return [
+		`Create a polished, user-facing HTML summary page for the plan "${run.plan.title}".`,
+		run.plan.description ? `Plan description: ${run.plan.description}` : null,
+		run.status === RUN_STATUS_FAILED
+			? "This run has partial completion due to failed or blocked tasks."
+			: "This run completed successfully.",
+		"",
+		skillSection ? "## Equipped Skills\n" : null,
+		skillSection,
+		skillSection ? "" : null,
+		"Use the task outcomes and markdown summary below as source material.",
+		"Return only HTML (no markdown fences, no commentary).",
+		"The HTML must be self-contained with inline CSS and no external scripts.",
+		"Include sections for status, key outcomes, task-by-task results, and next actions.",
+		"",
+		"Markdown summary:",
+		summaryContent,
+		"",
+		"Task outputs:",
+		taskSections,
+	]
+		.filter(Boolean)
+		.join("\n");
+}
+
+function createGenuiSummaryPrompt(run, summaryContent) {
+	const taskSections = run.tasks
+		.map((task) => {
+			return [
+				`Task ${task.id} (${task.agentName})`,
+				`Label: ${task.label}`,
+				`Status: ${task.status}`,
+				"Output:",
+				task.output?.trim() || task.error || "No output generated.",
+			].join("\n");
+		})
+		.join("\n\n---\n\n");
+
+	return [
+		`Create an interactive summary dashboard for the plan "${run.plan.title}".`,
+		run.plan.description ? `Plan description: ${run.plan.description}` : null,
+		run.status === RUN_STATUS_FAILED
+			? "This run has partial completion due to failed or blocked tasks."
+			: "This run completed successfully.",
+		"",
+		"Use the task outcomes and markdown summary below as source material.",
+		"Output exactly one ```spec block with valid RFC 6902 JSON patch lines.",
+		"",
+		"Markdown summary:",
+		summaryContent,
+		"",
+		"Task outputs:",
+		taskSections,
+	]
+		.filter(Boolean)
+		.join("\n");
+}
+
+function stripCodeFence(value) {
+	const trimmed = value.trim();
+	if (!trimmed.startsWith("```")) {
+		return trimmed;
+	}
+
+	const lines = trimmed.split("\n");
+	if (lines.length <= 2) {
+		return trimmed;
+	}
+
+	const firstLine = lines[0].trim();
+	const lastLine = lines[lines.length - 1].trim();
+	if (!firstLine.startsWith("```") || lastLine !== "```") {
+		return trimmed;
+	}
+
+	return lines.slice(1, -1).join("\n").trim();
+}
+
+function ensureHtmlDocument(htmlCandidate, title) {
+	const normalized = stripCodeFence(htmlCandidate);
+	const containsHtmlTag = /<\s*html[\s>]/i.test(normalized);
+	if (containsHtmlTag) {
+		return normalized;
+	}
+
+	return [
+		"<!DOCTYPE html>",
+		'<html lang="en">',
+		"<head>",
+		'<meta charset="utf-8" />',
+		'<meta name="viewport" content="width=device-width, initial-scale=1" />',
+		`<title>${title}</title>`,
+		"</head>",
+		"<body>",
+		normalized,
+		"</body>",
+		"</html>",
+	].join("\n");
+}
+
+function escapeHtml(value) {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
+}
+
+function createFallbackVisualSummaryHtml(run, summaryContent) {
+	const statusText =
+		run.status === RUN_STATUS_FAILED ? "Partial completion" : "Completed";
+	const escapedSummary = escapeHtml(summaryContent || "Summary unavailable.");
+
+	return [
+		"<!DOCTYPE html>",
+		'<html lang="en">',
+		"<head>",
+		'<meta charset="utf-8" />',
+		'<meta name="viewport" content="width=device-width, initial-scale=1" />',
+		`<title>${escapeHtml(run.plan.title)} visual summary</title>`,
+		"<style>",
+		"body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f7f8f9; color: #172b4d; }",
+		".page { max-width: 960px; margin: 24px auto; padding: 24px; background: #fff; border: 1px solid #dfe1e6; border-radius: 12px; }",
+		".meta { color: #44546f; font-size: 14px; margin-bottom: 16px; }",
+		"pre { white-space: pre-wrap; line-height: 1.5; font-size: 14px; background: #f1f2f4; border-radius: 8px; padding: 16px; }",
+		"</style>",
+		"</head>",
+		"<body>",
+		'<main class="page">',
+		`<h1>${escapeHtml(run.plan.title)}</h1>`,
+		`<p class="meta">Status: ${escapeHtml(statusText)}</p>`,
+		"<pre>",
+		escapedSummary,
+		"</pre>",
+		"</main>",
+		"</body>",
+		"</html>",
+	].join("\n");
+}
+
 function createRunManager(options) {
 	const {
 		baseDir,
-		getEnvVars,
 		buildSystemPrompt,
 		configManager,
 		logger = console,
@@ -465,6 +629,15 @@ function createRunManager(options) {
 			await writeJsonFile(paths.summaryJsonPath, run.summary);
 			await fs.writeFile(paths.summaryMarkdownPath, run.summary.content, "utf8");
 		}
+
+		if (run.visualSummary) {
+			await writeJsonFile(paths.visualSummaryJsonPath, run.visualSummary);
+			await fs.writeFile(paths.visualSummaryHtmlPath, run.visualSummary.html, "utf8");
+		}
+
+		if (run.genuiSummary) {
+			await writeJsonFile(paths.genuiSummaryJsonPath, run.genuiSummary);
+		}
 	};
 
 	const persistIntermediateSnapshot = async (run) => {
@@ -485,7 +658,7 @@ function createRunManager(options) {
 		for (const subscriber of run.subscribers) {
 			try {
 				subscriber.write(`data: ${eventPayload}`);
-			} catch {
+			} catch (error) {
 				logger.warn?.("[AGENTS-RUN] Failed to emit SSE event", error);
 				run.subscribers.delete(subscriber);
 			}
@@ -548,12 +721,39 @@ function createRunManager(options) {
 		return run.agents.find((agent) => agent.agentId === task.agentId) || null;
 	};
 
+	const findConfiguredAgentByName = (agentName) => {
+		if (!configManager || !agentName) {
+			return null;
+		}
+
+		const configAgents = configManager.listAgents();
+		return (
+			configAgents.find(
+				(agent) => agent.name.toLowerCase() === agentName.toLowerCase()
+			) || null
+		);
+	};
+
+	const resolveSkillContentsForAgentName = (agentName) => {
+		const configuredAgent = findConfiguredAgentByName(agentName);
+		if (
+			!configuredAgent ||
+			!Array.isArray(configuredAgent.equippedSkills) ||
+			configuredAgent.equippedSkills.length === 0
+		) {
+			return [];
+		}
+
+		return configManager.resolveSkillContents(configuredAgent.equippedSkills);
+	};
+
 	const callGatewayForMarkdown = async ({
 		prompt,
 		conversationHistory,
 		contextDescription,
 		customSystemPrompt,
 		userName,
+		conflictPolicy,
 	}) => {
 		const systemPrompt = customSystemPrompt || (buildSystemPrompt
 			? buildSystemPrompt(userName, null, "ask")
@@ -572,7 +772,11 @@ function createRunManager(options) {
 		}
 
 		// Use RovoDev Serve for agent team runs
-		const result = await generateTextViaRovoDev({ system: systemPrompt, prompt: userMessage });
+		const result = await generateTextViaRovoDev({
+			system: systemPrompt,
+			prompt: userMessage,
+			conflictPolicy,
+		});
 		return result.trim();
 	};
 
@@ -598,34 +802,24 @@ function createRunManager(options) {
 		agent.updatedAt = toIsoDate();
 		updateRunTimestamp(run);
 
-			const claimedUpdate = buildAgentExecutionUpdate(
-				task,
-				agent,
-				"working",
-				`Claimed task ${task.id}: ${task.label}`
-			);
-			emitRunStateEvent(run, "task.claimed", {
-				taskId: task.id,
-				update: claimedUpdate,
-			});
-			await persistIntermediateSnapshot(run);
+		const claimedUpdate = buildAgentExecutionUpdate(
+			task,
+			agent,
+			"working",
+			`Claimed task ${task.id}: ${task.label}`
+		);
+		emitRunStateEvent(run, "task.claimed", {
+			taskId: task.id,
+			update: claimedUpdate,
+		});
+		await persistIntermediateSnapshot(run);
 
 		const dependencyOutputs = getDependencyOutputs(run, task);
 		const directivesForAgent = run.directives.filter(
 			(directive) => directive.agentId === agent.agentId
 		);
 
-		// Resolve equipped skills for this agent via config manager
-		let skillContents = [];
-		if (configManager) {
-			const configAgents = configManager.listAgents();
-			const matchedAgent = configAgents.find(
-				(a) => a.name.toLowerCase() === task.agentName.toLowerCase()
-			);
-			if (matchedAgent && Array.isArray(matchedAgent.equippedSkills) && matchedAgent.equippedSkills.length > 0) {
-				skillContents = configManager.resolveSkillContents(matchedAgent.equippedSkills);
-			}
-		}
+		const skillContents = resolveSkillContentsForAgentName(task.agentName);
 
 		const taskPrompt = createTaskPrompt(
 			run,
@@ -664,14 +858,7 @@ function createRunManager(options) {
 				contextDescription: `Plan title: ${run.plan.title}`,
 				customSystemPrompt: taskSystemPrompt,
 				userName: agent.agentName,
-				maxOutputTokens: taskMaxOutputTokens,
-				onDelta: (delta) => {
-					streamedBuffer += delta;
-					const hasBreak = /[\n.!?]/.test(streamedBuffer);
-					if (streamedBuffer.length >= 220 || hasBreak) {
-						flushBufferedUpdate();
-					}
-				},
+				conflictPolicy: "wait-for-turn",
 			});
 			flushBufferedUpdate();
 
@@ -687,12 +874,12 @@ function createRunManager(options) {
 			agent.updatedAt = toIsoDate();
 			updateRunTimestamp(run);
 
-				emitRunStateEvent(run, "task.completed", {
-					taskId: task.id,
-					update: buildAgentExecutionUpdate(task, agent, "completed", task.outputSummary),
-				});
-				await persistIntermediateSnapshot(run);
-			} catch (error) {
+			emitRunStateEvent(run, "task.completed", {
+				taskId: task.id,
+				update: buildAgentExecutionUpdate(task, agent, "completed", task.outputSummary),
+			});
+			await persistIntermediateSnapshot(run);
+		} catch (error) {
 			flushBufferedUpdate();
 			task.status = "failed";
 			task.completedAt = toIsoDate();
@@ -705,76 +892,172 @@ function createRunManager(options) {
 			agent.updatedAt = toIsoDate();
 			updateRunTimestamp(run);
 
-				emitRunStateEvent(run, "task.failed", {
-					taskId: task.id,
-					error: task.error,
-					update: buildAgentExecutionUpdate(task, agent, "failed", task.error),
-				});
-				await persistIntermediateSnapshot(run);
-				throw error;
-			}
-		};
-
-	const executeTaskWithRetry = async (run, task) => {
-		const maxAttempts = 2;
-		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			try {
-				await runTask(run, task);
-				return;
-			} catch {
-				if (attempt >= maxAttempts) {
-					return;
-				}
-
-				await delay(600 * attempt);
-				task.status = "todo";
-				task.error = null;
-				task.output = null;
-				task.outputSummary = null;
-				const agent = getAgentByTask(run, task);
-				if (agent) {
-					agent.status = "idle";
-					agent.updatedAt = toIsoDate();
-				}
-				updateRunTimestamp(run);
-				emitRunStateEvent(run, "task.retrying", {
-					taskId: task.id,
-					attempt: attempt + 1,
-				});
-			}
-		}
-	};
-
-	const synthesizeRunSummary = async (run) => {
-		const summaryPrompt = createSummaryPrompt(run);
-		let summaryContent = "";
-		try {
-			summaryContent = await callGatewayForMarkdown({
-				prompt: summaryPrompt,
-				conversationHistory: [],
-				contextDescription: `Final synthesis for run ${run.id}`,
-				customSystemPrompt:
-					"You combine multi-agent outputs into one cohesive, user-facing report.",
-				userName: "Synthesis Agent",
+			emitRunStateEvent(run, "task.failed", {
+				taskId: task.id,
+				error: task.error,
+				update: buildAgentExecutionUpdate(task, agent, "failed", task.error),
 			});
-		} catch (error) {
-			logger.warn?.("[AGENTS-RUN] Summary synthesis failed; using fallback", error);
-			summaryContent = createFallbackSummary(run);
+			await persistIntermediateSnapshot(run);
+			throw error;
 		}
-
-		run.summary = {
-			content: summaryContent,
-			partial: run.status === RUN_STATUS_FAILED,
-			createdAt: toIsoDate(),
-		};
-		updateRunTimestamp(run);
-		try {
-			await persistRunSnapshot(run);
-		} catch (error) {
-			logger.error?.("[AGENTS-RUN] Failed to persist run summary snapshot", error);
-		}
-		emitRunStateEvent(run, "run.summary-ready", {});
 	};
+
+		const executeTaskWithRetry = async (run, task) => {
+			const maxAttempts = 2;
+			for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+				try {
+					await runTask(run, task);
+					return;
+				} catch {
+					if (attempt >= maxAttempts) {
+						return;
+					}
+
+					await delay(600 * attempt);
+					task.status = "todo";
+					task.error = null;
+					task.output = null;
+					task.outputSummary = null;
+					const agent = getAgentByTask(run, task);
+					if (agent) {
+						agent.status = "idle";
+						agent.updatedAt = toIsoDate();
+					}
+					updateRunTimestamp(run);
+					emitRunStateEvent(run, "task.retrying", {
+						taskId: task.id,
+						attempt: attempt + 1,
+					});
+				}
+			}
+		};
+
+		const synthesizeVisualSummary = async (run, summaryContent) => {
+			const visualAgentName = "Visual Presenter";
+			const configuredVisualAgent = findConfiguredAgentByName(visualAgentName);
+			const skillContents = resolveSkillContentsForAgentName(visualAgentName);
+			const visualSystemPrompt =
+				getNonEmptyString(configuredVisualAgent?.systemPrompt) ||
+				"You are a frontend design specialist. Build polished, accessible HTML pages.";
+			const visualPrompt = createVisualSummaryPrompt(run, summaryContent, skillContents);
+			const partial = run.status === RUN_STATUS_FAILED;
+
+			try {
+				const rawHtml = await callGatewayForMarkdown({
+					prompt: visualPrompt,
+					conversationHistory: [],
+					contextDescription: `Visual summary synthesis for run ${run.id}`,
+					customSystemPrompt: visualSystemPrompt,
+					userName: visualAgentName,
+					conflictPolicy: "wait-for-turn",
+				});
+				run.visualSummary = {
+					html: ensureHtmlDocument(rawHtml, `${run.plan.title} visual summary`),
+					partial,
+					createdAt: toIsoDate(),
+					agentName: visualAgentName,
+					status: "ready",
+				};
+			} catch (error) {
+				const errorMessage =
+					error instanceof Error ? error.message : "Failed to generate visual summary.";
+				logger.warn?.("[AGENTS-RUN] Visual summary synthesis failed; using fallback", error);
+				run.visualSummary = {
+					html: createFallbackVisualSummaryHtml(run, summaryContent),
+					partial,
+					createdAt: toIsoDate(),
+					agentName: visualAgentName,
+					status: "failed",
+					error: errorMessage,
+				};
+			}
+		};
+
+		const synthesizeGenuiSummary = async (run, summaryContent) => {
+			const partial = run.status === RUN_STATUS_FAILED;
+			const genuiPrompt = createGenuiSummaryPrompt(run, summaryContent);
+			const genuiSystemPrompt = getGenuiSummarySystemPrompt();
+
+			try {
+				const rawText = await callGatewayForMarkdown({
+					prompt: genuiPrompt,
+					conversationHistory: [],
+					contextDescription: `Interactive genui summary for run ${run.id}`,
+					customSystemPrompt: genuiSystemPrompt,
+					userName: "GenUI Presenter",
+					conflictPolicy: "wait-for-turn",
+				});
+
+				const analysis = analyzeGeneratedText(rawText);
+				const bestSpec = pickBestSpec(analysis);
+
+				if (bestSpec) {
+					run.genuiSummary = {
+						spec: bestSpec,
+						partial,
+						createdAt: toIsoDate(),
+						status: "ready",
+					};
+				} else {
+					logger.warn?.("[AGENTS-RUN] GenUI summary spec was not renderable; skipping");
+					run.genuiSummary = {
+						spec: { root: "", elements: {} },
+						partial,
+						createdAt: toIsoDate(),
+						status: "failed",
+						error: "Generated spec was not renderable.",
+					};
+				}
+			} catch (error) {
+				const errorMessage =
+					error instanceof Error ? error.message : "Failed to generate interactive summary.";
+				logger.warn?.("[AGENTS-RUN] GenUI summary synthesis failed", error);
+				run.genuiSummary = {
+					spec: { root: "", elements: {} },
+					partial,
+					createdAt: toIsoDate(),
+					status: "failed",
+					error: errorMessage,
+				};
+			}
+		};
+
+		const synthesizeRunSummary = async (run) => {
+			const summaryPrompt = createSummaryPrompt(run);
+			let summaryContent = "";
+			try {
+				summaryContent = await callGatewayForMarkdown({
+					prompt: summaryPrompt,
+					conversationHistory: [],
+					contextDescription: `Final synthesis for run ${run.id}`,
+					customSystemPrompt:
+						"You combine multi-agent outputs into one cohesive, user-facing report.",
+					userName: "Synthesis Agent",
+					conflictPolicy: "wait-for-turn",
+				});
+			} catch (error) {
+				logger.warn?.("[AGENTS-RUN] Summary synthesis failed; using fallback", error);
+				summaryContent = createFallbackSummary(run);
+			}
+
+			run.summary = {
+				content: summaryContent,
+				partial: run.status === RUN_STATUS_FAILED,
+				createdAt: toIsoDate(),
+			};
+
+			await Promise.all([
+				synthesizeVisualSummary(run, summaryContent),
+				synthesizeGenuiSummary(run, summaryContent),
+			]);
+			updateRunTimestamp(run);
+			try {
+				await persistRunSnapshot(run);
+			} catch (error) {
+				logger.error?.("[AGENTS-RUN] Failed to persist run summary snapshot", error);
+			}
+			emitRunStateEvent(run, "run.summary-ready", {});
+		};
 
 	const finalizeRun = async (run) => {
 		const regularFailedTasks = run.tasks.filter(
@@ -889,16 +1172,16 @@ function createRunManager(options) {
 		}
 
 		const runId = createId("run");
-			const run = createInitialRun({
-				runId,
-				plan: normalizedPlan,
-				userPrompt: getNonEmptyString(userPrompt) || "",
-				conversationContext: buildConversationContext(conversation),
-				customInstruction: getNonEmptyString(customInstruction) || undefined,
-			});
-			runsById.set(runId, run);
-			await persistIntermediateSnapshot(run);
-			emitRunStateEvent(run, "run.started", {});
+		const run = createInitialRun({
+			runId,
+			plan: normalizedPlan,
+			userPrompt: getNonEmptyString(userPrompt) || "",
+			conversationContext: buildConversationContext(conversation),
+			customInstruction: getNonEmptyString(customInstruction) || undefined,
+		});
+		runsById.set(runId, run);
+		await persistIntermediateSnapshot(run);
+		emitRunStateEvent(run, "run.started", {});
 
 		void scheduleRun(run).catch(async (error) => {
 			logger.error?.("[AGENTS-RUN] Run scheduler crashed", error);
@@ -922,12 +1205,35 @@ function createRunManager(options) {
 		return loadRunFromDisk(runId);
 	};
 
+	const readRunSummaryArtifacts = async (runId, diskRun) => {
+		const paths = buildRunPaths(runRootsDir, runId);
+		const [rawSummary, rawVisualSummary, rawGenuiSummary] = await Promise.all([
+			fs.readFile(paths.summaryJsonPath, "utf8").catch(() => null),
+			fs.readFile(paths.visualSummaryJsonPath, "utf8").catch(() => null),
+			fs.readFile(paths.genuiSummaryJsonPath, "utf8").catch(() => null),
+		]);
+		const parsedSummary = typeof rawSummary === "string" ? safeJsonParse(rawSummary) : null;
+		const parsedVisualSummary =
+			typeof rawVisualSummary === "string" ? safeJsonParse(rawVisualSummary) : null;
+		const parsedGenuiSummary =
+			typeof rawGenuiSummary === "string" ? safeJsonParse(rawGenuiSummary) : null;
+
+		return {
+			run: diskRun,
+			summary: parsedSummary || diskRun.summary || null,
+			visualSummary: parsedVisualSummary || diskRun.visualSummary || null,
+			genuiSummary: parsedGenuiSummary || diskRun.genuiSummary || null,
+		};
+	};
+
 	const getRunSummary = async (runId) => {
 		const activeRun = runsById.get(runId);
 		if (activeRun) {
 			return {
 				run: toSerializableRun(activeRun),
 				summary: activeRun.summary ?? null,
+				visualSummary: activeRun.visualSummary ?? null,
+				genuiSummary: activeRun.genuiSummary ?? null,
 			};
 		}
 
@@ -936,27 +1242,28 @@ function createRunManager(options) {
 			return null;
 		}
 
-		const paths = buildRunPaths(runRootsDir, runId);
-		try {
-			const rawSummary = await fs.readFile(paths.summaryJsonPath, "utf8");
-			const parsedSummary = safeJsonParse(rawSummary);
-			if (!parsedSummary) {
-				return {
-					run: diskRun,
-					summary: null,
-				};
-			}
+		return readRunSummaryArtifacts(runId, diskRun);
+	};
 
+	const getRunVisualSummary = async (runId) => {
+		const activeRun = runsById.get(runId);
+		if (activeRun) {
 			return {
-				run: diskRun,
-				summary: parsedSummary,
-			};
-		} catch {
-			return {
-				run: diskRun,
-				summary: null,
+				run: toSerializableRun(activeRun),
+				visualSummary: activeRun.visualSummary ?? null,
 			};
 		}
+
+		const diskRun = await loadRunFromDisk(runId);
+		if (!diskRun) {
+			return null;
+		}
+
+		const summaryPayload = await readRunSummaryArtifacts(runId, diskRun);
+		return {
+			run: summaryPayload.run,
+			visualSummary: summaryPayload.visualSummary,
+		};
 	};
 
 	const addDirective = async (runId, { agentName, message }) => {
@@ -989,10 +1296,10 @@ function createRunManager(options) {
 			message: normalizedMessage,
 			createdAt: toIsoDate(),
 		};
-			run.directives.push(directive);
-			updateRunTimestamp(run);
-			await persistIntermediateSnapshot(run);
-			emitRunStateEvent(run, "directive.recorded", {
+		run.directives.push(directive);
+		updateRunTimestamp(run);
+		await persistIntermediateSnapshot(run);
+		emitRunStateEvent(run, "directive.recorded", {
 			directive,
 			update:
 				agent.currentTaskId && agent.currentTaskLabel
@@ -1057,6 +1364,7 @@ function createRunManager(options) {
 		createRun,
 		getRun,
 		getRunSummary,
+		getRunVisualSummary,
 		addDirective,
 		streamRunEvents,
 	};

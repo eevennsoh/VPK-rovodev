@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import DiscoverMoreExamples from "./components/discover-more-examples";
@@ -17,6 +17,7 @@ interface PromptGalleryProps {
 	onSelect: (prompt: string) => void;
 	onPreviewStart?: (prompt: string) => void;
 	onPreviewEnd?: () => void;
+	onExpandChange?: (expanded: boolean) => void;
 	showMore?: boolean;
 	moreLabel?: string;
 	className?: string;
@@ -32,15 +33,33 @@ export default function PromptGallery({
 	onSelect,
 	onPreviewStart,
 	onPreviewEnd,
+	onExpandChange,
 	showMore = true,
 	moreLabel = "More",
 	className,
 }: Readonly<PromptGalleryProps>) {
 	const [showMoreSection, setShowMoreSection] = useState(false);
 	const [isClosingMore, setIsClosingMore] = useState(false);
+	const previewEndTimer = useRef<ReturnType<typeof setTimeout>>(null);
+
+	const handlePreviewStart = (prompt: string) => {
+		if (previewEndTimer.current) {
+			clearTimeout(previewEndTimer.current);
+			previewEndTimer.current = null;
+		}
+		onPreviewStart?.(prompt);
+	};
+
+	const handlePreviewEnd = () => {
+		previewEndTimer.current = setTimeout(() => {
+			onPreviewEnd?.();
+			previewEndTimer.current = null;
+		}, 150);
+	};
 
 	const closeMoreSection = () => {
 		setIsClosingMore(true);
+		onExpandChange?.(false);
 
 		setTimeout(() => {
 			setShowMoreSection(false);
@@ -54,8 +73,8 @@ export default function PromptGallery({
 				<DiscoverMoreExamples
 					examples={examples}
 					onExampleClick={onSelect}
-					onExamplePreviewStart={onPreviewStart}
-					onExamplePreviewEnd={onPreviewEnd}
+					onExamplePreviewStart={handlePreviewStart}
+					onExamplePreviewEnd={handlePreviewEnd}
 					onClose={closeMoreSection}
 					isClosing={isClosingMore}
 				/>
@@ -71,10 +90,10 @@ export default function PromptGallery({
 								className="gap-2 rounded-full"
 								variant="secondary"
 								onClick={() => onSelect(suggestionPrompt)}
-								onMouseEnter={() => onPreviewStart?.(suggestionPrompt)}
-								onMouseLeave={() => onPreviewEnd?.()}
-								onFocus={() => onPreviewStart?.(suggestionPrompt)}
-								onBlur={() => onPreviewEnd?.()}
+								onMouseEnter={() => handlePreviewStart(suggestionPrompt)}
+								onMouseLeave={handlePreviewEnd}
+								onFocus={() => handlePreviewStart(suggestionPrompt)}
+								onBlur={handlePreviewEnd}
 							>
 								<Icon label="" size="small" />
 								{suggestion.label}
@@ -85,7 +104,10 @@ export default function PromptGallery({
 						<Button
 							className="gap-2 rounded-full"
 							variant="secondary"
-							onClick={() => setShowMoreSection(true)}
+							onClick={() => {
+							setShowMoreSection(true);
+							onExpandChange?.(true);
+						}}
 						>
 							<ChevronDownIcon label="" size="small" />
 							{moreLabel}

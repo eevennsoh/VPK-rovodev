@@ -21,7 +21,7 @@
 - [ ] Each variant has: rest, `hover:`, `active:` states with ADS tokens
 - [ ] Disabled pattern follows bold/subtle convention
 - [ ] Focus ring uses standard `focus-visible:border-ring ring-ring/50 ring-3`
-- [ ] Invalid state uses `aria-invalid:` pattern (form inputs only)
+- [ ] Invalid state uses `aria-invalid:` AND `data-invalid:` patterns (form inputs only — Base UI Field uses `data-invalid`, HTML uses `aria-invalid`)
 - [ ] Loading state uses `isLoading`, `aria-busy`, `<Spinner />` (if applicable)
 - [ ] Selected state uses correct selector — `aria-pressed:` / `data-checked:` / `data-active:`
 - [ ] ADS Toggle geometry lock applied (`content-box` root, non-oversized thumb, 3px icon inset)

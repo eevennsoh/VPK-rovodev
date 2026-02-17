@@ -1,4 +1,5 @@
 import type { AgentExecutionUpdate } from "@/lib/rovo-ui-messages";
+import type { Spec } from "@json-render/react";
 
 export type AgentRunStatus = "running" | "completed" | "failed";
 
@@ -63,6 +64,23 @@ export interface AgentRunSummary {
 	createdAt: string;
 }
 
+export interface AgentRunVisualSummary {
+	html: string;
+	partial: boolean;
+	createdAt: string;
+	agentName: "Visual Presenter";
+	status: "ready" | "failed";
+	error?: string;
+}
+
+export interface AgentRunGenuiSummary {
+	spec: Spec;
+	partial: boolean;
+	createdAt: string;
+	status: "ready" | "failed";
+	error?: string;
+}
+
 export interface AgentRun {
 	runId: string;
 	status: AgentRunStatus;
@@ -75,6 +93,8 @@ export interface AgentRun {
 	agents: AgentRunAgent[];
 	directives: AgentRunDirective[];
 	summary: AgentRunSummary | null;
+	visualSummary: AgentRunVisualSummary | null;
+	genuiSummary: AgentRunGenuiSummary | null;
 	userPrompt: string;
 	customInstruction?: string;
 	conversationContext: Array<{ type: "user" | "assistant"; content: string }>;

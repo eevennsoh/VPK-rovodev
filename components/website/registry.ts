@@ -551,6 +551,8 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"dropdown-menu-demo-checkbox-selected": dynamic(() => import("./demos/ui/dropdown-menu-demo").then(mod => ({ default: mod.DropdownMenuDemoCheckboxSelected })), { ssr: false }),
 	"dropdown-menu-demo-radio-default-selected": dynamic(() => import("./demos/ui/dropdown-menu-demo").then(mod => ({ default: mod.DropdownMenuDemoRadioDefaultSelected })), { ssr: false }),
 	"dropdown-menu-demo-radio-selected": dynamic(() => import("./demos/ui/dropdown-menu-demo").then(mod => ({ default: mod.DropdownMenuDemoRadioSelected })), { ssr: false }),
+	"dropdown-menu-demo-with-checkbox": dynamic(() => import("./demos/ui/dropdown-menu-demo").then(mod => ({ default: mod.DropdownMenuDemoWithCheckbox })), { ssr: false }),
+	"dropdown-menu-demo-with-radio-group": dynamic(() => import("./demos/ui/dropdown-menu-demo").then(mod => ({ default: mod.DropdownMenuDemoWithRadioGroup })), { ssr: false }),
 	// Context Menu
 	"context-menu-demo-default": dynamic(() => import("./demos/ui/context-menu-demo").then(mod => ({ default: mod.ContextMenuDemoDefault })), { ssr: false }),
 	"context-menu-demo-with-shortcuts": dynamic(() => import("./demos/ui/context-menu-demo").then(mod => ({ default: mod.ContextMenuDemoWithShortcuts })), { ssr: false }),
@@ -612,6 +614,7 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"combobox-demo-with-other-inputs": dynamic(() => import("./demos/ui/combobox-demo").then(mod => ({ default: mod.ComboboxDemoWithOtherInputs })), { ssr: false }),
 	// Input Group
 	"input-group-demo-default": dynamic(() => import("./demos/ui/input-group-demo").then(mod => ({ default: mod.InputGroupDemoDefault })), { ssr: false }),
+	"input-group-demo-prefix": dynamic(() => import("./demos/ui/input-group-demo").then(mod => ({ default: mod.InputGroupDemoPrefix })), { ssr: false }),
 	"input-group-demo-button": dynamic(() => import("./demos/ui/input-group-demo").then(mod => ({ default: mod.InputGroupDemoButton })), { ssr: false }),
 	"input-group-demo-textarea": dynamic(() => import("./demos/ui/input-group-demo").then(mod => ({ default: mod.InputGroupDemoTextarea })), { ssr: false }),
 	"input-group-demo-basic": dynamic(() => import("./demos/ui/input-group-demo").then(mod => ({ default: mod.InputGroupDemoBasic })), { ssr: false }),
@@ -807,8 +810,14 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"lozenge-demo-usage": dynamic(() => import("./demos/ui/lozenge-demo").then(mod => ({ default: mod.LozengeDemoUsage })), { ssr: false }),
 	// Menu Group
 	"menu-group-demo-default": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoDefault })), { ssr: false }),
-	"menu-group-demo-multiple-groups": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoMultipleGroups })), { ssr: false }),
-	"menu-group-demo-no-title": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoNoTitle })), { ssr: false }),
+	"menu-group-demo-menu-structure": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoMenuStructure })), { ssr: false }),
+	"menu-group-demo-button-item": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoButtonItem })), { ssr: false }),
+	"menu-group-demo-link-item": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoLinkItem })), { ssr: false }),
+	"menu-group-demo-custom-item": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoCustomItem })), { ssr: false }),
+	"menu-group-demo-section-and-heading": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoSectionAndHeading })), { ssr: false }),
+	"menu-group-demo-density": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoDensity })), { ssr: false }),
+	"menu-group-demo-scrolling": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoScrolling })), { ssr: false }),
+	"menu-group-demo-loading": dynamic(() => import("./demos/ui/menu-group-demo").then(mod => ({ default: mod.MenuGroupDemoLoading })), { ssr: false }),
 	// Object Tile
 	"object-tile-demo-default": dynamic(() => import("./demos/ui/object-tile-demo").then(mod => ({ default: mod.ObjectTileDemoDefault })), { ssr: false }),
 	"object-tile-demo-description": dynamic(() => import("./demos/ui/object-tile-demo").then(mod => ({ default: mod.ObjectTileDemoDescription })), { ssr: false }),

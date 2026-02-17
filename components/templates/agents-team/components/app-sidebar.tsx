@@ -49,6 +49,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	onNewSkill: () => void;
 	onEditAgent: (agent: AgentsTeamAgent) => void;
 	onNewAgent: () => void;
+	onCreateAgentTeam: () => void;
 }
 
 export function AppSidebar({
@@ -69,6 +70,7 @@ export function AppSidebar({
 	onNewSkill,
 	onEditAgent,
 	onNewAgent,
+	onCreateAgentTeam,
 	...props
 }: Readonly<AppSidebarProps>) {
 	const { toggleSidebar } = useSidebar();
@@ -149,7 +151,7 @@ export function AppSidebar({
 					/>
 				) : (
 					<div className="flex flex-1 items-center justify-center px-3">
-						<SidebarEmptyState />
+						<SidebarEmptyState onCreateOne={onCreateAgentTeam} />
 					</div>
 				)}
 			</SidebarContent>

@@ -239,6 +239,7 @@ For pixel-faithful translations, validator must verify geometry explicitly:
 - Per-side paddings and key offsets.
 - Icon-button hit area size and icon glyph size (for example, 20px button with 12px chevron).
 - Center invariants: centered groups must remain centered independent of side controls.
+- For voice controls, validate listening/recording visuals (pulse rings, stop icon state) and ensure no clipping at composer/container edges.
 
 If geometry checks fail, return `MINOR_FIXES` or `MAJOR_FIXES` even when UI looks "close".
 
@@ -269,6 +270,7 @@ If geometry checks fail, return `MINOR_FIXES` or `MAJOR_FIXES` even when UI look
 - **Collapse/pin button position should reflect sidebar state.** In hover-reveal state, the collapse/pin button belongs on the LEFT side of the sidebar header (before branding) and clicking it pins the sidebar open. In persistent-open state, the collapse button belongs on the RIGHT side (after theme toggle). Implement with two separate button slots that toggle visibility via `w-0 opacity-0` transitions — don't try to move a single button.
 - **Flex `gap-*` doesn't transition when a child collapses to `w-0`.** CSS `gap` is a container property and stays applied even when a flex child shrinks to zero width. Fix by removing `gap-*` from the parent and using a transitioning `mr-*`/`ml-*` on the collapsible element (e.g., `mr-3` → `mr-0` alongside `w-0 opacity-0`). This ensures zero residual spacing when fully collapsed.
 - **Adjacent panel paddings must match across shared borders.** When a sidebar header sits next to a content title bar separated by a border, their horizontal padding values (`px-*`) must be identical (e.g., both `px-4` = 16px). Mismatched padding creates visual misalignment that's especially noticeable during hover transitions when both panels are simultaneously visible.
+- **`SpeechInput` pulse rings require overflow-safe composition.** `SpeechInput` renders animated rings outside its button bounds (`-inset-*`). When used inside `PromptInput`, set `allowOverflow` on `PromptInput` so the internal `InputGroup` uses `overflow-visible`; otherwise rings/stop visuals clip against rounded composer borders.
 
 ---
 
@@ -351,6 +353,7 @@ Before presenting to user:
 - [ ] Full lint attempted; scoped lint on changed files reported if baseline lint debt exists
 - [ ] Validator captured light and dark mode screenshots (class + `data-theme` + `colorScheme`)
 - [ ] Validator confirmed geometry parity (sizes, offsets, center invariants, icon button/glyph sizes)
+- [ ] For `SpeechInput` inside `PromptInput`, `allowOverflow` is enabled and listening pulse rings are fully visible (no clipping)
 - [ ] A11y validation scoped to component selector and free of unrelated overlay noise
 - [ ] Validator comparison shows APPROVE or all fixes applied
 - [ ] Component follows VPK architectural rules (<150 lines, etc.)

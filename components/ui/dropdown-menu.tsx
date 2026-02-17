@@ -72,7 +72,7 @@ function DropdownMenuContent({
 			<MenuPrimitive.Popup
 				data-slot="dropdown-menu-content"
 				className={cn(
-					"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2 bg-popover text-popover-foreground ring-border z-50 max-h-(--available-height) min-w-56 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg shadow-lg ring-1 outline-none duration-100 data-closed:overflow-hidden",
+					"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2 bg-popover text-popover-foreground z-50 max-h-(--available-height) min-w-56 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg shadow-xl outline-none duration-100 data-closed:overflow-hidden",
 					className
 				)}
 				{...props}
@@ -266,7 +266,7 @@ function DropdownMenuCheckboxItem({
 			data-slot="dropdown-menu-checkbox-item"
 			data-inset={inset}
 			className={cn(
-				"data-[highlighted]:bg-bg-neutral-subtle-hovered data-[highlighted]:text-text data-disabled:pointer-events-none data-disabled:text-text-disabled relative flex w-full cursor-default items-center rounded-sm py-2 pr-3 pl-8 text-[13px] leading-5 outline-none select-none active:bg-bg-neutral-subtle-pressed data-inset:pl-8 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				"data-[highlighted]:bg-bg-neutral-subtle-hovered data-[highlighted]:text-text data-checked:bg-bg-selected data-checked:data-[highlighted]:bg-bg-selected-hovered data-checked:active:bg-bg-selected-pressed data-disabled:pointer-events-none data-disabled:text-text-disabled relative flex w-full cursor-default items-center rounded-sm py-2 pr-3 pl-8 text-[13px] leading-5 outline-none select-none active:bg-bg-neutral-subtle-pressed data-inset:pl-8 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
 				className
 			)}
 			checked={checked}
@@ -280,7 +280,7 @@ function DropdownMenuCheckboxItem({
 					<Icon
 						render={<CheckMarkIcon label="" size="small" />}
 						label="Selected"
-						className="text-icon"
+						className="text-text-selected"
 					/>
 				</MenuPrimitive.CheckboxItemIndicator>
 			</span>
@@ -317,7 +317,7 @@ function DropdownMenuRadioItem({
 			data-slot="dropdown-menu-radio-item"
 			data-inset={inset}
 			className={cn(
-				"data-[highlighted]:bg-bg-neutral-subtle-hovered data-[highlighted]:text-text data-disabled:pointer-events-none data-disabled:text-text-disabled relative flex w-full cursor-default items-center rounded-sm py-2 pr-3 pl-8 text-[13px] leading-5 outline-none select-none active:bg-bg-neutral-subtle-pressed data-inset:pl-8 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				"data-[highlighted]:bg-bg-neutral-subtle-hovered data-[highlighted]:text-text data-checked:bg-bg-selected data-checked:data-[highlighted]:bg-bg-selected-hovered data-checked:active:bg-bg-selected-pressed data-disabled:pointer-events-none data-disabled:text-text-disabled relative flex w-full cursor-default items-center rounded-sm py-2 pr-3 pl-8 text-[13px] leading-5 outline-none select-none active:bg-bg-neutral-subtle-pressed data-inset:pl-8 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
 				className
 			)}
 			{...props}
@@ -330,7 +330,7 @@ function DropdownMenuRadioItem({
 					<Icon
 						render={<CheckMarkIcon label="" size="small" />}
 						label="Selected"
-						className="text-icon"
+						className="text-text-selected"
 					/>
 				</MenuPrimitive.RadioItemIndicator>
 			</span>

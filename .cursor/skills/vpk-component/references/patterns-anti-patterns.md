@@ -23,6 +23,10 @@
 | Override base component border-radius unconditionally when composing | When a component wraps another (e.g., `CalendarDayButton` wraps `Button`), the inner component's default `rounded-lg` leaks through — add an unconditional `rounded-*` base class, not just conditional `data-[selected=true]:rounded-*` overrides |
 | Ensure parent background rounding matches child rounding | When a parent element (e.g., `<td>`) has a background color (`bg-muted`) and `rounded-none`, its square corners visually mask the child button's rounded corners — keep parent radius consistent with child |
 | For ADS Toggle parity, lock root/thumb/icon geometry before polishing states | Validate checked + unchecked visuals after setting size classes — geometry bugs can hide icons even if token classes are correct |
+| For form inputs, support both `data-invalid:` and `aria-invalid:` selectors | Base UI Field sets `data-invalid`, while HTML uses `aria-invalid` — include both for full compatibility |
+| For checked border states, include border hover/active tokens alongside background | `data-checked:hover:border-primary-hovered` and `data-checked:active:border-primary-pressed` — not just `bg-*` tokens |
+| Prefer pure CSS indicators over icon library imports for simple shapes | Radio dot uses `<span className="size-1.5 rounded-full bg-current" />` instead of lucide `CircleIcon` — reduces bundle size and avoids SVG stroke artifacts |
+| Mirror ADS docs example structure for demos | Fetch the ADS examples page and use its titles/grouping (e.g., "Default", "Menu structure", "Density") — not generic feature-based names |
 
 ## Do Not
 
@@ -74,3 +78,8 @@
 | Parent element `rounded-none` with background color masking child radius | A `<td>` with `bg-muted rounded-none` fills square corners behind a child button's rounded corners, making the button appear unrounded — ensure parent rounding matches or remove conflicting `rounded-none` (e.g., `data-[selected=true]:rounded-none` on today cell only needed for range mode, not single selection) |
 | Guessing `border-radius` from ADS token name lookups | Token names (`radius.small`, `radius.medium`) don't map reliably to computed values — e.g., ADS Button computes `6px` (`rounded-md`), not `rounded-sm` (4px). **Always use `getComputedStyle()` on the live ADS examples page.** |
 | Skipping computed style extraction for "obvious" properties | Even for properties like `border-radius` that seem predictable, always extract via Playwright — ADS CSS-in-JS compilation can produce unexpected values |
+| Using lucide icons for simple geometric indicators (dots, circles) | Use pure CSS: `<span className="size-1.5 rounded-full bg-current" />` — avoids SVG stroke artifacts and reduces bundle size |
+| Only supporting `aria-invalid:` without `data-invalid:` on form inputs | Support both: Base UI Field sets `data-invalid` while HTML uses `aria-invalid` — add both selector sets for full compatibility |
+| Missing border hover/active tokens on checked state | When checked state changes both bg and border to `primary`, include `data-checked:hover:border-primary-hovered` and `data-checked:active:border-primary-pressed` alongside `bg-*` tokens |
+| Using `border` (1px) on radio inputs | ADS Radio uses 2px border — use `border-2` for visual parity |
+| Inventing generic feature-based demo names ("With icons", "With descriptions", "Compact spacing") | Mirror ADS docs example structure — use the same titles/grouping from the ADS examples page (e.g., "Default", "Menu structure", "Button item", "Density", "Loading") |

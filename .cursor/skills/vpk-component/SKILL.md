@@ -40,6 +40,7 @@ For the canonical ADS-to-shadcn prop-name mapping, see `references/common-mappin
 /vpk-component modal-dialog  # Map ADS ModalDialog → VPK Dialog
 /vpk-component tabs          # Map ADS Tabs → VPK Tabs
 /vpk-component toggle        # Map + enrich ADS Toggle → VPK Switch
+/vpk-component radio         # Map ADS Radio → VPK RadioGroup
 ```
 
 ---
@@ -151,6 +152,7 @@ Do not guess state selectors. Confirm the rendered data attributes from the prim
 
 - Base UI `Toggle` uses `data-pressed` (not `data-[state=on]`)
 - Base UI `Switch` uses `data-checked` / `data-unchecked`
+- Base UI `Radio` uses `data-checked` / `data-unchecked` (plus `data-invalid`, `data-disabled`, `data-required`)
 - If uncertain, inspect Base UI type docs in `node_modules` (e.g., `ToggleDataAttributes.d.ts`) or inspect the live DOM
 
 This prevents silent visual regressions where controlled state updates correctly but styles never apply.
@@ -297,6 +299,35 @@ active:bg-bg-neutral-subtle-pressed    ← pressed
 disabled:opacity-(--opacity-disabled)  ← disabled (subtle — opacity)
 ```
 
+#### Selected & Expanded State Consistency (Required)
+
+All button variants use **the same** selected/expanded state visual — regardless of whether the variant is bold or subtle. Do not vary selected styling per variant.
+
+```
+aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected
+aria-expanded:bg-bg-selected aria-expanded:text-text-selected aria-expanded:border-border-selected
+```
+
+Common mistakes:
+- Using `aria-pressed:bg-bg-selected-bold aria-pressed:text-primary-foreground` on bold variants (default, warning, discovery) — wrong, use `bg-bg-selected` like all other variants
+- Using `aria-expanded:bg-primary-pressed` or `aria-expanded:bg-muted` — wrong, `aria-expanded` should match `aria-pressed` (the selected state visual)
+- Missing `border-border-selected` on some variants — all variants need the selected border
+
+#### Overlay Elevation Shadow (Required for popup components)
+
+All overlay/popup components must use ADS elevation overlay shadow (`shadow-xl`) with **no border ring**. The `shadow-xl` class maps to `var(--ds-shadow-overlay)` + perimeter and already provides a subtle edge — an additional `ring-1` creates a visible double-border.
+
+Applies to: `dropdown-menu`, `popover`, `context-menu`, `menubar`, `combobox`, `select`, `hover-card`.
+
+```
+shadow-xl        ← correct (ADS elevation.shadow.overlay + perimeter)
+```
+
+Common mistakes:
+- `ring-foreground/10 shadow-md ring-1` — wrong, visible border + weak shadow
+- `ring-border shadow-lg ring-1` — wrong, visible border
+- `shadow-md` or `shadow-lg` alone — wrong shadow level for overlays
+
 #### Loading State Pattern (if applicable)
 
 ```tsx
@@ -334,8 +365,11 @@ focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3
 
 #### Invalid State Pattern (form inputs only)
 
+Support both `aria-invalid` (HTML attribute) and `data-invalid` (Base UI Field attribute):
+
 ```
 aria-invalid:ring-destructive/20 aria-invalid:border-destructive aria-invalid:ring-3
+data-invalid:ring-destructive/20 data-invalid:border-destructive data-invalid:ring-3
 ```
 
 #### TypeScript Interface
@@ -363,6 +397,8 @@ export { ComponentName, componentVariants, type ComponentNameProps }
 ### Phase 4 — Examples
 
 Create demo files demonstrating each key variant/feature.
+
+**ADS example structure rule (required):** When a VPK component maps to an ADS component, fetch or review the ADS documentation examples page for that component and **mirror its example structure** — use the same demo titles, grouping, and content patterns. Demo names should match ADS examples (e.g., "Default", "Menu structure", "Button item", "Density", "Loading"), not be invented from the component API surface (e.g., "With icons", "With descriptions", "Compact spacing"). This ensures VPK demos serve as a recognizable reference for developers familiar with ADS.
 
 **Two demo types exist:**
 - **Overview demo** — Single file `components/website/demos/ui/[slug]-demo.tsx`, registered in `UI_DEMO` / `UI_AI_DEMO`. Shows the component's primary use case. Should already exist.
@@ -461,6 +497,8 @@ Essential rules are listed below. For the complete tables (45+ entries), see `re
 | Use `data-slot` on root element | `data-slot="button"` |
 | Use VPK `Icon` wrapper with Tailwind color classes | `<Icon render={<StatusSuccessIcon label="" />} className="text-icon-success" />` |
 | Include gap in CVA size variants unconditionally | `gap` only applies between siblings — no conditional logic needed |
+| Use same selected state across all variants | `aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected` |
+| Use `shadow-xl` on all overlay popups | Maps to ADS `elevation.shadow.overlay` + perimeter |
 
 ### Do Not
 
@@ -476,6 +514,9 @@ Essential rules are listed below. For the complete tables (45+ entries), see `re
 | Mapping ADS Toggle to VPK `Toggle` | Map ADS Toggle to VPK `Switch` |
 | Triggering toasts without toaster scoping on multi-demo docs pages | Give each `<Toaster />` a unique `id` and pass matching `toasterId` in `toast.*` calls |
 | Assuming harsh Sonner shadows come only from `shadow-*` token choice | Inspect/neutralize Sonner wrapper `li[data-sonner-toast]:focus-visible` shadow in headless mode (`data-styled="false"`) |
+| `aria-pressed:bg-bg-selected-bold` on bold variants | Use `bg-bg-selected` uniformly — all variants share the same selected visual |
+| `aria-expanded:bg-primary-pressed` or `aria-expanded:bg-muted` | Use `aria-expanded:bg-bg-selected aria-expanded:text-text-selected aria-expanded:border-border-selected` |
+| `ring-foreground/10 shadow-md ring-1` on overlay popups | Use `shadow-xl` only — no `ring-1` border |
 
 ---
 
@@ -525,6 +566,8 @@ For the full 35-item checklist, see `references/checklist-full.md`.
 - [ ] **Computed styles extracted from live `atlassian.design` page via Playwright** — never guessed from token names
 - [ ] shadcn component identified, source read, audit template filled
 - [ ] Each variant has rest, `hover:`, `active:`, `disabled:` states with ADS tokens
+- [ ] Selected state (`aria-pressed` + `aria-expanded`) uses same visual across all variants: `bg-bg-selected text-text-selected border-border-selected`
+- [ ] Overlay popups use `shadow-xl` with no `ring-1` border
 - [ ] For ADS Toggle parity, Switch geometry lock verified (track/thumb/icon sizing and checked/unchecked visuals)
 - [ ] Focus ring uses `focus-visible:border-ring ring-ring/50 ring-3`
 - [ ] TypeScript interface named `[Component]Props`, exported, used as `Readonly<>`

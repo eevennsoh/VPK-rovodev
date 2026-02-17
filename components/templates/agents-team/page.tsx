@@ -49,6 +49,8 @@ export default function AgentsTeamView() {
 	const {
 		prompt,
 		setPrompt,
+		isAgentTeamMode,
+		toggleAgentTeamMode,
 		isChatMode,
 		isStreaming,
 		stopStreaming,
@@ -285,6 +287,12 @@ export default function AgentsTeamView() {
 		router.push(`/agents-team/runs/${runId}`);
 	}, [router, runId]);
 
+	const handleCreateAgentTeam = useCallback(() => {
+		if (!isAgentTeamMode) {
+			toggleAgentTeamMode();
+		}
+	}, [isAgentTeamMode, toggleAgentTeamMode]);
+
 	return (
 		<SidebarProvider
 			open={isOpen || isHovered}
@@ -331,6 +339,7 @@ export default function AgentsTeamView() {
 				onNewSkill={handleNewSkill}
 				onEditAgent={handleEditAgent}
 				onNewAgent={handleNewAgent}
+				onCreateAgentTeam={handleCreateAgentTeam}
 			/>
 			<SidebarInset className={isChatMode ? "h-svh overflow-hidden" : undefined}>
 				{!isChatMode ? (
@@ -362,6 +371,7 @@ export default function AgentsTeamView() {
 								) : (
 									<AgentsTeamChatView
 										prompt={prompt}
+										isAgentTeamMode={isAgentTeamMode}
 										isStreaming={isStreaming}
 										isWidgetLoading={isWidgetLoading}
 										loadingWidgetType={loadingWidgetType}
@@ -373,6 +383,7 @@ export default function AgentsTeamView() {
 										onPromptChange={setPrompt}
 										onSubmit={handleSubmit}
 										onStop={stopStreaming}
+										onAgentTeamModeToggle={toggleAgentTeamMode}
 										queuedPrompts={queuedPrompts}
 										onRemoveQueuedPrompt={removeQueuedPrompt}
 										onClarificationSubmit={handleClarificationSubmit}
@@ -386,10 +397,12 @@ export default function AgentsTeamView() {
 						<AgentsTeamInitialView
 							prompt={prompt}
 							isStreaming={isStreaming}
+							isAgentTeamMode={isAgentTeamMode}
 							queuedPrompts={queuedPrompts}
 							onPromptChange={setPrompt}
 							onSubmit={handleSubmit}
 							onStop={stopStreaming}
+							onAgentTeamModeToggle={toggleAgentTeamMode}
 							onRemoveQueuedPrompt={removeQueuedPrompt}
 						/>
 				)}

@@ -374,6 +374,8 @@ export type PromptInputProps = Omit<
   globalDrop?: boolean;
   // Render a hidden input with given name and keep it in sync for native form posts. Default false.
   syncHiddenInput?: boolean;
+  // When true, allows children (e.g. animated pulse rings) to render outside bounds.
+  allowOverflow?: boolean;
   // Minimal constraints
   maxFiles?: number;
   // bytes
@@ -394,6 +396,7 @@ export const PromptInput = ({
   multiple,
   globalDrop,
   syncHiddenInput,
+  allowOverflow = false,
   maxFiles,
   maxFileSize,
   onError,
@@ -799,7 +802,14 @@ export const PromptInput = ({
         ref={formRef}
         {...props}
       >
-        <InputGroup className="overflow-hidden border-0 ring-0 has-disabled:opacity-100 has-disabled:bg-transparent has-[[data-slot=input-group-control]:focus-visible]:border-0 has-[[data-slot=input-group-control]:focus-visible]:ring-0">{children}</InputGroup>
+        <InputGroup
+          className={cn(
+            allowOverflow ? "overflow-visible" : "overflow-hidden",
+            "rounded-none border-0 ring-0 has-disabled:opacity-100 has-disabled:bg-transparent has-[[data-slot=input-group-control]:focus-visible]:border-0 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+          )}
+        >
+          {children}
+        </InputGroup>
       </form>
     </>
   );

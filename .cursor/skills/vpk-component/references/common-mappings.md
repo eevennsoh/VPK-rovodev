@@ -204,6 +204,47 @@ ADS ButtonGroup renders buttons as **separated** items with `gap: 4px` and no bo
 
 ---
 
+## Radio ✅ (Enriched)
+
+**ADS:** `@atlaskit/radio` → **VPK:** `@/components/ui/radio-group`
+
+### Props Mapping
+
+| ADS Prop | VPK Prop | Notes |
+|---|---|---|
+| `isChecked` | `checked` / `value` on `RadioGroup` | Selection via group `value`/`defaultValue` |
+| `isDisabled` | `disabled` | Native HTML attribute |
+| `isRequired` | `required` | Native HTML attribute |
+| `isInvalid` | `aria-invalid` / `data-invalid` | Both selectors supported |
+| `value` | `value` | On `RadioGroupItem` |
+| `label` | children / `<Label>` | VPK uses separate `<Label>` element |
+| `onChange` | `onValueChange` | On `RadioGroup` root |
+| `options` (RadioGroup) | children | VPK uses `RadioGroupItem` children |
+
+### Sub-component Mapping
+
+| ADS | VPK |
+|---|---|
+| `RadioGroup` | `RadioGroup` |
+| `Radio` | `RadioGroupItem` |
+
+### Enrichment Details
+
+Single-appearance component. Full state coverage: `hover:`, `active:`, `data-checked:`, `disabled:`, `data-invalid:`, `aria-invalid:`, focus ring. Uses `border-2` (2px border width matching ADS). Inner dot indicator is a pure CSS circle (`<span className="size-1.5 rounded-full bg-current" />`), not an SVG icon. Checked state applies `bg-primary` + `border-primary` with full hover/active token triplets on both background and border.
+
+### Visual Parity Notes
+
+| Property | ADS Value | VPK Implementation |
+|---|---|---|
+| Border width | 2px | `border-2` |
+| Shape | Circle | `rounded-full` |
+| Inner dot (checked) | ~6px filled circle | `size-1.5 rounded-full bg-current` |
+| Unchecked bg | `color.background.input` | `bg-bg-input` |
+| Checked bg | `color.background.brand.bold` | `bg-primary` (alias) |
+| Checked border | `color.background.brand.bold` | `border-primary` (alias) |
+
+---
+
 ## Toggle / Switch
 
 **ADS:** `@atlaskit/toggle` → **VPK:** `@/components/ui/switch`

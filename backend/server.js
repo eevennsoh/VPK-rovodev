@@ -2567,6 +2567,21 @@ app.get("/api/agents-team/runs/:runId/summary", async (req, res) => {
 	}
 });
 
+app.get("/api/agents-team/runs/:runId/visual-summary", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const summary = await agentsTeamRunManager.getRunVisualSummary(runId);
+		if (!summary) {
+			return res.status(404).json({ error: "Run not found" });
+		}
+
+		return res.status(200).json(summary);
+	} catch (error) {
+		console.error("[AGENTS-RUN] Failed to load run visual summary:", error);
+		return res.status(500).json({ error: "Failed to load run visual summary" });
+	}
+});
+
 
 // --- Skills CRUD ---
 

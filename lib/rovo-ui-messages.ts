@@ -48,7 +48,11 @@ export type RovoDataPart<KEY extends keyof RovoDataParts & string> = {
 
 export interface RovoMessageMetadata {
 	visibility?: "visible" | "hidden";
-	source?: "clarification-submit" | "plan-approval-submit" | "agent-directive";
+	source?:
+		| "clarification-submit"
+		| "plan-approval-submit"
+		| "agent-directive"
+		| "agent-team-plan-retry";
 }
 
 export type RovoUIMessage = UIMessage<RovoMessageMetadata, RovoDataParts>;

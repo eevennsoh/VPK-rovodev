@@ -23,17 +23,17 @@ import type {
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
 import { Button } from "@/components/ui/button";
 import { token } from "@/lib/tokens";
-import FooterDisclaimer from "@/components/blocks/shared-ui/footer-disclaimer";
+import { getAgentTeamModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
 import AgentsTeamComposer from "./agents-team-composer";
 import { useScrollToBottom } from "../hooks/use-scroll-to-bottom";
 import { useDismissibleCards } from "../hooks/use-dismissible-cards";
 
-const DEFAULT_AGENTS_TEAM_PLACEHOLDER = "Let a team of AI minions solve your problem";
 const CHAT_COMPOSER_BASE_BOTTOM_PADDING = "128px";
 const CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING = "320px";
 
 interface AgentsTeamChatViewProps {
 	prompt: string;
+	isAgentTeamMode: boolean;
 	isStreaming: boolean;
 	isWidgetLoading: boolean;
 	loadingWidgetType: string | null;
@@ -45,6 +45,7 @@ interface AgentsTeamChatViewProps {
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
 	onStop: () => void;
+	onAgentTeamModeToggle: () => void;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	onRemoveQueuedPrompt: (id: string) => void;
 	onClarificationSubmit: (answers: ClarificationAnswers) => void;
@@ -54,6 +55,7 @@ interface AgentsTeamChatViewProps {
 
 export default function AgentsTeamChatView({
 	prompt,
+	isAgentTeamMode,
 	isStreaming,
 	isWidgetLoading,
 	loadingWidgetType,
@@ -65,6 +67,7 @@ export default function AgentsTeamChatView({
 	onPromptChange,
 	onSubmit,
 	onStop,
+	onAgentTeamModeToggle,
 	queuedPrompts,
 	onRemoveQueuedPrompt,
 	onClarificationSubmit,
@@ -201,6 +204,8 @@ export default function AgentsTeamChatView({
 						onPromptChange={onPromptChange}
 						onSubmit={onSubmit}
 						onStop={onStop}
+						isAgentTeamMode={isAgentTeamMode}
+						onAgentTeamModeToggle={onAgentTeamModeToggle}
 						queuedPrompts={queuedPrompts}
 						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 					/>
@@ -208,7 +213,7 @@ export default function AgentsTeamChatView({
 			</div>
 
 			<div className="absolute inset-x-0 bottom-0 z-20 flex justify-center">
-				<FooterDisclaimer />
+				{gatedShouldShowQuestionCard ? <KeyboardHintsFooter /> : null}
 			</div>
 		</div>
 	);
@@ -229,6 +234,8 @@ interface BottomOverlayContentProps {
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
 	onStop: () => void;
+	isAgentTeamMode: boolean;
+	onAgentTeamModeToggle: () => void;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	onRemoveQueuedPrompt: (id: string) => void;
 }
@@ -248,9 +255,13 @@ function BottomOverlayContent({
 	onPromptChange,
 	onSubmit,
 	onStop,
+	isAgentTeamMode,
+	onAgentTeamModeToggle,
 	queuedPrompts,
 	onRemoveQueuedPrompt,
 }: Readonly<BottomOverlayContentProps>) {
+	const modeCopy = getAgentTeamModeCopy(isAgentTeamMode);
+
 	if (shouldShowQuestionCard && activeQuestionCard && activeQuestionCardKey) {
 		return (
 			<div className="px-1">
@@ -287,13 +298,31 @@ function BottomOverlayContent({
 	return (
 		<AgentsTeamComposer
 			prompt={prompt}
-			placeholder={DEFAULT_AGENTS_TEAM_PLACEHOLDER}
+			placeholder={modeCopy.placeholder}
 			isStreaming={isStreaming}
+			isAgentTeamMode={isAgentTeamMode}
+			onAgentTeamModeToggle={onAgentTeamModeToggle}
 			queuedPrompts={queuedPrompts}
 			onPromptChange={onPromptChange}
 			onSubmit={onSubmit}
 			onStop={onStop}
 			onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 		/>
+	);
+}
+
+function KeyboardHintsFooter(): React.ReactElement {
+	return (
+		<div className="flex items-center justify-center gap-1 py-2 text-xs text-text-subtlest">
+			<span>
+				<kbd className="font-sans">↑</kbd> <kbd className="font-sans">↓</kbd> to navigate
+			</span>
+			<span aria-hidden>•</span>
+			<span>
+				<kbd className="font-sans">↵</kbd> Enter to select
+			</span>
+			<span aria-hidden>•</span>
+			<span>Esc to skip</span>
+		</div>
 	);
 }

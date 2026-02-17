@@ -81,6 +81,7 @@ export default function RovoChatInput({
 					boxShadow: `0 -2px 50px 8px ${token("color.background.neutral.subtle")}`,
 					display: customHeight ? "flex" : "block",
 					flexDirection: customHeight ? "column" : undefined,
+					transition: "height var(--duration-normal) var(--ease-out)",
 					...(customHeight ? { height: customHeight } : {}),
 				}}
 			>

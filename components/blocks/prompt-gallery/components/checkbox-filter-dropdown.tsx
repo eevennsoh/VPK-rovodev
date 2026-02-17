@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import {
 	Popover,
 	PopoverContent,
@@ -41,21 +40,22 @@ export function CheckboxFilterDropdown({
 				{label}
 				{isOpen ? <ChevronUpIcon label="" size="small" /> : <ChevronDownIcon label="" size="small" />}
 			</PopoverTrigger>
-			<PopoverContent align="start" className="min-w-[200px] p-2">
+			<PopoverContent align="start" className="min-w-[200px] gap-0 p-1">
 				{options.map((option) => (
-					<div key={option} className="py-1">
-						<Label className="gap-2">
-							<Checkbox
-								checked={selectedValues.includes(option)}
-								onCheckedChange={(checked) => {
-									if (checked === true || checked === false) {
-										onToggle(option);
-									}
-								}}
-							/>
-							<span>{option}</span>
-						</Label>
-					</div>
+					<label
+						key={option}
+						className="hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed flex w-full cursor-pointer items-center gap-2 rounded-sm px-3 py-2 text-[13px] leading-5 select-none"
+					>
+						<Checkbox
+							checked={selectedValues.includes(option)}
+							onCheckedChange={(checked) => {
+								if (checked === true || checked === false) {
+									onToggle(option);
+								}
+							}}
+						/>
+						<span>{option}</span>
+					</label>
 				))}
 			</PopoverContent>
 		</Popover>

@@ -6,7 +6,10 @@ import { token } from "@/lib/tokens";
 import Image from "next/image";
 import Heading from "@/components/blocks/shared-ui/heading";
 import PromptGallery from "@/components/blocks/prompt-gallery/page";
+import { DEFAULT_PROMPT_GALLERY_SUGGESTIONS } from "@/components/blocks/prompt-gallery/data/suggestions";
 import RovoChatInput from "./rovo-chat-input";
+
+const HOME_SUGGESTIONS = DEFAULT_PROMPT_GALLERY_SUGGESTIONS.slice(0, 3);
 
 const DEFAULT_ROVO_PLACEHOLDER = "Write a prompt, @someone, or use / for actions";
 
@@ -54,6 +57,7 @@ export default function RovoInitialView({
 	onRemoveQueuedPrompt,
 }: Readonly<RovoInitialViewProps>) {
 	const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
+	const [galleryExpanded, setGalleryExpanded] = useState(false);
 
 	return (
 		<>
@@ -89,7 +93,7 @@ export default function RovoInitialView({
 						onCompanyKnowledgeChange={onCompanyKnowledgeChange}
 						queuedPrompts={queuedPrompts}
 						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-						customHeight="131px"
+						customHeight={galleryExpanded || previewPrompt ? "155px" : "131px"}
 						hideUsesAI={true}
 						placeholder={previewPrompt ?? DEFAULT_ROVO_PLACEHOLDER}
 					/>
@@ -103,9 +107,11 @@ export default function RovoInitialView({
 					}}
 				>
 					<PromptGallery
+						items={HOME_SUGGESTIONS}
 						onSelect={(selectedPrompt) => onPromptChange(selectedPrompt)}
 						onPreviewStart={setPreviewPrompt}
 						onPreviewEnd={() => setPreviewPrompt(null)}
+						onExpandChange={setGalleryExpanded}
 					/>
 				</div>
 			</div>

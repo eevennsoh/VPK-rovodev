@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
+import { code as baseCodePlugin } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
@@ -322,7 +322,22 @@ export const MessageBranchPage = ({
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
-const streamdownPlugins = { cjk, code, math, mermaid };
+/**
+ * Wraps the Shiki code plugin to skip languages not in the Shiki bundle.
+ * Without this, languages like "spec" (used by GenUI) cause a ShikiError
+ * when Shiki tries to create a highlighter for an unknown language.
+ */
+const safeCodePlugin: typeof baseCodePlugin = {
+	...baseCodePlugin,
+	highlight(options, callback) {
+		if (!baseCodePlugin.supportsLanguage(options.language)) {
+			return null;
+		}
+		return baseCodePlugin.highlight(options, callback);
+	},
+};
+
+const streamdownPlugins = { cjk, code: safeCodePlugin, math, mermaid };
 
 export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (

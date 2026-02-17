@@ -7,10 +7,10 @@ import {
 	PromptInput,
 	PromptInputBody,
 	PromptInputFooter,
-	PromptInputMicrophone,
 	PromptInputSubmit,
 	PromptInputTextarea,
 } from "@/components/ui-ai/prompt-input";
+import { SpeechInput } from "@/components/ui-ai/speech-input";
 import type { TaskExecution } from "../lib/execution-data";
 import { AgentScreen } from "./agent-screen";
 
@@ -81,6 +81,19 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 		onAddTask(trimmed);
 		setInputValue("");
 	};
+	const handleSpeechTranscription = (text: string) => {
+		const trimmedTranscription = text.trim();
+		if (!trimmedTranscription) {
+			return;
+		}
+
+		setInputValue((previous) => {
+			const trimmedPrevious = previous.trimEnd();
+			return trimmedPrevious
+				? `${trimmedPrevious} ${trimmedTranscription}`
+				: trimmedTranscription;
+		});
+	};
 
 	return (
 		<div className="relative h-full min-h-0 overflow-y-auto">
@@ -124,6 +137,7 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 			{onAddTask ? (
 				<div className="absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-4">
 					<PromptInput
+						allowOverflow
 						onSubmit={handleSubmit}
 						className="w-full max-w-[800px] rounded-xl border border-border bg-surface p-4"
 						style={{
@@ -139,7 +153,11 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 							/>
 						</PromptInputBody>
 						<PromptInputFooter className="mt-1 justify-end px-0 pb-0">
-							<PromptInputMicrophone />
+							<SpeechInput
+								aria-label="Voice"
+								onTranscriptionChange={handleSpeechTranscription}
+								size="icon"
+							/>
 							<PromptInputSubmit
 								disabled={!inputValue.trim()}
 								size="icon-sm"

@@ -141,28 +141,6 @@ export function ThreadMessageBubble({
 	return (
 		<UiMessage from="assistant" className="max-w-full">
 			{shouldRenderPlanWidgetFirst ? widgetSection : null}
-			{shouldRenderMessageText ? (
-				<MessageContent
-					className={cn(
-						"px-3",
-						(widgetDataPart || isWidgetLoading) && "mb-2"
-					)}
-				>
-					{shouldRenderPlainTextWhileStreaming ? (
-						<div className="whitespace-pre-wrap break-words text-sm leading-6 text-text">
-							{messageText}
-						</div>
-					) : (
-						<MessageResponse isAnimating={isStreaming}>
-							{messageText}
-						</MessageResponse>
-					)}
-				</MessageContent>
-			) : null}
-
-			{showFeedback ? (
-				<AssistantFeedbackActions messageText={messageText} />
-			) : null}
 
 			{reasoning ? (
 				<AssistantReasoningSection reasoning={reasoning} />
@@ -191,6 +169,29 @@ export function ThreadMessageBubble({
 					</div>
 				);
 			})() : null}
+
+			{shouldRenderMessageText ? (
+				<MessageContent
+					className={cn(
+						"px-3",
+						(widgetDataPart || isWidgetLoading) && "mb-2"
+					)}
+				>
+					{shouldRenderPlainTextWhileStreaming ? (
+						<div className="whitespace-pre-wrap break-words text-sm leading-6 text-text">
+							{messageText}
+						</div>
+					) : (
+						<MessageResponse isAnimating={isStreaming}>
+							{messageText}
+						</MessageResponse>
+					)}
+				</MessageContent>
+			) : null}
+
+			{showFeedback ? (
+				<AssistantFeedbackActions messageText={messageText} />
+			) : null}
 
 			{shouldShowToolsSection && toolParts.length > 0 ? (
 				<AssistantToolsSection messageId={message.id} toolParts={toolParts} />

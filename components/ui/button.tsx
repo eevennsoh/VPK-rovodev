@@ -12,20 +12,20 @@ const buttonVariants = cva(
 		variants: {
 			variant: {
 				default:
-					"bg-primary text-primary-foreground hover:bg-primary-hovered active:bg-primary-pressed aria-pressed:bg-bg-selected-bold aria-pressed:text-primary-foreground aria-expanded:bg-primary-pressed disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
+					"bg-primary text-primary-foreground hover:bg-primary-hovered active:bg-primary-pressed aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected aria-expanded:bg-bg-selected aria-expanded:text-text-selected aria-expanded:border-border-selected disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
 				outline:
-					"border-border bg-background text-foreground hover:bg-bg-neutral-hovered active:bg-bg-neutral-pressed aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected aria-expanded:bg-muted disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
+					"border-border bg-background text-foreground hover:bg-bg-neutral-hovered active:bg-bg-neutral-pressed aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected aria-expanded:bg-bg-selected aria-expanded:text-text-selected aria-expanded:border-border-selected disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
 				secondary:
-					"bg-secondary text-secondary-foreground hover:bg-secondary/80 active:bg-secondary/70 aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-expanded:bg-secondary disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
+					"bg-secondary text-secondary-foreground hover:bg-secondary/80 active:bg-secondary/70 aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected aria-expanded:bg-bg-selected aria-expanded:text-text-selected aria-expanded:border-border-selected disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
 				ghost:
-					"hover:bg-bg-neutral-subtle-hovered hover:text-foreground active:bg-bg-neutral-subtle-pressed aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-expanded:bg-muted disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
+					"hover:bg-bg-neutral-subtle-hovered hover:text-foreground active:bg-bg-neutral-subtle-pressed aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected aria-expanded:bg-bg-selected aria-expanded:text-text-selected aria-expanded:border-border-selected disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
 				destructive:
-					"bg-destructive/10 text-destructive hover:bg-destructive/20 active:bg-destructive/30 focus-visible:ring-destructive/20 focus-visible:border-destructive/40 aria-pressed:bg-bg-selected aria-pressed:text-text-selected disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
+					"bg-destructive/10 text-destructive hover:bg-destructive/20 active:bg-destructive/30 focus-visible:ring-destructive/20 focus-visible:border-destructive/40 aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
 				link: "text-primary underline-offset-4 hover:underline active:text-link-pressed disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
 				warning:
-					"bg-warning text-warning-foreground hover:bg-warning-hovered active:bg-warning-pressed aria-pressed:bg-bg-selected-bold aria-pressed:text-primary-foreground disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
+					"bg-warning text-warning-foreground hover:bg-warning-hovered active:bg-warning-pressed aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
 				discovery:
-					"bg-discovery text-discovery-foreground hover:bg-discovery-hovered active:bg-discovery-pressed aria-pressed:bg-bg-selected-bold aria-pressed:text-primary-foreground disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
+					"bg-discovery text-discovery-foreground hover:bg-discovery-hovered active:bg-discovery-pressed aria-pressed:bg-bg-selected aria-pressed:text-text-selected aria-pressed:border-border-selected disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
 			},
 			size: {
 				default:

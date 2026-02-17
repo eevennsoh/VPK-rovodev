@@ -89,7 +89,8 @@ function isHiddenPlanningSubmissionMessage(message: RovoUIMessage): boolean {
 
 	return (
 		message.metadata?.source === "clarification-submit" ||
-		message.metadata?.source === "plan-approval-submit"
+		message.metadata?.source === "plan-approval-submit" ||
+		message.metadata?.source === "agent-team-plan-retry"
 	);
 }
 

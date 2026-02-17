@@ -444,22 +444,53 @@ function sendMessageStreaming(message, callbacks) {
  * @param {string} message - The message to send
  * @returns {Promise<string>} The full response text
  */
-function sendMessageSync(message) {
+function sendMessageSync(message, options = {}) {
+	const timeoutMs =
+		typeof options.timeoutMs === "number" && options.timeoutMs > 0
+			? options.timeoutMs
+			: 120_000;
+
 	return new Promise((resolve, reject) => {
 		let fullText = "";
-		sendMessageStreaming(message, {
+		let settled = false;
+		let timeoutHandle = null;
+
+		const settleWith = (callback) => (value) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			if (timeoutHandle) {
+				clearTimeout(timeoutHandle);
+			}
+			callback(value);
+		};
+
+		const resolveOnce = settleWith(resolve);
+		const rejectOnce = settleWith(reject);
+
+		const streamHandle = sendMessageStreaming(message, {
 			onChunk: (chunk) => {
 				if (chunk.type === "text") {
 					fullText += chunk.text;
 				}
 			},
 			onDone: (text) => {
-				resolve(text || fullText);
+				resolveOnce(text || fullText);
 			},
 			onError: (err) => {
-				reject(err);
+				rejectOnce(err);
 			},
 		});
+
+		timeoutHandle = setTimeout(() => {
+			streamHandle.abort();
+			rejectOnce(
+				new Error(
+					`RovoDev sync response timed out after ${Math.ceil(timeoutMs / 1000)}s`
+				)
+			);
+		}, timeoutMs);
 	});
 }
 

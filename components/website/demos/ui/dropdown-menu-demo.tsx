@@ -18,6 +18,7 @@ import ShareIcon from "@atlaskit/icon/core/share";
 import ShowMoreHorizontalIcon from "@atlaskit/icon/core/show-more-horizontal";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
@@ -36,6 +37,8 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Icon } from "@/components/ui/icon";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 
 type DemoIconProps = Readonly<{
@@ -689,5 +692,72 @@ export function DropdownMenuDemoRadioSelected() {
 				</DropdownMenuRadioGroup>
 			</DropdownMenuContent>
 		</DropdownMenu>
+	);
+}
+
+export function DropdownMenuDemoWithCheckbox() {
+	const [showSidebar, setShowSidebar] = React.useState(true);
+	const [showActivity, setShowActivity] = React.useState(false);
+	const [showPreview, setShowPreview] = React.useState(true);
+
+	return (
+		<Popover>
+			<PopoverTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
+				View options
+			</PopoverTrigger>
+			<PopoverContent align="start" className="w-48 gap-0 p-1">
+				<div className="px-2 py-1.5 text-xs font-semibold text-text-subtle">Display</div>
+				<label className="hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed flex w-full cursor-pointer items-center gap-3 rounded-sm px-3 py-2 text-[13px] leading-5 select-none">
+					<Checkbox
+						checked={showSidebar}
+						onCheckedChange={setShowSidebar}
+					/>
+					Show sidebar
+				</label>
+				<label className="hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed flex w-full cursor-pointer items-center gap-3 rounded-sm px-3 py-2 text-[13px] leading-5 select-none">
+					<Checkbox
+						checked={showActivity}
+						onCheckedChange={setShowActivity}
+					/>
+					Show activity panel
+				</label>
+				<label className="hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed flex w-full cursor-pointer items-center gap-3 rounded-sm px-3 py-2 text-[13px] leading-5 select-none">
+					<Checkbox
+						checked={showPreview}
+						onCheckedChange={setShowPreview}
+					/>
+					Show preview
+				</label>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
+export function DropdownMenuDemoWithRadioGroup() {
+	const [view, setView] = React.useState("list");
+
+	return (
+		<Popover>
+			<PopoverTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
+				View: {view}
+			</PopoverTrigger>
+			<PopoverContent align="start" className="w-48 gap-0 p-1">
+				<div className="px-2 py-1.5 text-xs font-semibold text-text-subtle">Layout</div>
+				<RadioGroup value={view} onValueChange={setView} className="gap-0">
+					<label className="hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed flex w-full cursor-pointer items-center gap-3 rounded-sm px-3 py-2 text-[13px] leading-5 select-none">
+						<RadioGroupItem value="list" />
+						List
+					</label>
+					<label className="hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed flex w-full cursor-pointer items-center gap-3 rounded-sm px-3 py-2 text-[13px] leading-5 select-none">
+						<RadioGroupItem value="board" />
+						Board
+					</label>
+					<label className="hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed flex w-full cursor-pointer items-center gap-3 rounded-sm px-3 py-2 text-[13px] leading-5 select-none">
+						<RadioGroupItem value="calendar" />
+						Calendar
+					</label>
+				</RadioGroup>
+			</PopoverContent>
+		</Popover>
 	);
 }

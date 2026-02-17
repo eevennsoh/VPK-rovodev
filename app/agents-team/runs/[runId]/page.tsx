@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { token } from "@/lib/tokens";
-import type { AgentRun, AgentRunSummary } from "@/lib/agents-team-run-types";
+import type {
+	AgentRun,
+	AgentRunSummary,
+	AgentRunVisualSummary,
+	AgentRunGenuiSummary,
+} from "@/lib/agents-team-run-types";
 import { RunSummarySection } from "./run-summary-section";
 
 interface RunSummaryResponse {
 	run?: AgentRun;
 	summary?: AgentRunSummary | null;
+	visualSummary?: AgentRunVisualSummary | null;
+	genuiSummary?: AgentRunGenuiSummary | null;
 	error?: string;
 }
 
@@ -186,6 +193,8 @@ export default async function AgentsTeamRunSummaryPage({ params }: Readonly<RunS
 					runId={runId}
 					initialRun={payload.run}
 					initialSummary={payload.summary ?? null}
+					initialVisualSummary={payload.visualSummary ?? null}
+					initialGenuiSummary={payload.genuiSummary ?? null}
 				/>
 
 				<section className="rounded-xl border border-border bg-surface-raised p-5">

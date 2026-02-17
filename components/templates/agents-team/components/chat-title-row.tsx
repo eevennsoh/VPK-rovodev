@@ -63,7 +63,7 @@ export default function ChatTitleRow({
 				</div>
 			)}
 			<div
-				className="min-w-0 flex-1"
+				className="min-w-0 flex-1 max-w-[50%]"
 				style={{ font: token("font.heading.xsmall") }}
 				title={displayTitle}
 			>

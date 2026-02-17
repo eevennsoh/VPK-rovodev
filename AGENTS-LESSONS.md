@@ -20,3 +20,13 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **What happened:** The homepage preview grid scrolled ~3456px down on every page load because the `CommandDemo` (cmdk `Command` component) was rendered directly in a grid card, and cmdk's layout effect called `scrollIntoView({block:"nearest"})` on the auto-selected first item, scrolling the document to bring the off-screen card into view.
 - **Why:** cmdk always calls `scrollIntoView` on the selected item during mount via `useLayoutEffect`. When a Command component is rendered inline (not in a dialog/iframe) and is below the fold, `scrollIntoView` propagates through all ancestors — `overflow: hidden` and `overflow: clip` on intermediate containers do NOT prevent it from scrolling the document.
 - **Rule:** When embedding cmdk `Command` components in non-interactive preview contexts (e.g. grid cards, thumbnails), pass `value="__preview__" onValueChange={() => {}}` to prevent auto-selection and the resulting `scrollIntoView`. Never assume `overflow: clip` or `overflow: hidden` will contain `scrollIntoView` — it always walks up to the document.
+
+### 2026-02-17 - Preserve default VPK button typography when adding new composer actions
+- **What happened:** The new `Agent team` composer action initially overrode label styling instead of inheriting the standard VPK button typography.
+- **Why:** Styling focus was placed on layout/variant changes and missed the requirement to keep the default label font treatment from the existing button system.
+- **Rule:** For new CTA/action buttons in existing VPK surfaces, use the shared `Button` defaults and only set the required `variant`, `size`, and icon placement. Do not add custom font classes or inline typography styles unless explicitly required by design.
+
+### 2026-02-17 - ADS component demos must mirror ADS docs example structure
+- **What happened:** Initial menu-group demos used generic feature-based names (With icons, With descriptions, Compact spacing, Disabled, Custom content) instead of matching the actual ADS documentation examples (Default, Menu structure, Button item, Link item, Custom item, Section and heading item, Density, Scrolling, Loading).
+- **Why:** Demos were invented from component capabilities rather than referencing the ADS docs page structure. The ADS examples page organizes demos by concept/primitive, not by individual feature toggles.
+- **Rule:** When enriching a VPK component with ADS parity, fetch or review the ADS documentation examples page for that component and mirror its example structure (titles, grouping, content patterns). Demo names and content should match ADS examples, not be invented from the component API surface.

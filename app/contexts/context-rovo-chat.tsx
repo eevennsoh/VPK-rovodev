@@ -32,6 +32,8 @@ export interface SendPromptOptions {
 	messageMetadata?: RovoMessageMetadata;
 	clarification?: unknown;
 	approval?: unknown;
+	agentTeamMode?: boolean;
+	agentTeamRequestId?: string;
 }
 
 export interface QueuedPromptItem {
@@ -290,6 +292,8 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 										body: {
 											contextDescription: saved.options?.contextDescription,
 											userName: saved.options?.userName,
+											agentTeamMode: saved.options?.agentTeamMode,
+											agentTeamRequestId: saved.options?.agentTeamRequestId,
 											hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 										},
 									}
@@ -310,6 +314,8 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 										body: {
 											contextDescription: saved.options?.contextDescription,
 											userName: saved.options?.userName,
+											agentTeamMode: saved.options?.agentTeamMode,
+											agentTeamRequestId: saved.options?.agentTeamRequestId,
 											hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 										},
 									}
@@ -421,6 +427,8 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 						body: {
 							contextDescription: promptItem.options?.contextDescription,
 							userName: promptItem.options?.userName,
+							agentTeamMode: promptItem.options?.agentTeamMode,
+							agentTeamRequestId: promptItem.options?.agentTeamRequestId,
 							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 						},
 					}
@@ -441,6 +449,8 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 						body: {
 							contextDescription: promptItem.options?.contextDescription,
 							userName: promptItem.options?.userName,
+							agentTeamMode: promptItem.options?.agentTeamMode,
+							agentTeamRequestId: promptItem.options?.agentTeamRequestId,
 							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 						},
 					}

@@ -154,4 +154,35 @@ function getGenuiSystemPrompt(options = {}) {
 	return sections.join("\n");
 }
 
-module.exports = { getGenuiSystemPrompt };
+/**
+ * Build a system prompt for genui summary generation in agents-team runs.
+ *
+ * Uses the same catalog prompt and VPK rules as the chat mode,
+ * but with summary-specific instructions layered on top.
+ */
+function getGenuiSummarySystemPrompt() {
+	const basePrompt = getGenuiSystemPrompt({ strict: true });
+
+	const summaryInstructions = [
+		"",
+		"SUMMARY MODE INSTRUCTIONS:",
+		"You are generating an interactive summary dashboard for a completed multi-agent execution plan.",
+		"Use the task outputs provided as source material to build a structured, interactive UI.",
+		"",
+		"Requirements:",
+		"- Create a cohesive dashboard that summarizes the plan execution results.",
+		"- Use Metric components for key statistics (tasks completed, success rate, etc.).",
+		"- Use Card components to organize task outcomes by agent or theme.",
+		"- Use Lozenge for task statuses (done, failed, blocked).",
+		"- Use ProgressTracker to show the overall execution flow.",
+		"- Use Tabs to organize different views of the data (overview, details, next actions).",
+		"- Use BarChart or PieChart if the data lends itself to visualization.",
+		"- Include interactive elements where appropriate (collapsible sections, tabs).",
+		"- Include a section for recommended next actions.",
+		"- Output exactly one ```spec block with valid JSON patch lines.",
+	];
+
+	return basePrompt + summaryInstructions.join("\n");
+}
+
+module.exports = { getGenuiSystemPrompt, getGenuiSummarySystemPrompt };

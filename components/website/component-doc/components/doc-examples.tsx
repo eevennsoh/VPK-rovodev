@@ -44,8 +44,7 @@ function ExampleSkeleton() {
 function ExampleItem({
 	example,
 	Demo,
-	isFullWidth,
-}: Readonly<{ example: ExampleDefinition; Demo: ComponentType; isFullWidth: boolean }>) {
+}: Readonly<{ example: ExampleDefinition; Demo: ComponentType }>) {
 	const id = slugify(example.title);
 	return (
 		<div
@@ -100,14 +99,10 @@ function ExampleItem({
 				}}
 			>
 				<div
-					style={
-						isFullWidth
-							? {
-									width: "100%",
-									maxWidth: "100%",
-								}
-							: undefined
-					}
+					style={{
+						width: "100%",
+						maxWidth: "100%",
+					}}
 				>
 					<Suspense fallback={<ExampleSkeleton />}>
 						<Demo />
@@ -118,9 +113,7 @@ function ExampleItem({
 	);
 }
 
-export function DocExamples({ examples, category, demoLayout }: Readonly<DocExamplesProps>) {
-	const isFullWidthExamples = demoLayout?.examplesContentWidth === "full";
-
+export function DocExamples({ examples, category }: Readonly<DocExamplesProps>) {
 	const resolvedExamples = examples
 		.map((example) => ({
 			example,
@@ -149,7 +142,6 @@ export function DocExamples({ examples, category, demoLayout }: Readonly<DocExam
 						key={example.demoSlug}
 						example={example}
 						Demo={Demo}
-						isFullWidth={isFullWidthExamples}
 					/>
 				))}
 			</div>

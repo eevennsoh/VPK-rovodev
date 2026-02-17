@@ -9,12 +9,29 @@ import {
 	isMessageTextStreaming,
 	type RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
-import type { ClarificationSubmission } from "@/components/templates/shared/lib/question-card-widget";
+import {
+	getLatestQuestionCardPayload,
+	type ClarificationSubmission,
+} from "@/components/templates/shared/lib/question-card-widget";
 import {
 	buildPlanApprovalPrompt,
 	type PlanApprovalSubmission,
 } from "@/components/templates/shared/lib/plan-approval";
+import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
+import {
+	AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
+	AGENT_TEAM_MODE_PLAN_RETRY_PROMPT,
+} from "../lib/agent-team-mode";
 import type { ChatHistoryItem } from "../components/sidebar-chat-history";
+
+type AgentTeamPlanningPhase = "awaiting-plan" | "retrying-missing-plan";
+
+interface AgentTeamPlanningSession {
+	requestId: string;
+	phase: AgentTeamPlanningPhase;
+	hasStreamStarted: boolean;
+	retryUsed: boolean;
+}
 
 async function fetchAITitle(message: string): Promise<string | null> {
 	try {
@@ -39,11 +56,6 @@ function trimTitleText(value: string): string {
 	return value.replace(/^["']|["']$/g, "").replace(/\.+$/, "").trim();
 }
 
-function truncateTitleWords(value: string, maxWords: number): string {
-	const words = value.split(/\s+/).filter(Boolean);
-	return words.slice(0, maxWords).join(" ").trim();
-}
-
 function deriveTitleFromAssistantMessage(messageText: string): string | null {
 	const trimmed = messageText.trim();
 	if (!trimmed) {
@@ -52,7 +64,7 @@ function deriveTitleFromAssistantMessage(messageText: string): string | null {
 
 	const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/m);
 	if (headingMatch?.[1]) {
-		const headingTitle = truncateTitleWords(trimTitleText(headingMatch[1]), 6);
+		const headingTitle = trimTitleText(headingMatch[1]);
 		return headingTitle || null;
 	}
 
@@ -66,8 +78,7 @@ function deriveTitleFromAssistantMessage(messageText: string): string | null {
 	}
 
 	const firstSentence = firstNonEmptyLine.split(/[.!?](?:\s|$)/)[0] ?? firstNonEmptyLine;
-	const normalizedTitle = truncateTitleWords(trimTitleText(firstSentence), 6);
-	return normalizedTitle || null;
+	return trimTitleText(firstSentence) || null;
 }
 
 function deriveTitleFromUserPrompt(promptText: string): string {
@@ -76,7 +87,15 @@ function deriveTitleFromUserPrompt(promptText: string): string {
 		.map((line) => trimTitleText(line))
 		.find((line) => line.length > 0);
 
-	return truncateTitleWords(firstLine ?? promptText, 6) || "New chat";
+	return trimTitleText(firstLine ?? promptText) || "New chat";
+}
+
+function createAgentTeamRequestId(): string {
+	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID();
+	}
+
+	return `agent-team-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function getWordCount(value: string): number {
@@ -111,6 +130,8 @@ function isFallbackTitleReady(options: {
 interface UseAgentsTeamChatReturn {
 	prompt: string;
 	setPrompt: (value: string) => void;
+	isAgentTeamMode: boolean;
+	toggleAgentTeamMode: () => void;
 	isChatMode: boolean;
 	isStreaming: boolean;
 	stopStreaming: () => void;
@@ -136,6 +157,9 @@ interface UseAgentsTeamChatReturn {
 
 export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	const [prompt, setPrompt] = useState("");
+	const [isAgentTeamMode, setIsAgentTeamMode] = useState(false);
+	const [agentTeamPlanningSession, setAgentTeamPlanningSession] =
+		useState<AgentTeamPlanningSession | null>(null);
 	const [isChatMode, setIsChatMode] = useState(false);
 	const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
 	const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -296,16 +320,126 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		return () => clearTimeout(titleDelay);
 	}, [isStreaming, pendingTitleChatId, resolveChatTitle]);
 
+	const setAgentTeamModeEnabled = useCallback((enabled: boolean) => {
+		setIsAgentTeamMode(enabled);
+		if (!enabled) {
+			setAgentTeamPlanningSession(null);
+		}
+	}, []);
+
 	const sendAgentsPrompt = useCallback(
 		async (nextPrompt: string) => {
 			if (!nextPrompt.trim()) {
 				return;
 			}
 
+			if (isAgentTeamMode) {
+				const requestId = createAgentTeamRequestId();
+				setAgentTeamPlanningSession({
+					requestId,
+					phase: "awaiting-plan",
+					hasStreamStarted: false,
+					retryUsed: false,
+				});
+
+				await sendPrompt(nextPrompt, {
+					contextDescription: AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
+					agentTeamMode: true,
+					agentTeamRequestId: requestId,
+				});
+				return;
+			}
+
 			await sendPrompt(nextPrompt, {});
 		},
-		[sendPrompt]
+		[isAgentTeamMode, sendPrompt]
 	);
+
+	useEffect(() => {
+		if (!agentTeamPlanningSession) {
+			return;
+		}
+
+		if (isStreaming) {
+			if (!agentTeamPlanningSession.hasStreamStarted) {
+				queueMicrotask(() => {
+					setAgentTeamPlanningSession((previousSession) => {
+						if (!previousSession || previousSession.hasStreamStarted) {
+							return previousSession;
+						}
+
+						return {
+							...previousSession,
+							hasStreamStarted: true,
+						};
+					});
+				});
+			}
+			return;
+		}
+
+		if (!agentTeamPlanningSession.hasStreamStarted) {
+			return;
+		}
+
+		const latestPlanWidget = getLatestPlanWidgetPayload(uiMessages);
+		const hasGeneratedPlan = Boolean(
+			latestPlanWidget && latestPlanWidget.tasks.length > 0
+		);
+		const isAwaitingClarificationAnswers =
+			getLatestQuestionCardPayload(uiMessages) !== null;
+
+		if (hasGeneratedPlan) {
+			queueMicrotask(() => {
+				setAgentTeamModeEnabled(false);
+			});
+			return;
+		}
+
+		if (isAwaitingClarificationAnswers) {
+			return;
+		}
+
+		if (agentTeamPlanningSession.retryUsed) {
+			queueMicrotask(() => {
+				setAgentTeamModeEnabled(false);
+			});
+			return;
+		}
+
+		const retryRequestId = agentTeamPlanningSession.requestId;
+		queueMicrotask(() => {
+			setAgentTeamPlanningSession((previousSession) => {
+				if (!previousSession) {
+					return previousSession;
+				}
+
+				return {
+					...previousSession,
+					phase: "retrying-missing-plan",
+					retryUsed: true,
+					hasStreamStarted: false,
+				};
+			});
+		});
+
+		void sendPrompt(AGENT_TEAM_MODE_PLAN_RETRY_PROMPT, {
+			contextDescription: AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
+			agentTeamMode: true,
+			agentTeamRequestId: retryRequestId,
+			messageMetadata: {
+				visibility: "hidden",
+				source: "agent-team-plan-retry",
+			},
+		});
+	}, [
+		agentTeamPlanningSession,
+		isStreaming,
+		sendPrompt,
+		setAgentTeamModeEnabled,
+		uiMessages,
+	]);
+
 	const submitClarification = useCallback(
 		async (promptText: string, clarification: ClarificationSubmission) => {
 			if (!promptText.trim()) {
@@ -313,7 +447,11 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			}
 
 			await sendPrompt(promptText, {
-				
+				contextDescription: isAgentTeamMode
+					? AGENT_TEAM_MODE_CONTEXT_DESCRIPTION
+					: undefined,
+				agentTeamMode: isAgentTeamMode || undefined,
+				agentTeamRequestId: agentTeamPlanningSession?.requestId,
 				clarification,
 				messageMetadata: {
 					visibility: "hidden",
@@ -321,7 +459,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				},
 			});
 		},
-		[sendPrompt]
+		[agentTeamPlanningSession?.requestId, isAgentTeamMode, sendPrompt]
 	);
 	const submitPlanApproval = useCallback(
 		async (approval: PlanApprovalSubmission) => {
@@ -364,6 +502,10 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			return;
 		}
 
+		if (isAgentTeamMode && agentTeamPlanningSession !== null) {
+			return;
+		}
+
 		const currentPrompt = prompt;
 		setPrompt("");
 
@@ -373,11 +515,22 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		}
 
 		await sendAgentsPrompt(currentPrompt);
-	}, [prompt, isChatMode, sendAgentsPrompt, createChatEntry]);
+	}, [
+		prompt,
+		isAgentTeamMode,
+		agentTeamPlanningSession,
+		isChatMode,
+		sendAgentsPrompt,
+		createChatEntry,
+	]);
 
 	const handleSuggestedQuestionClick = useCallback(
 		async (question: string) => {
 			if (!question.trim()) {
+				return;
+			}
+
+			if (isAgentTeamMode && agentTeamPlanningSession !== null) {
 				return;
 			}
 
@@ -388,12 +541,19 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 			await sendAgentsPrompt(question);
 		},
-		[isChatMode, sendAgentsPrompt, createChatEntry]
+		[
+			isAgentTeamMode,
+			agentTeamPlanningSession,
+			isChatMode,
+			sendAgentsPrompt,
+			createChatEntry,
+		]
 	);
 
 	const handleNewChat = useCallback(() => {
 		resetChat();
 		setPrompt("");
+		setAgentTeamPlanningSession(null);
 		setIsChatMode(false);
 		setActiveChatId(null);
 		setIsGeneratingTitle(false);
@@ -415,6 +575,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			if (activeChatId === id) {
 				resetChat();
 				setPrompt("");
+				setAgentTeamPlanningSession(null);
 				setIsChatMode(false);
 				setActiveChatId(null);
 				setIsGeneratingTitle(false);
@@ -426,9 +587,15 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		[activeChatId, resetChat],
 	);
 
+	const toggleAgentTeamMode = useCallback(() => {
+		setAgentTeamModeEnabled(!isAgentTeamMode);
+	}, [isAgentTeamMode, setAgentTeamModeEnabled]);
+
 	return {
 		prompt,
 		setPrompt,
+		isAgentTeamMode,
+		toggleAgentTeamMode,
 		isChatMode,
 		isStreaming,
 		stopStreaming,

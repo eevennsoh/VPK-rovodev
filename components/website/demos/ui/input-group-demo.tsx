@@ -29,7 +29,7 @@ function showInputGroupToast(title: string, appearance: SonnerToastAppearance = 
 	));
 }
 
-export default function InputGroupDemo() {
+export function InputGroupDemoDefault() {
 	return (
 		<InputGroup className="w-48">
 			<InputGroupAddon>
@@ -39,6 +39,8 @@ export default function InputGroupDemo() {
 		</InputGroup>
 	);
 }
+
+export default InputGroupDemoDefault;
 
 export function InputGroupDemoBasic() {
 	return (
@@ -92,7 +94,7 @@ export function InputGroupDemoButton() {
 	);
 }
 
-export function InputGroupDemoDefault() {
+export function InputGroupDemoPrefix() {
 	return (
 		<InputGroup>
 			<InputGroupAddon>

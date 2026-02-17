@@ -421,6 +421,7 @@ import { Label } from "@/components/ui/label";
 
 	"radio-group": {
 		description: "A radio group component built on Base UI with circle indicator styling.",
+		adsUrl: "https://atlassian.design/components/radio",
 		usage: `import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
@@ -1461,6 +1462,8 @@ import { Textarea } from "@/components/ui/textarea";
 			{ title: "Selected (checkbox)", description: "Checkbox items with controlled selection.", demoSlug: "dropdown-menu-demo-checkbox-selected" },
 			{ title: "Default selected (radio)", description: "Radio items with uncontrolled default selection.", demoSlug: "dropdown-menu-demo-radio-default-selected" },
 			{ title: "Selected (radio)", description: "Radio items with controlled selection.", demoSlug: "dropdown-menu-demo-radio-selected" },
+			{ title: "With Checkbox component", description: "Dropdown items composed with VPK Checkbox for richer toggle controls.", demoSlug: "dropdown-menu-demo-with-checkbox" },
+			{ title: "With RadioGroup component", description: "Dropdown items composed with VPK RadioGroup for richer radio controls.", demoSlug: "dropdown-menu-demo-with-radio-group" },
 		],
 	},
 
@@ -1652,6 +1655,7 @@ import { Textarea } from "@/components/ui/textarea";
 	},
 
 	"input-group": {
+		adsUrl: "https://atlassian.design/components/textfield",
 		description: "A wrapper component that combines an input or textarea with addons and buttons for composite form controls.",
 		usage: `import { InputGroup, InputGroupInput, InputGroupAddon, InputGroupButton } from "@/components/ui/input-group";
 import SearchIcon from "@atlaskit/icon/core/search";
@@ -1672,7 +1676,8 @@ import SearchIcon from "@atlaskit/icon/core/search";
 			{ name: "InputGroupText", description: "Text addon." },
 		],
 		examples: [
-			{ title: "Default", description: "Input with icon addon.", demoSlug: "input-group-demo-default" },
+			{ title: "Default", description: "Input with search icon addon.", demoSlug: "input-group-demo-default" },
+			{ title: "Prefix", description: "Input with text prefix addon.", demoSlug: "input-group-demo-prefix" },
 			{ title: "With button", description: "Input with action button.", demoSlug: "input-group-demo-button" },
 			{ title: "Textarea", description: "Textarea with addon.", demoSlug: "input-group-demo-textarea" },
 			{ title: "Basic", demoSlug: "input-group-demo-basic" },
@@ -2566,18 +2571,30 @@ const [date, setDate] = useState<Date>()
 
 	"menu-group": {
 		description:
-			"A grouped menu container for organizing related menu items with an optional section title. Provides visual grouping with consistent spacing.",
-		usage: `import { MenuGroup } from "@/components/ui/menu-group";
+			"A family of menu primitives for building structured menus: items with icons and descriptions, link items, sections with headings and separators, and skeleton loading states. Maps to the full @atlaskit/menu API.",
+		adsUrl: "https://atlassian.design/components/menu",
+		usage: `import { MenuGroup, MenuSection, MenuItem, MenuLinkItem, MenuHeading, MenuSkeletonItem, MenuSkeletonHeading } from "@/components/ui/menu-group";
 
-<MenuGroup title="Actions">
-  <Button variant="ghost">Edit</Button>
-  <Button variant="ghost">Delete</Button>
+<MenuGroup>
+  <MenuSection title="Actions">
+    <MenuItem iconBefore={<EditIcon label="" />}>Edit</MenuItem>
+    <MenuItem iconBefore={<CopyIcon label="" />}>Duplicate</MenuItem>
+  </MenuSection>
+  <MenuSection hasSeparator>
+    <MenuItem iconBefore={<DeleteIcon label="" />}>Delete</MenuItem>
+  </MenuSection>
 </MenuGroup>`,
 		props: [
 			{
 				name: "title",
 				type: "React.ReactNode",
-				description: "Optional group heading label.",
+				description: "Optional group heading label (also used as aria-label when a string).",
+			},
+			{
+				name: "spacing",
+				type: '"cozy" | "compact"',
+				default: '"cozy"',
+				description: "Density of item padding within the group.",
 			},
 			{
 				name: "className",
@@ -2587,13 +2604,27 @@ const [date, setDate] = useState<Date>()
 			{
 				name: "children",
 				type: "React.ReactNode",
-				description: "Menu items within the group.",
+				description: "Menu items, sections, or headings.",
 			},
+		],
+		subComponents: [
+			{ name: "MenuSection", description: "Groups items with optional title and separator." },
+			{ name: "MenuItem", description: "Interactive button-style menu item with iconBefore, iconAfter, and description slots." },
+			{ name: "MenuLinkItem", description: "Anchor-style menu item for navigation links." },
+			{ name: "MenuHeading", description: "Non-interactive heading label." },
+			{ name: "MenuSkeletonItem", description: "Loading placeholder for a menu item." },
+			{ name: "MenuSkeletonHeading", description: "Loading placeholder for a heading." },
 		],
 		examples: [
 			{ title: "Default", demoSlug: "menu-group-demo-default" },
-			{ title: "Multiple groups", demoSlug: "menu-group-demo-multiple-groups" },
-			{ title: "No title", demoSlug: "menu-group-demo-no-title" },
+			{ title: "Menu structure", demoSlug: "menu-group-demo-menu-structure" },
+			{ title: "Button item", demoSlug: "menu-group-demo-button-item" },
+			{ title: "Link item", demoSlug: "menu-group-demo-link-item" },
+			{ title: "Custom item", demoSlug: "menu-group-demo-custom-item" },
+			{ title: "Section and heading item", demoSlug: "menu-group-demo-section-and-heading" },
+			{ title: "Density", demoSlug: "menu-group-demo-density" },
+			{ title: "Scrolling", demoSlug: "menu-group-demo-scrolling" },
+			{ title: "Loading", demoSlug: "menu-group-demo-loading" },
 		],
 	},
 

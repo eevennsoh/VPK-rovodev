@@ -22,6 +22,9 @@ const RETRY_INITIAL_DELAY_MS = 250;
 const RETRY_DELAY_STEP_MS = 250;
 const RETRY_MAX_DELAY_MS = 1_000;
 const RETRY_TIMEOUT_MS = 10_000;
+const WAIT_FOR_TURN_TIMEOUT_MS = 120_000;
+
+let queuedTextGenerationTail = Promise.resolve();
 
 /**
  * Check whether an error is a 409 "chat already in progress" conflict.
@@ -67,10 +70,21 @@ function sleep(ms, signal) {
  * @param {AbortSignal} [params.signal]
  * @param {function} [params.onRetry]
  * @param {string} params.logPrefix
+ * @param {number} [params.timeoutMs]
+ * @param {boolean} [params.cancelOnConflict]
  * @returns {Promise<{ aborted: boolean; value: T | undefined }>}
  */
-async function retryChatInProgress(operation, { signal, onRetry, logPrefix }) {
-	const deadlineMs = Date.now() + RETRY_TIMEOUT_MS;
+async function retryChatInProgress(
+	operation,
+	{
+		signal,
+		onRetry,
+		logPrefix,
+		timeoutMs = RETRY_TIMEOUT_MS,
+		cancelOnConflict = true,
+	}
+) {
+	const deadlineMs = Date.now() + timeoutMs;
 	let retryDelayMs = RETRY_INITIAL_DELAY_MS;
 	let retryNotified = false;
 
@@ -99,13 +113,17 @@ async function retryChatInProgress(operation, { signal, onRetry, logPrefix }) {
 
 			const waitMs = Math.min(retryDelayMs, RETRY_MAX_DELAY_MS, remainingMs);
 			console.warn(
-				`[${logPrefix}] Chat already in progress — cancelling and retrying in ${waitMs}ms...`
+				cancelOnConflict
+					? `[${logPrefix}] Chat already in progress — cancelling and retrying in ${waitMs}ms...`
+					: `[${logPrefix}] Chat already in progress — waiting ${waitMs}ms before retrying...`
 			);
 
-			try {
-				await cancelChat();
-			} catch {
-				// Ignore cancel errors — the chat may have finished on its own
+			if (cancelOnConflict) {
+				try {
+					await cancelChat();
+				} catch {
+					// Ignore cancel errors — the chat may have finished on its own
+				}
 			}
 
 			await sleep(waitMs, signal);
@@ -115,6 +133,20 @@ async function retryChatInProgress(operation, { signal, onRetry, logPrefix }) {
 			);
 		}
 	}
+}
+
+/**
+ * Enqueue non-streaming text generation calls so only one RovoDev request runs
+ * at a time for callers that require deterministic execution ordering.
+ *
+ * @template T
+ * @param {() => Promise<T>} operation
+ * @returns {Promise<T>}
+ */
+function enqueueTextGeneration(operation) {
+	const queuedTask = queuedTextGenerationTail.then(() => operation());
+	queuedTextGenerationTail = queuedTask.catch(() => undefined);
+	return queuedTask;
 }
 
 function normalizeToolName(toolName) {
@@ -309,9 +341,14 @@ async function streamViaRovoDev({
  * @param {object} params
  * @param {string} [params.system] - System instructions
  * @param {string} params.prompt - The user prompt
+ * @param {"cancel-and-retry" | "wait-for-turn"} [params.conflictPolicy]
  * @returns {Promise<string>} The response text
  */
-async function generateTextViaRovoDev({ system, prompt }) {
+async function generateTextViaRovoDev({
+	system,
+	prompt,
+	conflictPolicy = "cancel-and-retry",
+}) {
 	// Combine system + prompt since RovoDev takes a single message
 	let fullMessage = "";
 	if (system) {
@@ -319,20 +356,49 @@ async function generateTextViaRovoDev({ system, prompt }) {
 	}
 	fullMessage += prompt;
 
-	try {
-		return await sendMessageSync(fullMessage);
-	} catch (err) {
-		if (isChatInProgressError(err)) {
-			const { value } = await retryChatInProgress(
-				() => sendMessageSync(fullMessage),
-				{
-					logPrefix: "generateTextViaRovoDev",
+	const runGenerate = async () => {
+		try {
+			return await sendMessageSync(fullMessage);
+		} catch (err) {
+			if (isChatInProgressError(err)) {
+				const waitForTurn = conflictPolicy === "wait-for-turn";
+				try {
+					const { value } = await retryChatInProgress(
+						() => sendMessageSync(fullMessage),
+						{
+							logPrefix: "generateTextViaRovoDev",
+							timeoutMs: waitForTurn ? WAIT_FOR_TURN_TIMEOUT_MS : RETRY_TIMEOUT_MS,
+							cancelOnConflict: !waitForTurn,
+						}
+					);
+					return typeof value === "string" ? value : "";
+				} catch (retryError) {
+					if (waitForTurn && isChatInProgressError(retryError)) {
+						console.warn(
+							"[generateTextViaRovoDev] wait-for-turn timed out; falling back to cancel-and-retry."
+						);
+						const { value } = await retryChatInProgress(
+							() => sendMessageSync(fullMessage),
+							{
+								logPrefix: "generateTextViaRovoDev",
+								timeoutMs: RETRY_TIMEOUT_MS,
+								cancelOnConflict: true,
+							}
+						);
+						return typeof value === "string" ? value : "";
+					}
+					throw retryError;
 				}
-			);
-			return typeof value === "string" ? value : "";
+			}
+			throw err;
 		}
-		throw err;
+	};
+
+	if (conflictPolicy === "wait-for-turn") {
+		return enqueueTextGeneration(runGenerate);
 	}
+
+	return runGenerate();
 }
 
 module.exports = {
