@@ -1,18 +1,19 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
 import {
 	PromptInput,
 	PromptInputBody,
-	PromptInputFooter,
 	PromptInputSubmit,
 	PromptInputTextarea,
 } from "@/components/ui-ai/prompt-input";
 import { SpeechInput } from "@/components/ui-ai/speech-input";
 import type { TaskExecution } from "../lib/execution-data";
 import { AgentScreen } from "./agent-screen";
+
+const MAX_VISIBLE_AGENTS = 4;
 
 interface ExecutionGridViewProps {
 	taskExecutions: TaskExecution[];
@@ -61,15 +62,35 @@ function getSpanClass(span: 1 | 2 | 3): string | undefined {
 	return undefined;
 }
 
+function selectVisibleExecutions(
+	executions: ReadonlyArray<TaskExecution>,
+	maxVisible: number
+): TaskExecution[] {
+	const working = executions.filter((e) => e.status === "working");
+	if (working.length >= maxVisible) {
+		return working.slice(0, maxVisible);
+	}
+
+	const finished = executions.filter(
+		(e) => e.status === "completed" || e.status === "failed"
+	);
+	const backfillCount = maxVisible - working.length;
+	return [...working, ...finished.slice(-backfillCount)];
+}
+
 export const ExecutionGridView = memo(function ExecutionGridView({
 	taskExecutions,
 	onAddTask,
 }: Readonly<ExecutionGridViewProps>) {
 	const [inputValue, setInputValue] = useState("");
-	const columnCount = getGridColumns(taskExecutions.length);
+	const visibleExecutions = useMemo(
+		() => selectVisibleExecutions(taskExecutions, MAX_VISIBLE_AGENTS),
+		[taskExecutions]
+	);
+	const columnCount = getGridColumns(visibleExecutions.length);
 	const rowCount =
-		taskExecutions.length > 0
-			? Math.ceil(taskExecutions.length / columnCount)
+		visibleExecutions.length > 0
+			? Math.ceil(visibleExecutions.length / columnCount)
 			: 1;
 
 	const handleSubmit = (message: { text: string }) => {
@@ -108,11 +129,11 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 					} as React.CSSProperties
 				}
 			>
-				{taskExecutions.map((execution, index) => (
+				{visibleExecutions.map((execution, index) => (
 					<div
 						key={execution.taskId}
 						className={getSpanClass(
-							getLastRowSpan(index, taskExecutions.length, columnCount)
+							getLastRowSpan(index, visibleExecutions.length, columnCount)
 						)}
 					>
 						<AgentScreen
@@ -122,7 +143,7 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 					</div>
 				))}
 
-				{taskExecutions.length === 0 ? (
+				{visibleExecutions.length === 0 ? (
 					<div className="col-span-full flex items-center justify-center">
 						<div className="flex flex-col items-center gap-3 text-center">
 							<div className="size-10 animate-spin rounded-full border-2 border-border border-t-text-subtle" />
@@ -137,26 +158,25 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 			{onAddTask ? (
 				<div className="absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-4">
 					<PromptInput
-						allowOverflow
 						onSubmit={handleSubmit}
-						className="w-full max-w-[800px] rounded-xl border border-border bg-surface p-4"
+						className="w-full max-w-[800px] rounded-full border border-border bg-surface px-4 py-2"
 						style={{
 							boxShadow: "0px -2px 50px 0px rgba(30,31,33,0.08)",
 						}}
 					>
-						<PromptInputBody>
+						<PromptInputBody className="flex items-center gap-2">
 							<PromptInputTextarea
 								value={inputValue}
 								onChange={(e) => setInputValue(e.currentTarget.value)}
 								placeholder="Ask, @mention, or / for actions"
 								rows={1}
+								className="min-h-0 flex-1 py-0"
 							/>
-						</PromptInputBody>
-						<PromptInputFooter className="mt-1 justify-end px-0 pb-0">
 							<SpeechInput
 								aria-label="Voice"
 								onTranscriptionChange={handleSpeechTranscription}
-								size="icon"
+								size="icon-sm"
+								variant="ghost"
 							/>
 							<PromptInputSubmit
 								disabled={!inputValue.trim()}
@@ -165,7 +185,7 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 							>
 								<ArrowUpIcon label="" />
 							</PromptInputSubmit>
-						</PromptInputFooter>
+						</PromptInputBody>
 					</PromptInput>
 				</div>
 			) : null}

@@ -28,7 +28,6 @@ interface TaskTrackerCardProps {
 	runStatus: "running" | "completed" | "failed";
 	runCreatedAt: string | null;
 	runCompletedAt: string | null;
-	onManageTasks?: () => void;
 }
 
 function formatElapsedTime(totalSeconds: number): string {
@@ -111,7 +110,6 @@ export function TaskTrackerCard({
 	runStatus,
 	runCreatedAt,
 	runCompletedAt,
-	onManageTasks,
 }: Readonly<TaskTrackerCardProps>) {
 	const isExpanded = true;
 	const [nowMs, setNowMs] = useState(() => Date.now());
@@ -231,17 +229,6 @@ export function TaskTrackerCard({
 						</div>
 					</div>
 				) : null}
-			</div>
-
-			<div className="px-3 py-3">
-				<Button
-					variant="ghost"
-					className="w-full"
-					onClick={onManageTasks}
-					disabled={!onManageTasks}
-				>
-					Manage tasks
-				</Button>
 			</div>
 		</div>
 	);

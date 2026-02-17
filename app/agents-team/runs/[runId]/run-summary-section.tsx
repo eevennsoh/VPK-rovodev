@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import LinkExternalIcon from "@atlaskit/icon/core/link-external";
 import type {
 	AgentRun,
 	AgentRunSummary,
@@ -306,12 +307,27 @@ export function RunSummarySection({
 			</section>
 
 			<section className="rounded-xl border border-border bg-surface-raised p-5">
-				<div>
-					<h2 className="text-base font-semibold text-text">Visual summary</h2>
-					<p className="mt-1 text-xs text-text-subtlest">
-						Generated {formatDateTime(visualSummary?.createdAt ?? null)}
-						{visualSummary?.partial ? " · Partial completion" : ""}
-					</p>
+				<div className="flex items-center justify-between">
+					<div>
+						<h2 className="text-base font-semibold text-text">Visual summary</h2>
+						<p className="mt-1 text-xs text-text-subtlest">
+							Generated {formatDateTime(visualSummary?.createdAt ?? null)}
+							{visualSummary?.partial ? " · Partial completion" : ""}
+						</p>
+					</div>
+					{visualSummary?.html ? (
+						<button
+							type="button"
+							onClick={() => {
+								const blob = new Blob([visualSummary.html], { type: "text/html" });
+								window.open(URL.createObjectURL(blob), "_blank");
+							}}
+							className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
+						>
+							<LinkExternalIcon label="" size="small" />
+							Open full page
+						</button>
+					) : null}
 				</div>
 				<div className="mt-4 rounded-lg bg-surface-sunken p-3">
 					{visualSummary ? (

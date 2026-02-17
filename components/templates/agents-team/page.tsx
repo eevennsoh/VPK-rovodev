@@ -280,14 +280,6 @@ export default function AgentsTeamView() {
 		[sendDirective]
 	);
 
-	const handleManageTasks = useCallback(() => {
-		if (!runId) {
-			return;
-		}
-
-		router.push(`/agents-team/runs/${runId}`);
-	}, [router, runId]);
-
 	const handleCreateAgentTeam = useCallback(() => {
 		if (!isAgentTeamMode) {
 			toggleAgentTeamMode();
@@ -330,7 +322,6 @@ export default function AgentsTeamView() {
 								runStatus: runStatus ?? (isExecuting ? "running" : "failed"),
 								runCreatedAt,
 								runCompletedAt,
-								onManageTasks: runId ? handleManageTasks : undefined,
 							}
 						: undefined
 				}

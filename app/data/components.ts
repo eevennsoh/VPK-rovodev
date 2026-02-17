@@ -222,9 +222,10 @@ export const UI_COMPONENTS: ComponentEntry[] = [
 ] as const;
 
 export const BLOCK_COMPONENTS: ComponentEntry[] = [
+	blockComponent("agent-grid", "Agent Grid"),
 	blockComponent("app-sidebar", "App Sidebar"),
 	blockComponent("agents-team-summary", "Agents Team Summary"),
-	blockComponent("dashboard-01", "Dashboard 01"),
+	blockComponent("dashboard", "Dashboard"),
 	{ name: "Sidebar 01", slug: "sidebar-01", importPath: "@/components/blocks/sidebar/sidebar-01", category: "blocks", detail: BLOCK_DETAILS["sidebar-01"] },
 	{ name: "Sidebar 02", slug: "sidebar-02", importPath: "@/components/blocks/sidebar/sidebar-02", category: "blocks", detail: BLOCK_DETAILS["sidebar-02"] },
 	{ name: "Sidebar 03", slug: "sidebar-03", importPath: "@/components/blocks/sidebar/sidebar-03", category: "blocks", detail: BLOCK_DETAILS["sidebar-03"] },

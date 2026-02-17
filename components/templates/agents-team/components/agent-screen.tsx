@@ -3,9 +3,6 @@
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
-import { Button } from "@/components/ui/button";
-import CommentIcon from "@atlaskit/icon/core/comment";
-import VideoPauseIcon from "@atlaskit/icon/core/video-pause";
 import {
 	Conversation,
 	ConversationContent,
@@ -58,7 +55,7 @@ export const AgentScreen = memo(function AgentScreen({
 				className
 			)}
 		>
-			<div className="flex items-center justify-between px-3 py-2">
+			<div className="flex items-center px-3 py-2">
 				<div className="flex min-w-0 items-center">
 					<div className="flex min-w-0 flex-col items-start">
 						<span
@@ -85,24 +82,6 @@ export const AgentScreen = memo(function AgentScreen({
 							</span>
 						</div>
 					</div>
-				</div>
-				<div className="flex items-center gap-2">
-					<Button
-						aria-label="View details"
-						variant="ghost"
-						size="icon-sm"
-						className="text-icon-subtle"
-					>
-						<CommentIcon label="" size="small" />
-					</Button>
-					<Button
-						aria-label="Pause agent"
-						variant="ghost"
-						size="icon-sm"
-						className="text-icon-subtle"
-					>
-						<VideoPauseIcon label="" size="small" />
-					</Button>
 				</div>
 			</div>
 

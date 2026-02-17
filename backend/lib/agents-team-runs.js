@@ -9,6 +9,7 @@ const FAILURE_TASK_STATUSES = new Set(["failed", "blocked-failed"]);
 const RUN_STATUS_RUNNING = "running";
 const RUN_STATUS_COMPLETED = "completed";
 const RUN_STATUS_FAILED = "failed";
+const MAX_CONCURRENT_AGENTS = 4;
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -1093,6 +1094,10 @@ function createRunManager(options) {
 			markBlockedTasksWithFailedDependencies(run);
 
 			for (const task of run.tasks) {
+				if (activeTaskPromises.size >= MAX_CONCURRENT_AGENTS) {
+					break;
+				}
+
 				if (task.status !== "todo") {
 					continue;
 				}

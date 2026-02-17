@@ -1,13 +1,16 @@
 import type { ComponentDetail } from "@/app/data/component-detail-types";
 
 export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
+	"agent-grid": {
+		description: "Agent execution grid with live task tiles and minimal prompt input.",
+	},
 	"app-sidebar": {
 		description: "Application sidebar with main navigation, documents, secondary nav, and user menu.",
 	},
 	"agents-team-summary": {
 		description: "Agents Team run summary block with final synthesis, interactive dashboard, visual iframe preview, and grouped agent outputs.",
 	},
-	"dashboard-01": {
+	"dashboard": {
 		description: "A full dashboard layout with sidebar navigation, charts, and data tables.",
 	},
 	"sidebar-01": {

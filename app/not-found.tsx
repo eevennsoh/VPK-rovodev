@@ -36,7 +36,12 @@ export default function NotFound() {
 			>
 				The page you are looking for does not exist.
 			</p>
-			<Button nativeButton={false} render={<Link href="/" />} size="lg">
+			<Button
+				className="no-underline hover:no-underline visited:text-primary-foreground active:text-primary-foreground"
+				nativeButton={false}
+				render={<Link href="/" />}
+				size="lg"
+			>
 				Go home
 			</Button>
 		</div>

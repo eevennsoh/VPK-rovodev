@@ -41,7 +41,6 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 		runStatus: "running" | "completed" | "failed";
 		runCreatedAt: string | null;
 		runCompletedAt: string | null;
-		onManageTasks?: () => void;
 	};
 	skills: AgentsTeamSkill[];
 	agents: AgentsTeamAgent[];
@@ -138,7 +137,6 @@ export function AppSidebar({
 							runStatus={executionData.runStatus}
 							runCreatedAt={executionData.runCreatedAt}
 							runCompletedAt={executionData.runCompletedAt}
-							onManageTasks={executionData.onManageTasks}
 						/>
 				) : chatHistory.length > 0 || isGeneratingTitle ? (
 					<SidebarChatHistory

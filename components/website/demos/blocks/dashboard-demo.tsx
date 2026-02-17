@@ -2,6 +2,6 @@
 
 import Page from "@/components/blocks/dashboard/page";
 
-export default function Dashboard01Demo() {
+export default function DashboardDemo() {
 	return <Page />;
 }
