@@ -14,7 +14,7 @@ import {
 	PromptInputActionMenuTrigger,
 	PromptInputBody,
 	PromptInputButton,
-	PromptInputDisclaimer,
+
 	PromptInputFooter,
 	PromptInputMicrophone,
 	PromptInputSubmit,
@@ -28,14 +28,14 @@ import {
 	composerTextareaClassName,
 	textareaCSS,
 } from "@/components/blocks/shared-ui/composer-styles";
-import { token } from "@/lib/tokens";
+import { Footer } from "@/components/ui/footer";
 import { chatStyles } from "./data/styles";
 import { useChatSubmit } from "./hooks/use-chat-submit";
 import styles from "./chat.module.css";
 import AddIcon from "@atlaskit/icon/core/add";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
 import CustomizeIcon from "@atlaskit/icon/core/customize";
-import InformationCircleIcon from "@atlaskit/icon/core/information-circle";
+
 import LinkIcon from "@atlaskit/icon/core/link";
 import MentionIcon from "@atlaskit/icon/core/mention";
 import PageIcon from "@atlaskit/icon/core/page";
@@ -284,10 +284,7 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 					<style>{textareaCSS}</style>
 				</div>
 
-				<PromptInputDisclaimer>
-					<InformationCircleIcon label="Information" color={token("color.icon.subtlest")} size="small" />
-					<span>Uses AI. Verify results.</span>
-				</PromptInputDisclaimer>
+				<Footer />
 			</div>
 		</div>
 	);

@@ -27,6 +27,7 @@ export const ADS_EQUIVALENTS: Record<string, AdsEquivalent> = {
 	"dropdown-menu": "@atlaskit/dropdown-menu",
 	empty: "@atlaskit/empty-state",
 	field: "@atlaskit/textfield",
+	footer: "Atlassian Design System",
 	forms: "@atlaskit/form",
 
 	icon: "@atlaskit/icon",

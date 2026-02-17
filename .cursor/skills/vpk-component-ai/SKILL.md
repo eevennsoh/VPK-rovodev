@@ -574,7 +574,7 @@ Key props: `className`, `children`
 | `PromptInputCommandGroup` | Grouped Command items with heading |
 | `PromptInputCommandEmpty` | Empty state for Command |
 | `PromptInputCommandSeparator` | Visual separator between Command groups |
-| `PromptInputDisclaimer` | Styled container for disclaimer text (sits outside the form) |
+| `Footer` | Styled footer bar with icon and default text (`@/components/ui/footer`) |
 | `PromptInputTab` | Tab container for file/context lists |
 | `PromptInputTabLabel` | Tab section label |
 | `PromptInputTabBody` | Tab section body |
@@ -646,7 +646,7 @@ When adding or modifying ui-ai sub-components (e.g., adding `PromptInputMicropho
 
 ### Discovery
 - [ ] Custom menu item divs replaced with `PromptInputActionMenuItem` (use `onSelect`, not `onClick`)
-- [ ] Footer disclaimer/legal text replaced with `PromptInputDisclaimer`
+- [ ] Footer disclaimer/legal text replaced with `Footer` from `@/components/ui/footer`
 - [ ] Target file/directory read and custom AI patterns identified
 - [ ] Detection Checklist applied (all 15 patterns checked)
 - [ ] Corresponding ui-ai source files read

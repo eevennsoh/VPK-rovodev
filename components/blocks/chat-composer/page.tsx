@@ -4,7 +4,7 @@ import { useState } from "react";
 import { type CustomizeMenuProps } from "./components/customize-menu";
 import AddMenu from "./components/add-menu";
 import CustomizeMenu from "./components/customize-menu";
-import FooterDisclaimer from "@/components/blocks/shared-ui/footer-disclaimer";
+import { Footer } from "@/components/ui/footer";
 import {
 	PromptInput,
 	PromptInputActionMenu,
@@ -203,7 +203,7 @@ export default function ChatComposer({
 				<style>{textareaCSS}</style>
 			</div>
 
-			{features.disclaimer ? <FooterDisclaimer /> : null}
+			{features.disclaimer ? <Footer /> : null}
 		</div>
 	);
 }

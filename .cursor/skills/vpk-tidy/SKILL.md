@@ -921,7 +921,7 @@ After structural refactoring, apply code clarity improvements:
 
 | Location                                  | When to Use                           | Examples                |
 | ----------------------------------------- | ------------------------------------- | ----------------------- |
-| `components/ui/`                          | Used by 2+ features, no feature logic | `footer-disclaimer.tsx` |
+| `components/ui/`                          | Used by 2+ features, no feature logic | `footer.tsx` |
 | `components/blocks/[feature]/components/` | Feature-specific sub-components       | `kanban-card.tsx`       |
 | `components/blocks/[feature]/hooks/`      | Feature-specific logic hooks          | `use-board-state.ts`    |
 | `components/blocks/[feature]/data/`       | Feature-specific static data          | `board-columns.ts`      |

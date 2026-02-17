@@ -25,7 +25,7 @@ import {
 	PromptInputCommandItem,
 	PromptInputCommandList,
 	PromptInputCommandSeparator,
-	PromptInputDisclaimer,
+
 	PromptInputFooter,
 	PromptInputHeader,
 	PromptInputHoverCard,
@@ -50,13 +50,13 @@ import {
 } from "@/components/ui-ai/prompt-input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { token } from "@/lib/tokens";
+import { Footer } from "@/components/ui/footer";
 import AddIcon from "@atlaskit/icon/core/add";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
 import CustomizeIcon from "@atlaskit/icon/core/customize";
 import GlobeIcon from "@atlaskit/icon/core/globe";
 import ImageIcon from "@atlaskit/icon/core/image";
-import InformationCircleIcon from "@atlaskit/icon/core/information-circle";
+
 import LinkIcon from "@atlaskit/icon/core/link";
 import MentionIcon from "@atlaskit/icon/core/mention";
 import PageIcon from "@atlaskit/icon/core/page";
@@ -179,10 +179,7 @@ export function PromptInputDemoChatComposer() {
 					<style>{textareaCSS}</style>
 				</div>
 
-				<PromptInputDisclaimer>
-					<InformationCircleIcon label="Information" color={token("color.icon.subtlest")} size="small" />
-					<span>Uses AI. Verify results.</span>
-				</PromptInputDisclaimer>
+				<Footer />
 			</div>
 		</DemoFrame>
 	);

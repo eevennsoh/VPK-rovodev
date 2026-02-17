@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRovoChat } from "@/app/contexts";
 import type { QueuedPromptItem } from "@/app/contexts";
 import { API_ENDPOINTS } from "@/lib/api-config";
@@ -23,6 +23,41 @@ import {
 	AGENT_TEAM_MODE_PLAN_RETRY_PROMPT,
 } from "../lib/agent-team-mode";
 import type { ChatHistoryItem } from "../components/sidebar-chat-history";
+import {
+	AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+	createThreadFromPrompt,
+	deleteThread,
+	deserializeThreadLookupState,
+	getThreadById,
+	serializeThreadLookupState,
+	sortThreadsByUpdatedAtDesc,
+	trimTitleText,
+	type AgentsTeamThread,
+	updateThreadMessages,
+	updateThreadTitle,
+	upsertThreadSnapshot,
+} from "../lib/thread-store";
+
+const AGENTS_TEAM_THREAD_STORAGE_KEY = "vpk:agents-team:threads:v1";
+
+function loadInitialThreadLookupState(): {
+	threads: AgentsTeamThread[];
+	activeChatId: string | null;
+} {
+	if (typeof window === "undefined") {
+		return { threads: [], activeChatId: null };
+	}
+
+	const persisted = deserializeThreadLookupState({
+		rawValue: window.localStorage.getItem(AGENTS_TEAM_THREAD_STORAGE_KEY),
+		maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+	});
+
+	return {
+		threads: sortThreadsByUpdatedAtDesc(persisted.threads),
+		activeChatId: persisted.activeChatId,
+	};
+}
 
 type AgentTeamPlanningPhase = "awaiting-plan" | "retrying-missing-plan";
 
@@ -52,10 +87,6 @@ async function fetchAITitle(message: string): Promise<string | null> {
 	}
 }
 
-function trimTitleText(value: string): string {
-	return value.replace(/^["']|["']$/g, "").replace(/\.+$/, "").trim();
-}
-
 function deriveTitleFromAssistantMessage(messageText: string): string | null {
 	const trimmed = messageText.trim();
 	if (!trimmed) {
@@ -81,13 +112,25 @@ function deriveTitleFromAssistantMessage(messageText: string): string | null {
 	return trimTitleText(firstSentence) || null;
 }
 
-function deriveTitleFromUserPrompt(promptText: string): string {
-	const firstLine = promptText
-		.split(/\r?\n/)
-		.map((line) => trimTitleText(line))
-		.find((line) => line.length > 0);
+function areMessageArraysShallowEqual(
+	left: ReadonlyArray<RovoUIMessage>,
+	right: ReadonlyArray<RovoUIMessage>
+): boolean {
+	if (left === right) {
+		return true;
+	}
 
-	return trimTitleText(firstLine ?? promptText) || "New chat";
+	if (left.length !== right.length) {
+		return false;
+	}
+
+	for (let index = 0; index < left.length; index += 1) {
+		if (left[index] !== right[index]) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 function createAgentTeamRequestId(): string {
@@ -156,23 +199,36 @@ interface UseAgentsTeamChatReturn {
 }
 
 export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
+	const initialThreadLookupState = useMemo(() => loadInitialThreadLookupState(), []);
 	const [prompt, setPrompt] = useState("");
 	const [isAgentTeamMode, setIsAgentTeamMode] = useState(false);
 	const [agentTeamPlanningSession, setAgentTeamPlanningSession] =
 		useState<AgentTeamPlanningSession | null>(null);
-	const [isChatMode, setIsChatMode] = useState(false);
-	const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
-	const [activeChatId, setActiveChatId] = useState<string | null>(null);
+	const [isChatMode, setIsChatMode] = useState(
+		initialThreadLookupState.activeChatId !== null
+	);
+	const [threads, setThreads] = useState<AgentsTeamThread[]>(
+		initialThreadLookupState.threads
+	);
+	const [activeChatId, setActiveChatId] = useState<string | null>(
+		initialThreadLookupState.activeChatId
+	);
 	const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
 	const [pendingTitleChatId, setPendingTitleChatId] = useState<string | null>(null);
 	const pendingTitleChatIdRef = useRef<string | null>(null);
-	const hasCreatedEntry = useRef(false);
+	const hasRestoredInitialThreadRef = useRef(false);
+	const activeChatIdRef = useRef<string | null>(null);
+	const uiMessagesRef = useRef<RovoUIMessage[]>([]);
+	const threadsRef = useRef<AgentsTeamThread[]>([]);
+	const isRestoringThreadRef = useRef(false);
+	const restoreGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const {
 		uiMessages,
 		isStreaming,
 		sendPrompt,
 		stopStreaming,
 		resetChat,
+		replaceMessages,
 		queuedPrompts,
 		removeQueuedPrompt,
 	} = useRovoChat();
@@ -181,25 +237,152 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		return () => stopStreaming();
 	}, [stopStreaming]);
 
+	const pendingTitleMessageRef = useRef<string | null>(null);
+	const hasStreamedOnceRef = useRef(false);
+
+	const chatHistory = useMemo<ChatHistoryItem[]>(
+		() =>
+			threads.map((thread) => ({
+				id: thread.id,
+				title: thread.title,
+			})),
+		[threads]
+	);
+
+	useEffect(() => {
+		activeChatIdRef.current = activeChatId;
+	}, [activeChatId]);
+
+	useEffect(() => {
+		uiMessagesRef.current = uiMessages;
+	}, [uiMessages]);
+
+	useEffect(() => {
+		threadsRef.current = threads;
+	}, [threads]);
+
+	const releaseRestoreGuard = useCallback(() => {
+		if (restoreGuardTimerRef.current) {
+			clearTimeout(restoreGuardTimerRef.current);
+		}
+
+		restoreGuardTimerRef.current = setTimeout(() => {
+			isRestoringThreadRef.current = false;
+			restoreGuardTimerRef.current = null;
+		}, 0);
+	}, []);
+
+	const restoreThreadMessages = useCallback(
+		(messages: ReadonlyArray<RovoUIMessage>) => {
+			isRestoringThreadRef.current = true;
+			replaceMessages(messages);
+			releaseRestoreGuard();
+		},
+		[releaseRestoreGuard, replaceMessages]
+	);
+
+	useEffect(() => {
+		return () => {
+			if (restoreGuardTimerRef.current) {
+				clearTimeout(restoreGuardTimerRef.current);
+				restoreGuardTimerRef.current = null;
+			}
+		};
+	}, []);
+
+	useEffect(() => {
+		if (hasRestoredInitialThreadRef.current) {
+			return;
+		}
+
+		hasRestoredInitialThreadRef.current = true;
+		const initialActiveChatId = initialThreadLookupState.activeChatId;
+		if (!initialActiveChatId) {
+			return;
+		}
+
+		const activeThread = getThreadById({
+			threads: initialThreadLookupState.threads,
+			chatId: initialActiveChatId,
+		});
+		if (!activeThread) {
+			return;
+		}
+
+		restoreThreadMessages(activeThread.messages);
+	}, [initialThreadLookupState, restoreThreadMessages]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		window.localStorage.setItem(
+			AGENTS_TEAM_THREAD_STORAGE_KEY,
+			serializeThreadLookupState({
+				threads,
+				activeChatId,
+				maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+			})
+		);
+	}, [activeChatId, threads]);
+
+	const snapshotThreadMessages = useCallback(
+		(chatId: string | null, messages: ReadonlyArray<RovoUIMessage>) => {
+			if (!chatId) {
+				return;
+			}
+
+			setThreads((previousThreads) => {
+				const currentThread = getThreadById({
+					threads: previousThreads,
+					chatId,
+				});
+				if (!currentThread) {
+					return previousThreads;
+				}
+
+				if (areMessageArraysShallowEqual(currentThread.messages, messages)) {
+					return previousThreads;
+				}
+
+				return updateThreadMessages({
+					threads: previousThreads,
+					chatId,
+					messages,
+					updatedAt: Date.now(),
+					maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+				});
+			});
+		},
+		[]
+	);
+
+	useEffect(() => {
+		if (isRestoringThreadRef.current || !activeChatId) {
+			return;
+		}
+
+		queueMicrotask(() => {
+			snapshotThreadMessages(activeChatId, uiMessages);
+		});
+	}, [activeChatId, snapshotThreadMessages, uiMessages]);
+
 	const resolveChatTitle = useCallback((chatId: string, title: string) => {
 		const normalizedTitle = trimTitleText(title);
 		if (!normalizedTitle) {
 			return;
 		}
 
-		setChatHistory((prev) => {
-			const existingIndex = prev.findIndex((item) => item.id === chatId);
-			if (existingIndex === -1) {
-				return [{ id: chatId, title: normalizedTitle }, ...prev];
-			}
-
-			const next = [...prev];
-			next[existingIndex] = {
-				...next[existingIndex],
+		setThreads((previousThreads) =>
+			updateThreadTitle({
+				threads: previousThreads,
+				chatId,
 				title: normalizedTitle,
-			};
-			return next;
-		});
+				updatedAt: Date.now(),
+				maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+			})
+		);
 
 		if (pendingTitleChatIdRef.current === chatId) {
 			pendingTitleChatIdRef.current = null;
@@ -256,20 +439,24 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		};
 	}, [isGeneratingTitle, pendingTitleChatId, resolveChatTitle, uiMessages]);
 
-	const pendingTitleMessageRef = useRef<string | null>(null);
-	const hasStreamedOnceRef = useRef(false);
-
 	const createChatEntry = useCallback((firstMessage: string) => {
-		const id = crypto.randomUUID();
-		const provisionalTitle = deriveTitleFromUserPrompt(firstMessage);
-		setChatHistory((prev) => [{ id, title: provisionalTitle }, ...prev]);
-		setActiveChatId(id);
-		hasCreatedEntry.current = true;
+		const thread = createThreadFromPrompt({
+			promptText: firstMessage,
+		});
+		setThreads((previousThreads) =>
+			upsertThreadSnapshot({
+				threads: previousThreads,
+				thread,
+				maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+			})
+		);
+		setActiveChatId(thread.id);
 		setIsGeneratingTitle(true);
-		setPendingTitleChatId(id);
-		pendingTitleChatIdRef.current = id;
+		setPendingTitleChatId(thread.id);
+		pendingTitleChatIdRef.current = thread.id;
 		pendingTitleMessageRef.current = firstMessage;
 		hasStreamedOnceRef.current = false;
+		return thread.id;
 	}, []);
 
 	// Track when streaming has started at least once so we don't fire title
@@ -464,16 +651,15 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	const submitPlanApproval = useCallback(
 		async (approval: PlanApprovalSubmission) => {
 			const approvalPrompt = buildPlanApprovalPrompt(approval).trim();
-			if (!approvalPrompt) {
-				return;
-			}
+				if (!approvalPrompt) {
+					return;
+				}
 
-			await sendPrompt(approvalPrompt, {
-				
-				approval,
-				messageMetadata: {
-					visibility: "hidden",
-					source: "plan-approval-submit",
+				await sendPrompt(approvalPrompt, {
+					approval,
+					messageMetadata: {
+						visibility: "hidden",
+						source: "plan-approval-submit",
 				},
 			});
 		},
@@ -482,15 +668,14 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	const sendAgentDirective = useCallback(
 		async (agentName: string, message: string) => {
 			const trimmed = message.trim();
-			if (!trimmed) {
-				return;
-			}
+				if (!trimmed) {
+					return;
+				}
 
-			await sendPrompt(`@${agentName}: ${trimmed}`, {
-				
-				messageMetadata: {
-					visibility: "hidden",
-					source: "agent-directive",
+				await sendPrompt(`@${agentName}: ${trimmed}`, {
+					messageMetadata: {
+						visibility: "hidden",
+						source: "agent-directive",
 				},
 			});
 		},
@@ -509,7 +694,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		const currentPrompt = prompt;
 		setPrompt("");
 
-		if (!isChatMode) {
+		if (!isChatMode || activeChatIdRef.current === null) {
 			setIsChatMode(true);
 			createChatEntry(currentPrompt);
 		}
@@ -534,7 +719,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				return;
 			}
 
-			if (!isChatMode) {
+			if (!isChatMode || activeChatIdRef.current === null) {
 				setIsChatMode(true);
 				createChatEntry(question);
 			}
@@ -551,6 +736,11 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	);
 
 	const handleNewChat = useCallback(() => {
+		snapshotThreadMessages(activeChatIdRef.current, uiMessagesRef.current);
+		if (isStreaming) {
+			stopStreaming();
+		}
+
 		resetChat();
 		setPrompt("");
 		setAgentTeamPlanningSession(null);
@@ -559,20 +749,56 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		setIsGeneratingTitle(false);
 		setPendingTitleChatId(null);
 		pendingTitleChatIdRef.current = null;
-		hasCreatedEntry.current = false;
-	}, [resetChat]);
+		pendingTitleMessageRef.current = null;
+		hasStreamedOnceRef.current = false;
+	}, [isStreaming, resetChat, snapshotThreadMessages, stopStreaming]);
 
-	const handleSelectChat = useCallback((id: string) => {
-		setActiveChatId(id);
-		setIsChatMode(true);
-	}, []);
+	const handleSelectChat = useCallback(
+		(id: string) => {
+			if (activeChatIdRef.current === id) {
+				return;
+			}
+
+			const selectedThread = getThreadById({
+				threads: threadsRef.current,
+				chatId: id,
+			});
+			if (!selectedThread) {
+				return;
+			}
+
+			snapshotThreadMessages(activeChatIdRef.current, uiMessagesRef.current);
+			if (isStreaming) {
+				stopStreaming();
+			}
+
+			setAgentTeamPlanningSession(null);
+			setPrompt("");
+			setIsChatMode(true);
+			setActiveChatId(id);
+			restoreThreadMessages(selectedThread.messages);
+		},
+		[isStreaming, restoreThreadMessages, snapshotThreadMessages, stopStreaming]
+	);
 
 	const handleDeleteChat = useCallback(
 		(id: string) => {
-			setChatHistory((prev) => prev.filter((item) => item.id !== id));
+			setThreads((previousThreads) =>
+				deleteThread({
+					threads: previousThreads,
+					chatId: id,
+				})
+			);
+
+			if (pendingTitleChatIdRef.current === id) {
+				pendingTitleChatIdRef.current = null;
+				pendingTitleMessageRef.current = null;
+				setPendingTitleChatId(null);
+				setIsGeneratingTitle(false);
+			}
 
 			// If deleting the active chat, go back to composer
-			if (activeChatId === id) {
+			if (activeChatIdRef.current === id) {
 				resetChat();
 				setPrompt("");
 				setAgentTeamPlanningSession(null);
@@ -581,10 +807,11 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				setIsGeneratingTitle(false);
 				setPendingTitleChatId(null);
 				pendingTitleChatIdRef.current = null;
-				hasCreatedEntry.current = false;
+				pendingTitleMessageRef.current = null;
+				hasStreamedOnceRef.current = false;
 			}
 		},
-		[activeChatId, resetChat],
+		[resetChat],
 	);
 
 	const toggleAgentTeamMode = useCallback(() => {

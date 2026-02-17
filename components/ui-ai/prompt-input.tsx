@@ -1377,18 +1377,3 @@ export const PromptInputCommandSeparator = ({
 }: PromptInputCommandSeparatorProps) => (
   <CommandSeparator className={cn(className)} {...props} />
 );
-
-export type PromptInputDisclaimerProps = ComponentProps<"div">;
-
-export const PromptInputDisclaimer = ({
-  className,
-  ...props
-}: PromptInputDisclaimerProps) => (
-  <div
-    className={cn(
-      "flex items-center justify-center gap-1 py-2 text-xs text-text-subtlest",
-      className,
-    )}
-    {...props}
-  />
-);

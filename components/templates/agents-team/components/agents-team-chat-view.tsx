@@ -20,6 +20,7 @@ import type {
 	ClarificationAnswers,
 	ParsedQuestionCardPayload,
 } from "@/components/templates/shared/lib/question-card-widget";
+import { Footer } from "@/components/ui/footer";
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
 import { Button } from "@/components/ui/button";
 import { token } from "@/lib/tokens";
@@ -213,7 +214,21 @@ export default function AgentsTeamChatView({
 			</div>
 
 			<div className="absolute inset-x-0 bottom-0 z-20 flex justify-center">
-				{gatedShouldShowQuestionCard ? <KeyboardHintsFooter /> : null}
+				{gatedShouldShowQuestionCard ? (
+					<Footer hideIcon>
+						<span>
+							<kbd className="font-sans">↑</kbd> <kbd className="font-sans">↓</kbd> to navigate
+						</span>
+						<span aria-hidden>•</span>
+						<span>
+							<kbd className="font-sans">↵</kbd> Enter to select
+						</span>
+						<span aria-hidden>•</span>
+						<span>Esc to skip</span>
+					</Footer>
+				) : (
+					<Footer />
+				)}
 			</div>
 		</div>
 	);
@@ -308,21 +323,5 @@ function BottomOverlayContent({
 			onStop={onStop}
 			onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 		/>
-	);
-}
-
-function KeyboardHintsFooter(): React.ReactElement {
-	return (
-		<div className="flex items-center justify-center gap-1 py-2 text-xs text-text-subtlest">
-			<span>
-				<kbd className="font-sans">↑</kbd> <kbd className="font-sans">↓</kbd> to navigate
-			</span>
-			<span aria-hidden>•</span>
-			<span>
-				<kbd className="font-sans">↵</kbd> Enter to select
-			</span>
-			<span aria-hidden>•</span>
-			<span>Esc to skip</span>
-		</div>
 	);
 }

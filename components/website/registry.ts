@@ -26,6 +26,7 @@ const UI_DEMO: Record<string, ComponentType> = {
 	"dropdown-menu": dynamic(() => import("./demos/ui/dropdown-menu-demo"), { ssr: false }),
 	"empty": dynamic(() => import("./demos/ui/empty-demo"), { ssr: false }),
 	"field": dynamic(() => import("./demos/ui/field-demo"), { ssr: false }),
+	"footer": dynamic(() => import("./demos/ui/footer-demo"), { ssr: false }),
 	"hover-card": dynamic(() => import("./demos/ui/hover-card-demo"), { ssr: false }),
 	"input-group": dynamic(() => import("./demos/ui/input-group-demo"), { ssr: false }),
 	"input-otp": dynamic(() => import("./demos/ui/input-otp-demo"), { ssr: false }),
@@ -302,6 +303,11 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"field-demo-textarea-invalid": dynamic(() => import("./demos/ui/field-demo").then(mod => ({ default: mod.FieldDemoTextareaInvalid })), { ssr: false }),
 	"field-demo-form": dynamic(() => import("./demos/ui/field-demo").then(mod => ({ default: mod.FieldDemoForm })), { ssr: false }),
 	"field-demo-input-types": dynamic(() => import("./demos/ui/field-demo").then(mod => ({ default: mod.FieldDemoInputTypes })), { ssr: false }),
+	// Footer
+	"footer-demo-default": dynamic(() => import("./demos/ui/footer-demo").then(mod => ({ default: mod.FooterDemoDefault })), { ssr: false }),
+	"footer-demo-custom-text": dynamic(() => import("./demos/ui/footer-demo").then(mod => ({ default: mod.FooterDemoCustomText })), { ssr: false }),
+	"footer-demo-no-icon": dynamic(() => import("./demos/ui/footer-demo").then(mod => ({ default: mod.FooterDemoNoIcon })), { ssr: false }),
+	"footer-demo-keyboard-hints": dynamic(() => import("./demos/ui/footer-demo").then(mod => ({ default: mod.FooterDemoKeyboardHints })), { ssr: false }),
 	// Native Select
 	"native-select-demo-default": dynamic(() => import("./demos/ui/native-select-demo").then(mod => ({ default: mod.NativeSelectDemoDefault })), { ssr: false }),
 	"native-select-demo-small": dynamic(() => import("./demos/ui/native-select-demo").then(mod => ({ default: mod.NativeSelectDemoSmall })), { ssr: false }),

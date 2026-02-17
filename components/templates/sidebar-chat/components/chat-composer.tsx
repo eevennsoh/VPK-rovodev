@@ -11,7 +11,7 @@ import {
 	PromptInputActionMenuTrigger,
 	PromptInputBody,
 	PromptInputButton,
-	PromptInputDisclaimer,
+
 	PromptInputFooter,
 	PromptInputHeader,
 	PromptInputMicrophone,
@@ -27,11 +27,11 @@ import {
 	textareaCSS,
 } from "@/components/blocks/shared-ui/composer-styles";
 import { ChatPromptQueue } from "@/components/templates/shared/components/chat-prompt-queue";
-import { token } from "@/lib/tokens";
+import { Footer } from "@/components/ui/footer";
 import AddIcon from "@atlaskit/icon/core/add";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
 import CustomizeIcon from "@atlaskit/icon/core/customize";
-import InformationCircleIcon from "@atlaskit/icon/core/information-circle";
+
 import LinkIcon from "@atlaskit/icon/core/link";
 import MentionIcon from "@atlaskit/icon/core/mention";
 import PageIcon from "@atlaskit/icon/core/page";
@@ -165,10 +165,7 @@ export default function ChatComposer({
 				<style>{textareaCSS}</style>
 			</div>
 
-			<PromptInputDisclaimer>
-				<InformationCircleIcon label="Information" color={token("color.icon.subtlest")} size="small" />
-				<span>Uses AI. Verify results.</span>
-			</PromptInputDisclaimer>
+			<Footer />
 		</div>
 	);
 }

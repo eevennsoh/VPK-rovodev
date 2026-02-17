@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Footer } from "@/components/ui/footer";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import ChevronLeftIcon from "@atlaskit/icon/core/chevron-left";
@@ -66,6 +67,18 @@ export default function QuestionCard() {
 
 				<Button disabled>Submit</Button>
 			</footer>
+
+			<Footer hideIcon>
+				<span>
+					<kbd className="font-sans">↑</kbd> <kbd className="font-sans">↓</kbd> to navigate
+				</span>
+				<span aria-hidden>•</span>
+				<span>
+					<kbd className="font-sans">↵</kbd> Enter to select
+				</span>
+				<span aria-hidden>•</span>
+				<span>Esc to skip</span>
+			</Footer>
 		</div>
 	);
 }

@@ -91,6 +91,7 @@ interface RovoChatContextType {
 	stopStreaming: () => void;
 	clearSuggestedQuestions: () => void;
 	resetChat: () => void;
+	replaceMessages: (messages: ReadonlyArray<RovoUIMessage>) => void;
 	isStreaming: boolean;
 	pendingPrompt: string | null;
 	setPendingPrompt: (prompt: string | null) => void;
@@ -172,6 +173,8 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 	} | null>(null);
 	const isStreamingRef = useRef(false);
 	const isDispatchingPromptRef = useRef(false);
+	const isCancellingRef = useRef(false);
+	const cancelStreamPromiseRef = useRef<Promise<void> | null>(null);
 	const hasActivePromptStreamedRef = useRef(false);
 	const shouldFinalizeActivePromptRef = useRef(false);
 	const maybeFinalizeAndProcessRef = useRef<() => void>(() => {});
@@ -485,13 +488,14 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 			if (
 				(canFinalizeFromStreamEnd || canFinalizeFromError) &&
 				retryTimerRef.current === null &&
-				!isDispatchingPromptRef.current
+				!isDispatchingPromptRef.current &&
+				!isCancellingRef.current
 			) {
 				finalizeActivePrompt();
 			}
 		}
 
-		if (!activePromptRef.current) {
+		if (!activePromptRef.current && !isCancellingRef.current) {
 			void processNextPromptRef.current();
 		}
 	}, [finalizeActivePrompt]);
@@ -504,6 +508,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 		if (
 			activePromptRef.current ||
 			isDispatchingPromptRef.current ||
+			isCancellingRef.current ||
 			isStreamingRef.current ||
 			retryTimerRef.current !== null
 		) {
@@ -580,19 +585,51 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 		setQueuedPrompts([]);
 	}, []);
 
+	const cancelCurrentStream = useCallback(async () => {
+		if (cancelStreamPromiseRef.current) {
+			await cancelStreamPromiseRef.current;
+			return;
+		}
+
+		const cancelPromise = (async () => {
+			try {
+				await stop();
+			} catch (error) {
+				console.error("[RovoChatProvider] Failed to stop chat stream:", error);
+			}
+
+			// Belt-and-suspenders: explicitly tell the backend to cancel the RovoDev
+			// stream. The primary cancellation path is req.on("close") → AbortSignal,
+			// but this handles edge cases where the SSE close event is delayed.
+			try {
+				await fetch(API_ENDPOINTS.CHAT_CANCEL, { method: "POST" });
+			} catch {
+				// Ignore cancel endpoint errors — the stream may have already ended.
+			}
+		})();
+
+		cancelStreamPromiseRef.current = cancelPromise;
+		try {
+			await cancelPromise;
+		} finally {
+			cancelStreamPromiseRef.current = null;
+		}
+	}, [stop]);
+
 	const stopStreaming = useCallback(() => {
 		if (activePromptRef.current) {
 			shouldFinalizeActivePromptRef.current = true;
 		}
-		void stop();
-		// Belt-and-suspenders: explicitly tell the backend to cancel the RovoDev
-		// stream. The primary cancellation path is req.on("close") → AbortSignal,
-		// but this handles edge cases where the SSE close event is delayed.
-		fetch(API_ENDPOINTS.CHAT_CANCEL, { method: "POST" }).catch(() => {});
-		queueTick();
-	}, [queueTick, stop]);
+
+		isCancellingRef.current = true;
+		void cancelCurrentStream().finally(() => {
+			isCancellingRef.current = false;
+			queueTick();
+		});
+	}, [cancelCurrentStream, queueTick]);
 
 	const resetChat = useCallback(() => {
+		isCancellingRef.current = true;
 		cancelRetryTimer();
 		retryCountRef.current = 0;
 		lastPromptRef.current = null;
@@ -605,7 +642,36 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 		setActivePrompt(null);
 		setMessages([]);
 		setSubmissionErrorMessage(null);
-	}, [cancelRetryTimer, setMessages]);
+
+		void cancelCurrentStream().finally(() => {
+			// Old stream chunks can still arrive briefly while cancellation settles.
+			// Clear message state one more time so the next session starts clean.
+			setMessages([]);
+			setSubmissionErrorMessage(null);
+			isCancellingRef.current = false;
+			queueTick();
+		});
+	}, [cancelCurrentStream, cancelRetryTimer, queueTick, setMessages]);
+
+	const replaceMessages = useCallback(
+		(messages: ReadonlyArray<RovoUIMessage>) => {
+			isCancellingRef.current = false;
+			cancelRetryTimer();
+			retryCountRef.current = 0;
+			lastPromptRef.current = null;
+			queuedPromptsRef.current = [];
+			activePromptRef.current = null;
+			hasActivePromptStreamedRef.current = false;
+			shouldFinalizeActivePromptRef.current = false;
+			isDispatchingPromptRef.current = false;
+			setQueuedPrompts([]);
+			setActivePrompt(null);
+			setSubmissionErrorMessage(null);
+			setMessages(sanitizeRovoUiMessages([...messages]));
+			queueTick();
+		},
+		[cancelRetryTimer, queueTick, setMessages]
+	);
 
 	const setPendingPromptValue = useCallback((prompt: string | null) => {
 		setPendingPrompt(prompt);
@@ -624,6 +690,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 				stopStreaming,
 				clearSuggestedQuestions,
 				resetChat,
+				replaceMessages,
 				isStreaming,
 				pendingPrompt,
 				setPendingPrompt: setPendingPromptValue,

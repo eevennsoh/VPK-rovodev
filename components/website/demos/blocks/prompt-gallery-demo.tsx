@@ -5,7 +5,7 @@ import PromptGallery from "@/components/blocks/prompt-gallery/page";
 import {
 	PromptInput,
 	PromptInputBody,
-	PromptInputDisclaimer,
+
 	PromptInputFooter,
 	PromptInputSubmit,
 	PromptInputTextarea,
@@ -15,9 +15,9 @@ import {
 	composerTextareaClassName,
 	textareaCSS,
 } from "@/components/blocks/shared-ui/composer-styles";
-import { token } from "@/lib/tokens";
+import { Footer } from "@/components/ui/footer";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
-import InformationCircleIcon from "@atlaskit/icon/core/information-circle";
+
 
 const DEFAULT_PLACEHOLDER = "Write a prompt, @someone, or use / for actions";
 
@@ -66,10 +66,7 @@ export default function PromptGalleryDemo() {
 					/>
 				</div>
 
-				<PromptInputDisclaimer>
-					<InformationCircleIcon label="Information" color={token("color.icon.subtlest")} size="small" />
-					<span>Uses AI. Verify results.</span>
-				</PromptInputDisclaimer>
+				<Footer />
 			</div>
 		</div>
 	);

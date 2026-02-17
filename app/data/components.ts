@@ -162,6 +162,7 @@ export const UI_COMPONENTS: ComponentEntry[] = [
 	uiComponent("dropdown-menu", "Dropdown Menu"),
 	uiComponent("empty"),
 	uiComponent("field"),
+	uiComponent("footer", "Footer"),
 	{
 		name: "Forms",
 		slug: "forms",
