@@ -39,5 +39,5 @@ export function DevAgentationClient() {
 		return null;
 	}
 
-	return <Agentation />;
+	return <Agentation endpoint="http://localhost:4747" />;
 }

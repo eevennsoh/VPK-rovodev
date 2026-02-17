@@ -5,7 +5,6 @@ import type { QueuedPromptItem } from "@/app/contexts";
 import Image from "next/image";
 import PromptGallery from "@/components/blocks/prompt-gallery/page";
 import { token } from "@/lib/tokens";
-import { Footer } from "@/components/ui/footer";
 import { useTheme } from "@/components/utils/theme-wrapper";
 import { getAgentTeamModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
 import AgentsTeamComposer from "./agents-team-composer";
@@ -69,7 +68,6 @@ export default function AgentsTeamInitialView({
 						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 						expandedPlaceholder={galleryExpanded || !!previewPrompt}
 					/>
-					<Footer />
 				</div>
 
 				<div className="mt-3 w-full">
