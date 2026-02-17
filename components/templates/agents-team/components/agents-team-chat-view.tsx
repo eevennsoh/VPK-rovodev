@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import {
 	getLatestDataPart,
 	isMessageTextStreaming,
@@ -31,6 +32,8 @@ import { useDismissibleCards } from "../hooks/use-dismissible-cards";
 
 const CHAT_COMPOSER_BASE_BOTTOM_PADDING = "128px";
 const CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING = "320px";
+const AWAITING_INDICATOR_BOTTOM_PADDING = "112px";
+const OVERLAY_CARD_BOTTOM_PADDING = "520px";
 
 interface AgentsTeamChatViewProps {
 	prompt: string;
@@ -101,16 +104,36 @@ export default function AgentsTeamChatView({
 					? "Comparing Jira work items"
 					: "Processing your request";
 
-	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isWidgetLoading;
+	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isWidgetLoading && !isStreaming;
 	const gatedShouldShowApprovalCard =
 		shouldShowApprovalCard && isPlanResponseComplete;
-	const gatedHasBottomOverlayCard =
+	const hasPendingResponseCard =
 		gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
-	const isAwaitingUserInput =
-		gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
+	const shouldCollapsePendingCard =
+		hasPendingResponseCard && showScrollButton;
+	const showQuestionCardOverlay =
+		gatedShouldShowQuestionCard && !shouldCollapsePendingCard;
+	const showApprovalCardOverlay =
+		gatedShouldShowApprovalCard && !shouldCollapsePendingCard;
+	const showBottomOverlayCard = showQuestionCardOverlay || showApprovalCardOverlay;
+	const isAwaitingUserInput = hasPendingResponseCard;
 	const chatComposerBottomPadding = queuedPrompts.length > 0
 		? CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING
 		: CHAT_COMPOSER_BASE_BOTTOM_PADDING;
+	const contentBottomPadding = showBottomOverlayCard
+		? OVERLAY_CARD_BOTTOM_PADDING
+		: hasPendingResponseCard
+			? AWAITING_INDICATOR_BOTTOM_PADDING
+			: chatComposerBottomPadding;
+	const shouldShowBottomGradient = showBottomOverlayCard || !hasPendingResponseCard;
+
+	useEffect(() => {
+		if (!showBottomOverlayCard || showScrollButton) return;
+		void conversationContextRef.current?.scrollToBottom({
+			animation: "instant",
+			ignoreEscapes: true,
+		});
+	}, [conversationContextRef, showBottomOverlayCard, showScrollButton]);
 
 	return (
 		<div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -125,7 +148,7 @@ export default function AgentsTeamChatView({
 						conversationContextRef={conversationContextRef}
 						scrollSpacerRef={scrollSpacerRef}
 						contentTopPadding="24px"
-						contentBottomPadding={gatedHasBottomOverlayCard ? "360px" : chatComposerBottomPadding}
+						contentBottomPadding={contentBottomPadding}
 						isStreaming={isStreaming}
 						streamingIndicatorVariant="reasoning-expanded"
 						thinkingLabel="Reasoning"
@@ -171,13 +194,15 @@ export default function AgentsTeamChatView({
 				</div>
 			</div>
 
-			<div
-				aria-hidden
-				className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-52"
-				style={{
-					background: `linear-gradient(to top, ${token("elevation.surface")} 28%, transparent 100%)`,
-				}}
-			/>
+			{shouldShowBottomGradient ? (
+				<div
+					aria-hidden
+					className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-52"
+					style={{
+						background: `linear-gradient(to top, ${token("elevation.surface")} 28%, transparent 100%)`,
+					}}
+				/>
+			) : null}
 
 			<div className="pointer-events-none absolute inset-x-0 bottom-8 z-20 px-4">
 				<div className="pointer-events-auto relative mx-auto w-full max-w-[800px]">
@@ -194,8 +219,9 @@ export default function AgentsTeamChatView({
 						</Button>
 					) : null}
 					<BottomOverlayContent
-						shouldShowQuestionCard={gatedShouldShowQuestionCard}
-						shouldShowApprovalCard={gatedShouldShowApprovalCard}
+						shouldShowQuestionCard={showQuestionCardOverlay}
+						shouldShowApprovalCard={showApprovalCardOverlay}
+						showComposer={!hasPendingResponseCard}
 						activeQuestionCard={activeQuestionCard}
 						activeQuestionCardKey={activeQuestionCardKey}
 						activePlanKey={activePlanKey}
@@ -217,7 +243,7 @@ export default function AgentsTeamChatView({
 			</div>
 
 			<div className="absolute inset-x-0 bottom-0 z-20 flex justify-center">
-				{gatedShouldShowQuestionCard ? (
+				{showQuestionCardOverlay ? (
 					<Footer hideIcon>
 						<span>
 							<kbd className="font-sans">↑</kbd> <kbd className="font-sans">↓</kbd> to navigate
@@ -240,6 +266,7 @@ export default function AgentsTeamChatView({
 interface BottomOverlayContentProps {
 	shouldShowQuestionCard: boolean;
 	shouldShowApprovalCard: boolean;
+	showComposer: boolean;
 	activeQuestionCard: ParsedQuestionCardPayload | null;
 	activeQuestionCardKey: string | null;
 	activePlanKey: string | null;
@@ -261,6 +288,7 @@ interface BottomOverlayContentProps {
 function BottomOverlayContent({
 	shouldShowQuestionCard,
 	shouldShowApprovalCard,
+	showComposer,
 	activeQuestionCard,
 	activeQuestionCardKey,
 	activePlanKey,
@@ -286,7 +314,6 @@ function BottomOverlayContent({
 				<ClarificationQuestionCard
 					key={activeQuestionCardKey}
 					questionCard={activeQuestionCard}
-					isSubmitting={isStreaming}
 					onSubmit={(answers) => {
 						onClarificationSubmit(answers);
 						onDismissQuestionCard();
@@ -313,7 +340,7 @@ function BottomOverlayContent({
 		);
 	}
 
-	return (
+	return showComposer ? (
 		<AgentsTeamComposer
 			prompt={prompt}
 			placeholder={modeCopy.placeholder}
@@ -326,5 +353,5 @@ function BottomOverlayContent({
 			onStop={onStop}
 			onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 		/>
-	);
+	) : null;
 }

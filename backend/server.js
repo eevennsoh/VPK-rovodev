@@ -1624,6 +1624,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 					let latestProgressivePlanFingerprint = null;
 					let hasExplicitPlanPayload = false;
 					const emittedQuestionCardToolCalls = new Set();
+					let pendingQuestionCardLoadingWidgetId = null;
 
 				const emitTextDelta = (delta) => {
 					if (!delta) {
@@ -1765,6 +1766,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 						? `request-user-input-${normalizedToolCallId}`
 						: `request-user-input-${Date.now()}`;
 					hasEmittedQuestionCard = true;
+					pendingQuestionCardLoadingWidgetId = questionCardWidgetId;
 
 					writer.write({
 						type: "data-widget-loading",
@@ -1781,15 +1783,6 @@ app.post("/api/chat-sdk", async (req, res) => {
 						data: {
 							type: CLARIFICATION_WIDGET_TYPE,
 							payload,
-						},
-					});
-
-					writer.write({
-						type: "data-widget-loading",
-						id: questionCardWidgetId,
-						data: {
-							type: CLARIFICATION_WIDGET_TYPE,
-							loading: false,
 						},
 					});
 				};
@@ -1955,6 +1948,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 									widgetType = resolvedWidgetType;
 									if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
 										hasEmittedQuestionCard = true;
+										pendingQuestionCardLoadingWidgetId = widgetId;
 									}
 									if (resolvedWidgetType === "plan") {
 										latestPlanPayload = parsedWidget;
@@ -1971,6 +1965,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 										payload: parsedWidget,
 									},
 								});
+
+									if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
+										continue;
+									}
 
 									writer.write({
 										type: "data-widget-loading",
@@ -2238,6 +2236,18 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 				if (textStarted) {
 					writer.write({ type: "text-end", id: textId });
+				}
+
+				if (pendingQuestionCardLoadingWidgetId) {
+					writer.write({
+						type: "data-widget-loading",
+						id: pendingQuestionCardLoadingWidgetId,
+						data: {
+							type: CLARIFICATION_WIDGET_TYPE,
+							loading: false,
+						},
+					});
+					pendingQuestionCardLoadingWidgetId = null;
 				}
 
 				if (!hasQueuedPrompts) {

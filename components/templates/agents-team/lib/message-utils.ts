@@ -27,6 +27,16 @@ export function hasPlanWidgetPart(message: RovoUIMessage): boolean {
 	return message.parts.some((part) => getWidgetTypeFromPart(part) === "plan");
 }
 
+export function hasQuestionCardWidgetPart(message: RovoUIMessage): boolean {
+	if (message.role !== "assistant") {
+		return false;
+	}
+
+	return message.parts.some(
+		(part) => getWidgetTypeFromPart(part) === "question-card"
+	);
+}
+
 export function hasCompleteMermaidDiagram(message: RovoUIMessage): boolean {
 	if (message.role !== "assistant") {
 		return false;
@@ -114,7 +124,11 @@ export function normalizeAgentsTeamMessages(
 			index > latestHiddenSubmissionIndex;
 		const shouldSuppressPlanText =
 			hasPlanWidgetPart(message) && !hasCompleteMermaidDiagram(message);
-		const shouldSuppressText = shouldSuppressStreamingText || shouldSuppressPlanText;
+		const shouldSuppressQuestionCardText = hasQuestionCardWidgetPart(message);
+		const shouldSuppressText =
+			shouldSuppressStreamingText ||
+			shouldSuppressPlanText ||
+			shouldSuppressQuestionCardText;
 		if (!shouldSuppressText) {
 			result.push(message);
 			return result;

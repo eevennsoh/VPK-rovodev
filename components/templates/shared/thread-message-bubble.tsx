@@ -113,9 +113,10 @@ export function ThreadMessageBubble({
 			: null;
 	const shouldRenderPlanWidgetFirst = widgetType === "plan";
 	const hasRenderedWidget = Boolean(renderedWidget);
-	const shouldRenderPlanText =
-		widgetType !== "plan" || (!isStreaming && !isWidgetLoading);
-	const shouldRenderMessageText = Boolean(messageText) && shouldRenderPlanText;
+	const shouldSuppressTextForWidget =
+		(widgetType === "plan" && (isStreaming || isWidgetLoading)) ||
+		(shouldShowWidgetSections && widgetType === "question-card" && !isStreaming);
+	const shouldRenderMessageText = Boolean(messageText) && !shouldSuppressTextForWidget;
 	const showFeedback = shouldShowFeedbackActions && !isStreaming && shouldRenderMessageText && !hasRenderedWidget;
 	const showSuggestions = shouldShowFollowUpSuggestions && !isStreaming && suggestedQuestions.length > 0 && !hasRenderedWidget;
 	const hasRenderableContent = shouldRenderMessageText ||

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { QueuedPromptItem } from "@/app/contexts";
 import Image from "next/image";
 import PromptGallery from "@/components/blocks/prompt-gallery/page";
@@ -35,11 +35,30 @@ export default function AgentsTeamInitialView({
 }: Readonly<AgentsTeamInitialViewProps>) {
 	const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
 	const [galleryExpanded, setGalleryExpanded] = useState(false);
+	const composerContainerRef = useRef<HTMLDivElement>(null);
 	const { actualTheme } = useTheme();
 	const modeCopy = getAgentTeamModeCopy(isAgentTeamMode);
 	const illustrationSrc = actualTheme === "dark"
 		? modeCopy.illustration.dark
 		: modeCopy.illustration.light;
+	const handlePromptGallerySelect = useCallback((selectedPrompt: string) => {
+		onPromptChange(selectedPrompt);
+		composerContainerRef.current?.scrollIntoView({
+			behavior: "smooth",
+			block: "start",
+		});
+		requestAnimationFrame(() => {
+			const textarea = composerContainerRef.current?.querySelector<HTMLTextAreaElement>(
+				'textarea[aria-label="Chat message input"]'
+			);
+			if (!textarea) {
+				return;
+			}
+			textarea.focus();
+			const cursorPosition = textarea.value.length;
+			textarea.setSelectionRange(cursorPosition, cursorPosition);
+		});
+	}, [onPromptChange]);
 
 	return (
 		<div className={`relative flex h-full min-h-0 flex-1 flex-col items-center px-4 pb-8 ${galleryExpanded ? "justify-start pt-16" : "justify-center"}`}>
@@ -55,7 +74,7 @@ export default function AgentsTeamInitialView({
 					<h2 style={{ font: token("font.heading.xxlarge") }} className="text-text text-center">{modeCopy.heading}</h2>
 				</div>
 
-				<div className="w-full px-1">
+				<div ref={composerContainerRef} className="w-full px-1">
 					<AgentsTeamComposer
 						prompt={prompt}
 						placeholder={previewPrompt ?? modeCopy.placeholder}
@@ -73,7 +92,7 @@ export default function AgentsTeamInitialView({
 
 				<div className="mt-3 w-full">
 					<PromptGallery
-						onSelect={(selectedPrompt) => onPromptChange(selectedPrompt)}
+						onSelect={handlePromptGallerySelect}
 						onPreviewStart={setPreviewPrompt}
 						onPreviewEnd={() => setPreviewPrompt(null)}
 						onExpandChange={setGalleryExpanded}
