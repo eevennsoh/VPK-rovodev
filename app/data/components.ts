@@ -208,6 +208,7 @@ export const UI_COMPONENTS: ComponentEntry[] = [
 	uiComponent("split-button", "Split Button"),
 	uiComponent("spinner"),
 	uiComponent("switch"),
+	uiComponent("skill-tag", "Skill Tag"),
 	uiComponent("tag"),
 	uiComponent("table"),
 	uiComponent("tabs"),
