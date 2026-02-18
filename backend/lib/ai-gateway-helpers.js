@@ -8,11 +8,6 @@ function debugLog(section, message, data) {
 	}
 }
 
-const DEFAULT_MODELS = {
-	bedrock: "anthropic.claude-3-5-haiku-20241022-v1:0",
-	openai: "gpt-5.2-2025-12-11",
-	google: "gemini-3-pro-image-preview",
-};
 
 function getEnvVars() {
 	return {
@@ -21,16 +16,15 @@ function getEnvVars() {
 		AI_GATEWAY_USE_CASE_ID: process.env.AI_GATEWAY_USE_CASE_ID,
 		AI_GATEWAY_CLOUD_ID: process.env.AI_GATEWAY_CLOUD_ID,
 		AI_GATEWAY_USER_ID: process.env.AI_GATEWAY_USER_ID,
+		OPENAI_MODEL: process.env.OPENAI_MODEL,
+		GOOGLE_IMAGE_MODEL: process.env.GOOGLE_IMAGE_MODEL,
+		GOOGLE_TTS_MODEL: process.env.GOOGLE_TTS_MODEL,
 	};
 }
 
 function base64UrlEncode(value) {
 	const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
-	return buffer
-		.toString("base64")
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=+$/g, "");
+	return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 function signJwtRs256(payload, privateKey, kid) {
@@ -126,20 +120,6 @@ function detectEndpointType(url) {
 	return "openai";
 }
 
-function getModelId(gatewayUrl) {
-	const withSuffix = /\/v1\/google\/v1\/publishers\/[^/]+\/models\/(.+):streamRawPredict/;
-	const withoutSuffix = /\/v1\/google\/v1\/publishers\/[^/]+\/models\/(.+?)$/;
-	const urlsToCheck = [gatewayUrl, process.env.AI_GATEWAY_URL, process.env.AI_GATEWAY_URL_GOOGLE];
-	for (const url of urlsToCheck) {
-		const match = url?.match?.(withSuffix) || url?.match?.(withoutSuffix);
-		if (match) {
-			return match[1];
-		}
-	}
-
-	const endpointType = detectEndpointType(gatewayUrl);
-	return DEFAULT_MODELS[endpointType] || DEFAULT_MODELS.openai;
-}
 
 function getGatewayHeaders(envVars, token, stream = false) {
 	const headers = {
@@ -178,8 +158,8 @@ function translateGoogleUrl(gatewayUrl) {
 	if (publisher === "anthropic") {
 		console.warn(
 			`[AI_GATEWAY] Claude model "${model}" detected on Google endpoint. ` +
-			`Routing to Bedrock instead. For Claude models, use: ` +
-			`AI_GATEWAY_URL=...v1/bedrock/model/${model}/invoke-with-response-stream`
+				`Routing to Bedrock instead. For Claude models, use: ` +
+				`AI_GATEWAY_URL=...v1/bedrock/model/${model}/invoke-with-response-stream`,
 		);
 		return `${baseUrl}/provider/bedrock/format/openai/v1/chat/completions`;
 	}
@@ -260,8 +240,7 @@ function extractGatewayImageData(parsedChunk) {
 }
 
 function extractGatewayTextDelta(parsedChunk) {
-	const content =
-		parsedChunk?.delta?.text ?? parsedChunk?.choices?.[0]?.delta?.content ?? null;
+	const content = parsedChunk?.delta?.text ?? parsedChunk?.choices?.[0]?.delta?.content ?? null;
 	if (Array.isArray(content)) {
 		const textParts = content
 			.filter((part) => part?.type === "text" && typeof part.text === "string")
@@ -272,15 +251,7 @@ function extractGatewayTextDelta(parsedChunk) {
 	return typeof content === "string" ? content : null;
 }
 
-async function streamBedrockGatewayManualSse({
-	gatewayUrl,
-	envVars,
-	system,
-	prompt,
-	messages,
-	maxOutputTokens,
-	onTextDelta,
-}) {
+async function streamBedrockGatewayManualSse({ gatewayUrl, envVars, system, prompt, messages, maxOutputTokens, onTextDelta }) {
 	const token = await getAuthToken();
 
 	const resolvedMessages = [];
@@ -378,18 +349,7 @@ async function streamBedrockGatewayManualSse({
 	return { text: fullText };
 }
 
-async function streamGoogleGatewayManualSse({
-	gatewayUrl,
-	envVars,
-	model,
-	messages,
-	system,
-	prompt,
-	maxOutputTokens,
-	temperature,
-	onTextDelta,
-	onFile,
-}) {
+async function streamGoogleGatewayManualSse({ gatewayUrl, envVars, model, messages, system, prompt, maxOutputTokens, temperature, onTextDelta, onFile }) {
 	const token = await getAuthToken();
 
 	const resolvedMessages = [];
@@ -500,11 +460,9 @@ async function streamGoogleGatewayManualSse({
 }
 
 module.exports = {
-	DEFAULT_MODELS,
 	getEnvVars,
 	getAuthToken,
 	detectEndpointType,
-	getModelId,
 	getGatewayHeaders,
 	resolveGatewayUrl,
 	resolveBaseURL,

@@ -123,7 +123,7 @@ export default function SoundGenerationDemo(): React.ReactElement {
 		addLog("info", `Sending input (${input.trim().length} chars)`);
 		addLog(
 			"info",
-			"POST /api/sound-generation (provider: google, model: tts-latest)"
+			"POST /api/sound-generation (provider: google, model: tts-latest → resolved from GOOGLE_TTS_MODEL)"
 		);
 
 		try {

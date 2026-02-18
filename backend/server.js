@@ -31,7 +31,6 @@ const { createRovoDevPool } = require("./lib/rovodev-pool");
 const {
 	getEnvVars,
 	detectEndpointType,
-	getModelId,
 	resolveGatewayUrl,
 	streamBedrockGatewayManualSse,
 	streamGoogleGatewayManualSse,
@@ -380,6 +379,7 @@ async function streamTextViaAIGateway({
 	maxOutputTokens = 2000,
 	temperature = 1,
 	provider,
+	model,
 	gatewayUrl,
 	onTextDelta,
 	onFile,
@@ -409,10 +409,11 @@ async function streamTextViaAIGateway({
 		});
 	}
 
+	const fallbackModel = endpointType === "openai" ? envVars.OPENAI_MODEL : envVars.GOOGLE_IMAGE_MODEL;
 	return streamGoogleGatewayManualSse({
 		gatewayUrl: resolvedGatewayUrl,
 		envVars,
-		model: getModelId(resolvedGatewayUrl),
+		model: typeof model === "string" && model.trim() ? model.trim() : fallbackModel,
 		system: typeof system === "string" ? system : undefined,
 		prompt: typeof prompt === "string" ? prompt : undefined,
 		messages,
@@ -2362,6 +2363,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 			messages,
 			contextDescription: rawContextDescription,
 			provider,
+			model: rawModel,
 			agentTeamMode: rawAgentTeamMode,
 			agentTeamRequestId,
 			creationMode,
@@ -2472,11 +2474,11 @@ app.post("/api/chat-sdk", async (req, res) => {
 						writer.write({ type: "text-delta", id: textId, delta });
 					};
 
-					await streamGoogleGatewayManualSse({
-						gatewayUrl: resolvedGatewayUrl,
-						envVars: ENV_VARS,
-						model: getModelId(resolvedGatewayUrl),
-						prompt: userMessageText,
+				await streamGoogleGatewayManualSse({
+					gatewayUrl: resolvedGatewayUrl,
+					envVars: ENV_VARS,
+					model: typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : ENV_VARS.GOOGLE_IMAGE_MODEL,
+					prompt: userMessageText,
 						maxOutputTokens: 2000,
 						temperature: 1,
 						onTextDelta: emitTextDelta,
@@ -2536,14 +2538,15 @@ app.post("/api/chat-sdk", async (req, res) => {
 						writer.write({ type: "text-delta", id: textId, delta });
 					};
 
-					await streamTextViaAIGateway({
-						prompt: userMessageText,
-						maxOutputTokens: 2000,
-						temperature: 1,
-						provider: typeof provider === "string" ? provider : undefined,
-						onTextDelta: emitTextDelta,
-						onFile: ({ mediaType, base64 }) => {
-							if (typeof base64 !== "string" || base64.length === 0) {
+				await streamTextViaAIGateway({
+					prompt: userMessageText,
+					maxOutputTokens: 2000,
+					temperature: 1,
+					provider: typeof provider === "string" ? provider : undefined,
+					model: typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : undefined,
+					onTextDelta: emitTextDelta,
+					onFile: ({ mediaType, base64 }) => {
+						if (typeof base64 !== "string" || base64.length === 0) {
 								return;
 							}
 
@@ -3235,14 +3238,15 @@ app.post("/api/chat-sdk", async (req, res) => {
 							data: { label: "Switching to AI Gateway" },
 						});
 						rovoDevFellBackToGateway = true;
-						await streamTextViaAIGateway({
-							prompt: userMessageText,
-							maxOutputTokens: 2000,
-							temperature: 1,
-							provider: typeof provider === "string" ? provider : undefined,
-							onTextDelta: handleStreamTextDelta,
-							onFile: ({ mediaType, base64 }) => {
-								if (typeof base64 !== "string" || base64.length === 0) {
+					await streamTextViaAIGateway({
+						prompt: userMessageText,
+						maxOutputTokens: 2000,
+						temperature: 1,
+						provider: typeof provider === "string" ? provider : undefined,
+						model: typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : undefined,
+						onTextDelta: handleStreamTextDelta,
+						onFile: ({ mediaType, base64 }) => {
+							if (typeof base64 !== "string" || base64.length === 0) {
 									return;
 								}
 								const resolvedMediaType =

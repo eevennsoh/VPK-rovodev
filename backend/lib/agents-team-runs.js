@@ -1857,12 +1857,11 @@ function createRunManager(options) {
 		}
 
 		try {
-			const synthesisResult = await synthesizeSound({
-				input: speechInput,
-				provider: "google",
-				model: "tts-latest",
-				responseFormat: "mp3",
-			});
+		const synthesisResult = await synthesizeSound({
+			input: speechInput,
+			provider: "google",
+			responseFormat: "mp3",
+		});
 			return synthesisResult;
 		} catch (error) {
 			logger.warn?.("[AGENTS-RUN] Audio summary synthesis failed", error);

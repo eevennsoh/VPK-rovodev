@@ -27,9 +27,10 @@ import SmartLinkEmbedIcon from "@atlaskit/icon/core/smart-link-embed";
 
 interface ChatHeaderProps {
 	onClose?: () => void;
+	onNewChat?: () => void;
 }
 
-export default function ChatHeader({ onClose }: Readonly<ChatHeaderProps>) {
+export default function ChatHeader({ onClose, onNewChat }: Readonly<ChatHeaderProps>) {
 	const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
 	// No-op handlers for visual-only buttons
@@ -61,7 +62,7 @@ export default function ChatHeader({ onClose }: Readonly<ChatHeaderProps>) {
 
 				{/* Right side: Chat actions */}
 				<div className="flex items-center gap-1">
-					<Button aria-label="New chat" size="icon" variant="ghost" onClick={noop}>
+					<Button aria-label="New chat" size="icon" variant="ghost" onClick={onNewChat ?? noop}>
 						<EditIcon label="" />
 					</Button>
 					<Button aria-label="Switch view" size="icon" variant="ghost" onClick={noop}>

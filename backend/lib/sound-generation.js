@@ -141,10 +141,13 @@ async function synthesizeSound({
 	const normalizedRequestedModel = getNonEmptyString(model);
 	const normalizedRequestedProvider = getNonEmptyString(provider);
 
-	if (normalizedRequestedModel && normalizedRequestedModel !== "tts-latest") {
+	const envVars = getEnvVars();
+	const configuredModel = getNonEmptyString(envVars.GOOGLE_TTS_MODEL) || "tts-latest";
+
+	if (normalizedRequestedModel && normalizedRequestedModel !== configuredModel) {
 		throw createHttpError(
 			400,
-			"Sound generation only supports Google tts-latest in this endpoint."
+			`Sound generation only supports model: ${configuredModel} in this endpoint.`
 		);
 	}
 
@@ -173,7 +176,6 @@ async function synthesizeSound({
 	};
 	const resolvedAudioEncoding = audioEncodingByFormat[normalizedFormat] || "MP3";
 
-	const envVars = getEnvVars();
 	const rawGatewayUrl = envVars.AI_GATEWAY_URL_GOOGLE || envVars.AI_GATEWAY_URL;
 	if (!rawGatewayUrl) {
 		throw createHttpError(500, "Server configuration error");
@@ -184,7 +186,7 @@ async function synthesizeSound({
 	if (endpointType !== "google") {
 		throw createHttpError(
 			400,
-			"Sound generation is configured to use Google TTS (tts-latest). Set AI_GATEWAY_URL_GOOGLE to a Google endpoint."
+			`Sound generation is configured to use Google TTS (${configuredModel}). Set AI_GATEWAY_URL_GOOGLE to a Google endpoint.`
 		);
 	}
 
@@ -257,7 +259,7 @@ async function synthesizeSound({
 		audioBytes,
 		contentType,
 		extension,
-		model: "tts-latest",
+		model: configuredModel,
 		provider: "google",
 		languageCode: normalizedLanguageCode,
 		voice: normalizedVoice || null,

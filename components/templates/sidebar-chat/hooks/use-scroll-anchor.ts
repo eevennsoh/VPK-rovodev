@@ -69,6 +69,9 @@ export function useScrollAnchor({
 				"[data-chat-latest-turn='true']"
 			);
 			if (!latestTurnElement) {
+				if (scrollSpacerRef.current) {
+					scrollSpacerRef.current.style.height = "0px";
+				}
 				return defaultTargetTop;
 			}
 

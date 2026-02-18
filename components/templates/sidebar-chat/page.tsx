@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useRef, useState } from "react";
 
 import ChatHeader from "./components/chat-header";
 import ChatGreeting from "./components/chat-greeting";
@@ -16,6 +16,7 @@ import type { RovoSuggestion } from "@/lib/rovo-suggestions";
 import { Message, MessageContent } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import { chatStyles } from "./data/styles";
+import { useRovoChat } from "@/app/contexts";
 import { useChatSubmit } from "./hooks/use-chat-submit";
 import { useScrollAnchor } from "./hooks/use-scroll-anchor";
 import styles from "./chat.module.css";
@@ -25,6 +26,7 @@ interface ChatPanelProps {
 }
 
 export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.ReactElement {
+	const { resetChat } = useRovoChat();
 	const {
 		prompt,
 		setPrompt,
@@ -46,6 +48,9 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 		scrollSpacerRef,
 		getLatestTurnTargetTop,
 	} = useScrollAnchor({ uiMessages });
+	const headerRef = useRef<HTMLDivElement>(null);
+	const composerRef = useRef<HTMLDivElement>(null);
+	const [emptyStateOffset, setEmptyStateOffset] = useState(0);
 
 	useEffect(() => {
 		return () => abort();
@@ -68,16 +73,69 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 		[submitPrompt]
 	);
 
+	useEffect(() => {
+		if (hasMessages) {
+			return;
+		}
+
+		const headerElement = headerRef.current;
+		const composerElement = composerRef.current;
+		if (!headerElement || !composerElement) {
+			return;
+		}
+
+		const measureOffset = () => {
+			const headerHeight = headerElement.getBoundingClientRect().height;
+			const composerHeight = composerElement.getBoundingClientRect().height;
+			const nextOffset = Math.max(0, Math.min(48, (composerHeight - headerHeight) / 2));
+
+			setEmptyStateOffset((previousOffset) =>
+				Math.abs(previousOffset - nextOffset) < 1 ? previousOffset : nextOffset
+			);
+		};
+
+		const measureOffsetNextFrame = () => {
+			window.requestAnimationFrame(measureOffset);
+		};
+
+		measureOffsetNextFrame();
+		const resizeObserver = new ResizeObserver(measureOffset);
+		resizeObserver.observe(headerElement);
+		resizeObserver.observe(composerElement);
+		window.addEventListener("resize", measureOffsetNextFrame);
+
+		return () => {
+			resizeObserver.disconnect();
+			window.removeEventListener("resize", measureOffsetNextFrame);
+		};
+	}, [hasMessages]);
+
+	const emptyStateStyle = useMemo(
+		() => ({
+			...chatStyles.emptyState,
+			transform:
+				!hasMessages && emptyStateOffset > 0
+					? `translateY(${Math.round(emptyStateOffset)}px)`
+					: undefined,
+		}),
+		[emptyStateOffset, hasMessages]
+	);
+
 	const messagesContainerStyle = {
 		...chatStyles.messagesContainer,
-		justifyContent: hasMessages ? "flex-start" : "flex-end",
+		justifyContent: hasMessages ? "flex-start" : "center",
 		flex: hasMessages ? "0 0 auto" : chatStyles.messagesContainer.flex,
-		minHeight: hasMessages ? "100%" : undefined,
+		minHeight: "100%",
+		paddingBottom: hasMessages
+			? chatStyles.messagesContainer.paddingBottom
+			: chatStyles.messagesContainer.padding,
 	};
 
 	return (
 		<div style={chatStyles.chatPanel}>
-			<ChatHeader onClose={onClose} />
+			<div ref={headerRef}>
+				<ChatHeader onClose={onClose} onNewChat={resetChat} />
+			</div>
 
 			<Conversation
 				className="min-h-0 flex-1"
@@ -87,7 +145,7 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 			>
 				<ConversationContent className="gap-0 p-0" style={messagesContainerStyle}>
 					{messages.length === 0 ? (
-						<div style={chatStyles.emptyState}>
+						<div style={emptyStateStyle}>
 							<ChatGreeting onSuggestionClick={handleGreetingSuggestionClick} />
 						</div>
 					) : (
@@ -121,19 +179,23 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 							</MessageContent>
 						</Message>
 					) : null}
-					<div ref={scrollSpacerRef} aria-hidden style={{ height: 0, flexShrink: 0 }} />
+					{hasMessages ? (
+						<div ref={scrollSpacerRef} aria-hidden style={{ height: 0, flexShrink: 0 }} />
+					) : null}
 				</ConversationContent>
 			</Conversation>
 
-			<ChatComposer
-				prompt={prompt}
-				isStreaming={isStreaming}
-				queuedPrompts={queuedPrompts}
-				onPromptChange={setPrompt}
-				onSubmit={handleSubmit}
-				onStop={abort}
-				onRemoveQueuedPrompt={removeQueuedPrompt}
-			/>
+			<div ref={composerRef}>
+				<ChatComposer
+					prompt={prompt}
+					isStreaming={isStreaming}
+					queuedPrompts={queuedPrompts}
+					onPromptChange={setPrompt}
+					onSubmit={handleSubmit}
+					onStop={abort}
+					onRemoveQueuedPrompt={removeQueuedPrompt}
+				/>
+			</div>
 		</div>
 	);
 }

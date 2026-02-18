@@ -51,7 +51,7 @@ export default function ChatComposer({ prompt, isStreaming, queuedPrompts, onPro
 	const [isCustomizeMenuOpen, setIsCustomizeMenuOpen] = useState(false);
 
 	return (
-		<div className="px-1">
+		<div className="px-3">
 			<div className="rounded-xl border border-border bg-surface px-4 pb-3 pt-4" style={{ boxShadow: composerUpwardShadow }}>
 				<PromptInput onSubmit={onSubmit} className={`${composerPromptInputClassName} relative z-10`}>
 					{queuedPrompts.length > 0 ? (

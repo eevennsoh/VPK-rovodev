@@ -1,6 +1,10 @@
 # AI Model Switching Guide
 
-This guide explains how to switch between Claude (Bedrock), GPT, and Gemini (Google) models in VPK, and how to verify TTS model routing.
+> **Applies to: AI Gateway fallback mode only.**
+> Model switching via `.env.local` has no effect in RovoDev mode — RovoDev Serve manages its own model internally.
+> To enable AI Gateway fallback, set `AUTO_FALLBACK_TO_AI_GATEWAY=true` in `.env.local`.
+
+This guide explains how to switch between Claude (Bedrock), GPT, and Gemini (Google) models in VPK when running in AI Gateway fallback mode, and how to verify TTS model routing.
 
 ---
 
@@ -8,7 +12,7 @@ This guide explains how to switch between Claude (Bedrock), GPT, and Gemini (Goo
 
 | Provider | Model ID | Endpoint Path |
 |----------|----------|---------------|
-| **Claude (Default)** | `anthropic.claude-3-5-haiku-20241022-v1:0` | `/v1/bedrock/model/{MODEL_ID}/invoke-with-response-stream` |
+| **Claude (Default)** | `anthropic.claude-haiku-4-5-20251001-v1:0` | `/v1/bedrock/model/{MODEL_ID}/invoke-with-response-stream` |
 | **GPT** | `gpt-5.2-2025-12-11` | `/v1/openai/v1/chat/completions` |
 | **Gemini (Google)** | `gemini-3-pro-image-preview` | `/v1/google/publishers/google/v1/chat/completions` |
 | **TTS (Audio Speech)** | `tts-latest` | `/v1/google/v1/text:synthesize` (when model maps to `vendor: GOOGLE`) |
@@ -48,7 +52,7 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publi
 Edit `.env.local` and change `AI_GATEWAY_URL` to:
 
 ```bash
-AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-3-5-haiku-20241022-v1:0/invoke-with-response-stream
+AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-haiku-4-5-20251001-v1:0/invoke-with-response-stream
 ```
 
 ### Step 3: Restart Dev Servers
@@ -120,13 +124,13 @@ Expected payload shape for Google synth is not chat-completions. It uses nested 
 
 ---
 
-## Default Configuration
+## Default Configuration (AI Gateway Fallback Mode)
 
-By default, VPK uses **Claude via Bedrock**:
+By default, VPK uses **Claude via Bedrock** when AI Gateway is active:
 
 ```bash
 # .env.local (default - Claude)
-AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-3-5-haiku-20241022-v1:0/invoke-with-response-stream
+AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-haiku-4-5-20251001-v1:0/invoke-with-response-stream
 ```
 
 ---
@@ -135,7 +139,7 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/mode
 
 ```javascript
 const DEFAULT_MODELS = {
-  bedrock: "anthropic.claude-3-5-haiku-20241022-v1:0",  // Claude - model ID in URL
+  bedrock: "anthropic.claude-haiku-4-5-20251001-v1:0",  // Claude - model ID in URL
   openai: "gpt-5.2-2025-12-11",                         // GPT - model ID in payload
   google: "gemini-3-pro-image-preview",                 // Gemini - supports image generation
 };
@@ -161,7 +165,7 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/mode
 
 ```javascript
 const DEFAULT_MODELS = {
-  bedrock: "anthropic.claude-3-5-haiku-20241022-v1:0",
+  bedrock: "anthropic.claude-haiku-4-5-20251001-v1:0",
   openai: "gpt-4.1-2025-04-14",  // Change to your preferred GPT model
 };
 ```
@@ -192,7 +196,7 @@ Provider mappings can vary by environment, so treat Atlas CLI output as the sour
 ### Common Models
 
 **Claude (Bedrock):**
-- `anthropic.claude-3-5-haiku-20241022-v1:0` (fast, cheap)
+- `anthropic.claude-haiku-4-5-20251001-v1:0` (fast, cheap)
 - `anthropic.claude-3-5-sonnet-20241022-v2:0` (balanced)
 - `anthropic.claude-sonnet-4-20250514-v1:0` (latest)
 
@@ -257,7 +261,7 @@ If Bedrock still fails after the fix, verify principal/model access with:
 
 ```bash
 atlas ml aigateway usecase view --id YOUR-USE-CASE-ID -e stg-east --active
-atlas ml aigateway model view --modelId anthropic.claude-3-5-haiku-20241022-v1:0
+atlas ml aigateway model view --modelId anthropic.claude-haiku-4-5-20251001-v1:0
 ```
 
 ### Changes not taking effect

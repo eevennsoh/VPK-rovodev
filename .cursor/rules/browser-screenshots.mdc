@@ -1,0 +1,15 @@
+---
+description: Keep browser screenshots out of the workspace root
+alwaysApply: true
+---
+
+# Browser Screenshot Path
+
+When calling `browser_take_screenshot`, always specify the `filename` parameter with a path inside `/Users/esoh/Documents/Labs/VPK-rovodev/output/`. Choose a descriptive filename and subfolder structure that fits the context.
+
+**Never** omit the `filename` parameter — the default saves `page-{timestamp}.png` into the current working directory, scattering files across the workspace root.
+
+Examples:
+- `/Users/esoh/Documents/Labs/VPK-rovodev/output/agents-team-light.png`
+- `/Users/esoh/Documents/Labs/VPK-rovodev/output/dark-mode-check.png`
+- `/Users/esoh/Documents/Labs/VPK-rovodev/output/screenshot-2026-02-19T12-00-00.png`

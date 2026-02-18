@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,7 +134,11 @@ export function AppSidebar({
 								<SidebarExpandIcon label="" />
 							</Button>
 						</div>
-						<div className="flex items-center gap-2 p-1">
+						<Link
+							href="/agents-team"
+							className="flex items-center gap-2 rounded-md p-1 text-text no-underline transition-colors hover:bg-surface-hovered hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focused"
+							aria-label="Go to agents team"
+						>
 							<Image src="/1p/rovo.svg" alt="" width={20} height={20} aria-hidden />
 							<span
 								style={{ font: token("font.heading.xsmall") }}
@@ -141,7 +146,7 @@ export function AppSidebar({
 							>
 								Rovo
 							</span>
-						</div>
+						</Link>
 					</div>
 					<div className="flex items-center text-icon-subtle">
 						<ThemeToggle />
