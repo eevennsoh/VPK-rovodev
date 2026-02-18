@@ -2847,6 +2847,34 @@ const steps: ProgressTrackerStep[] = [
 		],
 	},
 
+	"skill-tag": {
+		description: "Skewed parallelogram-shaped tag for displaying AI skill references inline. Features a colored slash bar on the left edge, optional icon, and counter-skewed content.",
+		usage: `import { SkillTag, SkillTagGroup } from "@/components/ui/skill-tag"
+import SearchIcon from "@atlaskit/icon/core/search"
+
+<SkillTag icon={<SearchIcon label="" size="small" />} color="blue">
+  Search
+</SkillTag>`,
+		props: [
+			{
+				name: "color",
+				type: '"blue" | "green" | "red" | "yellow" | "purple" | "teal"',
+				default: '"blue"',
+				description: "Color of the left slash bar. Maps to ADS border tokens (brand, success, danger, warning, discovery, information).",
+			},
+			{ name: "icon", type: "ReactNode", description: "Icon rendered before the label (12px, counter-skewed to remain upright)." },
+			{ name: "onClick", type: "(e: MouseEvent) => void", description: "Click handler. When provided, adds hover/active states and pointer cursor." },
+		],
+		examples: [
+			{ title: "Default", demoSlug: "skill-tag-demo-default" },
+			{ title: "Colors", description: "All 6 color variants.", demoSlug: "skill-tag-demo-colors" },
+			{ title: "With icon", description: "Tags with ADS icons.", demoSlug: "skill-tag-demo-with-icon" },
+			{ title: "Interactive", description: "Clickable tags with hover/active states.", demoSlug: "skill-tag-demo-interactive" },
+			{ title: "Group", description: "SkillTagGroup for organizing multiple tags.", demoSlug: "skill-tag-demo-group" },
+			{ title: "Inline", description: "Tags inline with text.", demoSlug: "skill-tag-demo-inline" },
+		],
+	},
+
 	tag: {
 		description: "Categorization label with optional remove button and AvatarTag support. Maps to @atlaskit/tag (Tag + AvatarTag examples).",
 		adsUrl: "https://atlassian.design/components/tag/tag",

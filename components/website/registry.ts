@@ -75,6 +75,7 @@ const UI_DEMO: Record<string, ComponentType> = {
 	"progress-tracker": dynamic(() => import("./demos/ui/progress-tracker-demo"), { ssr: false }),
 	radio: dynamic(() => import("./demos/ui/radio-group-demo"), { ssr: false }),
 	"split-button": dynamic(() => import("./demos/ui/split-button-demo"), { ssr: false }),
+	"skill-tag": dynamic(() => import("./demos/ui/skill-tag-demo"), { ssr: false }),
 	tag: dynamic(() => import("./demos/ui/tag-demo"), { ssr: false }),
 
 	"time-picker": dynamic(() => import("./demos/ui/time-picker-demo"), { ssr: false }),
@@ -862,6 +863,13 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"split-button-demo-destructive": dynamic(() => import("./demos/ui/split-button-demo").then((mod) => ({ default: mod.SplitButtonDemoDestructive })), { ssr: false }),
 	"split-button-demo-disabled": dynamic(() => import("./demos/ui/split-button-demo").then((mod) => ({ default: mod.SplitButtonDemoDisabled })), { ssr: false }),
 	"split-button-demo-variants": dynamic(() => import("./demos/ui/split-button-demo").then((mod) => ({ default: mod.SplitButtonDemoVariants })), { ssr: false }),
+	// Skill Tag
+	"skill-tag-demo-default": dynamic(() => import("./demos/ui/skill-tag-demo").then((mod) => ({ default: mod.SkillTagDemoDefault })), { ssr: false }),
+	"skill-tag-demo-colors": dynamic(() => import("./demos/ui/skill-tag-demo").then((mod) => ({ default: mod.SkillTagDemoColors })), { ssr: false }),
+	"skill-tag-demo-with-icon": dynamic(() => import("./demos/ui/skill-tag-demo").then((mod) => ({ default: mod.SkillTagDemoWithIcon })), { ssr: false }),
+	"skill-tag-demo-interactive": dynamic(() => import("./demos/ui/skill-tag-demo").then((mod) => ({ default: mod.SkillTagDemoInteractive })), { ssr: false }),
+	"skill-tag-demo-group": dynamic(() => import("./demos/ui/skill-tag-demo").then((mod) => ({ default: mod.SkillTagDemoGroup })), { ssr: false }),
+	"skill-tag-demo-inline": dynamic(() => import("./demos/ui/skill-tag-demo").then((mod) => ({ default: mod.SkillTagDemoInline })), { ssr: false }),
 	// Tag
 	"tag-demo-default": dynamic(() => import("./demos/ui/tag-demo").then((mod) => ({ default: mod.TagDemoDefault })), { ssr: false }),
 	"tag-demo-removable": dynamic(() => import("./demos/ui/tag-demo").then((mod) => ({ default: mod.TagDemoRemovable })), { ssr: false }),
