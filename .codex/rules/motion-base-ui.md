@@ -1,17 +1,10 @@
----
-description: Animating Base UI components with Motion for React
-globs: *.tsx, *.jsx
-alwaysApply: false
----
-
 # Animating Base UI with Motion for React
 
 When creating a Base UI animation using Motion for React, pass a `motion` component via the Base UI render prop:
 
 ```jsx
 <Menu.Popup
-  render={
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} // etc
+  render={\n      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} // etc
 ```
 
 Don't use the function/spread props approach as this will cause type errors.

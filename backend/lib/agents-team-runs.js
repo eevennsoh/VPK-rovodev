@@ -20,7 +20,8 @@ const FAILURE_TASK_STATUSES = new Set(["failed", "blocked-failed"]);
 const RUN_STATUS_RUNNING = "running";
 const RUN_STATUS_COMPLETED = "completed";
 const RUN_STATUS_FAILED = "failed";
-const DEFAULT_MAX_CONCURRENT_AGENTS = 6;
+const DEFAULT_MAX_CONCURRENT_AGENTS =
+	getPositiveInteger(process.env.ROVODEV_POOL_SIZE) || 6;
 const MAX_RUN_LIST_LIMIT = 50;
 const STREAMING_UPDATE_CHUNK_SIZE = 120;
 const STREAMING_UPDATE_MAX_CONTENT_CHARS = 8000;
@@ -1550,9 +1551,14 @@ function createRunManager(options) {
 		);
 		const taskSystemPrompt =
 			"You are an expert execution agent. Produce practical markdown output for the assigned task.";
-		// Task-grid execution always routes through AI Gateway so tasks can run in parallel.
-		// RovoDev is reserved for post-batch synthesis steps (for example visual summary generation).
-		const provider = "ai-gateway";
+		// Route through RovoDev when pool is available, fall back to AI Gateway
+		let rovodevReady = false;
+		try {
+			rovodevReady = await isRovoDevAvailable();
+		} catch {
+			// Ignore availability check errors — fall back to AI Gateway
+		}
+		const provider = rovodevReady ? "rovodev" : "ai-gateway";
 
 		let output = "";
 		let pendingStreamChunk = "";

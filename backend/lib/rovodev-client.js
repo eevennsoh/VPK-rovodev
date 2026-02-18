@@ -29,8 +29,9 @@ function getPort() {
 	return DEFAULT_PORT;
 }
 
-function getBaseUrl() {
-	return `http://127.0.0.1:${getPort()}`;
+function getBaseUrlForPort(port) {
+	const resolvedPort = typeof port === "number" && port > 0 ? port : getPort();
+	return `http://127.0.0.1:${resolvedPort}`;
 }
 
 function parseToolInputValue(value) {
@@ -208,9 +209,10 @@ function extractChunkFromEvent(eventName, parsed) {
 /**
  * Make a JSON request to the RovoDev serve API.
  */
-function request(method, path, body, timeoutMs = 10000) {
+function request(method, path, body, timeoutMs = 10000, port) {
 	return new Promise((resolve, reject) => {
-		const url = new URL(path, getBaseUrl());
+		const resolvedPort = typeof port === "number" && port > 0 ? port : getPort();
+		const url = new URL(path, `http://127.0.0.1:${resolvedPort}`);
 		const options = {
 			hostname: url.hostname,
 			port: url.port,
@@ -234,7 +236,7 @@ function request(method, path, body, timeoutMs = 10000) {
 			reject(new Error("Request timed out"));
 		});
 		req.on("error", (err) => {
-			reject(new Error(`RovoDev connection failed: ${err.message}. Is "rovodev serve" running on port ${getPort()}?`));
+			reject(new Error(`RovoDev connection failed: ${err.message}. Is "rovodev serve" running on port ${resolvedPort}?`));
 		});
 
 		if (body) {
@@ -251,8 +253,8 @@ function request(method, path, body, timeoutMs = 10000) {
  * Note: The healthcheck endpoint may return 401/403 (missing credentials) which is OK -
  * it means the server is running and reachable.
  */
-async function healthCheck() {
-	const { status, data } = await request("GET", "/healthcheck");
+async function healthCheck(port) {
+	const { status, data } = await request("GET", "/healthcheck", undefined, 10000, port);
 	if (status !== 200 && status !== 401 && status !== 403) {
 		throw new Error(`Health check failed with status ${status}: ${data}`);
 	}
@@ -289,7 +291,7 @@ async function getStatus() {
  * @param {function} [callbacks.onEvent] - Optional raw SSE event callback
  * @returns {{ abort: () => void }}
  */
-function sendMessageStreaming(message, callbacks) {
+function sendMessageStreaming(message, callbacks, port) {
 	let aborted = false;
 	let currentReq = null;
 
@@ -301,7 +303,8 @@ function sendMessageStreaming(message, callbacks) {
 				"POST",
 				"/v3/set_chat_message",
 				{ message },
-				30000
+				30000,
+				port
 			);
 			if (setStatus !== 200) {
 				throw new Error(`Failed to queue message (status ${setStatus}): ${setData}`);
@@ -312,7 +315,7 @@ function sendMessageStreaming(message, callbacks) {
 
 			// Step 2: Stream the response via SSE
 			console.log("[rovodev] Opening SSE stream via /v3/stream_chat...");
-			const url = new URL("/v3/stream_chat", getBaseUrl());
+			const url = new URL("/v3/stream_chat", getBaseUrlForPort(port));
 			let fullText = "";
 
 			await new Promise((resolve, reject) => {
@@ -430,7 +433,7 @@ function sendMessageStreaming(message, callbacks) {
 				currentReq.destroy();
 			}
 			// Also try to cancel on the server side
-			request("POST", "/v3/cancel").catch(() => {
+			request("POST", "/v3/cancel", undefined, 10000, port).catch(() => {
 				// Ignore cancel errors
 			});
 		},
@@ -449,6 +452,7 @@ function sendMessageSync(message, options = {}) {
 		typeof options.timeoutMs === "number" && options.timeoutMs > 0
 			? options.timeoutMs
 			: 120_000;
+	const port = typeof options.port === "number" && options.port > 0 ? options.port : undefined;
 
 	return new Promise((resolve, reject) => {
 		let fullText = "";
@@ -481,7 +485,7 @@ function sendMessageSync(message, options = {}) {
 			onError: (err) => {
 				rejectOnce(err);
 			},
-		});
+		}, port);
 
 		timeoutHandle = setTimeout(() => {
 			streamHandle.abort();
@@ -497,8 +501,8 @@ function sendMessageSync(message, options = {}) {
 /**
  * Cancel an ongoing chat operation.
  */
-async function cancelChat() {
-	await request("POST", "/v3/cancel");
+async function cancelChat(port) {
+	await request("POST", "/v3/cancel", undefined, 10000, port);
 }
 
 /**

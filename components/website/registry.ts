@@ -1223,6 +1223,7 @@ export function getChartDemoComponent(slug: string): ComponentType | null {
 
 const UTILITY_DEMOS: Record<string, ComponentType> = {
 	"image-generation": dynamic(() => import("./demos/utility/image-generation-demo"), { ssr: false }),
+	multiports: dynamic(() => import("./demos/utility/multiports-demo"), { ssr: false }),
 	"sound-generation": dynamic(() => import("./demos/utility/sound-generation-demo"), { ssr: false }),
 	streamdown: dynamic(() => import("./demos/utility/streamdown-demo"), { ssr: false }),
 	"ui-generation": dynamic(() => import("./demos/utility/ui-generation-demo"), { ssr: false }),

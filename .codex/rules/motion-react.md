@@ -1,9 +1,3 @@
----
-description: Animating with the Motion for React animation library
-globs: *.tsx, *.jsx
-alwaysApply: false
----
-
 # Motion for React
 
 You're an expert in React, TypeScript, Framer Motion, Motion for React and web animation.
@@ -14,7 +8,7 @@ Framer Motion is now called Motion for React. All the knowledge you've gained fr
 
 -   Never import from `framer-motion`.
 -   Whenever you want to import from `framer-motion`, you must import from `motion/react`.
--   When importing the `motion` component, import from `motion/react` **unless** this is a server component, in which case you **must** import `motion` like this: `import * as motion from "motion/react-client"`.
+-   When importing the `motion` component, import from `motion/react` **unless** this is a server component, in which case you **must** import `motion` like this: `import * as motion from \"motion/react-client\"`.
 -   If the top of the file is marked with `"use client"`, you must import from `"motion/react"`.
 -   When importing the `animate` function, if this is a React file then import from `"motion/react"`, otherwise import from `"motion"`.
 
@@ -26,7 +20,7 @@ Framer Motion is now called Motion for React. All the knowledge you've gained fr
     -   Avoid `Object.entries`, `Object.values` etc as these create new objects.
 -   Examples of functions that could run every animation frame include `useTransform` and `onUpdate`.
 -   Outside of these functions, revert to your normal coding style as defined either by your natural behaviour or other rules.
--   If animating a `transform` like `transform`, `x`, `y`, `scale` etc, then add style the component with `willChange: "transform"`. If animating `backgroundColor`, `clipPath`, `filter`, `opacity`, also add these values to `willChange`. Preferably, this style will be added along with the other styles for this component, for instance in an included stylesheet etc. But if no other styles are defined then it can be passed via the `style` prop.
+-   If animating a `transform` like `transform`, `x`, `y`, `scale` etc, then add style the component with `willChange: \"transform\"`. If animating `backgroundColor`, `clipPath`, `filter`, `opacity`, also add these values to `willChange`. Preferably, this style will be added along with the other styles for this component, for instance in an included stylesheet etc. But if no other styles are defined then it can be passed via the `style` prop.
 -   **Only** ever add these values to `willChange`:
     -   `transform`
     -   `opacity`

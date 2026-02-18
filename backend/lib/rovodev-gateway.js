@@ -16,13 +16,44 @@
  *   const text = await generateTextViaRovoDev({ system, prompt });
  */
 
-const { sendMessageStreaming, sendMessageSync, cancelChat } = require("./rovodev-client");
+const { sendMessageStreaming, sendMessageSync, cancelChat, getRovoDevPort } = require("./rovodev-client");
 
 const RETRY_INITIAL_DELAY_MS = 250;
 const RETRY_DELAY_STEP_MS = 250;
 const RETRY_MAX_DELAY_MS = 1_000;
 const RETRY_TIMEOUT_MS = 10_000;
 const WAIT_FOR_TURN_TIMEOUT_MS = 600_000;
+
+// ─── Pool integration ───────────────────────────────────────────────────────
+
+/** @type {import("./rovodev-pool").Pool | null} */
+let _pool = null;
+
+/**
+ * Inject the RovoDev port pool. Called once from server.js at startup.
+ * @param {import("./rovodev-pool").Pool | null} pool
+ */
+function initPool(pool) {
+	_pool = pool;
+}
+
+/**
+ * Acquire a port handle. When a pool is available, delegates to pool.acquire().
+ * Otherwise returns a dummy handle using the single env-var port.
+ *
+ * @param {object} [opts]
+ * @param {number} [opts.timeoutMs]
+ * @param {AbortSignal} [opts.signal]
+ * @returns {Promise<{ port: number; release: () => void }>}
+ */
+async function acquirePort({ timeoutMs = 30_000, signal } = {}) {
+	if (!_pool) {
+		return { port: getRovoDevPort(), release: () => {} };
+	}
+	return _pool.acquire({ timeoutMs, signal });
+}
+
+// ─── No-pool fallback helpers ───────────────────────────────────────────────
 
 let queuedTextGenerationTail = Promise.resolve();
 let queuedTextGenerationCount = 0;
@@ -291,126 +322,138 @@ async function streamViaRovoDev({
 	onRetry,
 	signal,
 }) {
-	const attempt = () =>
-		new Promise((resolve, reject) => {
-			if (signal?.aborted) {
-				resolve();
-				return;
-			}
-
-			const toolNameByCallId = new Map();
-			const handle = sendMessageStreaming(message, {
-				onChunk: (chunk) => {
-					if (chunk.type === "text" && chunk.text) {
-						onTextDelta(chunk.text);
-						return;
-					}
-
-					if (chunk.type === "tool_call_start") {
-						const resolvedToolName = normalizeToolName(chunk.toolName);
-						if (chunk.toolCallId && resolvedToolName) {
-							toolNameByCallId.set(chunk.toolCallId, resolvedToolName);
-						}
-
-						if (typeof onToolCallStart === "function") {
-							onToolCallStart({
-								toolName: resolvedToolName,
-								toolCallId:
-									typeof chunk.toolCallId === "string" && chunk.toolCallId.trim()
-										? chunk.toolCallId.trim()
-										: null,
-								toolInput:
-									chunk.toolInput && typeof chunk.toolInput === "object"
-										? chunk.toolInput
-										: null,
-							});
-						}
-
-						if (typeof onThinkingStatus === "function") {
-							onThinkingStatus(
-								buildThinkingStatusFromToolEvent(resolvedToolName, "start")
-							);
-						}
-						return;
-					}
-
-					if (chunk.type === "tool_result" || chunk.type === "tool_error") {
-						const rememberedToolName = chunk.toolCallId
-							? toolNameByCallId.get(chunk.toolCallId) ?? null
-							: null;
-						const resolvedToolName =
-							normalizeToolName(chunk.toolName) ?? rememberedToolName;
-
-						if (chunk.toolCallId) {
-							toolNameByCallId.delete(chunk.toolCallId);
-						}
-
-						if (typeof onThinkingStatus === "function") {
-							onThinkingStatus(
-								buildThinkingStatusFromToolEvent(
-									resolvedToolName,
-									chunk.type === "tool_error" ? "error" : "result"
-								)
-							);
-						}
-					}
-				},
-				onDone: () => {
-					resolve();
-				},
-				onError: (err) => {
-					if (isChatInProgressError(err)) {
-						// Bubble up so the outer handler can retry
-						reject(err);
-						return;
-					}
-					console.error("[streamViaRovoDev] Error:", err.message);
-					// Emit the error as text so the user sees it in the chat
-					onTextDelta(`\n\n⚠️ RovoDev error: ${err.message}`);
-					resolve(); // resolve rather than reject so the stream closes cleanly
-				},
-			});
-
-			// Wire the abort signal to the streaming handle
-			if (signal) {
-				const onAbort = () => {
-					handle.abort();
-					resolve();
-				};
-
-				if (signal.aborted) {
-					handle.abort();
-					resolve();
-				} else {
-					signal.addEventListener("abort", onAbort, { once: true });
-				}
-			}
-		});
+	const handle = await acquirePort({ timeoutMs: RETRY_TIMEOUT_MS, signal });
 
 	try {
-		const { aborted } = await retryChatInProgress(attempt, {
-			signal,
-			onRetry,
-			logPrefix: "streamViaRovoDev",
-		});
-		if (aborted) {
-			return;
-		}
-	} catch (err) {
-		if (isChatInProgressError(err)) {
-			throw createChatInProgressTimeoutError(RETRY_TIMEOUT_MS, {
-				logPrefix: "streamViaRovoDev",
-				retryCount:
-					typeof err?.chatInProgressRetryCount === "number"
-						? err.chatInProgressRetryCount
-						: undefined,
-				elapsedMs:
-					typeof err?.chatInProgressElapsedMs === "number"
-						? err.chatInProgressElapsedMs
-						: undefined,
+		const attempt = (port) =>
+			new Promise((resolve, reject) => {
+				if (signal?.aborted) {
+					resolve();
+					return;
+				}
+
+				const toolNameByCallId = new Map();
+				const streamHandle = sendMessageStreaming(message, {
+					onChunk: (chunk) => {
+						if (chunk.type === "text" && chunk.text) {
+							onTextDelta(chunk.text);
+							return;
+						}
+
+						if (chunk.type === "tool_call_start") {
+							const resolvedToolName = normalizeToolName(chunk.toolName);
+							if (chunk.toolCallId && resolvedToolName) {
+								toolNameByCallId.set(chunk.toolCallId, resolvedToolName);
+							}
+
+							if (typeof onToolCallStart === "function") {
+								onToolCallStart({
+									toolName: resolvedToolName,
+									toolCallId:
+										typeof chunk.toolCallId === "string" && chunk.toolCallId.trim()
+											? chunk.toolCallId.trim()
+											: null,
+									toolInput:
+										chunk.toolInput && typeof chunk.toolInput === "object"
+											? chunk.toolInput
+											: null,
+								});
+							}
+
+							if (typeof onThinkingStatus === "function") {
+								onThinkingStatus(
+									buildThinkingStatusFromToolEvent(resolvedToolName, "start")
+								);
+							}
+							return;
+						}
+
+						if (chunk.type === "tool_result" || chunk.type === "tool_error") {
+							const rememberedToolName = chunk.toolCallId
+								? toolNameByCallId.get(chunk.toolCallId) ?? null
+								: null;
+							const resolvedToolName =
+								normalizeToolName(chunk.toolName) ?? rememberedToolName;
+
+							if (chunk.toolCallId) {
+								toolNameByCallId.delete(chunk.toolCallId);
+							}
+
+							if (typeof onThinkingStatus === "function") {
+								onThinkingStatus(
+									buildThinkingStatusFromToolEvent(
+										resolvedToolName,
+										chunk.type === "tool_error" ? "error" : "result"
+									)
+								);
+							}
+						}
+					},
+					onDone: () => {
+						resolve();
+					},
+					onError: (err) => {
+						if (isChatInProgressError(err)) {
+							reject(err);
+							return;
+						}
+						console.error("[streamViaRovoDev] Error:", err.message);
+						onTextDelta(`\n\n⚠️ RovoDev error: ${err.message}`);
+						resolve();
+					},
+				}, port);
+
+				if (signal) {
+					const onAbort = () => {
+						streamHandle.abort();
+						resolve();
+					};
+
+					if (signal.aborted) {
+						streamHandle.abort();
+						resolve();
+					} else {
+						signal.addEventListener("abort", onAbort, { once: true });
+					}
+				}
 			});
+
+		if (_pool) {
+			// With a pool we own the port exclusively — no retry needed
+			await attempt(handle.port);
+		} else {
+			// No pool — fall back to retry-on-409 behavior
+			try {
+				const { aborted } = await retryChatInProgress(
+					() => attempt(handle.port),
+					{
+						signal,
+						onRetry,
+						logPrefix: "streamViaRovoDev",
+					}
+				);
+				if (aborted) {
+					return;
+				}
+			} catch (err) {
+				if (isChatInProgressError(err)) {
+					throw createChatInProgressTimeoutError(RETRY_TIMEOUT_MS, {
+						logPrefix: "streamViaRovoDev",
+						retryCount:
+							typeof err?.chatInProgressRetryCount === "number"
+								? err.chatInProgressRetryCount
+								: undefined,
+						elapsedMs:
+							typeof err?.chatInProgressElapsedMs === "number"
+								? err.chatInProgressElapsedMs
+								: undefined,
+					});
+				}
+				throw err;
+			}
 		}
-		throw err;
+	} finally {
+		handle.release();
 	}
 }
 
@@ -452,59 +495,74 @@ async function generateTextViaRovoDev({
 	}
 	fullMessage += prompt;
 
-	const syncOptions =
-		typeof timeoutMs === "number" && timeoutMs > 0
-			? { timeoutMs }
-			: undefined;
+	const handle = await acquirePort({
+		timeoutMs: waitForTurn ? WAIT_FOR_TURN_TIMEOUT_MS : RETRY_TIMEOUT_MS,
+	});
 
-	const runGenerate = async () => {
-		try {
+	try {
+		const syncOptions = {
+			...(typeof timeoutMs === "number" && timeoutMs > 0 ? { timeoutMs } : {}),
+			port: handle.port,
+		};
+
+		if (_pool) {
+			// With a pool we own the port exclusively — no retry/queue needed
 			return await sendMessageSync(fullMessage, syncOptions);
-		} catch (err) {
-			if (isChatInProgressError(err)) {
-				try {
-					const { value } = await retryChatInProgress(
-						() => sendMessageSync(fullMessage, syncOptions),
-						{
-							logPrefix: "generateTextViaRovoDev",
-							timeoutMs: retryTimeoutMs,
-							cancelOnConflict: !waitForTurn,
-						}
-					);
-					return typeof value === "string" ? value : "";
-				} catch (retryError) {
-					if (waitForTurn && isChatInProgressError(retryError)) {
-						throw createChatInProgressTimeoutError(retryTimeoutMs, {
-							logPrefix: "generateTextViaRovoDev",
-							retryCount:
-								typeof retryError?.chatInProgressRetryCount === "number"
-									? retryError.chatInProgressRetryCount
-									: undefined,
-							elapsedMs:
-								typeof retryError?.chatInProgressElapsedMs === "number"
-									? retryError.chatInProgressElapsedMs
-									: undefined,
-						});
-					}
-					throw retryError;
-				}
-			}
-			throw err;
 		}
-	};
 
-	if (conflictPolicy === "wait-for-turn") {
-		return enqueueTextGeneration(runGenerate, {
-			logPrefix: "generateTextViaRovoDev",
-		});
+		// No pool — fall back to retry-on-409 + queue behavior
+		const runGenerate = async () => {
+			try {
+				return await sendMessageSync(fullMessage, syncOptions);
+			} catch (err) {
+				if (isChatInProgressError(err)) {
+					try {
+						const { value } = await retryChatInProgress(
+							() => sendMessageSync(fullMessage, syncOptions),
+							{
+								logPrefix: "generateTextViaRovoDev",
+								timeoutMs: retryTimeoutMs,
+								cancelOnConflict: !waitForTurn,
+							}
+						);
+						return typeof value === "string" ? value : "";
+					} catch (retryError) {
+						if (waitForTurn && isChatInProgressError(retryError)) {
+							throw createChatInProgressTimeoutError(retryTimeoutMs, {
+								logPrefix: "generateTextViaRovoDev",
+								retryCount:
+									typeof retryError?.chatInProgressRetryCount === "number"
+										? retryError.chatInProgressRetryCount
+										: undefined,
+								elapsedMs:
+									typeof retryError?.chatInProgressElapsedMs === "number"
+										? retryError.chatInProgressElapsedMs
+										: undefined,
+							});
+						}
+						throw retryError;
+					}
+				}
+				throw err;
+			}
+		};
+
+		if (conflictPolicy === "wait-for-turn") {
+			return await enqueueTextGeneration(runGenerate, {
+				logPrefix: "generateTextViaRovoDev",
+			});
+		}
+
+		return await runGenerate();
+	} finally {
+		handle.release();
 	}
-
-	return runGenerate();
 }
 
 module.exports = {
 	streamViaRovoDev,
 	generateTextViaRovoDev,
 	isChatInProgressError,
+	initPool,
 	WAIT_FOR_TURN_TIMEOUT_MS,
 };

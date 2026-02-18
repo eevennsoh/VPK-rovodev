@@ -22,10 +22,12 @@ const {
 	streamViaRovoDev,
 	generateTextViaRovoDev,
 	isChatInProgressError,
+	initPool,
 	WAIT_FOR_TURN_TIMEOUT_MS,
 } = require("./lib/rovodev-gateway");
 const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
 const { healthCheck: rovoDevHealthCheck, cancelChat: rovoDevCancelChat } = require("./lib/rovodev-client");
+const { createRovoDevPool } = require("./lib/rovodev-pool");
 const {
 	getEnvVars,
 	detectEndpointType,
@@ -53,52 +55,120 @@ console.log("[STARTUP] Dependencies loaded");
 // chat traffic through the local RovoDev agent loop instead of AI Gateway.
 
 const ROVODEV_PORT_FILE = path.join(__dirname, "..", ".dev-rovodev-port");
+const ROVODEV_PORTS_FILE = path.join(__dirname, "..", ".dev-rovodev-ports");
 
 /** Cached availability state — refreshed on each request via the port file. */
 let _rovoDevAvailable = false;
 let _rovoDevChecked = false;
+/** @type {import("./lib/rovodev-pool") | null} */
+let _rovoDevPool = null;
+
+/**
+ * Read ports from the multi-port file (.dev-rovodev-ports) or fall back
+ * to the single-port file (.dev-rovodev-port).
+ * @returns {number[]} Array of valid port numbers, or empty array.
+ */
+function readRovoDevPorts() {
+	const fs = require("fs");
+
+	// Try JSON array file first
+	if (fs.existsSync(ROVODEV_PORTS_FILE)) {
+		try {
+			const parsed = JSON.parse(fs.readFileSync(ROVODEV_PORTS_FILE, "utf8").trim());
+			if (Array.isArray(parsed) && parsed.length > 0) {
+				const validPorts = parsed.filter((p) => typeof p === "number" && p > 0);
+				if (validPorts.length > 0) {
+					return validPorts;
+				}
+			}
+		} catch {
+			// Ignore parse errors
+		}
+	}
+
+	// Fall back to single port file
+	if (fs.existsSync(ROVODEV_PORT_FILE)) {
+		try {
+			const portStr = fs.readFileSync(ROVODEV_PORT_FILE, "utf8").trim();
+			const port = parseInt(portStr, 10);
+			if (!isNaN(port) && port > 0) {
+				return [port];
+			}
+		} catch {
+			// Ignore read errors
+		}
+	}
+
+	return [];
+}
 
 /**
  * Check whether a RovoDev Serve instance is reachable.
- * Reads the port file written by `dev-rovodev.js` and pings the health endpoint.
- * Caches the result so subsequent calls within the same process are fast.
- * Call `refreshRovoDevAvailability()` to re-check (e.g. at startup).
+ * Reads the port files written by `dev-rovodev.js` and pings health endpoints.
+ * Creates/updates the pool with all healthy ports.
  */
 async function refreshRovoDevAvailability() {
 	try {
-		const fs = require("fs");
-		if (!fs.existsSync(ROVODEV_PORT_FILE)) {
-			_rovoDevAvailable = false;
-			_rovoDevChecked = true;
-			return false;
-		}
-
-		const portStr = fs.readFileSync(ROVODEV_PORT_FILE, "utf8").trim();
-		const port = parseInt(portStr, 10);
-		if (isNaN(port) || port <= 0) {
-			_rovoDevAvailable = false;
-			_rovoDevChecked = true;
-			return false;
-		}
-
-		// Set the env var so rovodev-client.js picks up the correct port
-		process.env.ROVODEV_PORT = String(port);
-
-		try {
-			await rovoDevHealthCheck();
-		} catch (healthCheckErr) {
-			// Health check endpoint requires credentials, but the fact that it's
-			// reachable and responding means RovoDev Serve is running.
-			// 401/403 (missing credentials) is OK — it means the server is there.
-			if (!healthCheckErr.message.includes("status 401") && !healthCheckErr.message.includes("status 403")) {
-				throw healthCheckErr;
+		const ports = readRovoDevPorts();
+		if (ports.length === 0) {
+			if (_rovoDevPool) {
+				_rovoDevPool.shutdown();
+				_rovoDevPool = null;
+				initPool(null);
 			}
-			console.log(`[ROVODEV] Serve detected on port ${port} (health check requires auth)`);
+			_rovoDevAvailable = false;
+			_rovoDevChecked = true;
+			return false;
+		}
+
+		// Health-check each port
+		const healthyPorts = [];
+		for (const port of ports) {
+			try {
+				await rovoDevHealthCheck(port);
+				healthyPorts.push(port);
+			} catch (healthCheckErr) {
+				// 401/403 means the server is running but requires auth — still healthy
+				if (
+					healthCheckErr.message.includes("status 401") ||
+					healthCheckErr.message.includes("status 403")
+				) {
+					healthyPorts.push(port);
+				} else {
+					debugLog("ROVODEV", `Port ${port} health check failed`, { error: healthCheckErr.message });
+				}
+			}
+		}
+
+		if (healthyPorts.length === 0) {
+			if (_rovoDevPool) {
+				_rovoDevPool.shutdown();
+				_rovoDevPool = null;
+				initPool(null);
+			}
+			_rovoDevAvailable = false;
+			_rovoDevChecked = true;
+			return false;
+		}
+
+		// Set the env var for backward compat (first healthy port)
+		process.env.ROVODEV_PORT = String(healthyPorts[0]);
+
+		// Create or replace the pool
+		if (_rovoDevPool) {
+			_rovoDevPool.shutdown();
+		}
+		_rovoDevPool = createRovoDevPool(healthyPorts);
+		initPool(_rovoDevPool);
+
+		if (healthyPorts.length === 1) {
+			console.log(`[ROVODEV] Serve available on port ${healthyPorts[0]}`);
+		} else {
+			console.log(`[ROVODEV] Pool initialized: ${healthyPorts.length} ports (${healthyPorts.join(", ")})`);
 		}
 
 		_rovoDevAvailable = true;
 		_rovoDevChecked = true;
-		console.log(`[ROVODEV] Serve available on port ${port}`);
 		return true;
 	} catch (err) {
 		_rovoDevAvailable = false;
@@ -115,12 +185,18 @@ async function refreshRovoDevAvailability() {
  */
 async function isRovoDevAvailable() {
 	const fs = require("fs");
+	const portsFileExists = fs.existsSync(ROVODEV_PORTS_FILE);
 	const portFileExists = fs.existsSync(ROVODEV_PORT_FILE);
 
-	// If the port file disappeared, RovoDev was stopped
-	if (!portFileExists) {
+	// If both port files disappeared, RovoDev was stopped
+	if (!portsFileExists && !portFileExists) {
 		if (_rovoDevAvailable) {
-			console.error("[ROVODEV] Port file removed — RovoDev Serve is no longer available");
+			console.error("[ROVODEV] Port files removed — RovoDev Serve is no longer available");
+			if (_rovoDevPool) {
+				_rovoDevPool.shutdown();
+				_rovoDevPool = null;
+				initPool(null);
+			}
 		}
 		_rovoDevAvailable = false;
 		_rovoDevChecked = true;
@@ -4005,7 +4081,10 @@ const server = app.listen(port, "0.0.0.0", async () => {
 		chatBackendLabel = "AI Gateway fallback (misconfigured)";
 	}
 	console.log(`\n🤖 Chat Backend: ${chatBackendLabel}`);
-	if (rovoDevReady) {
+	if (rovoDevReady && _rovoDevPool) {
+		const poolStatus = _rovoDevPool.getStatus();
+		console.log(`  ROVODEV_POOL: ${poolStatus.total} ports (${poolStatus.ports.map((p) => p.port).join(", ")})`);
+	} else if (rovoDevReady) {
 		console.log(`  ROVODEV_PORT: ${process.env.ROVODEV_PORT}`);
 	}
 	console.log(`  AUTO_FALLBACK_TO_AI_GATEWAY: ${fallbackEnabled ? "ENABLED" : "DISABLED"}`);
@@ -4034,4 +4113,18 @@ process.on("uncaughtException", (err) => {
 process.on("unhandledRejection", (reason, promise) => {
 	console.error("Unhandled rejection at:", promise, "reason:", reason);
 	process.exit(1);
+});
+
+// Graceful shutdown — clean up RovoDev pool
+process.on("SIGINT", () => {
+	if (_rovoDevPool) {
+		_rovoDevPool.shutdown();
+	}
+	process.exit(0);
+});
+process.on("SIGTERM", () => {
+	if (_rovoDevPool) {
+		_rovoDevPool.shutdown();
+	}
+	process.exit(0);
 });
