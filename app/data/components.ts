@@ -281,6 +281,7 @@ export const TEMPLATE_COMPONENTS: ComponentEntry[] = [
 
 export const UTILITY_COMPONENTS: ComponentEntry[] = [
 	utilityComponent("image-generation", "Image Generation"),
+	utilityComponent("multiports", "Multiports"),
 	utilityComponent("sound-generation", "Sound Generation"),
 	utilityComponent("streamdown", "Streamdown"),
 	utilityComponent("ui-generation", "UI Generation"),

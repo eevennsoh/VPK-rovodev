@@ -63,6 +63,7 @@ yarn-error.log*
 .dev-backend-port
 .dev-frontend-port
 .dev-rovodev-port
+.dev-rovodev-ports
 .dev-rovodev-token
 .api-routes-backup
 
