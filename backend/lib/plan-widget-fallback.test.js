@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
 	extractPlanWidgetPayloadFromText,
 	extractProgressivePlanWidgetPayloadFromText,
+	extractPlanWidgetPayloadFromStructuredText,
 } = require("./plan-widget-fallback");
 
 test("extracts tasks from action items section", () => {
@@ -24,6 +25,7 @@ test("supports unicode checklist bullets", () => {
 
 	const result = extractPlanWidgetPayloadFromText(input);
 	assert.ok(result);
+	assert.equal(result.title, "Define event goals and format");
 	assert.deepEqual(
 		result.tasks.map((task) => task.label),
 		[
@@ -31,6 +33,18 @@ test("supports unicode checklist bullets", () => {
 			"Establish budget and sponsorship",
 		]
 	);
+});
+
+test("falls back to first task heading when plan title is generic", () => {
+	const input = `Plan
+
+Action items
+- [ ] Design onboarding flow — align activation milestones
+- [ ] Validate onboarding copy`;
+
+	const result = extractPlanWidgetPayloadFromText(input);
+	assert.ok(result);
+	assert.equal(result.title, "Design onboarding flow");
 });
 
 test("returns null when section has fewer than two tasks", () => {
@@ -55,6 +69,15 @@ test("extracts progressive plan payload without action items heading", () => {
 		result.tasks.map((task) => task.label),
 		["Define conference goals"]
 	);
+});
+
+test("progressive extractor replaces generic title with first task heading", () => {
+	const input = `Execution plan
+1. Deploy staging build
+2. Validate smoke tests`;
+	const result = extractProgressivePlanWidgetPayloadFromText(input);
+	assert.ok(result);
+	assert.equal(result.title, "Deploy staging build");
 });
 
 test("strict progressive mode ignores clarification-style numbered lists", () => {
@@ -132,6 +155,63 @@ test("progressive extractor expands tasks as more list items appear", () => {
 test("progressive extractor ignores generic lists without plan signal", () => {
 	const input = `Shopping list\n- Apples\n- Oranges`;
 	const result = extractProgressivePlanWidgetPayloadFromText(input);
+	assert.equal(result, null);
+});
+
+test("structured extractor parses phase-based numbered plan text", () => {
+	const input = [
+		"Team Event Plan",
+		"",
+		"Phase 1: Define & Scope",
+		"1. Confirm headcount and attendee list",
+		"2. Set the date and time",
+		"",
+		"Phase 2: Plan Activities",
+		"3. Book a venue or virtual platform",
+		"4. Plan 2-3 activities",
+	].join("\n");
+
+	const result = extractPlanWidgetPayloadFromStructuredText(input);
+	assert.ok(result);
+	assert.equal(result.type, "plan");
+	assert.equal(result.title, "Team Event Plan");
+	assert.deepEqual(
+		result.tasks.map((task) => task.label),
+		[
+			"Confirm headcount and attendee list",
+			"Set the date and time",
+			"Book a venue or virtual platform",
+			"Plan 2-3 activities",
+		]
+	);
+});
+
+test("structured extractor prefers concise plan heading over intro narrative for title", () => {
+	const input = [
+		"Thanks for the details! Let me put together a balanced team event plan for you.",
+		"",
+		"🎉 Team Event Plan",
+		"",
+		"Phase 1: Define & Scope",
+		"1. Confirm headcount and attendee list",
+		"2. Set the date and time",
+	].join("\n");
+
+	const result = extractPlanWidgetPayloadFromStructuredText(input);
+	assert.ok(result);
+	assert.equal(result.title, "🎉 Team Event Plan");
+	assert.equal(result.tasks.length, 2);
+});
+
+test("structured extractor rejects clarification-style numbered questions", () => {
+	const input = [
+		"I'd love to help. Let me ask a few questions first.",
+		"1. What type of event?",
+		"2. Team size and location?",
+		"3. Timeline and budget?",
+	].join("\n");
+
+	const result = extractPlanWidgetPayloadFromStructuredText(input);
 	assert.equal(result, null);
 });
 

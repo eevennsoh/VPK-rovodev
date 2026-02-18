@@ -1,4 +1,5 @@
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
+import { resolvePlanDisplayTitle } from "@/components/templates/shared/lib/plan-identity";
 
 interface StringRecord {
 	[key: string]: unknown;
@@ -80,11 +81,6 @@ export function parsePlanWidgetPayload(
 	}
 
 	const record = isStringRecord(value.payload) ? value.payload : value;
-	const title =
-		getNonEmptyString(record.title) ??
-		getNonEmptyString(record.name) ??
-		getNonEmptyString(record.planTitle) ??
-		"Plan";
 	const taskCandidates = Array.isArray(record.tasks)
 		? record.tasks
 		: Array.isArray(record.steps)
@@ -101,6 +97,13 @@ export function parsePlanWidgetPayload(
 	if (tasks.length === 0) {
 		return null;
 	}
+	const title = resolvePlanDisplayTitle(
+		getNonEmptyString(record.title) ??
+			getNonEmptyString(record.name) ??
+			getNonEmptyString(record.planTitle) ??
+			undefined,
+		tasks
+	);
 
 	const description =
 		getNonEmptyString(record.description) ??

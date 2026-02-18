@@ -1,10 +1,12 @@
 "use client";
 
 import NextImage from "next/image";
+import dynamic from "next/dynamic";
 import { Fragment, Suspense, lazy, useState } from "react";
 import { defineRegistry, useBoundProp } from "@json-render/react";
 import { getByPath, setByPath } from "@json-render/core";
 import { catalog } from "./catalog";
+import type { MapWidgetCanvasProps } from "./map-widget-canvas";
 
 /** Convert null to undefined for React component props that expect optional values */
 function nu<T>(v: T | null | undefined): T | undefined {
@@ -133,10 +135,13 @@ import {
 	PolarAngleAxis,
 	PolarRadiusAxis,
 } from "recharts";
-import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
 
 // ── 3D (lazy-loaded) ──────────────────────────────────────────
 const Scene3DImpl = lazy(() => import("./scene-3d"));
+const MapWidgetCanvas = dynamic<MapWidgetCanvasProps>(() => import("./map-widget-canvas").then((mod) => mod.MapWidgetCanvas), {
+	ssr: false,
+	loading: () => <div className="flex h-full w-full items-center justify-center text-xs text-text-subtle">Loading map...</div>,
+});
 
 // ── Chart helpers ─────────────────────────────────────────────
 const PIE_COLORS = ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)", "var(--color-chart-5)"];
@@ -787,33 +792,13 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			return (
 				<div className="space-y-3">
 					<div className="overflow-hidden rounded-lg border border-border" style={{ height: `${height}px` }}>
-						<MapContainer center={[center.lat, center.lng]} zoom={zoom} scrollWheelZoom className="h-full w-full">
-							<TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-							{markerEntries.map((marker) => {
-								const isActive = marker.id === activeMarkerId;
-								return (
-									<CircleMarker
-										key={marker.id}
-										center={[marker.lat, marker.lng]}
-										radius={isActive ? 9 : 7}
-										pathOptions={{
-											color: isActive ? "#1d4ed8" : "#2563eb",
-											fillColor: isActive ? "#1d4ed8" : "#60a5fa",
-											fillOpacity: 0.8,
-											weight: 2,
-										}}
-										eventHandlers={{
-											click: () => setSelectedMarkerId(marker.id),
-										}}
-									>
-										<Popup>
-											<p className="text-sm font-medium text-text">{marker.title}</p>
-											{marker.description ? <p className="text-xs text-text-subtle">{marker.description}</p> : null}
-										</Popup>
-									</CircleMarker>
-								);
-							})}
-						</MapContainer>
+						<MapWidgetCanvas
+							center={center}
+							zoom={zoom}
+							markers={markerEntries}
+							activeMarkerId={activeMarkerId}
+							onSelectMarker={setSelectedMarkerId}
+						/>
 					</div>
 					{activeMarker ? (
 						<div className="rounded-lg border border-border bg-surface-raised p-3">

@@ -16,6 +16,9 @@ const TASKS_MIXED: ProgressStatusGroups = {
 		{ id: "p1", label: "Task 5", description: "Build dashboard widgets", agentName: "Frontend Agent" },
 		{ id: "p2", label: "Task 6", description: "Integrate analytics SDK" },
 	],
+	failed: [
+		{ id: "f1", label: "Task 6b", description: "Recover failed analytics migration" },
+	],
 	todo: [
 		{ id: "t1", label: "Task 7", description: "Write integration tests" },
 		{ id: "t2", label: "Task 8", description: "Update documentation" },
@@ -32,6 +35,7 @@ const TASKS_ALL_DONE: ProgressStatusGroups = {
 	],
 	inReview: [],
 	inProgress: [],
+	failed: [],
 	todo: [],
 };
 
@@ -39,6 +43,7 @@ const TASKS_EARLY: ProgressStatusGroups = {
 	done: [],
 	inReview: [],
 	inProgress: [{ id: "p1", label: "Task 1", description: "Analyze codebase structure", agentName: "Explorer Agent" }],
+	failed: [],
 	todo: [
 		{ id: "t1", label: "Task 2", description: "Set up CI pipeline" },
 		{ id: "t2", label: "Task 3", description: "Configure linting rules" },
@@ -55,6 +60,7 @@ const TASKS_WITH_AGENTS: ProgressStatusGroups = {
 		{ id: "r2", label: "Task 3", description: "Build search UI", agentName: "Frontend Agent" },
 	],
 	inProgress: [{ id: "p1", label: "Task 4", description: "Write integration tests", agentName: "QA Agent" }],
+	failed: [],
 	todo: [{ id: "t1", label: "Task 5", description: "Deploy to staging", agentName: "DevOps Agent" }],
 };
 
@@ -107,9 +113,12 @@ export function AgentProgressDemoFailed() {
 					done: [{ id: "d1", label: "Task 1", description: "Build artifacts" }],
 					inReview: [],
 					inProgress: [],
+					failed: [
+						{ id: "f1", label: "Task 2", description: "Run smoke tests" },
+						{ id: "f2", label: "Task 3", description: "Deploy to production" },
+					],
 					todo: [
-						{ id: "t1", label: "Task 2", description: "Run smoke tests" },
-						{ id: "t2", label: "Task 3", description: "Deploy to production" },
+						{ id: "t1", label: "Task 4", description: "Prepare rollback plan" },
 					],
 				}}
 				runStatus="failed"

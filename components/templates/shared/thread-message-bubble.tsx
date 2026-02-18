@@ -199,8 +199,6 @@ export function ThreadMessageBubble({
 
 	return (
 		<UiMessage from="assistant" className="max-w-full">
-			{shouldRenderPlanWidgetFirst ? widgetSection : null}
-
 			{reasoning ? (
 				<AssistantReasoningSection reasoning={reasoning} />
 			) : null}
@@ -225,6 +223,8 @@ export function ThreadMessageBubble({
 					</div>
 				);
 			})() : null}
+
+			{shouldRenderPlanWidgetFirst ? widgetSection : null}
 
 			{shouldRenderMessageText ? (
 				<MessageContent

@@ -13,6 +13,11 @@ import {
 	type TaskExecution,
 	type TaskStatusGroups,
 } from "../lib/execution-data";
+import {
+	applyExecutionUpdate,
+	mergeStreamedExecutions,
+	type TaskExecutionByTaskId,
+} from "../lib/task-execution-stream";
 import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 
 export type ExecutionState = "idle" | "executing" | "completed" | "failed";
@@ -78,6 +83,7 @@ const EMPTY_TASK_STATUS_GROUPS: TaskStatusGroups = {
 	done: [],
 	inReview: [],
 	inProgress: [],
+	failed: [],
 	todo: [],
 };
 
@@ -120,6 +126,7 @@ function deriveTodoGroupsFromPlan(plan: ParsedPlanWidgetPayload): TaskStatusGrou
 		done: [],
 		inReview: [],
 		inProgress: [],
+		failed: [],
 		todo: plan.tasks.map((task) => ({
 			id: task.id,
 			label: task.label,
@@ -162,109 +169,14 @@ function getErrorMessage(error: unknown): string {
 	return "Request failed";
 }
 
-type TaskExecutionByAgentId = Record<string, TaskExecution>;
-
-function applyExecutionUpdate(
-	previousByAgentId: TaskExecutionByAgentId,
-	update: AgentExecutionUpdate
-): TaskExecutionByAgentId {
-	if (!update.agentId || !update.taskId) {
-		return previousByAgentId;
-	}
-
-	const existingExecution = previousByAgentId[update.agentId];
-	if (existingExecution && existingExecution.agentId === update.agentId) {
-		const hasTaskChanged = existingExecution.taskId !== update.taskId;
-		const nextContent = update.content
-			? hasTaskChanged
-				? update.content
-				: `${existingExecution.content}${update.content}`
-			: existingExecution.content;
-		const hasChanged =
-			existingExecution.agentName !== update.agentName ||
-			existingExecution.taskId !== update.taskId ||
-			existingExecution.taskLabel !== update.taskLabel ||
-			existingExecution.status !== update.status ||
-			existingExecution.content !== nextContent;
-		if (!hasChanged) {
-			return previousByAgentId;
-		}
-
-		return {
-			...previousByAgentId,
-			[update.agentId]: {
-				...existingExecution,
-				taskId: update.taskId,
-				agentName: update.agentName,
-				taskLabel: update.taskLabel,
-				status: update.status,
-				content: nextContent,
-			},
-		};
-	}
-
-	const nextExecution: TaskExecution = {
-		taskId: update.taskId,
-		taskLabel: update.taskLabel,
-		agentId: update.agentId,
-		agentName: update.agentName,
-		status: update.status,
-		content: update.content ?? "",
-	};
-	if (
-		existingExecution &&
-		existingExecution.agentName === nextExecution.agentName &&
-		existingExecution.taskId === nextExecution.taskId &&
-		existingExecution.taskLabel === nextExecution.taskLabel &&
-		existingExecution.status === nextExecution.status &&
-		existingExecution.content === nextExecution.content
-	) {
-		return previousByAgentId;
-	}
-
-	return {
-		...previousByAgentId,
-		[update.agentId]: nextExecution,
-	};
-}
-
-function mergeStreamedExecutions(
-	baseExecutions: ReadonlyArray<TaskExecution>,
-	streamedExecutionsByAgentId: TaskExecutionByAgentId
-): TaskExecution[] {
-	const streamedExecutions = Object.values(streamedExecutionsByAgentId);
-	if (streamedExecutions.length === 0) {
-		return [...baseExecutions];
-	}
-
-	const mergedById = new Map(
-		baseExecutions.map((execution) => [execution.agentId, execution] as const)
-	);
-	for (const streamedExecution of streamedExecutions) {
-		mergedById.set(streamedExecution.agentId, streamedExecution);
-	}
-
-	const orderedExecutions = baseExecutions.map(
-		(execution) => mergedById.get(execution.agentId) ?? execution
-	);
-	const baseAgentIds = new Set(baseExecutions.map((execution) => execution.agentId));
-	for (const streamedExecution of streamedExecutions) {
-		if (!baseAgentIds.has(streamedExecution.agentId)) {
-			orderedExecutions.push(streamedExecution);
-		}
-	}
-
-	return orderedExecutions;
-}
-
 export function useExecutionMode(): UseExecutionModeReturn {
 	const [executionState, setExecutionState] = useState<ExecutionState>("idle");
 	const [cachedPlan, setCachedPlan] = useState<ParsedPlanWidgetPayload | null>(null);
 	const [run, setRun] = useState<AgentRun | null>(null);
 	const [runId, setRunId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const [streamedExecutionsByAgentId, setStreamedExecutionsByAgentId] =
-		useState<TaskExecutionByAgentId>({});
+	const [streamedExecutionsByTaskId, setStreamedExecutionsByTaskId] =
+		useState<TaskExecutionByTaskId>({});
 	const activeRunIdRef = useRef<string | null>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const queuedExecutionUpdatesRef = useRef<AgentExecutionUpdate[]>([]);
@@ -290,8 +202,8 @@ export function useExecutionMode(): UseExecutionModeReturn {
 		}
 
 		queuedExecutionUpdatesRef.current = [];
-		setStreamedExecutionsByAgentId((previousByAgentId) => {
-			let nextById = previousByAgentId;
+		setStreamedExecutionsByTaskId((previousByTaskId) => {
+			let nextById = previousByTaskId;
 			for (const update of queuedUpdates) {
 				nextById = applyExecutionUpdate(nextById, update);
 			}
@@ -330,7 +242,7 @@ export function useExecutionMode(): UseExecutionModeReturn {
 			if (activeRunIdRef.current !== nextRun.runId) {
 				activeRunIdRef.current = nextRun.runId;
 				clearQueuedExecutionUpdates();
-				setStreamedExecutionsByAgentId({});
+				setStreamedExecutionsByTaskId({});
 			}
 
 			setRun(nextRun);
@@ -353,8 +265,8 @@ export function useExecutionMode(): UseExecutionModeReturn {
 
 			flushQueuedExecutionUpdates();
 			if ("update" in event && event.update) {
-				setStreamedExecutionsByAgentId((previousByAgentId) =>
-					applyExecutionUpdate(previousByAgentId, event.update as AgentExecutionUpdate)
+				setStreamedExecutionsByTaskId((previousByTaskId) =>
+					applyExecutionUpdate(previousByTaskId, event.update as AgentExecutionUpdate)
 				);
 			}
 
@@ -409,7 +321,7 @@ export function useExecutionMode(): UseExecutionModeReturn {
 			setCachedPlan(options.plan);
 			setRun(null);
 			setRunId(null);
-			setStreamedExecutionsByAgentId({});
+			setStreamedExecutionsByTaskId({});
 			activeRunIdRef.current = null;
 
 			const response = await fetch(API_ENDPOINTS.AGENTS_TEAM_RUNS, {
@@ -531,8 +443,8 @@ export function useExecutionMode(): UseExecutionModeReturn {
 			baseExecutions = deriveTaskExecutionsFromRun(run);
 		}
 
-		return mergeStreamedExecutions(baseExecutions, streamedExecutionsByAgentId);
-	}, [run, streamedExecutionsByAgentId]);
+		return mergeStreamedExecutions(baseExecutions, streamedExecutionsByTaskId);
+	}, [run, streamedExecutionsByTaskId]);
 
 	const isExecuting = executionState === "executing";
 	const isExecutionActive = executionState !== "idle";

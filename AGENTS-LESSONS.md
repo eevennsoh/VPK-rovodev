@@ -30,3 +30,13 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **What happened:** Initial menu-group demos used generic feature-based names (With icons, With descriptions, Compact spacing, Disabled, Custom content) instead of matching the actual ADS documentation examples (Default, Menu structure, Button item, Link item, Custom item, Section and heading item, Density, Scrolling, Loading).
 - **Why:** Demos were invented from component capabilities rather than referencing the ADS docs page structure. The ADS examples page organizes demos by concept/primitive, not by individual feature toggles.
 - **Rule:** When enriching a VPK component with ADS parity, fetch or review the ADS documentation examples page for that component and mirror its example structure (titles, grouping, content patterns). Demo names and content should match ADS examples, not be invented from the component API surface.
+
+### 2026-02-17 - Agent-team clarification gate must not depend on intent regex
+- **What happened:** In agent-team mode, a planning request phrased as “help me coordinate on a team event” produced inline text questions instead of the question-card widget.
+- **Why:** The backend clarification gate required `detectPlanningIntent(...)` to return true. The regex missed valid planning phrasing without explicit “plan/steps/roadmap” keywords.
+- **Rule:** In agent-team mode, treat the first planning cycle as clarification-first by default: gate to question-card unless the message is a hidden follow-up source (`clarification-submit`, `plan-approval-submit`, `agent-team-plan-retry`) or a completed plan widget already exists. Intent regex should be secondary for non-agent-team flows only.
+
+### 2026-02-17 - Post-clarification plan card fallback must handle phase-formatted plans
+- **What happened:** After answering a question-card, the assistant returned a valid phase-based plan in text (e.g., “Phase 1/2/3” with numbered tasks), but no plan card rendered.
+- **Why:** The fallback parser only accepted `Action items`/`Tasks` headings. Phase-formatted plans bypassed widget emission and stayed as plain text.
+- **Rule:** When the latest user source is `clarification-submit`, run a permissive structured-plan parser fallback (phase/numbered tasks) if strict plan parsing fails. Keep strict parsing as default for non-clarification turns to avoid false positives.

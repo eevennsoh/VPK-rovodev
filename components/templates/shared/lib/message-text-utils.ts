@@ -174,7 +174,11 @@ function extractPlanSummaryTail(value: string, maxSummaryLines: number): string 
 		return "";
 	}
 
-	return lines.slice(-maxSummaryLines).join("\n").trim();
+	return lines
+		.slice(-maxSummaryLines)
+		.map((line) => line.replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1"))
+		.join("\n")
+		.trim();
 }
 
 export interface PlanRenderableText {

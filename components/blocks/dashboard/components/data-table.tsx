@@ -63,10 +63,16 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { Checkbox } from "@/components/ui/checkbox"
+import CopyIcon from "@atlaskit/icon/core/copy"
+import DeleteIcon from "@atlaskit/icon/core/delete"
+import EditIcon from "@atlaskit/icon/core/edit"
+import StarStarredIcon from "@atlaskit/icon/core/star-starred"
+import { Icon } from "@/components/ui/icon"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -316,7 +322,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
           render={
             <Button
               variant="ghost"
-              className="flex size-8 text-muted-foreground data-[state=open]:bg-muted"
+              className="flex size-8 text-icon-subtle data-open:bg-bg-neutral-subtle-hovered"
               size="icon"
             />
           }
@@ -324,12 +330,16 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
           <MoreVerticalIcon />
           <span className="sr-only">Open menu</span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-32">
-          <DropdownMenuItem>Edit</DropdownMenuItem>
-          <DropdownMenuItem>Make a copy</DropdownMenuItem>
-          <DropdownMenuItem>Favorite</DropdownMenuItem>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuItem elemBefore={<Icon render={<EditIcon label="" size="small" />} label="Edit" className="text-icon-subtle" />}>Edit</DropdownMenuItem>
+            <DropdownMenuItem elemBefore={<Icon render={<CopyIcon label="" size="small" />} label="Make a copy" className="text-icon-subtle" />}>Make a copy</DropdownMenuItem>
+            <DropdownMenuItem elemBefore={<Icon render={<StarStarredIcon label="" size="small" />} label="Favorite" className="text-icon-subtle" />}>Favorite</DropdownMenuItem>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>Delete</DropdownMenuItem>
+          <DropdownMenuGroup>
+            <DropdownMenuItem variant="destructive" elemBefore={<Icon render={<DeleteIcon label="" size="small" />} label="Delete" className="text-icon-danger" />}>Delete</DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     ),

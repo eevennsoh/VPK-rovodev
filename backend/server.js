@@ -15,9 +15,15 @@ const cors = require("cors");
 const path = require("path");
 const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
 const { createRunManager } = require("./lib/agents-team-runs");
+const { createThreadManager } = require("./lib/agents-team-threads");
 const { createConfigManager } = require("./lib/agents-team-config");
 const { genuiChatHandler } = require("./lib/genui-chat-handler");
-const { streamViaRovoDev, generateTextViaRovoDev, isChatInProgressError } = require("./lib/rovodev-gateway");
+const {
+	streamViaRovoDev,
+	generateTextViaRovoDev,
+	isChatInProgressError,
+	WAIT_FOR_TURN_TIMEOUT_MS,
+} = require("./lib/rovodev-gateway");
 const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
 const { healthCheck: rovoDevHealthCheck, cancelChat: rovoDevCancelChat } = require("./lib/rovodev-client");
 const {
@@ -32,7 +38,12 @@ const { synthesizeSound } = require("./lib/sound-generation");
 const {
 	extractPlanWidgetPayloadFromText,
 	extractProgressivePlanWidgetPayloadFromText,
+	extractPlanWidgetPayloadFromStructuredText,
 } = require("./lib/plan-widget-fallback");
+const { detectPlanningIntent } = require("./lib/planning-intent");
+const {
+	shouldGateAgentTeamPlanningQuestionCard,
+} = require("./lib/planning-question-gate");
 
 console.log("[STARTUP] Dependencies loaded");
 
@@ -140,6 +151,16 @@ function debugLog(section, message, data) {
 const CLARIFICATION_WIDGET_TYPE = "question-card";
 const CLARIFICATION_MAX_ROUNDS = 3;
 const CLARIFICATION_MAX_PRESET_OPTIONS = 3;
+const CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER = "Tell Rovo what to do...";
+const PLANNING_GATE_SKIP_SOURCES = new Set([
+	"clarification-submit",
+	"plan-approval-submit",
+	"agent-team-plan-retry",
+]);
+const PLANNING_GATE_INTRO_TEXT =
+	"Before I draft the plan, answer these quick questions.";
+const DEFAULT_CONFLUENCE_BASE_URL = "https://venn-test.atlassian.net/wiki";
+const MAX_SLACK_SUMMARY_CHARS = 35000;
 
 function isTruthyFlag(value) {
 	if (typeof value !== "string") {
@@ -365,7 +386,12 @@ async function generateTextViaGateway({
 	if (backendSelection.backend === "rovodev") {
 		debugLog("GENERATE", "Routing through RovoDev Serve");
 		try {
-			return await generateTextViaRovoDev({ system, prompt });
+			return await generateTextViaRovoDev({
+				system,
+				prompt,
+				conflictPolicy: "wait-for-turn",
+				timeoutMs: WAIT_FOR_TURN_TIMEOUT_MS,
+			});
 		} catch (rovoDevError) {
 			const is409Timeout =
 				rovoDevError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT" ||
@@ -456,6 +482,72 @@ function mapUiMessagesToConversation(messages) {
 	};
 }
 
+function getLatestVisibleUserMessage(messages) {
+	if (!Array.isArray(messages)) {
+		return null;
+	}
+
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const message = messages[index];
+		if (!message || message.role !== "user") {
+			continue;
+		}
+
+		const visibility = getNonEmptyString(message?.metadata?.visibility);
+		if (visibility === "hidden") {
+			continue;
+		}
+
+		const text = extractTextFromUiParts(message.parts);
+		if (!text) {
+			continue;
+		}
+
+		return {
+			text,
+			source: getNonEmptyString(message?.metadata?.source) || null,
+		};
+	}
+
+	return null;
+}
+
+function getLatestUserMessageSource(messages) {
+	if (!Array.isArray(messages)) {
+		return null;
+	}
+
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const message = messages[index];
+		if (!message || message.role !== "user") {
+			continue;
+		}
+
+		const source = getNonEmptyString(message?.metadata?.source);
+		if (source) {
+			return source;
+		}
+	}
+
+	return null;
+}
+
+function buildPlanningQuestionCardSessionId(agentTeamRequestId) {
+	const rawRequestId = getNonEmptyString(agentTeamRequestId);
+	if (!rawRequestId) {
+		return createClarificationSessionId();
+	}
+
+	const normalizedRequestId = rawRequestId
+		.replace(/[^A-Za-z0-9_-]+/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-|-$/g, "");
+	if (!normalizedRequestId) {
+		return createClarificationSessionId();
+	}
+
+	return `agent-team-${normalizedRequestId}`;
+}
 
 const agentsTeamConfigManager = createConfigManager();
 
@@ -466,6 +558,11 @@ const agentsTeamRunManager = createRunManager({
 	logger: console,
 	isRovoDevAvailable,
 	isAIGatewayFallbackEnabled,
+});
+
+const agentsTeamThreadManager = createThreadManager({
+	baseDir: path.join(__dirname, "data"),
+	logger: console,
 });
 
 function createSuggestedQuestionsPrompt(message, conversationHistory, assistantResponse) {
@@ -543,6 +640,291 @@ function getPositiveInteger(value) {
 	}
 
 	return null;
+}
+
+function safeJsonParse(rawValue) {
+	if (typeof rawValue !== "string") {
+		return null;
+	}
+
+	try {
+		return JSON.parse(rawValue);
+	} catch {
+		return null;
+	}
+}
+
+function createHttpError(status, message) {
+	const error = new Error(message);
+	error.status = status;
+	return error;
+}
+
+function truncateText(value, maxChars) {
+	if (typeof value !== "string" || value.length <= maxChars) {
+		return value;
+	}
+
+	return `${value.slice(0, maxChars - 1)}…`;
+}
+
+function escapeHtml(value) {
+	return String(value)
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
+}
+
+function normalizeConfluenceBaseUrl(value) {
+	const trimmed = getNonEmptyString(value);
+	if (!trimmed) {
+		return null;
+	}
+
+	const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+	try {
+		const normalizedUrl = new URL(withProtocol);
+		return normalizedUrl.toString().replace(/\/+$/, "");
+	} catch {
+		return null;
+	}
+}
+
+function getRunShareTitle(run) {
+	if (!run || typeof run !== "object") {
+		return "Agents team run summary";
+	}
+
+	const plan = run.plan && typeof run.plan === "object" ? run.plan : null;
+	return getNonEmptyString(plan?.title) || "Agents team run summary";
+}
+
+function resolveSummaryTimestamp(run, summary) {
+	return (
+		getNonEmptyString(summary?.createdAt) ||
+		getNonEmptyString(run?.updatedAt) ||
+		getNonEmptyString(run?.createdAt) ||
+		new Date().toISOString()
+	);
+}
+
+function buildConfluenceStorageBody(run, summary, summaryContent) {
+	const runTitle = escapeHtml(getRunShareTitle(run));
+	const runId = escapeHtml(getNonEmptyString(run?.runId) || "unknown");
+	const createdAt = escapeHtml(resolveSummaryTimestamp(run, summary));
+	const content = escapeHtml(summaryContent);
+
+	return [
+		`<h1>${runTitle}</h1>`,
+		`<p><strong>Run ID:</strong> <code>${runId}</code></p>`,
+		`<p><strong>Generated:</strong> ${createdAt}</p>`,
+		"<hr />",
+		`<pre>${content}</pre>`,
+	].join("");
+}
+
+function buildSlackSummaryText(run, summary, summaryContent) {
+	const runTitle = getRunShareTitle(run);
+	const runId = getNonEmptyString(run?.runId) || "unknown";
+	const createdAt = resolveSummaryTimestamp(run, summary);
+	const trimmedSummary = truncateText(summaryContent, MAX_SLACK_SUMMARY_CHARS);
+
+	return [
+		`*${runTitle}*`,
+		`Run ID: \`${runId}\``,
+		`Generated: ${createdAt}`,
+		"",
+		trimmedSummary,
+	].join("\n");
+}
+
+function parseExternalErrorMessage(payload, rawText) {
+	if (payload && typeof payload === "object") {
+		const errorPayload = payload;
+		if (typeof errorPayload.error === "string" && errorPayload.error.trim()) {
+			return errorPayload.error.trim();
+		}
+		if (typeof errorPayload.message === "string" && errorPayload.message.trim()) {
+			return errorPayload.message.trim();
+		}
+		if (
+			errorPayload.data &&
+			typeof errorPayload.data === "object" &&
+			typeof errorPayload.data.message === "string" &&
+			errorPayload.data.message.trim()
+		) {
+			return errorPayload.data.message.trim();
+		}
+	}
+
+	const trimmedText = getNonEmptyString(rawText);
+	if (trimmedText) {
+		return truncateText(trimmedText, 240);
+	}
+
+	return null;
+}
+
+function resolveConfluencePageUrl(baseUrl, payload) {
+	if (!payload || typeof payload !== "object") {
+		return null;
+	}
+
+	const links = payload._links && typeof payload._links === "object" ? payload._links : null;
+	const webUiPath =
+		getNonEmptyString(links?.webui) ||
+		getNonEmptyString(links?.tinyui) ||
+		getNonEmptyString(payload.webui);
+	if (webUiPath) {
+		try {
+			const linksBase = getNonEmptyString(links?.base) || baseUrl;
+			return new URL(webUiPath, linksBase).toString();
+		} catch {
+			// Ignore invalid URL payloads and use fallback below.
+		}
+	}
+
+	const pageId = getNonEmptyString(payload.id);
+	if (!pageId) {
+		return null;
+	}
+
+	return `${baseUrl}/pages/viewpage.action?pageId=${encodeURIComponent(pageId)}`;
+}
+
+async function createConfluenceSummaryPage({
+	run,
+	summary,
+	summaryContent,
+	confluence,
+}) {
+	const baseUrl =
+		normalizeConfluenceBaseUrl(confluence?.baseUrl) ||
+		normalizeConfluenceBaseUrl(process.env.CONFLUENCE_BASE_URL) ||
+		DEFAULT_CONFLUENCE_BASE_URL;
+	const spaceKey =
+		getNonEmptyString(confluence?.spaceKey) ||
+		getNonEmptyString(process.env.CONFLUENCE_DEFAULT_SPACE_KEY);
+	const title =
+		getNonEmptyString(confluence?.title) || `${getRunShareTitle(run)} summary`;
+	const parentPageId =
+		getNonEmptyString(confluence?.parentPageId) ||
+		getNonEmptyString(process.env.CONFLUENCE_PARENT_PAGE_ID);
+	const email = getNonEmptyString(process.env.CONFLUENCE_USER_EMAIL);
+	const apiToken = getNonEmptyString(process.env.CONFLUENCE_API_TOKEN);
+
+	if (!email || !apiToken) {
+		throw createHttpError(
+			500,
+			"Confluence sharing is not configured. Set CONFLUENCE_USER_EMAIL and CONFLUENCE_API_TOKEN."
+		);
+	}
+	if (!spaceKey) {
+		throw createHttpError(
+			400,
+			"Confluence space key is required. Provide it in the request or set CONFLUENCE_DEFAULT_SPACE_KEY."
+		);
+	}
+
+	const payload = {
+		type: "page",
+		title,
+		space: { key: spaceKey },
+		body: {
+			storage: {
+				value: buildConfluenceStorageBody(run, summary, summaryContent),
+				representation: "storage",
+			},
+		},
+	};
+	if (parentPageId) {
+		payload.ancestors = [{ id: parentPageId }];
+	}
+
+	const response = await fetch(`${baseUrl}/rest/api/content`, {
+		method: "POST",
+		headers: {
+			Authorization: `Basic ${Buffer.from(`${email}:${apiToken}`).toString("base64")}`,
+			"Content-Type": "application/json",
+			Accept: "application/json",
+		},
+		body: JSON.stringify(payload),
+	});
+
+	const rawText = await response.text();
+	const responsePayload = safeJsonParse(rawText);
+	if (!response.ok) {
+		const details =
+			parseExternalErrorMessage(responsePayload, rawText) || `status ${response.status}`;
+		throw createHttpError(
+			502,
+			`Failed to create Confluence page: ${details}`
+		);
+	}
+
+	return {
+		externalUrl: resolveConfluencePageUrl(baseUrl, responsePayload),
+	};
+}
+
+async function callSlackApi(endpoint, token, body) {
+	const response = await fetch(`https://slack.com/api/${endpoint}`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"Content-Type": "application/json; charset=utf-8",
+		},
+		body: JSON.stringify(body),
+	});
+
+	const rawText = await response.text();
+	const responsePayload = safeJsonParse(rawText);
+	if (!response.ok) {
+		const details =
+			parseExternalErrorMessage(responsePayload, rawText) || `status ${response.status}`;
+		throw createHttpError(502, `Slack API request failed: ${details}`);
+	}
+
+	if (!responsePayload || responsePayload.ok !== true) {
+		const details =
+			parseExternalErrorMessage(responsePayload, rawText) || "Unknown Slack API error.";
+		throw createHttpError(502, `Slack API request failed: ${details}`);
+	}
+
+	return responsePayload;
+}
+
+async function sendSlackSummaryDm({ run, summary, summaryContent }) {
+	const slackToken = getNonEmptyString(process.env.SLACK_BOT_TOKEN);
+	const slackUserId = getNonEmptyString(process.env.SLACK_DM_USER_ID);
+
+	if (!slackToken || !slackUserId) {
+		throw createHttpError(
+			500,
+			"Slack sharing is not configured. Set SLACK_BOT_TOKEN and SLACK_DM_USER_ID."
+		);
+	}
+
+	const openPayload = await callSlackApi("conversations.open", slackToken, {
+		users: slackUserId,
+	});
+	const channelId = getNonEmptyString(openPayload.channel?.id);
+	if (!channelId) {
+		throw createHttpError(502, "Slack API did not return a direct-message channel.");
+	}
+
+	const messagePayload = await callSlackApi("chat.postMessage", slackToken, {
+		channel: channelId,
+		text: buildSlackSummaryText(run, summary, summaryContent),
+		unfurl_links: false,
+		unfurl_media: false,
+	});
+
+	return {
+		messageTs: getNonEmptyString(messagePayload.ts) || undefined,
+	};
 }
 
 function createClarificationSessionId() {
@@ -1432,6 +1814,130 @@ function createFallbackQuestionCardPayload({
 	};
 }
 
+function normalizeQuestionCardText(value) {
+	if (typeof value !== "string") {
+		return "";
+	}
+
+	return value
+		.replace(/\*\*([^*\n]+)\*\*/g, "$1")
+		.replace(/__([^_\n]+)__/g, "$1")
+		.replace(/`([^`\n]+)`/g, "$1")
+		.replace(/\[(.+?)\]\([^)]+\)/g, "$1")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function parseQuestionCardQuestionText(rawQuestionText) {
+	const normalizedText = normalizeQuestionCardText(rawQuestionText);
+	if (!normalizedText) {
+		return null;
+	}
+
+	const questionMarkIndex = normalizedText.indexOf("?");
+	if (questionMarkIndex !== -1) {
+		const label = normalizedText.slice(0, questionMarkIndex + 1).trim();
+		const description = normalizeQuestionCardText(
+			normalizedText
+				.slice(questionMarkIndex + 1)
+				.replace(/^[\s—–:-]+/, "")
+		);
+		if (!label) {
+			return null;
+		}
+
+		return {
+			label,
+			description: description || undefined,
+		};
+	}
+
+	if (!/\b(what|which|when|where|who|why|how|do|does|can|should)\b/i.test(normalizedText)) {
+		return null;
+	}
+
+	return {
+		label: normalizedText,
+		description: undefined,
+	};
+}
+
+function extractQuestionCardPayloadFromAssistantText(rawText, defaults = {}) {
+	if (typeof rawText !== "string" || !rawText.trim()) {
+		return null;
+	}
+
+	const normalizedText = rawText.trim();
+	const hasClarificationSignal =
+		/\b(let me ask|few questions|clarify|scope (?:this|things)|before i (?:put together|build|draft)|before we (?:build|draft))\b/i.test(
+			normalizedText
+		);
+	if (!hasClarificationSignal) {
+		return null;
+	}
+
+	const lines = normalizedText.split(/\r?\n/);
+	const questionBlocks = [];
+	let activeQuestionParts = null;
+	for (const rawLine of lines) {
+		const line = rawLine.trim();
+		if (!line) {
+			continue;
+		}
+
+		const numberedQuestionMatch = line.match(/^\d+[\.)]\s+(.+)$/);
+		if (numberedQuestionMatch?.[1]) {
+			if (activeQuestionParts && activeQuestionParts.length > 0) {
+				questionBlocks.push(activeQuestionParts.join(" "));
+			}
+			activeQuestionParts = [numberedQuestionMatch[1]];
+			continue;
+		}
+
+		if (!activeQuestionParts) {
+			continue;
+		}
+
+		if (/^[-*•]\s+/.test(line)) {
+			continue;
+		}
+
+		activeQuestionParts.push(line);
+	}
+
+	if (activeQuestionParts && activeQuestionParts.length > 0) {
+		questionBlocks.push(activeQuestionParts.join(" "));
+	}
+
+	const questions = questionBlocks
+		.map((questionBlock) => parseQuestionCardQuestionText(questionBlock))
+		.filter((question) => question && question.label.includes("?"))
+		.slice(0, 4)
+		.map((question, index) => ({
+			id: `q-${index + 1}`,
+			label: question.label,
+			description: question.description,
+			required: index < 2,
+			kind: "single-select",
+		}));
+
+	if (questions.length < 2) {
+		return null;
+	}
+
+	return sanitizeQuestionCardPayload(
+		{
+			type: CLARIFICATION_WIDGET_TYPE,
+			title: defaults.title || "Help me clarify what you need",
+			description:
+				defaults.description ||
+				"Answer these questions so I can build a better plan.",
+			questions,
+		},
+		defaults
+	);
+}
+
 function createClarificationQuestionPrompt({
 	latestUserMessage,
 	conversationHistory,
@@ -1674,10 +2180,16 @@ app.post("/api/chat-sdk", async (req, res) => {
 			messages,
 			contextDescription,
 			provider,
+			agentTeamMode: rawAgentTeamMode,
+			agentTeamRequestId,
 			hasQueuedPrompts: rawHasQueuedPrompts,
 		} = req.body || {};
 		const hasQueuedPrompts = Boolean(rawHasQueuedPrompts);
-
+		const agentTeamMode = Boolean(rawAgentTeamMode);
+		const latestVisibleUserMessage = getLatestVisibleUserMessage(messages);
+		const latestUserMessageSource = getLatestUserMessageSource(messages);
+		const isPostClarificationTurn =
+			latestUserMessageSource === "clarification-submit";
 		const {
 			message: latestUserMessage,
 			conversationHistory,
@@ -1685,6 +2197,37 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 		if (!latestUserMessage) {
 			return res.status(400).json({ error: "A user message is required" });
+		}
+
+		if (
+			shouldGateAgentTeamPlanningQuestionCard({
+				messages,
+				agentTeamMode,
+				latestVisibleUserMessage,
+				latestUserMessageSource,
+				planningGateSkipSources: PLANNING_GATE_SKIP_SOURCES,
+				detectPlanningIntent,
+				parsePlanPayload: parsePlanWidgetPayload,
+			})
+		) {
+			const questionCardPayload = await generateClarificationQuestionCard({
+				latestUserMessage: latestVisibleUserMessage?.text || latestUserMessage,
+				conversationHistory,
+				previousQuestionCard: null,
+				submission: null,
+				round: 1,
+				maxRounds: 1,
+				sessionId: buildPlanningQuestionCardSessionId(agentTeamRequestId),
+			});
+
+			if (questionCardPayload) {
+				streamQuestionCardWidget({
+					res,
+					payload: questionCardPayload,
+					introText: PLANNING_GATE_INTRO_TEXT,
+				});
+				return;
+			}
 		}
 
 		const userMessageText = buildUserMessage(
@@ -2490,7 +3033,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 						);
 						writer.write({
 							type: "data-thinking-status",
-							data: { label: "Switching to AI Gateway..." },
+							data: { label: "Switching to AI Gateway" },
 						});
 						rovoDevFellBackToGateway = true;
 						await streamTextViaAIGateway({
@@ -2536,9 +3079,54 @@ app.post("/api/chat-sdk", async (req, res) => {
 				}
 
 				if (!hasEmittedQuestionCard && !hasEmittedPlanWidget) {
-					const fallbackPlanPayload = extractPlanWidgetPayloadFromText(
+					const fallbackQuestionCardPayload =
+						extractQuestionCardPayloadFromAssistantText(assistantText, {
+							sessionId: buildPlanningQuestionCardSessionId(agentTeamRequestId),
+							round: 1,
+							maxRounds: CLARIFICATION_MAX_ROUNDS,
+							title: "Help me clarify what you need",
+							description:
+								"Answer these questions so I can build a better plan.",
+						});
+					if (fallbackQuestionCardPayload) {
+						const fallbackWidgetId = `question-card-fallback-${Date.now()}`;
+						hasEmittedQuestionCard = true;
+						writer.write({
+							type: "data-widget-loading",
+							id: fallbackWidgetId,
+							data: {
+								type: CLARIFICATION_WIDGET_TYPE,
+								loading: true,
+							},
+						});
+						writer.write({
+							type: "data-widget-data",
+							id: fallbackWidgetId,
+							data: {
+								type: CLARIFICATION_WIDGET_TYPE,
+								payload: fallbackQuestionCardPayload,
+							},
+						});
+						writer.write({
+							type: "data-widget-loading",
+							id: fallbackWidgetId,
+							data: {
+								type: CLARIFICATION_WIDGET_TYPE,
+								loading: false,
+							},
+						});
+					}
+				}
+
+				if (!hasEmittedQuestionCard && !hasEmittedPlanWidget) {
+					let fallbackPlanPayload = extractPlanWidgetPayloadFromText(
 						assistantText
 					);
+					if (!fallbackPlanPayload && isPostClarificationTurn) {
+						fallbackPlanPayload = extractPlanWidgetPayloadFromStructuredText(
+							assistantText
+						);
+					}
 					if (fallbackPlanPayload) {
 						latestPlanPayload = fallbackPlanPayload;
 						hasEmittedPlanWidget = true;
@@ -2705,6 +3293,18 @@ app.post("/api/agents-team/runs", async (req, res) => {
 	}
 });
 
+app.get("/api/agents-team/runs", async (req, res) => {
+	try {
+		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+		const runs = await agentsTeamRunManager.listRuns({ limit: rawLimit });
+		return res.status(200).json({ runs });
+	} catch (error) {
+		console.error("[AGENTS-RUN] Failed to list runs:", error);
+		const message = error instanceof Error ? error.message : "Failed to list runs";
+		return res.status(500).json({ error: message });
+	}
+});
+
 app.get("/api/agents-team/runs/:runId", async (req, res) => {
 	try {
 		const runId = req.params.runId;
@@ -2720,6 +3320,94 @@ app.get("/api/agents-team/runs/:runId", async (req, res) => {
 	}
 });
 
+app.delete("/api/agents-team/runs/:runId", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		await agentsTeamRunManager.deleteRun(runId);
+		return res.status(200).json({ deleted: true });
+	} catch (error) {
+		console.error("[AGENTS-RUN] Failed to delete run:", error);
+		return res.status(500).json({ error: "Failed to delete run" });
+	}
+});
+
+app.get("/api/agents-team/threads", async (req, res) => {
+	try {
+		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+		const limit = rawLimit ? Number(rawLimit) : undefined;
+		const threads = await agentsTeamThreadManager.listThreads({ limit });
+		return res.status(200).json({ threads });
+	} catch (error) {
+		console.error("[AGENTS-THREAD] Failed to list threads:", error);
+		const message = error instanceof Error ? error.message : "Failed to list threads";
+		return res.status(500).json({ error: message });
+	}
+});
+
+app.get("/api/agents-team/threads/:threadId", async (req, res) => {
+	try {
+		const threadId = req.params.threadId;
+		const thread = await agentsTeamThreadManager.getThread(threadId);
+		if (!thread) {
+			return res.status(404).json({ error: "Thread not found" });
+		}
+
+		return res.status(200).json({ thread });
+	} catch (error) {
+		console.error("[AGENTS-THREAD] Failed to get thread:", error);
+		return res.status(500).json({ error: "Failed to load thread" });
+	}
+});
+
+app.post("/api/agents-team/threads", async (req, res) => {
+	try {
+		const { id, title, messages, createdAt, updatedAt } = req.body || {};
+		const thread = await agentsTeamThreadManager.createThread({
+			id,
+			title,
+			messages,
+			createdAt,
+			updatedAt,
+		});
+		return res.status(201).json({ thread });
+	} catch (error) {
+		console.error("[AGENTS-THREAD] Failed to create thread:", error);
+		const message = error instanceof Error ? error.message : "Failed to create thread";
+		return res.status(400).json({ error: message });
+	}
+});
+
+app.put("/api/agents-team/threads/:threadId", async (req, res) => {
+	try {
+		const threadId = req.params.threadId;
+		const { title, messages, updatedAt } = req.body || {};
+		const thread = await agentsTeamThreadManager.updateThread(threadId, {
+			title,
+			messages,
+			updatedAt,
+		});
+		if (!thread) {
+			return res.status(404).json({ error: "Thread not found" });
+		}
+
+		return res.status(200).json({ thread });
+	} catch (error) {
+		console.error("[AGENTS-THREAD] Failed to update thread:", error);
+		return res.status(500).json({ error: "Failed to update thread" });
+	}
+});
+
+app.delete("/api/agents-team/threads/:threadId", async (req, res) => {
+	try {
+		const threadId = req.params.threadId;
+		await agentsTeamThreadManager.deleteThread(threadId);
+		return res.status(200).json({ deleted: true });
+	} catch (error) {
+		console.error("[AGENTS-THREAD] Failed to delete thread:", error);
+		return res.status(500).json({ error: "Failed to delete thread" });
+	}
+});
+
 app.post("/api/agents-team/runs/:runId/tasks", async (req, res) => {
 	try {
 		const runId = req.params.runId;
@@ -2729,6 +3417,7 @@ app.post("/api/agents-team/runs/:runId/tasks", async (req, res) => {
 			contextPrompt,
 			conversation,
 			customInstruction,
+			retryTaskIds,
 		} = req.body || {};
 		const result = await agentsTeamRunManager.appendTasks(runId, {
 			planDelta,
@@ -2736,6 +3425,7 @@ app.post("/api/agents-team/runs/:runId/tasks", async (req, res) => {
 			contextPrompt,
 			conversation,
 			customInstruction,
+			retryTaskIds,
 		});
 
 		if (result?.error) {
@@ -2821,6 +3511,68 @@ app.post("/api/agents-team/runs/:runId/directives", async (req, res) => {
 	} catch (error) {
 		console.error("[AGENTS-RUN] Failed to add directive:", error);
 		return res.status(500).json({ error: "Failed to add directive" });
+	}
+});
+
+app.post("/api/agents-team/runs/:runId/share", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const requestBody = req.body && typeof req.body === "object" ? req.body : {};
+		const target = getNonEmptyString(requestBody.target)?.toLowerCase();
+		if (target !== "confluence" && target !== "slack") {
+			return res.status(400).json({
+				error: "Invalid share target. Use 'confluence' or 'slack'.",
+			});
+		}
+
+		const runSummary = await agentsTeamRunManager.getRunSummary(runId);
+		if (!runSummary || !runSummary.run) {
+			return res.status(404).json({ error: "Run not found" });
+		}
+
+		const summaryContent = getNonEmptyString(runSummary.summary?.content);
+		if (!summaryContent) {
+			return res.status(409).json({
+				error: "Final synthesis is not ready yet. Try again after summary generation completes.",
+			});
+		}
+
+		if (target === "confluence") {
+			const confluenceInput =
+				requestBody.confluence && typeof requestBody.confluence === "object"
+					? requestBody.confluence
+					: {};
+			const result = await createConfluenceSummaryPage({
+				run: runSummary.run,
+				summary: runSummary.summary,
+				summaryContent,
+				confluence: confluenceInput,
+			});
+			return res.status(200).json({
+				ok: true,
+				target: "confluence",
+				externalUrl: result.externalUrl,
+			});
+		}
+
+		const slackResult = await sendSlackSummaryDm({
+			run: runSummary.run,
+			summary: runSummary.summary,
+			summaryContent,
+		});
+		return res.status(200).json({
+			ok: true,
+			target: "slack",
+			messageTs: slackResult.messageTs,
+		});
+	} catch (error) {
+		console.error("[AGENTS-RUN] Failed to share run summary:", error);
+		const status = typeof error?.status === "number" ? error.status : 500;
+		const message =
+			error instanceof Error && error.message.trim()
+				? error.message.trim()
+				: "Failed to share run summary";
+		return res.status(status).json({ error: message });
 	}
 });
 

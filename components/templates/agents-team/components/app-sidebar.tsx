@@ -12,16 +12,19 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/utils/theme-wrapper";
 import { token } from "@/lib/tokens";
+import SearchIcon from "@atlaskit/icon/core/search";
 import SidebarCollapseIcon from "@atlaskit/icon/core/sidebar-collapse";
 import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import type { AgentsTeamSkill, AgentsTeamAgent } from "@/lib/agents-team-config-types";
+import type { AgentRunListItem } from "@/lib/agents-team-run-types";
+import type { RetryTaskGroupKey } from "@/components/templates/agents-team/lib/retry-task-groups";
 import SidebarChatHistory, {
 	type ChatHistoryItem,
 } from "./sidebar-chat-history";
 import SidebarEmptyState from "./sidebar-empty-state";
 import SidebarFooter from "./sidebar-footer";
-import { TaskTrackerCard } from "./task-tracker-card";
-import type { TaskStatusGroups } from "../lib/execution-data";
+import SidebarRunHistory from "./sidebar-run-history";
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	isOverlay?: boolean;
@@ -29,19 +32,19 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	onPinSidebar?: () => void;
 	chatHistory: ChatHistoryItem[];
 	activeChatId: string | null;
+	runHistory: AgentRunListItem[];
+	activeRunId?: string | null;
 	isGeneratingTitle?: boolean;
 	pendingTitleChatId?: string | null;
+	onSelectRun?: (runId: string) => void;
+	onDeleteRun?: (runId: string) => void;
+	onRetryRunGroup?: (
+		runId: string,
+		groupKey: RetryTaskGroupKey,
+		taskIds: string[]
+	) => Promise<void> | void;
 	onSelectChat: (id: string) => void;
 	onDeleteChat: (id: string) => void;
-	isExecuting?: boolean;
-	executionData?: {
-		planTitle: string;
-		planEmoji: string;
-		taskStatusGroups: TaskStatusGroups;
-		runStatus: "running" | "completed" | "failed";
-		runCreatedAt: string | null;
-		runCompletedAt: string | null;
-	};
 	skills: AgentsTeamSkill[];
 	agents: AgentsTeamAgent[];
 	onEditSkill: (skill: AgentsTeamSkill) => void;
@@ -57,12 +60,15 @@ export function AppSidebar({
 	onPinSidebar,
 	chatHistory,
 	activeChatId,
+	runHistory,
+	activeRunId,
 	isGeneratingTitle,
 	pendingTitleChatId,
+	onSelectRun,
+	onDeleteRun,
+	onRetryRunGroup,
 	onSelectChat,
 	onDeleteChat,
-	isExecuting,
-	executionData,
 	skills,
 	agents,
 	onEditSkill,
@@ -73,6 +79,8 @@ export function AppSidebar({
 	...props
 }: Readonly<AppSidebarProps>) {
 	const { toggleSidebar } = useSidebar();
+	const hasRunHistory = runHistory.length > 0;
+	const hasChatHistory = chatHistory.length > 0 || Boolean(isGeneratingTitle);
 
 	return (
 		<Sidebar
@@ -129,24 +137,37 @@ export function AppSidebar({
 				</div>
 			</SidebarHeader>
 			<SidebarContent className="bg-bg-neutral-subtle pb-[7.5rem]">
-				{isExecuting && executionData ? (
-						<TaskTrackerCard
-							planTitle={executionData.planTitle}
-							planEmoji={executionData.planEmoji}
-							taskStatusGroups={executionData.taskStatusGroups}
-							runStatus={executionData.runStatus}
-							runCreatedAt={executionData.runCreatedAt}
-							runCompletedAt={executionData.runCompletedAt}
-						/>
-				) : chatHistory.length > 0 || isGeneratingTitle ? (
-					<SidebarChatHistory
-						items={chatHistory}
-						activeChatId={activeChatId}
-						isGeneratingTitle={isGeneratingTitle}
-						pendingChatId={pendingTitleChatId}
-						onSelectChat={onSelectChat}
-						onDeleteChat={onDeleteChat}
-					/>
+				{hasRunHistory || hasChatHistory ? (
+					<div className="flex flex-col">
+						<div className="p-3">
+							<InputGroup>
+								<InputGroupAddon>
+									<SearchIcon label="Search" />
+								</InputGroupAddon>
+								<InputGroupInput placeholder="Search" aria-label="Search" />
+							</InputGroup>
+						</div>
+						{hasRunHistory ? (
+							<SidebarRunHistory
+								items={runHistory}
+								activeRunId={activeRunId}
+								onSelectRun={onSelectRun}
+								onDeleteRun={onDeleteRun}
+								onRetryRunGroup={onRetryRunGroup}
+							/>
+						) : null}
+						{hasChatHistory ? (
+							<SidebarChatHistory
+								items={chatHistory}
+								activeChatId={activeChatId}
+								isGeneratingTitle={isGeneratingTitle}
+								pendingChatId={pendingTitleChatId}
+								sectionLabel="Chats"
+								onSelectChat={onSelectChat}
+								onDeleteChat={onDeleteChat}
+							/>
+						) : null}
+					</div>
 				) : (
 					<div className="flex flex-1 items-center justify-center px-3">
 						<SidebarEmptyState onCreateOne={onCreateAgentTeam} />

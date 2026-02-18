@@ -20,6 +20,7 @@ import {
 import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import {
 	AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
+	AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION,
 	AGENT_TEAM_MODE_PLAN_RETRY_PROMPT,
 } from "../lib/agent-team-mode";
 import type { ChatHistoryItem } from "../components/sidebar-chat-history";
@@ -27,9 +28,7 @@ import {
 	AGENTS_TEAM_THREAD_RETENTION_LIMIT,
 	createThreadFromPrompt,
 	deleteThread,
-	deserializeThreadLookupState,
 	getThreadById,
-	serializeThreadLookupState,
 	sortThreadsByUpdatedAtDesc,
 	trimTitleText,
 	type AgentsTeamThread,
@@ -38,25 +37,41 @@ import {
 	upsertThreadSnapshot,
 } from "../lib/thread-store";
 
-const AGENTS_TEAM_THREAD_STORAGE_KEY = "vpk:agents-team:threads:v1";
-
-function loadInitialThreadLookupState(): {
-	threads: AgentsTeamThread[];
-	activeChatId: string | null;
-} {
-	if (typeof window === "undefined") {
-		return { threads: [], activeChatId: null };
-	}
-
-	const persisted = deserializeThreadLookupState({
-		rawValue: window.localStorage.getItem(AGENTS_TEAM_THREAD_STORAGE_KEY),
-		maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+function persistThreadToServer(thread: AgentsTeamThread): void {
+	fetch(API_ENDPOINTS.agentsTeamThreads(), {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			id: thread.id,
+			title: thread.title,
+			messages: thread.messages,
+			createdAt: new Date(thread.createdAt).toISOString(),
+			updatedAt: new Date(thread.updatedAt).toISOString(),
+		}),
+	}).catch(() => {
+		// Fire-and-forget — optimistic local state takes precedence
 	});
+}
 
-	return {
-		threads: sortThreadsByUpdatedAtDesc(persisted.threads),
-		activeChatId: persisted.activeChatId,
-	};
+function updateThreadOnServer(
+	threadId: string,
+	fields: { title?: string; messages?: ReadonlyArray<RovoUIMessage>; updatedAt?: string }
+): void {
+	fetch(API_ENDPOINTS.agentsTeamThread(threadId), {
+		method: "PUT",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(fields),
+	}).catch(() => {
+		// Fire-and-forget
+	});
+}
+
+function deleteThreadOnServer(threadId: string): void {
+	fetch(API_ENDPOINTS.agentsTeamThread(threadId), {
+		method: "DELETE",
+	}).catch(() => {
+		// Fire-and-forget
+	});
 }
 
 type AgentTeamPlanningPhase = "awaiting-plan" | "retrying-missing-plan";
@@ -247,15 +262,78 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			return;
 		}
 
-		const persisted = loadInitialThreadLookupState();
-		const hydrationRestoreTimeout = setTimeout(() => {
-			setThreads((previousThreads) =>
-				previousThreads.length > 0 ? previousThreads : persisted.threads
-			);
-		}, 0);
+		let cancelled = false;
+		fetch(API_ENDPOINTS.agentsTeamThreads())
+			.then((response) => {
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}`);
+				}
+
+				return response.json() as Promise<{ threads?: unknown[] }>;
+			})
+			.then((data) => {
+				if (cancelled) {
+					return;
+				}
+
+				const serverThreads = Array.isArray(data.threads)
+					? (data.threads
+							.map((raw) => {
+								if (
+									!raw ||
+									typeof raw !== "object" ||
+									!("id" in raw) ||
+									typeof (raw as Record<string, unknown>).id !== "string"
+								) {
+									return null;
+								}
+
+								const record = raw as Record<string, unknown>;
+								const createdAt =
+									typeof record.createdAt === "string"
+										? Date.parse(record.createdAt)
+										: typeof record.createdAt === "number"
+											? record.createdAt
+											: Date.now();
+								const updatedAt =
+									typeof record.updatedAt === "string"
+										? Date.parse(record.updatedAt)
+										: typeof record.updatedAt === "number"
+											? record.updatedAt
+											: createdAt;
+
+								return {
+									id: record.id as string,
+									title:
+										typeof record.title === "string"
+											? record.title
+											: "New chat",
+									messages: Array.isArray(record.messages)
+										? (record.messages as RovoUIMessage[])
+										: [],
+									createdAt: Number.isFinite(createdAt)
+										? createdAt
+										: Date.now(),
+									updatedAt: Number.isFinite(updatedAt)
+										? updatedAt
+										: Date.now(),
+								} satisfies AgentsTeamThread;
+							})
+							.filter(Boolean) as AgentsTeamThread[])
+					: [];
+
+				setThreads((previousThreads) =>
+					previousThreads.length > 0
+						? previousThreads
+						: sortThreadsByUpdatedAtDesc(serverThreads)
+				);
+			})
+			.catch(() => {
+				// Silently fall back to empty thread list on server error
+			});
 
 		return () => {
-			clearTimeout(hydrationRestoreTimeout);
+			cancelled = true;
 		};
 	}, []);
 
@@ -300,21 +378,6 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		};
 	}, []);
 
-	useEffect(() => {
-		if (typeof window === "undefined") {
-			return;
-		}
-
-		window.localStorage.setItem(
-			AGENTS_TEAM_THREAD_STORAGE_KEY,
-			serializeThreadLookupState({
-				threads,
-				activeChatId: null,
-				maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
-			})
-		);
-	}, [activeChatId, threads]);
-
 	const snapshotThreadMessages = useCallback(
 		(chatId: string | null, messages: ReadonlyArray<RovoUIMessage>) => {
 			if (!chatId) {
@@ -341,6 +404,11 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 					updatedAt: Date.now(),
 					maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
 				});
+			});
+
+			updateThreadOnServer(chatId, {
+				messages: [...messages],
+				updatedAt: new Date().toISOString(),
 			});
 		},
 		[]
@@ -371,6 +439,11 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
 			})
 		);
+
+		updateThreadOnServer(chatId, {
+			title: normalizedTitle,
+			updatedAt: new Date().toISOString(),
+		});
 
 		if (pendingTitleChatIdRef.current === chatId) {
 			pendingTitleChatIdRef.current = null;
@@ -444,6 +517,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		pendingTitleChatIdRef.current = thread.id;
 		pendingTitleMessageRef.current = firstMessage;
 		hasStreamedOnceRef.current = false;
+		persistThreadToServer(thread);
 		return thread.id;
 	}, []);
 
@@ -599,7 +673,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		});
 
 		void sendPrompt(AGENT_TEAM_MODE_PLAN_RETRY_PROMPT, {
-			contextDescription: AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
+			contextDescription: AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION,
 			agentTeamMode: true,
 			agentTeamRequestId: retryRequestId,
 			messageMetadata: {
@@ -623,7 +697,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 			await sendPrompt(promptText, {
 				contextDescription: isAgentTeamMode
-					? AGENT_TEAM_MODE_CONTEXT_DESCRIPTION
+					? AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION
 					: undefined,
 				agentTeamMode: isAgentTeamMode || undefined,
 				agentTeamRequestId: agentTeamPlanningSession?.requestId,
@@ -778,6 +852,8 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				})
 			);
 
+			deleteThreadOnServer(id);
+
 			if (pendingTitleChatIdRef.current === id) {
 				pendingTitleChatIdRef.current = null;
 				pendingTitleMessageRef.current = null;
@@ -821,6 +897,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				const chatId = activeChatIdRef.current;
 				if (chatId) {
 					setThreads((prev) => deleteThread({ threads: prev, chatId }));
+					deleteThreadOnServer(chatId);
 					if (pendingTitleChatIdRef.current === chatId) {
 						pendingTitleChatIdRef.current = null;
 						pendingTitleMessageRef.current = null;

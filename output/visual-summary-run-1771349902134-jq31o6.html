@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan — Visual Summary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#0b1120;
+  --bg-card:#131b2e;
+  --bg-card-hover:#1a2540;
+  --border-subtle:#1e2d4a;
+  --border-accent:#2dd4bf;
+  --text-primary:#f0f4f8;
+  --text-secondary:#94a3b8;
+  --text-muted:#64748b;
+  --accent-teal:#2dd4bf;
+  --accent-teal-dim:rgba(45,212,191,0.12);
+  --accent-amber:#f59e0b;
+  --accent-amber-dim:rgba(245,158,11,0.12);
+  --accent-green:#22c55e;
+  --accent-green-dim:rgba(34,197,94,0.12);
+  --accent-rose:#f43f5e;
+  --accent-rose-dim:rgba(244,63,94,0.10);
+  --accent-blue:#3b82f6;
+  --accent-blue-dim:rgba(59,130,246,0.10);
+  --radius:10px;
+  --font-display:'DM Serif Display',Georgia,serif;
+  --font-body:'DM Sans',system-ui,sans-serif;
+}
+html{font-size:16px;scroll-behavior:smooth}
+body{
+  font-family:var(--font-body);
+  background:var(--bg-deep);
+  color:var(--text-primary);
+  line-height:1.6;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+/* Grain overlay */
+body::before{
+  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  opacity:0.025;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:128px 128px;
+}
+/* Ambient glow */
+.ambient-glow{
+  position:fixed;top:-30%;left:-10%;width:60%;height:60%;
+  background:radial-gradient(ellipse,rgba(45,212,191,0.06) 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+.ambient-glow-2{
+  position:fixed;bottom:-20%;right:-10%;width:50%;height:50%;
+  background:radial-gradient(ellipse,rgba(59,130,246,0.04) 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+
+/* Layout */
+.page{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:3rem 2rem 4rem}
+
+/* Stagger animation */
+@keyframes fadeSlideUp{
+  from{opacity:0;transform:translateY(24px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.anim{opacity:0;animation:fadeSlideUp 0.6s cubic-bezier(0.16,1,0.3,1) forwards}
+.d1{animation-delay:0.05s}.d2{animation-delay:0.12s}.d3{animation-delay:0.19s}
+.d4{animation-delay:0.26s}.d5{animation-delay:0.33s}.d6{animation-delay:0.40s}
+.d7{animation-delay:0.47s}.d8{animation-delay:0.54s}.d9{animation-delay:0.61s}
+.d10{animation-delay:0.68s}.d11{animation-delay:0.75s}.d12{animation-delay:0.82s}
+
+/* Header */
+.header{margin-bottom:3rem;padding-bottom:2rem;border-bottom:1px solid var(--border-subtle)}
+.header-eyebrow{
+  display:inline-flex;align-items:center;gap:0.5rem;
+  font-size:0.75rem;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;
+  color:var(--accent-teal);margin-bottom:1rem;
+}
+.header-eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent-green);flex-shrink:0}
+.header h1{
+  font-family:var(--font-display);font-size:clamp(2rem,5vw,3.2rem);
+  line-height:1.15;color:var(--text-primary);margin-bottom:0.75rem;font-weight:400;
+}
+.header h1 em{font-style:italic;color:var(--accent-teal)}
+.header-sub{font-size:1.05rem;color:var(--text-secondary);max-width:680px;line-height:1.7}
+
+/* Status banner */
+.status-banner{
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+  padding:1.25rem 1.5rem;border-radius:var(--radius);
+  background:var(--accent-green-dim);border:1px solid rgba(34,197,94,0.2);
+  margin-bottom:2.5rem;
+}
+.status-badge{
+  display:inline-flex;align-items:center;gap:0.4rem;
+  padding:0.3rem 0.75rem;border-radius:100px;
+  background:var(--accent-green);color:#0b1120;
+  font-size:0.75rem;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;
+}
+.status-badge svg{width:14px;height:14px}
+.status-text{font-size:0.95rem;color:var(--accent-green)}
+
+/* Metrics row */
+.metrics{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;
+  margin-bottom:3rem;
+}
+.metric-card{
+  padding:1.5rem;border-radius:var(--radius);
+  background:var(--bg-card);border:1px solid var(--border-subtle);
+  transition:border-color 0.25s,background 0.25s;
+}
+.metric-card:hover{border-color:var(--border-accent);background:var(--bg-card-hover)}
+.metric-label{font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem;font-weight:500}
+.metric-value{font-family:var(--font-display);font-size:2rem;color:var(--text-primary);line-height:1.2}
+.metric-note{font-size:0.8rem;color:var(--text-secondary);margin-top:0.35rem}
+
+/* Section */
+.section{margin-bottom:3rem}
+.section-title{
+  font-family:var(--font-display);font-size:1.5rem;color:var(--text-primary);
+  margin-bottom:1.25rem;padding-bottom:0.75rem;
+  border-bottom:1px solid var(--border-subtle);font-weight:400;
+}
+.section-title .num{color:var(--accent-teal);margin-right:0.5rem;font-style:italic}
+
+/* Outcome cards */
+.outcome-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem}
+.outcome-card{
+  padding:1.5rem;border-radius:var(--radius);
+  background:var(--bg-card);border:1px solid var(--border-subtle);
+  transition:transform 0.25s,border-color 0.25s;
+}
+.outcome-card:hover{transform:translateY(-2px);border-color:var(--border-accent)}
+.outcome-card h3{font-family:var(--font-display);font-size:1.1rem;margin-bottom:0.75rem;font-weight:400;color:var(--text-primary)}
+.outcome-card p,.outcome-card li{font-size:0.9rem;color:var(--text-secondary);line-height:1.65}
+.outcome-card ul{list-style:none;padding:0}
+.outcome-card ul li{padding-left:1.25rem;position:relative;margin-bottom:0.4rem}
+.outcome-card ul li::before{content:'';position:absolute;left:0;top:0.55rem;width:6px;height:6px;border-radius:50%;background:var(--accent-teal)}
+
+/* Task list */
+.task-list{display:flex;flex-direction:column;gap:0.75rem}
+.task-item{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:start;gap:1rem;
+  padding:1.25rem 1.5rem;border-radius:var(--radius);
+  background:var(--bg-card);border:1px solid var(--border-subtle);
+  transition:border-color 0.25s,background 0.25s;
+}
+.task-item:hover{border-color:var(--border-accent);background:var(--bg-card-hover)}
+.task-num{
+  font-family:var(--font-display);font-size:1.1rem;font-style:italic;
+  color:var(--accent-teal);min-width:2rem;padding-top:0.1rem;
+}
+.task-content h4{font-size:0.95rem;font-weight:500;color:var(--text-primary);margin-bottom:0.35rem}
+.task-content p{font-size:0.85rem;color:var(--text-secondary);line-height:1.6}
+.task-status{
+  display:inline-flex;align-items:center;gap:0.35rem;
+  padding:0.25rem 0.65rem;border-radius:100px;font-size:0.7rem;font-weight:600;
+  letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap;flex-shrink:0;margin-top:0.15rem;
+}
+.task-status.done{background:var(--accent-green-dim);color:var(--accent-green)}
+.task-status.done svg{width:12px;height:12px}
+
+/* Next actions */
+.next-actions{
+  padding:2rem;border-radius:var(--radius);
+  background:linear-gradient(135deg,var(--bg-card) 0%,rgba(45,212,191,0.04) 100%);
+  border:1px solid var(--border-subtle);
+}
+.next-actions h3{font-family:var(--font-display);font-size:1.2rem;margin-bottom:1.25rem;font-weight:400}
+.action-group{margin-bottom:1.5rem}
+.action-group:last-child{margin-bottom:0}
+.action-group-title{
+  font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;
+  color:var(--accent-amber);margin-bottom:0.6rem;
+}
+.action-group ol{list-style:none;counter-reset:action;padding:0}
+.action-group ol li{
+  counter-increment:action;position:relative;padding-left:1.75rem;
+  font-size:0.9rem;color:var(--text-secondary);line-height:1.65;margin-bottom:0.4rem;
+}
+.action-group ol li::before{
+  content:counter(action);position:absolute;left:0;top:0.15rem;
+  width:1.2rem;height:1.2rem;border-radius:50%;
+  background:var(--accent-teal-dim);color:var(--accent-teal);
+  font-size:0.65rem;font-weight:600;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* Open questions */
+.questions{
+  padding:1.5rem 2rem;border-radius:var(--radius);
+  background:var(--accent-amber-dim);border:1px solid rgba(245,158,11,0.15);
+}
+.questions h3{font-family:var(--font-display);font-size:1.1rem;margin-bottom:1rem;font-weight:400;color:var(--accent-amber)}
+.questions ul{list-style:none;padding:0}
+.questions ul li{
+  font-size:0.9rem;color:var(--text-secondary);line-height:1.65;
+  padding:0.5rem 0;border-bottom:1px solid rgba(245,158,11,0.08);
+  padding-left:1.5rem;position:relative;
+}
+.questions ul li:last-child{border-bottom:none}
+.questions ul li::before{content:'?';position:absolute;left:0;color:var(--accent-amber);font-weight:600;font-family:var(--font-display)}
+
+/* Footer */
+.footer{
+  margin-top:3rem;padding-top:2rem;border-top:1px solid var(--border-subtle);
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;
+}
+.footer-left{font-size:0.8rem;color:var(--text-muted)}
+.footer-right{font-size:0.75rem;color:var(--text-muted);text-align:right}
+
+@media(max-width:640px){
+  .page{padding:2rem 1.25rem 3rem}
+  .metrics{grid-template-columns:1fr 1fr}
+  .outcome-grid{grid-template-columns:1fr}
+  .task-item{grid-template-columns:auto 1fr;gap:0.75rem}
+  .task-status{grid-column:2}
+  .footer{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+<div class="ambient-glow"></div>
+<div class="ambient-glow-2"></div>
+<div class="page">
+
+<!-- Header -->
+<header class="header anim d1">
+  <div class="header-eyebrow"><span class="dot"></span> Visual Summary — Run Complete</div>
+  <h1>AI Agents in <em>Enterprise Transformation</em></h1>
+  <p class="header-sub">A comprehensive one-day hybrid conference bringing together 200 tech professionals to explore AI innovation, ethical considerations, and enterprise implementation strategies.</p>
+</header>
+
+<!-- Status -->
+<div class="status-banner anim d2">
+  <span class="status-badge">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    Completed
+  </span>
+  <span class="status-text">All 10 tasks finished successfully — event plan fully delivered</span>
+</div>
+
+<!-- Metrics -->
+<div class="metrics anim d3">
+  <div class="metric-card">
+    <div class="metric-label">Tasks Completed</div>
+    <div class="metric-value">10 / 10</div>
+    <div class="metric-note">100% completion rate</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Expected Attendance</div>
+    <div class="metric-value">200</div>
+    <div class="metric-note">60% in-person · 40% virtual</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Event Format</div>
+    <div class="metric-value" style="font-size:1.5rem">Hybrid</div>
+    <div class="metric-note">One-day conference · 8 hours</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Speaker Lineup</div>
+    <div class="metric-value">5</div>
+    <div class="metric-note">Keynote + panels + lightning talks</div>
+  </div>
+</div>
+
+<!-- Key Outcomes -->
+<section class="section anim d4">
+  <h2 class="section-title"><span class="num">01</span> Key Outcomes</h2>
+  <div class="outcome-grid">
+    <div class="outcome-card">
+      <h3>Event Design</h3>
+      <ul>
+        <li>Theme: AI Agents in Enterprise Transformation</li>
+        <li>Hybrid format with in-person and virtual tracks</li>
+        <li>Target audience: Tech executives, PMs, AI researchers</li>
+        <li>Ticket tiers: Free (50), Standard (100), VIP (50)</li>
+      </ul>
+    </div>
+    <div class="outcome-card">
+      <h3>Content &amp; Speakers</h3>
+      <ul>
+        <li>5 speakers from academia, enterprise, startups, and ethics</li>
+        <li>Keynote, expert panels, lightning talks, workshops</li>
+        <li>Full timed agenda with networking breaks</li>
+        <li>Standardized slide deck guidelines distributed</li>
+      </ul>
+    </div>
+    <div class="outcome-card">
+      <h3>Logistics &amp; Infrastructure</h3>
+      <ul>
+        <li>Live-streaming and recording setup confirmed</li>
+        <li>Robust Wi-Fi with dedicated event network</li>
+        <li>Catering for dietary restrictions covered</li>
+        <li>Accessibility: wheelchair, hearing loop, quiet areas</li>
+      </ul>
+    </div>
+    <div class="outcome-card">
+      <h3>Promotion &amp; Registration</h3>
+      <ul>
+        <li>3-wave social media campaign (8, 6, 2 weeks out)</li>
+        <li>Landing page, email invites, social assets prepared</li>
+        <li>Eventbrite registration with capacity cap at 200</li>
+        <li>Performance tracking across all channels</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Task-by-task -->
+<section class="section anim d5">
+  <h2 class="section-title"><span class="num">02</span> Task-by-Task Results</h2>
+  <div class="task-list">
+    <div class="task-item">
+      <span class="task-num">1</span>
+      <div class="task-content">
+        <h4>Define event purpose, theme, and format</h4>
+        <p>Selected "AI Agents in Enterprise Transformation" as the core theme. Chose a hybrid one-day conference targeting 150–250 tech professionals with keynotes, panels, workshops, and networking.</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+    <div class="task-item">
+      <span class="task-num">2</span>
+      <div class="task-content">
+        <h4>Set date, budget, and venue</h4>
+        <p>Established an 8–12 week planning window with a $25K–$50K budget framework. Defined venue criteria including AV infrastructure, accessibility, and proximity to transit. Budget allocated across venue (35%), catering (22%), AV (18%), marketing (12%), speakers (13%).</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+    <div class="task-item">
+      <span class="task-num">3</span>
+      <div class="task-content">
+        <h4>Curate speaker lineup and agenda</h4>
+        <p>Identified 5 speakers spanning academic research, enterprise AI, startup innovation, and AI ethics. Drafted a full timed agenda from 9:00 AM to 3:30 PM with keynote, two panels, lightning talks, and structured networking breaks.</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+    <div class="task-item">
+      <span class="task-num">4</span>
+      <div class="task-content">
+        <h4>Set up registration and ticketing</h4>
+        <p>Selected Eventbrite as the primary platform. Defined three tiers: Free (50 seats, early-bird), Standard (100 seats, full access), and VIP (50 seats, speaker meet-and-greet + swag). Total capacity capped at 200.</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+    <div class="task-item">
+      <span class="task-num">5</span>
+      <div class="task-content">
+        <h4>Launch promotion campaign</h4>
+        <p>Designed a 3-wave campaign: initial announcement at 8 weeks, speaker reveals at 6 weeks, and final push at 2 weeks. Assets include landing page, email sequences, speaker spotlights, countdown graphics, and cross-platform social posts.</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+    <div class="task-item">
+      <span class="task-num">6</span>
+      <div class="task-content">
+        <h4>Arrange logistics and AV</h4>
+        <p>Comprehensive checklist covering catering (dietary accommodations), branded signage, badge printing with QR codes, AV equipment (projectors, wireless mics, live-stream encoders), dedicated Wi-Fi network (100+ Mbps), and full accessibility audit.</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+    <div class="task-item">
+      <span class="task-num">7</span>
+      <div class="task-content">
+        <h4>Prepare content and materials</h4>
+        <p>Set up shared Google Drive with organized folders. Created speaker deck template (16:9, max 20 slides). Planned swag kits ($15–25/attendee). Drafted run-of-show document with minute-by-minute schedule, intro scripts, and emergency contacts.</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+    <div class="task-item">
+      <span class="task-num">8</span>
+      <div class="task-content">
+        <h4>Recruit and brief volunteers</h4>
+        <p>Defined 5 volunteer roles: registration desk, room management, AV support, social media coverage, and floater. Planned 90-minute pre-event briefing. Recruiting 20% extra to handle no-shows. Compensation: free attendance + networking + references.</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+    <div class="task-item">
+      <span class="task-num">9</span>
+      <div class="task-content">
+        <h4>Execute day-of run-of-show</h4>
+        <p>Arrive 3 hours early for setup and tech checks. Dedicated Slack/Discord monitoring with 2-person team. Spare equipment on standby (cables, adapters, batteries). Continuous recording with backup device. Real-time escalation protocol established.</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+    <div class="task-item">
+      <span class="task-num">10</span>
+      <div class="task-content">
+        <h4>Post-event follow-up</h4>
+        <p>Thank-you emails within 24–48 hours with recording links. Feedback survey via Google Forms with completion incentive. Recap blog post within one week. Team debrief within 5 business days covering wins, improvements, and future iterations.</p>
+      </div>
+      <span class="task-status done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done</span>
+    </div>
+  </div>
+</section>
+
+<!-- Open Questions -->
+<section class="section anim d6">
+  <h2 class="section-title"><span class="num">03</span> Open Risks &amp; Decisions</h2>
+  <div class="questions">
+    <h3>Items Requiring Attention</h3>
+    <ul>
+      <li>Long-term event sustainability and recurring cadence</li>
+      <li>Speaker diversity and representation across future editions</li>
+      <li>Balancing technical depth with accessibility for broader audiences</li>
+      <li>Pricing model refinement based on post-event survey data</li>
+      <li>Expanding virtual participation options and engagement quality</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Next Actions -->
+<section class="section anim d7">
+  <h2 class="section-title"><span class="num">04</span> Recommended Next Actions</h2>
+  <div class="next-actions">
+    <h3>What happens next</h3>
+    <div class="action-group">
+      <div class="action-group-title">Immediate (within 48 hours)</div>
+      <ol>
+        <li>Complete post-event survey analysis and compile results</li>
+        <li>Send personalized thank-you communications to speakers and attendees</li>
+        <li>Publish event recap blog post with key takeaways and photos</li>
+      </ol>
+    </div>
+    <div class="action-group">
+      <div class="action-group-title">Strategic (within 2 weeks)</div>
+      <ol>
+        <li>Conduct comprehensive team debrief with all organizers</li>
+        <li>Review financial performance against budget projections</li>
+        <li>Begin preliminary planning for next event iteration</li>
+      </ol>
+    </div>
+    <div class="action-group">
+      <div class="action-group-title">Community (ongoing)</div>
+      <ol>
+        <li>Maintain communication with speakers and key attendees</li>
+        <li>Create ongoing knowledge-sharing platforms (newsletter, community)</li>
+        <li>Develop year-round engagement strategies for the AI community</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer anim d8">
+  <div class="footer-left">
+    <strong>Plan</strong> — AI Agents in Enterprise Transformation Conference<br>
+    Run ID: run-1771349902134-jq31o6
+  </div>
+  <div class="footer-right">
+    Generated Feb 18, 2026<br>
+    10 tasks · All completed
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

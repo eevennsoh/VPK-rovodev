@@ -1,4 +1,8 @@
-const { generateTextViaRovoDev, streamViaRovoDev } = require("./rovodev-gateway");
+const {
+	generateTextViaRovoDev,
+	streamViaRovoDev,
+	WAIT_FOR_TURN_TIMEOUT_MS,
+} = require("./rovodev-gateway");
 const { createAIGatewayProvider } = require("./ai-gateway-provider");
 const { getGenuiSystemPrompt } = require("./genui-system-prompt");
 const {
@@ -368,7 +372,12 @@ async function generateAssistantText({
 			return chunks.join("");
 		}
 
-		return generateTextViaRovoDev({ system: systemPrompt, prompt });
+		return generateTextViaRovoDev({
+			system: systemPrompt,
+			prompt,
+			conflictPolicy: "wait-for-turn",
+			timeoutMs: WAIT_FOR_TURN_TIMEOUT_MS,
+		});
 	}
 
 	if (!fallbackEnabled) {

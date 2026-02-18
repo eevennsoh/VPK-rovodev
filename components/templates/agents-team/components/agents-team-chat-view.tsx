@@ -23,6 +23,7 @@ import {
 } from "@/components/ui-ai/plan";
 import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
 import { parsePlanWidgetPayload, type ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
+import { derivePlanEmojiFromTitle, resolvePlanDisplayTitle } from "@/components/templates/shared/lib/plan-identity";
 import type { ClarificationAnswers, ParsedQuestionCardPayload } from "@/components/templates/shared/lib/question-card-widget";
 import { Footer } from "@/components/ui/footer";
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
@@ -59,7 +60,6 @@ interface AgentsTeamChatViewProps {
 	onApprovalSubmit: (selection: PlanApprovalSelection) => void;
 	onSuggestedQuestionClick: (question: string) => Promise<void> | void;
 	onRetryPlanWidget?: () => void;
-	onDeleteMessage?: (messageId: string) => void;
 }
 
 export default function AgentsTeamChatView({
@@ -83,7 +83,6 @@ export default function AgentsTeamChatView({
 	onApprovalSubmit,
 	onSuggestedQuestionClick,
 	onRetryPlanWidget,
-	onDeleteMessage,
 }: Readonly<AgentsTeamChatViewProps>) {
 	const { conversationContextRef, scrollSpacerRef } = useScrollAnchoring({
 		uiMessages,
@@ -133,7 +132,6 @@ export default function AgentsTeamChatView({
 						streamingIndicatorMessages={streamingUiMessages}
 						hideScrollbar
 						onSuggestedQuestionClick={onSuggestedQuestionClick}
-						onDeleteMessage={onDeleteMessage}
 						conversationContextRef={conversationContextRef}
 						scrollSpacerRef={scrollSpacerRef}
 						contentTopPadding="24px"
@@ -164,7 +162,6 @@ export default function AgentsTeamChatView({
 									<PlanCardWidgetInline
 										title={parsedPlanWidget.title}
 										description={parsedPlanWidget.description}
-										emoji={parsedPlanWidget.emoji}
 										tasks={parsedPlanWidget.tasks}
 										agents={parsedPlanWidget.agents}
 										isStreaming={isPlanWidgetStreaming}
@@ -369,11 +366,10 @@ interface PlanCardWidgetInlineProps {
 	tasks: PlanTask[];
 	agents?: string[];
 	description?: string;
-	emoji?: string;
 	isStreaming?: boolean;
 }
 
-function PlanCardWidgetInline({ title, tasks, agents = [], description, emoji = "\u270C\uFE0F", isStreaming = false }: Readonly<PlanCardWidgetInlineProps>): React.ReactElement | null {
+function PlanCardWidgetInline({ title, tasks, agents = [], description, isStreaming = false }: Readonly<PlanCardWidgetInlineProps>): React.ReactElement | null {
 	const [isOpen, setIsOpen] = useState(true);
 	const visibleTasks = tasks.filter((task) => task.label.trim().length > 0);
 	const [streamRevealCount, setStreamRevealCount] = useState(0);
@@ -394,15 +390,17 @@ function PlanCardWidgetInline({ title, tasks, agents = [], description, emoji = 
 		return null;
 	}
 
+	const displayTitle = resolvePlanDisplayTitle(title, visibleTasks);
+	const displayEmoji = derivePlanEmojiFromTitle(displayTitle);
 	const descriptionText = description?.trim() ? description : `${visibleTasks.length} tasks`;
 
 	return (
 		<Plan className="w-full gap-3 py-0 shadow-xs" open={isOpen} onOpenChange={setIsOpen} isStreaming={isStreaming}>
 			<PlanHeader className={cn("items-center px-4 pt-4", !isOpen && "pb-4")}>
 				<div className="flex min-w-0 items-center gap-3">
-					<PlanAvatar emoji={emoji} />
+					<PlanAvatar emoji={displayEmoji} />
 					<div className="min-w-0">
-						<PlanTitle className="truncate text-sm leading-5 font-semibold text-text">{title}</PlanTitle>
+						<PlanTitle className="truncate text-sm leading-5 font-semibold text-text">{displayTitle}</PlanTitle>
 						<PlanDescription className="text-xs leading-4 text-text-subtlest">{descriptionText}</PlanDescription>
 					</div>
 				</div>

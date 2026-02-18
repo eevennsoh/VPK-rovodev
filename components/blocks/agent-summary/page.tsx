@@ -173,6 +173,39 @@ const MOCK_VISUAL_SUMMARY: AgentRunVisualSummary = {
 };
 
 const MOCK_GENUI_SUMMARY: AgentRunGenuiSummary = {
+	widgets: [
+		{
+			id: "interactive-widget-1",
+			title: "Interactive widget 1",
+			spec: MOCK_GENUI_SPEC,
+			status: "ready",
+			createdAt: MOCK_COMPLETED_AT,
+		},
+		{
+			id: "interactive-widget-2",
+			title: "Interactive widget 2",
+			spec: { root: "", elements: {} },
+			status: "failed",
+			createdAt: MOCK_COMPLETED_AT,
+			error: "Widget data unavailable in demo mode.",
+		},
+		{
+			id: "interactive-widget-3",
+			title: "Interactive widget 3",
+			spec: { root: "", elements: {} },
+			status: "failed",
+			createdAt: MOCK_COMPLETED_AT,
+			error: "Widget data unavailable in demo mode.",
+		},
+		{
+			id: "interactive-widget-4",
+			title: "Interactive widget 4",
+			spec: { root: "", elements: {} },
+			status: "failed",
+			createdAt: MOCK_COMPLETED_AT,
+			error: "Widget data unavailable in demo mode.",
+		},
+	],
 	spec: MOCK_GENUI_SPEC,
 	partial: false,
 	createdAt: MOCK_COMPLETED_AT,

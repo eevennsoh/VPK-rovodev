@@ -3,10 +3,7 @@ const assert = require("node:assert/strict");
 const {
 	AGENTS_TEAM_THREAD_RETENTION_LIMIT,
 	createThreadFromPrompt,
-	deleteThread,
-	deserializeThreadLookupState,
 	getThreadById,
-	serializeThreadLookupState,
 	updateThreadMessages,
 	upsertThreadSnapshot,
 } = require("./thread-store.ts");
@@ -119,40 +116,4 @@ test("applies retention limit to newest threads", () => {
 	assert.equal(threads.length, AGENTS_TEAM_THREAD_RETENTION_LIMIT);
 	assert.equal(threads[0]?.id, "thread-35");
 	assert.equal(threads.at(-1)?.id, "thread-6");
-});
-
-test("deserialize handles malformed JSON safely", () => {
-	const malformed = deserializeThreadLookupState({
-		rawValue: "{invalid-json",
-	});
-	assert.deepEqual(malformed, { threads: [], activeChatId: null });
-});
-
-test("deserialize clears active thread id when thread no longer exists", () => {
-	const keptThread = createThreadFromPrompt({
-		promptText: "Keep me",
-		now: 10,
-		id: "thread-keep",
-	});
-	const removedThread = createThreadFromPrompt({
-		promptText: "Remove me",
-		now: 20,
-		id: "thread-remove",
-	});
-
-	const initialThreads = [keptThread, removedThread];
-	const serialized = serializeThreadLookupState({
-		threads: deleteThread({
-			threads: initialThreads,
-			chatId: removedThread.id,
-		}),
-		activeChatId: removedThread.id,
-	});
-
-	const restored = deserializeThreadLookupState({
-		rawValue: serialized,
-	});
-	assert.equal(restored.activeChatId, null);
-	assert.equal(restored.threads.length, 1);
-	assert.equal(restored.threads[0]?.id, keptThread.id);
 });

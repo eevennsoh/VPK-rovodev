@@ -1,21 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-	AudioPlayer,
-	AudioPlayerControlBar,
-	AudioPlayerDurationDisplay,
-	AudioPlayerElement,
-	AudioPlayerPlayButton,
-	AudioPlayerTimeDisplay,
-	AudioPlayerTimeRange,
-} from "@/components/ui-ai/audio-player";
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { API_ENDPOINTS } from "@/lib/api-config";
+import { cn } from "@/lib/utils";
 import type {
 	AgentRun,
 	AgentRunArtifact,
+	AgentRunConfluenceShareInput,
+	AgentRunListItem,
+	AgentRunShareRequest,
+	AgentRunShareResponse,
 	AgentRunSummary,
 	AgentRunVisualSummary,
 	AgentRunGenuiSummary,
@@ -23,15 +33,28 @@ import type {
 } from "@/lib/agents-team-run-types";
 import { isAgentRunStreamEvent } from "@/lib/agents-team-run-types";
 import type { AgentExecutionUpdate } from "@/lib/rovo-ui-messages";
+import { deriveTaskExecutionsFromRun } from "@/components/templates/agents-team/lib/execution-data";
 import {
-	computeTaskStatusGroupsFromRun,
-	deriveTaskExecutionsFromRun,
-	type TaskExecution,
-} from "@/components/templates/agents-team/lib/execution-data";
+	applyExecutionUpdate,
+	mergeStreamedExecutions,
+	type TaskExecutionByTaskId,
+} from "@/components/templates/agents-team/lib/task-execution-stream";
 import { ExecutionGridView } from "@/components/templates/agents-team/components/execution-grid-view";
-import { TaskTrackerCard } from "@/components/templates/agents-team/components/task-tracker-card";
 import { RunFilesTab } from "@/components/templates/agents-team/components/run-files-tab";
 import { RunSummarySection } from "@/app/agents-team/runs/[runId]/run-summary-section";
+import { AppSidebar } from "@/components/templates/agents-team/components/app-sidebar";
+import ChatTitleRow from "@/components/templates/agents-team/components/chat-title-row";
+import { useAgentsTeamConfig } from "@/components/templates/agents-team/hooks/use-agents-team-config";
+import { useConfigDialogs } from "@/components/templates/agents-team/hooks/use-config-dialogs";
+import { ConfigDialogs } from "@/components/templates/agents-team/components/config-dialogs";
+import {
+	selectRetryTasks,
+	type RetryTaskGroupKey,
+} from "@/components/templates/agents-team/lib/retry-task-groups";
+import {
+	derivePlanEmojiFromTitle,
+	resolvePlanDisplayTitle,
+} from "@/components/templates/shared/lib/plan-identity";
 
 interface RunWorkspaceProps {
 	runId: string;
@@ -55,6 +78,21 @@ interface RunFilesResponse {
 	artifacts?: AgentRunArtifact[];
 	error?: string;
 }
+
+interface ShareNotice {
+	type: "success" | "error";
+	message: string;
+	externalUrl?: string;
+}
+
+interface ConfluenceShareFormState {
+	baseUrl: string;
+	spaceKey: string;
+	title: string;
+	parentPageId: string;
+}
+
+const DEFAULT_CONFLUENCE_BASE_URL = "https://venn-test.atlassian.net/wiki";
 
 function parseErrorMessage(payload: unknown): string {
 	if (!payload || typeof payload !== "object") {
@@ -80,79 +118,6 @@ function toErrorMessage(error: unknown): string {
 	return "Request failed";
 }
 
-type TaskExecutionByAgentId = Record<string, TaskExecution>;
-
-function applyExecutionUpdate(
-	previousByAgentId: TaskExecutionByAgentId,
-	update: AgentExecutionUpdate
-): TaskExecutionByAgentId {
-	if (!update.agentId || !update.taskId) {
-		return previousByAgentId;
-	}
-
-	const existingExecution = previousByAgentId[update.agentId];
-	if (existingExecution && existingExecution.agentId === update.agentId) {
-		const hasTaskChanged = existingExecution.taskId !== update.taskId;
-		const nextContent = update.content
-			? hasTaskChanged
-				? update.content
-				: `${existingExecution.content}${update.content}`
-			: existingExecution.content;
-		return {
-			...previousByAgentId,
-			[update.agentId]: {
-				...existingExecution,
-				taskId: update.taskId,
-				agentName: update.agentName,
-				taskLabel: update.taskLabel,
-				status: update.status,
-				content: nextContent,
-			},
-		};
-	}
-
-	return {
-		...previousByAgentId,
-		[update.agentId]: {
-			taskId: update.taskId,
-			taskLabel: update.taskLabel,
-			agentId: update.agentId,
-			agentName: update.agentName,
-			status: update.status,
-			content: update.content ?? "",
-		},
-	};
-}
-
-function mergeStreamedExecutions(
-	baseExecutions: ReadonlyArray<TaskExecution>,
-	streamedExecutionsByAgentId: TaskExecutionByAgentId
-): TaskExecution[] {
-	const streamedExecutions = Object.values(streamedExecutionsByAgentId);
-	if (streamedExecutions.length === 0) {
-		return [...baseExecutions];
-	}
-
-	const mergedById = new Map(
-		baseExecutions.map((execution) => [execution.agentId, execution] as const)
-	);
-	for (const streamedExecution of streamedExecutions) {
-		mergedById.set(streamedExecution.agentId, streamedExecution);
-	}
-
-	const orderedExecutions = baseExecutions.map(
-		(execution) => mergedById.get(execution.agentId) ?? execution
-	);
-	const baseAgentIds = new Set(baseExecutions.map((execution) => execution.agentId));
-	for (const streamedExecution of streamedExecutions) {
-		if (!baseAgentIds.has(streamedExecution.agentId)) {
-			orderedExecutions.push(streamedExecution);
-		}
-	}
-
-	return orderedExecutions;
-}
-
 function getLatestAudioArtifact(artifacts: AgentRunArtifact[]): AgentRunArtifact | null {
 	const audioArtifacts = artifacts.filter(
 		(artifact) => artifact.type === "audio" && typeof artifact.url === "string"
@@ -176,6 +141,27 @@ function getLatestAudioArtifact(artifacts: AgentRunArtifact[]): AgentRunArtifact
 	})[0];
 }
 
+function toDateTimestamp(value: string): number {
+	const timestamp = Date.parse(value);
+	return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function sortRunsByRecency(leftRun: AgentRunListItem, rightRun: AgentRunListItem): number {
+	const updatedDelta =
+		toDateTimestamp(rightRun.updatedAt) - toDateTimestamp(leftRun.updatedAt);
+	if (updatedDelta !== 0) {
+		return updatedDelta;
+	}
+
+	const createdDelta =
+		toDateTimestamp(rightRun.createdAt) - toDateTimestamp(leftRun.createdAt);
+	if (createdDelta !== 0) {
+		return createdDelta;
+	}
+
+	return rightRun.runId.localeCompare(leftRun.runId);
+}
+
 export function RunWorkspace({
 	runId,
 	initialRun,
@@ -184,6 +170,10 @@ export function RunWorkspace({
 	initialGenuiSummary,
 	initialArtifacts,
 }: Readonly<RunWorkspaceProps>) {
+	const router = useRouter();
+	const [isOpen, setIsOpen] = useState(true);
+	const [isHovered, setIsHovered] = useState(false);
+	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [activeTab, setActiveTab] = useState("chat");
 	const [run, setRun] = useState<AgentRun>(initialRun);
 	const [summary, setSummary] = useState<AgentRunSummary | null>(initialSummary);
@@ -191,16 +181,109 @@ export function RunWorkspace({
 		useState<AgentRunVisualSummary | null>(initialVisualSummary);
 	const [genuiSummary, setGenuiSummary] =
 		useState<AgentRunGenuiSummary | null>(initialGenuiSummary);
+	const [runHistory, setRunHistory] = useState<AgentRunListItem[]>([]);
 	const [artifacts, setArtifacts] = useState<AgentRunArtifact[]>(initialArtifacts);
 	const [isAppending, setIsAppending] = useState(false);
 	const [appendError, setAppendError] = useState<string | null>(null);
 	const [summaryError, setSummaryError] = useState<string | null>(null);
 	const [filesError, setFilesError] = useState<string | null>(null);
 	const [isFilesLoading, setIsFilesLoading] = useState(false);
-	const [streamedExecutionsByAgentId, setStreamedExecutionsByAgentId] =
-		useState<TaskExecutionByAgentId>({});
+	const [streamedExecutionsByTaskId, setStreamedExecutionsByTaskId] =
+		useState<TaskExecutionByTaskId>({});
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const previousRunStatusRef = useRef<AgentRun["status"]>(initialRun.status);
+	const queuedExecutionUpdatesRef = useRef<AgentExecutionUpdate[]>([]);
+	const scheduledFlushFrameRef = useRef<number | null>(null);
+	const [shareNotice, setShareNotice] = useState<ShareNotice | null>(null);
+	const [isShareInFlight, setIsShareInFlight] = useState(false);
+	const [isConfluenceDialogOpen, setIsConfluenceDialogOpen] = useState(false);
+	const [confluenceShareForm, setConfluenceShareForm] = useState<ConfluenceShareFormState>({
+		baseUrl: DEFAULT_CONFLUENCE_BASE_URL,
+		spaceKey: "",
+		title: "",
+		parentPageId: "",
+	});
+
+	const {
+		skills,
+		agents,
+		createSkill,
+		updateSkill,
+		deleteSkill,
+		createAgent,
+		updateAgent,
+		deleteAgent,
+	} = useAgentsTeamConfig();
+
+	const { skillDialogProps, agentDialogProps, sidebarConfigHandlers } = useConfigDialogs({
+		skills,
+		createSkill,
+		updateSkill,
+		deleteSkill,
+		createAgent,
+		updateAgent,
+		deleteAgent,
+	});
+
+	const handleHoverEnter = useCallback(() => {
+		if (hoverTimeoutRef.current) {
+			clearTimeout(hoverTimeoutRef.current);
+			hoverTimeoutRef.current = null;
+		}
+		setIsHovered(true);
+	}, []);
+
+	const handleHoverLeave = useCallback(() => {
+		hoverTimeoutRef.current = setTimeout(() => {
+			setIsHovered(false);
+		}, 100);
+	}, []);
+
+	const handlePinSidebar = useCallback(() => {
+		setIsOpen(true);
+		setIsHovered(false);
+	}, []);
+
+	const handleNavigateToAgentsTeam = useCallback(() => {
+		router.push("/agents-team");
+	}, [router]);
+
+	const handleSelectRun = useCallback(
+		(targetRunId: string) => {
+			router.push(`/agents-team/runs/${targetRunId}`);
+		},
+		[router]
+	);
+
+	const handleDeleteRun = useCallback(
+		async (deletedRunId: string) => {
+			try {
+				const response = await fetch(
+					API_ENDPOINTS.agentsTeamRun(deletedRunId),
+					{ method: "DELETE" }
+				);
+				if (!response.ok) {
+					console.error("[AGENTS-TEAM] Failed to delete run:", response.status);
+					return;
+				}
+				setRunHistory((prev) => prev.filter((r) => r.runId !== deletedRunId));
+				if (deletedRunId === runId) {
+					router.push("/agents-team");
+				}
+			} catch (error) {
+				console.error("[AGENTS-TEAM] Failed to delete run:", error);
+			}
+		},
+		[router, runId]
+	);
+
+	const handleUnusedSelectChat = useCallback((chatId: string) => {
+		void chatId;
+	}, []);
+
+	const handleUnusedDeleteChat = useCallback((chatId: string) => {
+		void chatId;
+	}, []);
 
 	const closeEventSource = useCallback(() => {
 		if (eventSourceRef.current) {
@@ -208,6 +291,50 @@ export function RunWorkspace({
 			eventSourceRef.current = null;
 		}
 	}, []);
+
+	const clearQueuedExecutionUpdates = useCallback(() => {
+		queuedExecutionUpdatesRef.current = [];
+		if (scheduledFlushFrameRef.current !== null) {
+			cancelAnimationFrame(scheduledFlushFrameRef.current);
+			scheduledFlushFrameRef.current = null;
+		}
+	}, []);
+
+	const flushQueuedExecutionUpdates = useCallback(() => {
+		if (scheduledFlushFrameRef.current !== null) {
+			cancelAnimationFrame(scheduledFlushFrameRef.current);
+			scheduledFlushFrameRef.current = null;
+		}
+
+		const queuedUpdates = queuedExecutionUpdatesRef.current;
+		if (queuedUpdates.length === 0) {
+			return;
+		}
+
+		queuedExecutionUpdatesRef.current = [];
+		setStreamedExecutionsByTaskId((previousByTaskId) => {
+			let nextById = previousByTaskId;
+			for (const update of queuedUpdates) {
+				nextById = applyExecutionUpdate(nextById, update);
+			}
+			return nextById;
+		});
+	}, []);
+
+	const queueExecutionUpdate = useCallback(
+		(update: AgentExecutionUpdate) => {
+			queuedExecutionUpdatesRef.current.push(update);
+			if (scheduledFlushFrameRef.current !== null) {
+				return;
+			}
+
+			scheduledFlushFrameRef.current = window.requestAnimationFrame(() => {
+				scheduledFlushFrameRef.current = null;
+				flushQueuedExecutionUpdates();
+			});
+		},
+		[flushQueuedExecutionUpdates]
+	);
 
 	const refreshSummary = useCallback(async () => {
 		try {
@@ -264,9 +391,13 @@ export function RunWorkspace({
 
 	useEffect(() => {
 		return () => {
+			if (hoverTimeoutRef.current) {
+				clearTimeout(hoverTimeoutRef.current);
+			}
+			clearQueuedExecutionUpdates();
 			closeEventSource();
 		};
-	}, [closeEventSource]);
+	}, [clearQueuedExecutionUpdates, closeEventSource]);
 
 	useEffect(() => {
 		const shouldConnectStream = run.status === "running";
@@ -293,15 +424,14 @@ export function RunWorkspace({
 
 			const runEvent = parsedEvent as AgentRunStreamEvent;
 			if (runEvent.type === "agent.update") {
-				setStreamedExecutionsByAgentId((previousByAgentId) =>
-					applyExecutionUpdate(previousByAgentId, runEvent.update)
-				);
+				queueExecutionUpdate(runEvent.update);
 				return;
 			}
 
+			flushQueuedExecutionUpdates();
 			if ("update" in runEvent && runEvent.update) {
-				setStreamedExecutionsByAgentId((previousByAgentId) =>
-					applyExecutionUpdate(previousByAgentId, runEvent.update as AgentExecutionUpdate)
+				setStreamedExecutionsByTaskId((previousByTaskId) =>
+					applyExecutionUpdate(previousByTaskId, runEvent.update as AgentExecutionUpdate)
 				);
 			}
 
@@ -319,17 +449,19 @@ export function RunWorkspace({
 		};
 
 		source.onerror = () => {
+			flushQueuedExecutionUpdates();
 			source.close();
 			eventSourceRef.current = null;
 		};
 
 		return () => {
+			clearQueuedExecutionUpdates();
 			source.close();
 			if (eventSourceRef.current === source) {
 				eventSourceRef.current = null;
 			}
 		};
-	}, [closeEventSource, refreshSummaryAndFiles, run.status, runId]);
+	}, [clearQueuedExecutionUpdates, closeEventSource, flushQueuedExecutionUpdates, queueExecutionUpdate, refreshSummaryAndFiles, run.status, runId]);
 
 	useEffect(() => {
 		const previousStatus = previousRunStatusRef.current;
@@ -342,11 +474,47 @@ export function RunWorkspace({
 		previousRunStatusRef.current = run.status;
 	}, [refreshSummaryAndFiles, run.status]);
 
-	const handleAppendTasks = useCallback(
-		async (message: string) => {
-			const normalizedMessage = message.trim();
-			if (!normalizedMessage || isAppending) {
-				return;
+	useEffect(() => {
+		let cancelled = false;
+		const loadRunHistory = async () => {
+			try {
+				const response = await fetch(
+					API_ENDPOINTS.agentsTeamRuns(),
+					{
+						cache: "no-store",
+					}
+				);
+				if (!response.ok || cancelled) {
+					return;
+				}
+
+				const payload = (await response.json()) as { runs?: AgentRunListItem[] };
+				if (!cancelled && Array.isArray(payload.runs)) {
+					setRunHistory(payload.runs);
+				}
+			} catch (error) {
+				console.error("[AGENTS-TEAM] Failed to load sidebar run history:", error);
+			}
+		};
+
+		void loadRunHistory();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [run.runId, run.status]);
+
+	const appendTasksToRun = useCallback(
+		async (
+			targetRunId: string,
+			prompt: string,
+			contextPrompt?: string,
+			retryTaskIds?: string[]
+		): Promise<AgentRun | null> => {
+			const normalizedMessage = prompt.trim();
+			const hasRetryTaskIds = Array.isArray(retryTaskIds) && retryTaskIds.length > 0;
+			if ((!normalizedMessage && !hasRetryTaskIds) || isAppending) {
+				return null;
 			}
 
 			setAppendError(null);
@@ -354,13 +522,15 @@ export function RunWorkspace({
 			setActiveTab("chat");
 
 			try {
-				const response = await fetch(API_ENDPOINTS.agentsTeamRunTasks(runId), {
+				const response = await fetch(API_ENDPOINTS.agentsTeamRunTasks(targetRunId), {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
 					},
 					body: JSON.stringify({
 						prompt: normalizedMessage,
+						contextPrompt,
+						retryTaskIds,
 					}),
 				});
 				if (!response.ok) {
@@ -369,27 +539,84 @@ export function RunWorkspace({
 				}
 
 				const payload = (await response.json()) as { run?: AgentRun };
-				if (payload.run) {
-					setRun(payload.run);
-					setStreamedExecutionsByAgentId({});
+				const nextRun = payload.run ?? null;
+				if (nextRun) {
+					setRunHistory((previousHistory) => {
+						const nextRunsById = new Map(
+							previousHistory.map((historyRun) => [historyRun.runId, historyRun] as const)
+						);
+						nextRunsById.set(nextRun.runId, nextRun);
+						return Array.from(nextRunsById.values()).sort(sortRunsByRecency);
+					});
+					if (nextRun.runId === run.runId) {
+						setRun(nextRun);
+					}
 				}
+
+				return nextRun;
 			} catch (error) {
 				setAppendError(toErrorMessage(error));
+				return null;
 			} finally {
 				setIsAppending(false);
 			}
 		},
-		[isAppending, runId]
+		[isAppending, run.runId]
 	);
 
-	const taskStatusGroups = useMemo(
-		() => computeTaskStatusGroupsFromRun(run.tasks),
-		[run.tasks]
+	const handleAppendTasks = useCallback(
+		async (message: string) => {
+			await appendTasksToRun(runId, message);
+		},
+		[appendTasksToRun, runId]
 	);
+
+	const handleRetryRunGroup = useCallback(
+		async (targetRunId: string, groupKey: RetryTaskGroupKey, taskIds: string[]) => {
+			const targetRun =
+				run.runId === targetRunId
+					? run
+					: runHistory.find((historyRun) => historyRun.runId === targetRunId);
+			if (!targetRun) {
+				return;
+			}
+
+			const selectedTasks = selectRetryTasks(targetRun.tasks, groupKey, taskIds);
+			if (selectedTasks.length === 0) {
+				return;
+			}
+
+			const nextRun = await appendTasksToRun(
+				targetRunId,
+				"",
+				undefined,
+				selectedTasks.map((task) => task.id)
+			);
+			if (!nextRun) {
+				return;
+			}
+
+			if (targetRunId !== run.runId) {
+				router.push(`/agents-team/runs/${targetRunId}`);
+			}
+		},
+		[appendTasksToRun, router, run, runHistory]
+	);
+
 	const taskExecutions = useMemo(() => {
 		const baseExecutions = deriveTaskExecutionsFromRun(run);
-		return mergeStreamedExecutions(baseExecutions, streamedExecutionsByAgentId);
-	}, [run, streamedExecutionsByAgentId]);
+		return mergeStreamedExecutions(baseExecutions, streamedExecutionsByTaskId);
+	}, [run, streamedExecutionsByTaskId]);
+	const sidebarRunHistory = useMemo(() => {
+		const runsById = new Map<string, AgentRunListItem>();
+		for (const runItem of runHistory) {
+			runsById.set(runItem.runId, runItem);
+		}
+		runsById.set(run.runId, run);
+
+		return Array.from(runsById.values())
+			.sort(sortRunsByRecency);
+	}, [run, runHistory]);
 
 	const latestAudioArtifact = useMemo(
 		() => getLatestAudioArtifact(artifacts),
@@ -403,113 +630,368 @@ export function RunWorkspace({
 				summary?.createdAt ?? "none",
 				visualSummary?.createdAt ?? "none",
 				genuiSummary?.createdAt ?? "none",
+				latestAudioArtifact?.createdAt ?? "none",
 			].join(":"),
-		[genuiSummary?.createdAt, run.iteration, summary?.createdAt, visualSummary?.createdAt]
+		[
+			genuiSummary?.createdAt,
+			latestAudioArtifact?.createdAt,
+			run.iteration,
+			summary?.createdAt,
+			visualSummary?.createdAt,
+		]
+	);
+	const runDisplayTitle = useMemo(() => {
+		const resolvedTitle = resolvePlanDisplayTitle(run.plan.title, run.plan.tasks);
+		const resolvedEmoji = derivePlanEmojiFromTitle(resolvedTitle);
+		return `${resolvedEmoji} ${resolvedTitle}`;
+	}, [run.plan.tasks, run.plan.title]);
+	const defaultConfluenceTitle = useMemo(
+		() => `${runDisplayTitle} summary`,
+		[runDisplayTitle]
+	);
+	const isSummaryGenerating = useMemo(() => {
+		if (summaryError) {
+			return false;
+		}
+
+		if (run.status === "running") {
+			return true;
+		}
+
+		return summary === null || visualSummary === null || genuiSummary === null;
+	}, [genuiSummary, run.status, summary, summaryError, visualSummary]);
+	const isShareDisabled = useMemo(() => {
+		const summaryContent = typeof summary?.content === "string" ? summary.content.trim() : "";
+		return summaryContent.length === 0 || isShareInFlight;
+	}, [isShareInFlight, summary?.content]);
+
+	const postRunShare = useCallback(
+		async (requestBody: AgentRunShareRequest): Promise<AgentRunShareResponse> => {
+			const response = await fetch(API_ENDPOINTS.agentsTeamRunShare(runId), {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(requestBody),
+			});
+			if (!response.ok) {
+				const payload = (await response.json().catch(() => ({}))) as unknown;
+				throw new Error(parseErrorMessage(payload));
+			}
+
+			const payload = (await response.json()) as AgentRunShareResponse;
+			return payload;
+		},
+		[runId]
+	);
+
+	const handleShareToSlack = useCallback(async () => {
+		if (isShareDisabled) {
+			return;
+		}
+
+		setShareNotice(null);
+		setIsShareInFlight(true);
+		try {
+			const payload = await postRunShare({ target: "slack" });
+			setShareNotice({
+				type: "success",
+				message: "Sent final synthesis to Slack DM.",
+				externalUrl: payload.externalUrl,
+			});
+		} catch (error) {
+			setShareNotice({
+				type: "error",
+				message: toErrorMessage(error),
+			});
+		} finally {
+			setIsShareInFlight(false);
+		}
+	}, [isShareDisabled, postRunShare]);
+
+	const handleOpenConfluenceShareDialog = useCallback(() => {
+		if (isShareDisabled) {
+			return;
+		}
+
+		setConfluenceShareForm({
+			baseUrl: DEFAULT_CONFLUENCE_BASE_URL,
+			spaceKey: "",
+			title: defaultConfluenceTitle,
+			parentPageId: "",
+		});
+		setShareNotice(null);
+		setIsConfluenceDialogOpen(true);
+	}, [defaultConfluenceTitle, isShareDisabled]);
+
+	const handleConfluenceFieldChange = useCallback(
+		(field: keyof ConfluenceShareFormState, value: string) => {
+			setConfluenceShareForm((previous) => ({
+				...previous,
+				[field]: value,
+			}));
+		},
+		[]
+	);
+
+	const handleSubmitConfluenceShare = useCallback(
+		async (event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			if (isShareDisabled) {
+				return;
+			}
+
+			setShareNotice(null);
+			setIsShareInFlight(true);
+			try {
+				const confluencePayload: AgentRunConfluenceShareInput = {
+					baseUrl: confluenceShareForm.baseUrl.trim() || undefined,
+					spaceKey: confluenceShareForm.spaceKey.trim() || undefined,
+					title: confluenceShareForm.title.trim() || undefined,
+					parentPageId: confluenceShareForm.parentPageId.trim() || undefined,
+				};
+				const payload = await postRunShare({
+					target: "confluence",
+					confluence: confluencePayload,
+				});
+				setShareNotice({
+					type: "success",
+					message: "Created Confluence page from final synthesis.",
+					externalUrl: payload.externalUrl,
+				});
+				setIsConfluenceDialogOpen(false);
+			} catch (error) {
+				setShareNotice({
+					type: "error",
+					message: toErrorMessage(error),
+				});
+			} finally {
+				setIsShareInFlight(false);
+			}
+		},
+		[confluenceShareForm, isShareDisabled, postRunShare]
 	);
 
 	return (
-		<div className="mx-auto flex min-h-svh w-full max-w-[1120px] flex-col gap-5 px-4 py-8 md:px-6">
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<p className="text-xs uppercase tracking-wide text-text-subtlest">Agent run workspace</p>
-					<h1 className="mt-1 text-xl font-semibold text-text">
-						{run.plan.emoji ? `${run.plan.emoji} ` : ""}
-						{run.plan.title}
-					</h1>
-					<p className="mt-1 text-sm text-text-subtle">
-						Status: {run.status} · Iteration {run.iteration}
-					</p>
-				</div>
-				<Link
-					href="/agents-team"
-					className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
+		<SidebarProvider
+			open={isOpen || isHovered}
+			onOpenChange={setIsOpen}
+			style={
+				{
+					"--sidebar-width": "320px",
+				} as React.CSSProperties
+			}
+			className={cn(
+				"[&_[data-slot=sidebar-gap]]:ease-[var(--ease-in-out)] [&_[data-slot=sidebar-container]]:ease-[var(--ease-in-out)]"
+			)}
+		>
+			<AppSidebar
+				isOverlay={false}
+				isHoverReveal={!isOpen && isHovered}
+				onPinSidebar={handlePinSidebar}
+				chatHistory={[]}
+				activeChatId={null}
+				runHistory={sidebarRunHistory}
+				activeRunId={run.runId}
+				onSelectRun={handleSelectRun}
+				onDeleteRun={handleDeleteRun}
+				onRetryRunGroup={handleRetryRunGroup}
+				onSelectChat={handleUnusedSelectChat}
+				onDeleteChat={handleUnusedDeleteChat}
+				onMouseEnter={handleHoverEnter}
+				onMouseLeave={handleHoverLeave}
+				skills={skills}
+				agents={agents}
+				onEditSkill={sidebarConfigHandlers.onEditSkill}
+				onNewSkill={sidebarConfigHandlers.onNewSkill}
+				onEditAgent={sidebarConfigHandlers.onEditAgent}
+				onNewAgent={sidebarConfigHandlers.onNewAgent}
+				onCreateAgentTeam={handleNavigateToAgentsTeam}
+			/>
+			<SidebarInset className="h-svh overflow-hidden">
+				<Tabs
+					value={activeTab}
+					onValueChange={setActiveTab}
+					className="flex h-full min-h-0 flex-col gap-0"
 				>
-					Back to agents team
-				</Link>
-			</div>
-
-			<Tabs value={activeTab} onValueChange={setActiveTab}>
-				<TabsList>
-					<TabsTrigger value="chat">Chat</TabsTrigger>
-					<TabsTrigger value="summary">Summary</TabsTrigger>
-					<TabsTrigger value="files">Files</TabsTrigger>
-				</TabsList>
-
-				<TabsContent value="chat" className="mt-4">
-					<div className="flex flex-col gap-4">
-						{appendError ? (
-							<p className="rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text-danger">
-								{appendError}
-							</p>
-						) : null}
-						<div className="rounded-xl border border-border bg-surface-raised p-3">
-							<TaskTrackerCard
-								planTitle={run.plan.title}
-								planEmoji={run.plan.emoji ?? "✌️"}
-								taskStatusGroups={taskStatusGroups}
-								runStatus={run.status}
-								runCreatedAt={run.createdAt}
-								runCompletedAt={run.completedAt}
-							/>
-						</div>
-						<div className="h-[620px] min-h-[420px] overflow-hidden rounded-xl border border-border bg-surface">
-							<ExecutionGridView
-								taskExecutions={taskExecutions}
-								onAddTask={handleAppendTasks}
-							/>
-						</div>
-						<p className="text-xs text-text-subtlest">
-							{isAppending
-								? "Appending tasks to this run…"
-								: "Use the input on the execution grid to append follow-up tasks to this same run."}
-						</p>
-					</div>
-				</TabsContent>
-
-				<TabsContent value="summary" className="mt-4">
-					<div className="flex flex-col gap-4">
-						<section className="rounded-xl border border-border bg-surface-raised p-5">
-							<h2 className="text-base font-semibold text-text">Narrated summary</h2>
-							<div className="mt-3">
-								{latestAudioArtifact?.url ? (
-									<AudioPlayer>
-										<AudioPlayerElement src={latestAudioArtifact.url} />
-										<AudioPlayerControlBar>
-											<AudioPlayerPlayButton />
-											<AudioPlayerTimeDisplay />
-											<AudioPlayerTimeRange />
-											<AudioPlayerDurationDisplay />
-										</AudioPlayerControlBar>
-									</AudioPlayer>
-								) : (
-									<p className="text-sm text-text-subtle">
-										Audio summary has not been generated yet.
-									</p>
-								)}
+					<ChatTitleRow
+						title={runDisplayTitle}
+						isTitlePending={false}
+						onNewChat={handleNavigateToAgentsTeam}
+						onShareToConfluence={handleOpenConfluenceShareDialog}
+						onShareToSlack={handleShareToSlack}
+						shareDisabled={isShareDisabled}
+						isSharing={isShareInFlight}
+						centerSlot={(
+							<TabsList className="w-fit shrink-0">
+								<TabsTrigger value="chat">Chat</TabsTrigger>
+								<TabsTrigger value="summary">
+									<span className="inline-flex items-center gap-1.5">
+										{isSummaryGenerating ? (
+											<Spinner
+												size="xs"
+												className="text-text-subtle"
+												label="Generating summary results"
+											/>
+										) : null}
+										<span>Summary</span>
+									</span>
+								</TabsTrigger>
+								<TabsTrigger value="files">
+									Files <Badge variant="secondary">{artifacts.length}</Badge>
+								</TabsTrigger>
+							</TabsList>
+						)}
+						sidebarOpen={isOpen}
+						sidebarHovered={isHovered}
+						onExpandSidebar={() => setIsOpen(true)}
+						onHoverEnter={handleHoverEnter}
+						onHoverLeave={handleHoverLeave}
+					/>
+					{shareNotice ? (
+						<div
+							className={cn(
+								"border-b px-4 py-2 text-sm md:px-6",
+								shareNotice.type === "success"
+									? "bg-bg-success-subtler text-text-success-bolder"
+									: "bg-bg-danger-subtler text-text-danger-bolder"
+							)}
+						>
+							<div className="flex flex-wrap items-center justify-between gap-2">
+								<span>{shareNotice.message}</span>
+								{shareNotice.externalUrl ? (
+									<a
+										href={shareNotice.externalUrl}
+										target="_blank"
+										rel="noreferrer"
+										className="text-link underline-offset-3 hover:underline"
+									>
+										Open
+									</a>
+								) : null}
 							</div>
-						</section>
+						</div>
+					) : null}
+					<TabsContent value="chat" className="min-h-0 flex-1 overflow-hidden">
+						<div className="flex h-full min-h-0 flex-col">
+							{appendError ? (
+								<p className="mx-4 mt-4 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text-danger md:mx-6">
+									{appendError}
+								</p>
+							) : null}
+							<div className={cn("min-h-0 flex-1 overflow-hidden", appendError ? "mt-4" : null)}>
+								<ExecutionGridView
+									taskExecutions={taskExecutions}
+									showGeneratingEmptyState={isAppending}
+									onAddTask={handleAppendTasks}
+								/>
+							</div>
+						</div>
+					</TabsContent>
 
-						{summaryError ? (
-							<p className="rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text-danger">
-								{summaryError}
-							</p>
-						) : null}
+					<TabsContent value="summary" className="min-h-0 flex-1 overflow-y-auto">
+						<div className="flex flex-col gap-4 px-4 pb-4 pt-4 md:px-6">
+							{summaryError ? (
+								<p className="rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text-danger">
+									{summaryError}
+								</p>
+							) : null}
 
-						<RunSummarySection
-							key={summarySectionKey}
-							runId={runId}
-							initialRun={run}
-							initialSummary={summary}
-							initialVisualSummary={visualSummary}
-							initialGenuiSummary={genuiSummary}
-						/>
-					</div>
-				</TabsContent>
+							<RunSummarySection
+								key={summarySectionKey}
+								runId={runId}
+								initialRun={run}
+								initialSummary={summary}
+								initialVisualSummary={visualSummary}
+								initialGenuiSummary={genuiSummary}
+								audioSummaryUrl={latestAudioArtifact?.url ?? null}
+							/>
+						</div>
+					</TabsContent>
 
-				<TabsContent value="files" className="mt-4">
-					<RunFilesTab artifacts={artifacts} isLoading={isFilesLoading} error={filesError} />
-				</TabsContent>
-			</Tabs>
-		</div>
+					<TabsContent value="files" className="min-h-0 flex-1 overflow-y-auto">
+						<div className="px-4 pb-4 pt-4 md:px-6">
+							<RunFilesTab artifacts={artifacts} isLoading={isFilesLoading} error={filesError} />
+						</div>
+					</TabsContent>
+				</Tabs>
+				<Dialog open={isConfluenceDialogOpen} onOpenChange={setIsConfluenceDialogOpen}>
+					<DialogContent size="md">
+						<form className="flex flex-col gap-4" onSubmit={handleSubmitConfluenceShare}>
+							<DialogHeader>
+								<DialogTitle>Share to Confluence</DialogTitle>
+								<DialogDescription>
+									Create a Confluence page using the final synthesis content.
+								</DialogDescription>
+							</DialogHeader>
+							<div className="grid gap-3">
+								<div className="grid gap-1.5">
+									<Label htmlFor="share-confluence-base-url">Confluence base URL</Label>
+									<Input
+										id="share-confluence-base-url"
+										value={confluenceShareForm.baseUrl}
+										onChange={(event) =>
+											handleConfluenceFieldChange("baseUrl", event.target.value)
+										}
+										placeholder={DEFAULT_CONFLUENCE_BASE_URL}
+									/>
+								</div>
+								<div className="grid gap-1.5">
+									<Label htmlFor="share-confluence-space-key">Space key</Label>
+									<Input
+										id="share-confluence-space-key"
+										value={confluenceShareForm.spaceKey}
+										onChange={(event) =>
+											handleConfluenceFieldChange("spaceKey", event.target.value)
+										}
+										placeholder="TEAM"
+										required
+									/>
+								</div>
+								<div className="grid gap-1.5">
+									<Label htmlFor="share-confluence-title">Page title</Label>
+									<Input
+										id="share-confluence-title"
+										value={confluenceShareForm.title}
+										onChange={(event) =>
+											handleConfluenceFieldChange("title", event.target.value)
+										}
+										placeholder={defaultConfluenceTitle}
+										required
+									/>
+								</div>
+								<div className="grid gap-1.5">
+									<Label htmlFor="share-confluence-parent-page-id">
+										Parent page ID (optional)
+									</Label>
+									<Input
+										id="share-confluence-parent-page-id"
+										value={confluenceShareForm.parentPageId}
+										onChange={(event) =>
+											handleConfluenceFieldChange("parentPageId", event.target.value)
+										}
+										placeholder="123456789"
+									/>
+								</div>
+							</div>
+							<DialogFooter className="flex-row justify-end gap-2 border-0 bg-transparent p-0">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setIsConfluenceDialogOpen(false)}
+									disabled={isShareInFlight}
+								>
+									Cancel
+								</Button>
+								<Button type="submit" isLoading={isShareInFlight} disabled={isShareInFlight}>
+									Share
+								</Button>
+							</DialogFooter>
+						</form>
+					</DialogContent>
+				</Dialog>
+			</SidebarInset>
+			<ConfigDialogs skillDialog={skillDialogProps} agentDialog={agentDialogProps} />
+		</SidebarProvider>
 	);
 }

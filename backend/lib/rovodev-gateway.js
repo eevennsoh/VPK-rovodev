@@ -22,9 +22,11 @@ const RETRY_INITIAL_DELAY_MS = 250;
 const RETRY_DELAY_STEP_MS = 250;
 const RETRY_MAX_DELAY_MS = 1_000;
 const RETRY_TIMEOUT_MS = 10_000;
-const WAIT_FOR_TURN_TIMEOUT_MS = 120_000;
+const WAIT_FOR_TURN_TIMEOUT_MS = 600_000;
 
 let queuedTextGenerationTail = Promise.resolve();
+let queuedTextGenerationCount = 0;
+let queuedTextGenerationId = 0;
 
 /**
  * Check whether an error is a 409 "chat already in progress" conflict.
@@ -84,9 +86,11 @@ async function retryChatInProgress(
 		cancelOnConflict = true,
 	}
 ) {
+	const startedAtMs = Date.now();
 	const deadlineMs = Date.now() + timeoutMs;
 	let retryDelayMs = RETRY_INITIAL_DELAY_MS;
 	let retryNotified = false;
+	let conflictCount = 0;
 
 	while (true) {
 		if (signal?.aborted) {
@@ -95,14 +99,26 @@ async function retryChatInProgress(
 
 		try {
 			const value = await operation();
+			if (conflictCount > 0) {
+				const elapsedMs = Date.now() - startedAtMs;
+				console.info(
+					`[${logPrefix}] Chat turn acquired after ${conflictCount} conflict retries (${elapsedMs}ms elapsed).`
+				);
+			}
 			return { aborted: false, value };
 		} catch (err) {
 			if (!isChatInProgressError(err)) {
 				throw err;
 			}
+			conflictCount += 1;
 
 			const remainingMs = deadlineMs - Date.now();
 			if (remainingMs <= 0) {
+				if (err && typeof err === "object") {
+					err.chatInProgressTimedOut = true;
+					err.chatInProgressRetryCount = conflictCount;
+					err.chatInProgressElapsedMs = Date.now() - startedAtMs;
+				}
 				throw err;
 			}
 
@@ -114,8 +130,8 @@ async function retryChatInProgress(
 			const waitMs = Math.min(retryDelayMs, RETRY_MAX_DELAY_MS, remainingMs);
 			console.warn(
 				cancelOnConflict
-					? `[${logPrefix}] Chat already in progress — cancelling and retrying in ${waitMs}ms...`
-					: `[${logPrefix}] Chat already in progress — waiting ${waitMs}ms before retrying...`
+					? `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — cancelling and retrying in ${waitMs}ms...`
+					: `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — waiting ${waitMs}ms before retrying...`
 			);
 
 			if (cancelOnConflict) {
@@ -136,15 +152,79 @@ async function retryChatInProgress(
 }
 
 /**
+ * Build a typed timeout error for chat-turn wait exhaustion.
+ * @param {number} timeoutMs
+ * @param {object} [metadata]
+ * @param {string} [metadata.logPrefix]
+ * @param {number} [metadata.retryCount]
+ * @param {number} [metadata.elapsedMs]
+ * @returns {Error}
+ */
+function createChatInProgressTimeoutError(timeoutMs, metadata = {}) {
+	const timeoutSeconds = Math.ceil(timeoutMs / 1000);
+	const retryCount =
+		typeof metadata.retryCount === "number" && metadata.retryCount > 0
+			? metadata.retryCount
+			: null;
+	const timeoutError = new Error(
+		retryCount
+			? `RovoDev chat in progress timeout after ${timeoutSeconds}s (${retryCount} retries)`
+			: `RovoDev chat in progress timeout after ${timeoutSeconds}s`
+	);
+	timeoutError.code = "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT";
+	if (retryCount) {
+		timeoutError.retryCount = retryCount;
+	}
+	if (typeof metadata.elapsedMs === "number" && metadata.elapsedMs > 0) {
+		timeoutError.elapsedMs = metadata.elapsedMs;
+	}
+	if (typeof metadata.logPrefix === "string" && metadata.logPrefix.trim()) {
+		timeoutError.source = metadata.logPrefix.trim();
+	}
+	return timeoutError;
+}
+
+/**
  * Enqueue non-streaming text generation calls so only one RovoDev request runs
  * at a time for callers that require deterministic execution ordering.
  *
  * @template T
  * @param {() => Promise<T>} operation
+ * @param {object} [params]
+ * @param {string} [params.logPrefix]
  * @returns {Promise<T>}
  */
-function enqueueTextGeneration(operation) {
-	const queuedTask = queuedTextGenerationTail.then(() => operation());
+function enqueueTextGeneration(operation, { logPrefix = "generateTextViaRovoDev" } = {}) {
+	const queueId = ++queuedTextGenerationId;
+	const queuedAtMs = Date.now();
+	queuedTextGenerationCount += 1;
+	console.info(
+		`[${logPrefix}] Queued background text generation request #${queueId} (queued=${queuedTextGenerationCount}).`
+	);
+
+	const queuedTask = queuedTextGenerationTail.then(async () => {
+		const queueWaitMs = Date.now() - queuedAtMs;
+		const startedAtMs = Date.now();
+		console.info(
+			`[${logPrefix}] Starting background text generation request #${queueId} after ${queueWaitMs}ms queue wait.`
+		);
+		try {
+			const result = await operation();
+			console.info(
+				`[${logPrefix}] Completed background text generation request #${queueId} in ${Date.now() - startedAtMs}ms.`
+			);
+			return result;
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			console.warn(
+				`[${logPrefix}] Background text generation request #${queueId} failed after ${Date.now() - startedAtMs}ms: ${errorMessage}`
+			);
+			throw error;
+		} finally {
+			queuedTextGenerationCount = Math.max(queuedTextGenerationCount - 1, 0);
+		}
+	});
+
 	queuedTextGenerationTail = queuedTask.catch(() => undefined);
 	return queuedTask;
 }
@@ -318,11 +398,17 @@ async function streamViaRovoDev({
 		}
 	} catch (err) {
 		if (isChatInProgressError(err)) {
-			const timeoutError = new Error(
-				`RovoDev chat in progress timeout after ${Math.ceil(RETRY_TIMEOUT_MS / 1000)}s`
-			);
-			timeoutError.code = "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT";
-			throw timeoutError;
+			throw createChatInProgressTimeoutError(RETRY_TIMEOUT_MS, {
+				logPrefix: "streamViaRovoDev",
+				retryCount:
+					typeof err?.chatInProgressRetryCount === "number"
+						? err.chatInProgressRetryCount
+						: undefined,
+				elapsedMs:
+					typeof err?.chatInProgressElapsedMs === "number"
+						? err.chatInProgressElapsedMs
+						: undefined,
+			});
 		}
 		throw err;
 	}
@@ -351,6 +437,14 @@ async function generateTextViaRovoDev({
 	conflictPolicy = "cancel-and-retry",
 	timeoutMs,
 }) {
+	const waitForTurn = conflictPolicy === "wait-for-turn";
+	const retryTimeoutMs =
+		typeof timeoutMs === "number" && timeoutMs > 0
+			? timeoutMs
+			: waitForTurn
+				? WAIT_FOR_TURN_TIMEOUT_MS
+				: RETRY_TIMEOUT_MS;
+
 	// Combine system + prompt since RovoDev takes a single message
 	let fullMessage = "";
 	if (system) {
@@ -368,31 +462,29 @@ async function generateTextViaRovoDev({
 			return await sendMessageSync(fullMessage, syncOptions);
 		} catch (err) {
 			if (isChatInProgressError(err)) {
-				const waitForTurn = conflictPolicy === "wait-for-turn";
 				try {
 					const { value } = await retryChatInProgress(
 						() => sendMessageSync(fullMessage, syncOptions),
 						{
 							logPrefix: "generateTextViaRovoDev",
-							timeoutMs: waitForTurn ? WAIT_FOR_TURN_TIMEOUT_MS : RETRY_TIMEOUT_MS,
+							timeoutMs: retryTimeoutMs,
 							cancelOnConflict: !waitForTurn,
 						}
 					);
 					return typeof value === "string" ? value : "";
 				} catch (retryError) {
 					if (waitForTurn && isChatInProgressError(retryError)) {
-						console.warn(
-							"[generateTextViaRovoDev] wait-for-turn timed out; falling back to cancel-and-retry."
-						);
-						const { value } = await retryChatInProgress(
-							() => sendMessageSync(fullMessage, syncOptions),
-							{
-								logPrefix: "generateTextViaRovoDev",
-								timeoutMs: RETRY_TIMEOUT_MS,
-								cancelOnConflict: true,
-							}
-						);
-						return typeof value === "string" ? value : "";
+						throw createChatInProgressTimeoutError(retryTimeoutMs, {
+							logPrefix: "generateTextViaRovoDev",
+							retryCount:
+								typeof retryError?.chatInProgressRetryCount === "number"
+									? retryError.chatInProgressRetryCount
+									: undefined,
+							elapsedMs:
+								typeof retryError?.chatInProgressElapsedMs === "number"
+									? retryError.chatInProgressElapsedMs
+									: undefined,
+						});
 					}
 					throw retryError;
 				}
@@ -402,7 +494,9 @@ async function generateTextViaRovoDev({
 	};
 
 	if (conflictPolicy === "wait-for-turn") {
-		return enqueueTextGeneration(runGenerate);
+		return enqueueTextGeneration(runGenerate, {
+			logPrefix: "generateTextViaRovoDev",
+		});
 	}
 
 	return runGenerate();
@@ -412,4 +506,5 @@ module.exports = {
 	streamViaRovoDev,
 	generateTextViaRovoDev,
 	isChatInProgressError,
+	WAIT_FOR_TURN_TIMEOUT_MS,
 };

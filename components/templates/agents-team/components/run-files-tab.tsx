@@ -62,37 +62,25 @@ function toDownloadUrl(url: string | undefined): string | null {
 	return `${url}${url.includes("?") ? "&" : "?"}download=1`;
 }
 
-function getIterationGroups(artifacts: AgentRunArtifact[]) {
-	const groupedMap = new Map<number, AgentRunArtifact[]>();
-	for (const artifact of artifacts) {
-		const existingGroup = groupedMap.get(artifact.iteration);
-		if (existingGroup) {
-			existingGroup.push(artifact);
-			continue;
+function getSortedArtifacts(artifacts: AgentRunArtifact[]): AgentRunArtifact[] {
+	return [...artifacts].sort((left, right) => {
+		if (left.iteration !== right.iteration) {
+			return right.iteration - left.iteration;
 		}
 
-		groupedMap.set(artifact.iteration, [artifact]);
-	}
+		const leftTimestamp = Date.parse(left.createdAt);
+		const rightTimestamp = Date.parse(right.createdAt);
+		if (Number.isFinite(leftTimestamp) && Number.isFinite(rightTimestamp)) {
+			return rightTimestamp - leftTimestamp;
+		}
 
-	return Array.from(groupedMap.entries())
-		.sort((left, right) => right[0] - left[0])
-		.map(([iteration, groupArtifacts]) => ({
-			iteration,
-			artifacts: [...groupArtifacts].sort((left, right) => {
-				const leftTimestamp = Date.parse(left.createdAt);
-				const rightTimestamp = Date.parse(right.createdAt);
-				if (Number.isFinite(leftTimestamp) && Number.isFinite(rightTimestamp)) {
-					return rightTimestamp - leftTimestamp;
-				}
-
-				return right.createdAt.localeCompare(left.createdAt);
-			}),
-		}));
+		return right.createdAt.localeCompare(left.createdAt);
+	});
 }
 
 export function RunFilesTab({ artifacts, isLoading = false, error = null }: Readonly<RunFilesTabProps>) {
 	const [copiedArtifactId, setCopiedArtifactId] = useState<string | null>(null);
-	const iterationGroups = useMemo(() => getIterationGroups(artifacts), [artifacts]);
+	const sortedArtifacts = useMemo(() => getSortedArtifacts(artifacts), [artifacts]);
 
 	const handleCopyLink = async (artifact: AgentRunArtifact) => {
 		if (!artifact.url) {
@@ -111,105 +99,72 @@ export function RunFilesTab({ artifacts, isLoading = false, error = null }: Read
 	};
 
 	if (isLoading && artifacts.length === 0) {
-		return (
-			<section className="rounded-xl border border-border bg-surface-raised p-5">
-				<p className="text-sm text-text-subtle">Loading files…</p>
-			</section>
-		);
+		return <p className="text-sm text-text-subtle">Loading files…</p>;
 	}
 
 	if (error && artifacts.length === 0) {
-		return (
-			<section className="rounded-xl border border-border bg-surface-raised p-5">
-				<p className="text-sm text-text-danger">{error}</p>
-			</section>
-		);
+		return <p className="text-sm text-text-danger">{error}</p>;
 	}
 
 	if (artifacts.length === 0) {
-		return (
-			<section className="rounded-xl border border-border bg-surface-raised p-5">
-				<p className="text-sm text-text-subtle">No artifacts have been generated yet.</p>
-			</section>
-		);
+		return <p className="text-sm text-text-subtle">No artifacts have been generated yet.</p>;
 	}
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex flex-col gap-2">
 			{error ? <p className="text-xs text-text-danger">{error}</p> : null}
-			{iterationGroups.map((group) => (
-				<section key={group.iteration} className="rounded-xl border border-border bg-surface-raised p-5">
-					<div className="flex items-center justify-between">
-						<h2 className="text-base font-semibold text-text">Iteration {group.iteration}</h2>
-						<span className="text-xs text-text-subtlest">{group.artifacts.length} files</span>
-					</div>
-					<div className="mt-4 flex flex-col gap-3">
-						{group.artifacts.map((artifact) => (
-							<div
-								key={artifact.id}
-								className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3"
-							>
-								<div className="flex flex-wrap items-center gap-2">
+			<div className="flex flex-col divide-y divide-border">
+				{sortedArtifacts.map((artifact) => (
+					<div key={artifact.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+						<div className="min-w-0 flex-1">
+							<div className="flex flex-wrap items-center gap-2">
+								<span className="rounded bg-bg-neutral px-1.5 py-0.5 text-xs text-text-subtle">
+									{ARTIFACT_TYPE_LABELS[artifact.type]}
+								</span>
+								{artifact.taskId ? (
 									<span className="rounded bg-bg-neutral px-1.5 py-0.5 text-xs text-text-subtle">
-										{ARTIFACT_TYPE_LABELS[artifact.type]}
+										{artifact.taskId}
 									</span>
-									{artifact.taskId ? (
-										<span className="rounded bg-bg-neutral px-1.5 py-0.5 text-xs text-text-subtle">
-											{artifact.taskId}
-										</span>
-									) : null}
-								</div>
-								<div className="flex flex-wrap items-center justify-between gap-3">
-									<div className="min-w-0 flex-1">
-										<p className="truncate text-sm font-medium text-text">{artifact.title}</p>
-										<p className="mt-1 text-xs text-text-subtlest">
-											Created {formatDateTime(artifact.createdAt)} · {formatSizeBytes(artifact.sizeBytes)}
-										</p>
-									</div>
-									<div className="flex flex-wrap items-center gap-2">
-										{artifact.url ? (
-											<a
-												href={artifact.url}
-												target="_blank"
-												rel="noreferrer"
-												className="inline-flex"
-											>
-												<Button size="sm" variant="outline">
-													<LinkExternalIcon label="" size="small" />
-													Open
-												</Button>
-											</a>
-										) : null}
-										{artifact.type !== "link" && artifact.url ? (
-											<a
-												href={toDownloadUrl(artifact.url) || artifact.url}
-												className="inline-flex"
-											>
-												<Button size="sm" variant="outline">
-													<DownloadIcon label="" size="small" />
-													Download
-												</Button>
-											</a>
-										) : null}
-										{artifact.type === "link" && artifact.url ? (
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() => {
-													void handleCopyLink(artifact);
-												}}
-											>
-												<CopyIcon label="" size="small" />
-												{copiedArtifactId === artifact.id ? "Copied" : "Copy URL"}
-											</Button>
-										) : null}
-									</div>
-								</div>
+								) : null}
 							</div>
-						))}
+							<p className="mt-2 truncate text-sm font-medium text-text">{artifact.title}</p>
+							<p className="mt-1 text-xs text-text-subtlest">
+								Created {formatDateTime(artifact.createdAt)} · {formatSizeBytes(artifact.sizeBytes)}
+							</p>
+						</div>
+						<div className="flex flex-wrap items-center gap-2">
+							{artifact.url ? (
+								<a href={artifact.url} target="_blank" rel="noreferrer" className="inline-flex">
+									<Button size="sm" variant="outline">
+										<LinkExternalIcon label="" size="small" />
+										Open
+									</Button>
+								</a>
+							) : null}
+							{artifact.type !== "link" && artifact.url ? (
+								<a href={toDownloadUrl(artifact.url) || artifact.url} className="inline-flex">
+									<Button size="sm" variant="outline">
+										<DownloadIcon label="" size="small" />
+										Download
+									</Button>
+								</a>
+							) : null}
+							{artifact.type === "link" && artifact.url ? (
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => {
+										void handleCopyLink(artifact);
+									}}
+								>
+									<CopyIcon label="" size="small" />
+									{copiedArtifactId === artifact.id ? "Copied" : "Copy URL"}
+								</Button>
+							) : null}
+						</div>
 					</div>
-				</section>
-			))}
+				))}
+			</div>
 		</div>
 	);
 }

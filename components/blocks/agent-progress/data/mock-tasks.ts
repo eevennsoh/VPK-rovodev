@@ -10,6 +10,7 @@ export interface ProgressStatusGroups {
 	done: ProgressTask[];
 	inReview: ProgressTask[];
 	inProgress: ProgressTask[];
+	failed: ProgressTask[];
 	todo: ProgressTask[];
 }
 
@@ -51,6 +52,13 @@ export const MOCK_TASKS: ProgressStatusGroups = {
 			description: "Add error handling",
 			agentName: "Backend Agent",
 			agentAvatarSrc: "/avatar-agent/dev-agents/code-reviewer.svg",
+		},
+	],
+	failed: [
+		{
+			id: "task-6b",
+			label: "Task 6b",
+			description: "Recover failed API contract migration",
 		},
 	],
 	todo: [

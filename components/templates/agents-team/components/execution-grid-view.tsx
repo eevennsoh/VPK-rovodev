@@ -1,8 +1,11 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/components/utils/theme-wrapper";
+import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import {
 	PromptInput,
 	PromptInputBody,
@@ -16,6 +19,7 @@ import { AgentScreen } from "./agent-screen";
 interface ExecutionGridViewProps {
 	taskExecutions: TaskExecution[];
 	onAddTask?: (message: string) => void;
+	showGeneratingEmptyState?: boolean;
 }
 
 function getGridColumns(agentCount: number): number {
@@ -60,21 +64,21 @@ function getSpanClass(span: 1 | 2 | 3): string | undefined {
 	return undefined;
 }
 
-function selectActiveExecutions(
-	executions: ReadonlyArray<TaskExecution>
-): TaskExecution[] {
-	return executions.filter((execution) => execution.status === "working");
-}
-
 export const ExecutionGridView = memo(function ExecutionGridView({
 	taskExecutions,
 	onAddTask,
+	showGeneratingEmptyState = false,
 }: Readonly<ExecutionGridViewProps>) {
 	const [inputValue, setInputValue] = useState("");
-	const visibleExecutions = useMemo(
-		() => selectActiveExecutions(taskExecutions),
-		[taskExecutions]
+	const { actualTheme } = useTheme();
+	const visibleExecutions = taskExecutions.filter(
+		(execution) => execution.status === "working"
 	);
+	const loadingAnimationSrc = actualTheme === "dark"
+		? "/loading/rovo-create-dark.gif"
+		: "/loading/rovo-create-light.gif";
+	const shouldShowGeneratingEmptyState =
+		visibleExecutions.length === 0 && showGeneratingEmptyState;
 	const columnCount = getGridColumns(visibleExecutions.length);
 	const rowCount =
 		visibleExecutions.length > 0
@@ -101,11 +105,11 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 	}, []);
 
 	return (
-		<div className="relative h-full min-h-0 min-w-0 overflow-hidden">
-			<div className="h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+		<div className="relative flex h-full min-h-0 min-w-0 flex-col">
+			<div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
 				<div
 					className={cn(
-						"grid h-full min-h-0 grid-cols-1 auto-rows-[minmax(280px,1fr)] pb-24 md:[grid-template-columns:repeat(var(--execution-grid-columns),minmax(0,1fr))] md:[grid-template-rows:repeat(var(--execution-grid-rows),minmax(280px,1fr))]"
+						"grid h-full min-h-0 grid-cols-1 auto-rows-[minmax(280px,1fr)] gap-px bg-border md:[grid-template-columns:repeat(var(--execution-grid-columns),minmax(0,1fr))] md:[grid-template-rows:repeat(var(--execution-grid-rows),minmax(280px,1fr))]"
 					)}
 					style={
 						{
@@ -116,7 +120,7 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 					>
 						{visibleExecutions.map((execution, index) => (
 							<div
-								key={execution.agentId}
+								key={execution.taskId}
 								className={getSpanClass(
 									getLastRowSpan(index, visibleExecutions.length, columnCount)
 								)}
@@ -129,24 +133,44 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 						))}
 
 						{visibleExecutions.length === 0 ? (
-							<div className="col-span-full flex items-center justify-center">
-								<div className="flex flex-col items-center gap-3 text-center">
-									<div className="size-10 animate-spin rounded-full border-2 border-border border-t-text-subtle" />
-									<span className="text-sm text-text-subtlest">
-										Waiting for agents to claim tasks...
-									</span>
-								</div>
+							<div className="col-span-full flex items-center justify-center bg-surface">
+								{shouldShowGeneratingEmptyState ? (
+									<div className="flex items-center justify-center">
+										<Reasoning isStreaming className="mb-0">
+											<AdsReasoningTrigger
+												label="Generating results"
+												showChevron={false}
+												className="w-auto justify-center text-text-subtlest hover:text-text-subtlest"
+											/>
+										</Reasoning>
+									</div>
+								) : (
+									<div className="flex flex-col items-center gap-3 text-center">
+										<Image
+											alt=""
+											className="h-28 w-auto"
+											height={280}
+											src={loadingAnimationSrc}
+											unoptimized
+											width={442}
+										/>
+										<span className="text-sm text-text-subtlest">
+											Add more tasks or make a change
+										</span>
+									</div>
+								)}
 							</div>
 						) : null}
 					</div>
 				</div>
 
 			{onAddTask ? (
-				<div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-4">
+				<div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-6">
 					<PromptInput
-						onSubmit={handleSubmit}
 						variant="floating"
-						className="pointer-events-auto max-w-[800px]"
+						onSubmit={handleSubmit}
+						allowOverflow
+						className="pointer-events-auto mx-auto w-full max-w-[800px]"
 					>
 						<PromptInputBody className="flex w-full items-center justify-between gap-2">
 							<PromptInputTextarea
@@ -160,12 +184,10 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 								<SpeechInput
 									aria-label="Voice"
 									onTranscriptionChange={handleSpeechTranscription}
-									size="icon-sm"
 									variant="ghost"
 								/>
 								<PromptInputSubmit
 									disabled={!inputValue.trim()}
-									size="icon-sm"
 									aria-label="Submit"
 								>
 									<ArrowUpIcon label="" />

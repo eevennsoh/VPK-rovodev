@@ -14,6 +14,7 @@
 @source "../app/**/*.{ts,tsx}";
 @source "../components/**/*.{ts,tsx}";
 @source "../lib/**/*.{ts,tsx}";
+@source not "../lib/agents-team-config-seed.ts";
 @source "../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));

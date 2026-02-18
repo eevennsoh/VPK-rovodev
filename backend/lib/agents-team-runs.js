@@ -1,6 +1,9 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { generateTextViaRovoDev } = require("./rovodev-gateway");
+const {
+	generateTextViaRovoDev,
+	WAIT_FOR_TURN_TIMEOUT_MS,
+} = require("./rovodev-gateway");
 const { createAIGatewayProvider } = require("./ai-gateway-provider");
 const {
 	getEnvVars,
@@ -18,9 +21,37 @@ const RUN_STATUS_RUNNING = "running";
 const RUN_STATUS_COMPLETED = "completed";
 const RUN_STATUS_FAILED = "failed";
 const DEFAULT_MAX_CONCURRENT_AGENTS = 6;
+const MAX_RUN_LIST_LIMIT = 50;
 const STREAMING_UPDATE_CHUNK_SIZE = 120;
 const STREAMING_UPDATE_MAX_CONTENT_CHARS = 8000;
 const VISUAL_PRESENTER_AGENT_NAME = "Visual Presenter";
+const GENUI_WIDGET_COUNT = 4;
+const GENUI_WIDGET_BLUEPRINTS = [
+	{
+		id: "interactive-widget-1",
+		title: "Interactive widget 1",
+		focus:
+			"Summarize execution outcomes with key metrics such as completion count, failure count, and success rate.",
+	},
+	{
+		id: "interactive-widget-2",
+		title: "Interactive widget 2",
+		focus:
+			"Show a task-level status breakdown with clear status labels and a view that helps inspect progress by task.",
+	},
+	{
+		id: "interactive-widget-3",
+		title: "Interactive widget 3",
+		focus:
+			"Visualize execution flow by agent or dependency handoffs so users can understand how work moved across tasks.",
+	},
+	{
+		id: "interactive-widget-4",
+		title: "Interactive widget 4",
+		focus:
+			"Present recommended next actions with prioritization and ownership so users can continue from this run.",
+	},
+];
 
 const ARTIFACT_TYPE_SUMMARY = "summary-md";
 const ARTIFACT_TYPE_VISUAL = "visual-html";
@@ -134,6 +165,14 @@ function toIsoDate() {
 	return new Date().toISOString();
 }
 
+function getTimestampFromIsoString(value) {
+	if (typeof value !== "string" || !value.trim()) {
+		return Number.NaN;
+	}
+
+	return Date.parse(value);
+}
+
 function parseJsonObjectFromText(rawText) {
 	if (typeof rawText !== "string") {
 		return null;
@@ -231,6 +270,26 @@ function normalizeTaskArray(rawTasks, existingTaskIds = new Set()) {
 			blockedBy,
 		};
 	});
+}
+
+function normalizeTaskIdArray(rawTaskIds) {
+	if (!Array.isArray(rawTaskIds)) {
+		return [];
+	}
+
+	const normalizedTaskIds = [];
+	const seenTaskIds = new Set();
+	for (const rawTaskId of rawTaskIds) {
+		const taskId = getNonEmptyString(rawTaskId);
+		if (!taskId || seenTaskIds.has(taskId)) {
+			continue;
+		}
+
+		seenTaskIds.add(taskId);
+		normalizedTaskIds.push(taskId);
+	}
+
+	return normalizedTaskIds;
 }
 
 function normalizePlan(rawPlan) {
@@ -371,6 +430,153 @@ function normalizeArtifacts(rawArtifacts) {
 		.filter(Boolean);
 }
 
+function createEmptyGenuiSpec() {
+	return {
+		root: "",
+		elements: {},
+	};
+}
+
+function normalizeGenuiSpec(rawSpec) {
+	if (!rawSpec || typeof rawSpec !== "object" || Array.isArray(rawSpec)) {
+		return createEmptyGenuiSpec();
+	}
+
+	const normalizedSpec = {
+		root: typeof rawSpec.root === "string" ? rawSpec.root : "",
+		elements:
+			rawSpec.elements &&
+			typeof rawSpec.elements === "object" &&
+			!Array.isArray(rawSpec.elements)
+				? rawSpec.elements
+				: {},
+	};
+
+	if (
+		Object.prototype.hasOwnProperty.call(rawSpec, "state") &&
+		rawSpec.state !== undefined
+	) {
+		normalizedSpec.state = rawSpec.state;
+	}
+
+	return normalizedSpec;
+}
+
+function hasRenderableGenuiSpec(spec) {
+	if (!spec || typeof spec !== "object" || Array.isArray(spec)) {
+		return false;
+	}
+
+	const root = typeof spec.root === "string" ? spec.root.trim() : "";
+	if (!root) {
+		return false;
+	}
+
+	const elements =
+		spec.elements &&
+		typeof spec.elements === "object" &&
+		!Array.isArray(spec.elements)
+			? spec.elements
+			: null;
+	return Boolean(elements && Object.keys(elements).length > 0);
+}
+
+function createDefaultGenuiWidget(index, createdAt) {
+	return {
+		id: `interactive-widget-${index + 1}`,
+		title: `Interactive widget ${index + 1}`,
+		spec: createEmptyGenuiSpec(),
+		status: "failed",
+		createdAt,
+		error: "Widget content is not available yet.",
+	};
+}
+
+function normalizeGenuiWidget(rawWidget, index, fallbackCreatedAt) {
+	const fallbackWidget = createDefaultGenuiWidget(index, fallbackCreatedAt);
+	if (!rawWidget || typeof rawWidget !== "object" || Array.isArray(rawWidget)) {
+		return fallbackWidget;
+	}
+
+	const spec = normalizeGenuiSpec(rawWidget.spec);
+	const isRenderable = hasRenderableGenuiSpec(spec);
+	const status =
+		rawWidget.status === "ready" && isRenderable
+			? "ready"
+			: rawWidget.status === "failed" || !isRenderable
+				? "failed"
+				: "ready";
+
+	const error =
+		getNonEmptyString(rawWidget.error) ||
+		(status === "failed" ? "Failed to generate interactive widget." : undefined);
+
+	return {
+		id: getNonEmptyString(rawWidget.id) || fallbackWidget.id,
+		title: getNonEmptyString(rawWidget.title) || fallbackWidget.title,
+		spec,
+		status,
+		createdAt: getNonEmptyString(rawWidget.createdAt) || fallbackCreatedAt,
+		error,
+	};
+}
+
+function normalizeGenuiSummary(rawGenuiSummary) {
+	if (!rawGenuiSummary || typeof rawGenuiSummary !== "object") {
+		return null;
+	}
+
+	const createdAt = getNonEmptyString(rawGenuiSummary.createdAt) || toIsoDate();
+	const widgets = Array.isArray(rawGenuiSummary.widgets)
+		? rawGenuiSummary.widgets
+				.slice(0, GENUI_WIDGET_COUNT)
+				.map((rawWidget, index) => normalizeGenuiWidget(rawWidget, index, createdAt))
+		: [];
+	const legacySpec = normalizeGenuiSpec(rawGenuiSummary.spec);
+	const hasRenderableLegacySpec = hasRenderableGenuiSpec(legacySpec);
+
+	if (widgets.length === 0) {
+		const legacyStatus =
+			rawGenuiSummary.status === "ready" && hasRenderableLegacySpec
+				? "ready"
+				: rawGenuiSummary.status === "failed" || !hasRenderableLegacySpec
+					? "failed"
+					: "ready";
+		widgets.push({
+			id: "interactive-widget-1",
+			title: "Interactive widget 1",
+			spec: legacySpec,
+			status: legacyStatus,
+			createdAt,
+			error:
+				getNonEmptyString(rawGenuiSummary.error) ||
+				(legacyStatus === "failed"
+					? "Failed to generate interactive summary."
+					: undefined),
+		});
+	}
+
+	const readyWidgetCount = widgets.filter(
+		(widget) => widget.status === "ready" && hasRenderableGenuiSpec(widget.spec)
+	).length;
+	const status = readyWidgetCount > 0 ? "ready" : "failed";
+	const summaryError =
+		getNonEmptyString(rawGenuiSummary.error) ||
+		(status === "failed" ? "Failed to generate interactive summary widgets." : undefined);
+	const representativeSpec =
+		widgets.find((widget) => widget.status === "ready")?.spec ||
+		(hasRenderableLegacySpec ? legacySpec : createEmptyGenuiSpec());
+
+	return {
+		widgets,
+		spec: representativeSpec,
+		partial: Boolean(rawGenuiSummary.partial),
+		createdAt,
+		status,
+		error: summaryError,
+	};
+}
+
 function ensureRunDefaults(rawRun) {
 	if (!rawRun || typeof rawRun !== "object") {
 		return null;
@@ -422,7 +628,7 @@ function ensureRunDefaults(rawRun) {
 		directives,
 		summary: rawRun.summary || null,
 		visualSummary: rawRun.visualSummary || null,
-		genuiSummary: rawRun.genuiSummary || null,
+		genuiSummary: normalizeGenuiSummary(rawRun.genuiSummary),
 		userPrompt: getNonEmptyString(rawRun.userPrompt) || "",
 		customInstruction: getNonEmptyString(rawRun.customInstruction) || undefined,
 		conversationContext: buildConversationContext(rawRun.conversationContext),
@@ -524,7 +730,7 @@ function toSerializableRun(run) {
 		directives: run.directives,
 		summary: run.summary,
 		visualSummary: run.visualSummary,
-		genuiSummary: run.genuiSummary,
+		genuiSummary: normalizeGenuiSummary(run.genuiSummary),
 		userPrompt: run.userPrompt,
 		customInstruction: run.customInstruction,
 		conversationContext: run.conversationContext,
@@ -706,7 +912,13 @@ function createVisualSummaryPrompt(run, summaryContent, tasksForSummary, skillCo
 		.join("\n");
 }
 
-function createGenuiSummaryPrompt(run, summaryContent, tasksForSummary, isFailedStatus) {
+function createGenuiSummaryPrompt(
+	run,
+	summaryContent,
+	tasksForSummary,
+	isFailedStatus,
+	widgetBlueprint
+) {
 	const taskSections = tasksForSummary
 		.map((task) => {
 			return [
@@ -720,14 +932,20 @@ function createGenuiSummaryPrompt(run, summaryContent, tasksForSummary, isFailed
 		.join("\n\n---\n\n");
 
 	return [
-		`Create an interactive summary dashboard for the plan \"${run.plan.title}\".`,
+		`Create one focused interactive summary widget for the plan \"${run.plan.title}\".`,
 		run.plan.description ? `Plan description: ${run.plan.description}` : null,
 		isFailedStatus
 			? "This run has partial completion due to failed or blocked tasks."
 			: "This run completed successfully.",
 		"",
+		`Widget focus: ${widgetBlueprint.focus}`,
+		"Produce exactly one interactive widget experience (not a full-page dashboard).",
+		"The generated spec should be compact, focused, and directly useful for interaction.",
+		"Do not use generic labels such as 'Interactive widget 1' in headings or labels.",
 		"Use the task outcomes and markdown summary below as source material.",
 		"Output exactly one ```spec block with valid RFC 6902 JSON patch lines.",
+		"",
+		`Widget ID: ${widgetBlueprint.id}`,
 		"",
 		"Markdown summary:",
 		summaryContent,
@@ -1168,11 +1386,18 @@ function createRunManager(options) {
 			contextDescription,
 		});
 
+		const resolvedTimeoutMs =
+			typeof timeoutMs === "number" && timeoutMs > 0
+				? timeoutMs
+				: conflictPolicy === "wait-for-turn"
+					? WAIT_FOR_TURN_TIMEOUT_MS
+					: undefined;
+
 		const result = await generateTextViaRovoDev({
 			system: systemPrompt,
 			prompt: userMessage,
 			conflictPolicy,
-			timeoutMs,
+			timeoutMs: resolvedTimeoutMs,
 		});
 		return result.trim();
 	};
@@ -1478,7 +1703,7 @@ function createRunManager(options) {
 				customSystemPrompt: visualSystemPrompt,
 				userName: VISUAL_PRESENTER_AGENT_NAME,
 				conflictPolicy: "wait-for-turn",
-				timeoutMs: 300_000,
+				timeoutMs: WAIT_FOR_TURN_TIMEOUT_MS,
 			});
 			return {
 				html: ensureHtmlDocument(rawHtml, `${run.plan.title} visual summary`),
@@ -1488,8 +1713,15 @@ function createRunManager(options) {
 				status: "ready",
 			};
 		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Failed to generate visual summary.";
+			const isRovoTurnTimeout =
+				error &&
+				typeof error === "object" &&
+				error.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT";
+			const errorMessage = isRovoTurnTimeout
+				? `Visual summary timed out waiting for RovoDev turn (${Math.round(WAIT_FOR_TURN_TIMEOUT_MS / 60000)}m).`
+				: error instanceof Error
+					? error.message
+					: "Failed to generate visual summary.";
 			logger.warn?.("[AGENTS-RUN] Visual summary synthesis failed; using fallback", error);
 			return {
 				html: createFallbackVisualSummaryHtml(run, summaryContent, isFailedStatus),
@@ -1502,21 +1734,29 @@ function createRunManager(options) {
 		}
 	};
 
-	const synthesizeGenuiSummary = async (run, summaryContent, tasksForSummary, isFailedStatus) => {
-		const genuiPrompt = createGenuiSummaryPrompt(
+	const synthesizeGenuiWidget = async (
+		run,
+		summaryContent,
+		tasksForSummary,
+		isFailedStatus,
+		widgetBlueprint,
+		genuiSystemPrompt
+	) => {
+		const prompt = createGenuiSummaryPrompt(
 			run,
 			summaryContent,
 			tasksForSummary,
-			isFailedStatus
+			isFailedStatus,
+			widgetBlueprint
 		);
-		const genuiSystemPrompt = getGenuiSummarySystemPrompt();
+		const createdAt = toIsoDate();
 
 		try {
 			const rawText = await callModelForMarkdown({
-				provider: "ai-gateway",
-				prompt: genuiPrompt,
+				provider: "rovodev",
+				prompt,
 				conversationHistory: [],
-				contextDescription: `Interactive genui summary for run ${run.id}`,
+				contextDescription: `Interactive summary widget ${widgetBlueprint.id} for run ${run.id}`,
 				customSystemPrompt: genuiSystemPrompt,
 				userName: "GenUI Presenter",
 				conflictPolicy: "wait-for-turn",
@@ -1525,34 +1765,83 @@ function createRunManager(options) {
 			const analysis = analyzeGeneratedText(rawText);
 			const bestSpec = pickBestSpec(analysis);
 			if (!bestSpec) {
-				logger.warn?.("[AGENTS-RUN] GenUI summary spec was not renderable; using fallback.");
+				logger.warn?.(
+					"[AGENTS-RUN] GenUI widget spec was not renderable; using fallback.",
+					{
+						runId: run.id,
+						widgetId: widgetBlueprint.id,
+					}
+				);
 				return {
-					spec: { root: "", elements: {} },
-					partial: isFailedStatus,
-					createdAt: toIsoDate(),
+					id: widgetBlueprint.id,
+					title: widgetBlueprint.title,
+					spec: createEmptyGenuiSpec(),
 					status: "failed",
+					createdAt,
 					error: "Generated spec was not renderable.",
 				};
 			}
 
 			return {
+				id: widgetBlueprint.id,
+				title: widgetBlueprint.title,
 				spec: bestSpec,
-				partial: isFailedStatus,
-				createdAt: toIsoDate(),
 				status: "ready",
+				createdAt,
 			};
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : "Failed to generate interactive summary.";
-			logger.warn?.("[AGENTS-RUN] GenUI summary synthesis failed", error);
+				error instanceof Error ? error.message : "Failed to generate interactive widget.";
+			logger.warn?.("[AGENTS-RUN] GenUI widget synthesis failed", error);
 			return {
-				spec: { root: "", elements: {} },
-				partial: isFailedStatus,
-				createdAt: toIsoDate(),
+				id: widgetBlueprint.id,
+				title: widgetBlueprint.title,
+				spec: createEmptyGenuiSpec(),
 				status: "failed",
+				createdAt,
 				error: errorMessage,
 			};
 		}
+	};
+
+	const synthesizeGenuiSummary = async (run, summaryContent, tasksForSummary, isFailedStatus) => {
+		const genuiSystemPrompt = getGenuiSummarySystemPrompt();
+		const widgets = await Promise.all(
+			GENUI_WIDGET_BLUEPRINTS.map((widgetBlueprint) =>
+				synthesizeGenuiWidget(
+					run,
+					summaryContent,
+					tasksForSummary,
+					isFailedStatus,
+					widgetBlueprint,
+					genuiSystemPrompt
+				)
+			)
+		);
+		const readyWidgets = widgets.filter(
+			(widget) => widget.status === "ready" && hasRenderableGenuiSpec(widget.spec)
+		);
+		const status = readyWidgets.length > 0 ? "ready" : "failed";
+		const summaryError =
+			status === "failed"
+				? widgets
+						.map((widget) => widget.error)
+						.filter((error) => typeof error === "string" && error.trim())
+						.join(" | ") || "Failed to generate interactive summary widgets."
+				: undefined;
+
+		return {
+			widgets,
+			spec:
+				readyWidgets[0]?.spec ||
+				(hasRenderableGenuiSpec(widgets[0]?.spec)
+					? widgets[0].spec
+					: createEmptyGenuiSpec()),
+			partial: isFailedStatus,
+			createdAt: toIsoDate(),
+			status,
+			error: summaryError,
+		};
 	};
 
 	const synthesizeAudioSummary = async (summaryContent) => {
@@ -1647,7 +1936,7 @@ function createRunManager(options) {
 			path: genuiJsonFileName,
 			url: buildArtifactUrl(run.id, genuiArtifactId),
 			mimeType: "application/json",
-			sizeBytes: Buffer.byteLength(JSON.stringify(genuiSummary.spec), "utf8"),
+			sizeBytes: Buffer.byteLength(JSON.stringify(genuiSummary), "utf8"),
 			createdAt,
 			iteration,
 		});
@@ -1991,12 +2280,14 @@ function createRunManager(options) {
 			typeof rawVisualSummary === "string" ? safeJsonParse(rawVisualSummary) : null;
 		const parsedGenuiSummary =
 			typeof rawGenuiSummary === "string" ? safeJsonParse(rawGenuiSummary) : null;
+		const normalizedDiskGenuiSummary = normalizeGenuiSummary(diskRun.genuiSummary);
+		const normalizedParsedGenuiSummary = normalizeGenuiSummary(parsedGenuiSummary);
 
 		return {
 			run: toSerializableRun(diskRun),
 			summary: parsedSummary || diskRun.summary || null,
 			visualSummary: parsedVisualSummary || diskRun.visualSummary || null,
-			genuiSummary: parsedGenuiSummary || diskRun.genuiSummary || null,
+			genuiSummary: normalizedParsedGenuiSummary || normalizedDiskGenuiSummary || null,
 		};
 	};
 
@@ -2010,6 +2301,82 @@ function createRunManager(options) {
 		return diskRun ? toSerializableRun(diskRun) : null;
 	};
 
+	const listRuns = async (options = {}) => {
+		const requestedLimit = getPositiveInteger(options.limit);
+		const limit =
+			typeof requestedLimit === "number"
+				? Math.min(Math.max(requestedLimit, 1), MAX_RUN_LIST_LIMIT)
+				: null;
+		const runsByIdSnapshot = new Map(
+			Array.from(runsById.values()).map((run) => [run.id, toSerializableRun(run)])
+		);
+
+		let runDirectories = [];
+		try {
+			const entries = await fs.readdir(runRootsDir, { withFileTypes: true });
+			runDirectories = entries
+				.filter((entry) => entry.isDirectory())
+				.map((entry) => entry.name);
+		} catch (error) {
+			const errorCode = error && typeof error === "object" ? error.code : null;
+			if (errorCode !== "ENOENT") {
+				throw error;
+			}
+		}
+
+		const diskRuns = await Promise.all(
+			runDirectories.map(async (runId) => {
+				const diskRun = await loadRunFromDisk(runId);
+				return diskRun ? toSerializableRun(diskRun) : null;
+			})
+		);
+
+		for (const run of diskRuns) {
+			if (!run) {
+				continue;
+			}
+
+			if (!runsByIdSnapshot.has(run.runId)) {
+				runsByIdSnapshot.set(run.runId, run);
+			}
+		}
+
+		const sortedRuns = Array.from(runsByIdSnapshot.values()).sort((leftRun, rightRun) => {
+			const leftUpdatedAt = getTimestampFromIsoString(leftRun.updatedAt);
+			const rightUpdatedAt = getTimestampFromIsoString(rightRun.updatedAt);
+
+			if (Number.isFinite(leftUpdatedAt) && Number.isFinite(rightUpdatedAt)) {
+				if (leftUpdatedAt !== rightUpdatedAt) {
+					return rightUpdatedAt - leftUpdatedAt;
+				}
+			} else if (Number.isFinite(rightUpdatedAt)) {
+				return 1;
+			} else if (Number.isFinite(leftUpdatedAt)) {
+				return -1;
+			}
+
+			const leftCreatedAt = getTimestampFromIsoString(leftRun.createdAt);
+			const rightCreatedAt = getTimestampFromIsoString(rightRun.createdAt);
+			if (Number.isFinite(leftCreatedAt) && Number.isFinite(rightCreatedAt)) {
+				if (leftCreatedAt !== rightCreatedAt) {
+					return rightCreatedAt - leftCreatedAt;
+				}
+			} else if (Number.isFinite(rightCreatedAt)) {
+				return 1;
+			} else if (Number.isFinite(leftCreatedAt)) {
+				return -1;
+			}
+
+			return rightRun.runId.localeCompare(leftRun.runId);
+		});
+
+		if (typeof limit === "number") {
+			return sortedRuns.slice(0, limit);
+		}
+
+		return sortedRuns;
+	};
+
 	const getRunSummary = async (runId) => {
 		const activeRun = runsById.get(runId);
 		if (activeRun) {
@@ -2017,7 +2384,7 @@ function createRunManager(options) {
 				run: toSerializableRun(activeRun),
 				summary: activeRun.summary ?? null,
 				visualSummary: activeRun.visualSummary ?? null,
-				genuiSummary: activeRun.genuiSummary ?? null,
+				genuiSummary: normalizeGenuiSummary(activeRun.genuiSummary),
 			};
 		}
 
@@ -2235,11 +2602,82 @@ function createRunManager(options) {
 
 	const appendTasks = async (
 		runId,
-		{ planDelta, prompt, contextPrompt, conversation, customInstruction }
+		{
+			planDelta,
+			prompt,
+			contextPrompt,
+			conversation,
+			customInstruction,
+			retryTaskIds,
+		}
 	) => {
 		const run = await ensureLiveRun(runId);
 		if (!run) {
 			return { error: "Run not found." };
+		}
+
+		const normalizedRetryTaskIds = normalizeTaskIdArray(retryTaskIds);
+		if (normalizedRetryTaskIds.length > 0) {
+			const retriableTasks = [];
+			for (const taskId of normalizedRetryTaskIds) {
+				const task = run.tasks.find((item) => item.id === taskId) || null;
+				if (!task) {
+					continue;
+				}
+
+				if (!FAILURE_TASK_STATUSES.has(task.status)) {
+					continue;
+				}
+
+				retriableTasks.push(task);
+			}
+
+			if (retriableTasks.length === 0) {
+				return { error: "No failed tasks were eligible for retry." };
+			}
+
+			const nextIteration = (run.iteration || 1) + 1;
+			const batchId = createId("batch");
+			const now = toIsoDate();
+
+			for (const task of retriableTasks) {
+				task.status = "todo";
+				task.startedAt = null;
+				task.completedAt = null;
+				task.error = null;
+				task.output = null;
+				task.outputSummary = null;
+				task.iteration = nextIteration;
+				task.batchId = batchId;
+				emitRunStateEvent(run, "task.retrying", {
+					taskId: task.id,
+					attempt: task.attempts + 1,
+				});
+			}
+
+			for (const agent of run.agents) {
+				if (agent.status === "failed") {
+					agent.status = "idle";
+					agent.currentTaskId = null;
+					agent.currentTaskLabel = null;
+					agent.updatedAt = now;
+				}
+			}
+
+			run.status = RUN_STATUS_RUNNING;
+			run.error = null;
+			run.completedAt = null;
+			run.iteration = nextIteration;
+			run.activeBatchId = batchId;
+			updateRunTimestamp(run);
+			await persistIntermediateSnapshot(run);
+			emitRunStateEvent(run, "run.resumed", {});
+			ensureScheduler(run);
+
+			return {
+				run: toSerializableRun(run),
+				retriedTaskIds: retriableTasks.map((task) => task.id),
+			};
 		}
 
 		const normalizedPrompt = getNonEmptyString(prompt);
@@ -2400,9 +2838,25 @@ function createRunManager(options) {
 		});
 	};
 
+	const deleteRun = async (runId) => {
+		runsById.delete(runId);
+
+		const paths = buildRunPaths(runRootsDir, runId);
+		try {
+			await fs.rm(paths.runDir, { recursive: true, force: true });
+		} catch (error) {
+			const errorCode = error && typeof error === "object" ? error.code : null;
+			if (errorCode !== "ENOENT") {
+				throw error;
+			}
+		}
+	};
+
 	return {
 		createRun,
+		listRuns,
 		getRun,
+		deleteRun,
 		getRunSummary,
 		getRunVisualSummary,
 		getRunFiles,
