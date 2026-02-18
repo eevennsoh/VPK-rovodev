@@ -4,6 +4,7 @@ import * as React from "react";
 import { type LogoProps as AtlaskitLogoProps } from "@atlaskit/logo";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/utils/theme-wrapper";
+import { useIsMounted } from "@/components/hooks/use-is-mounted";
 import {
 	type AtlassianLogoName,
 	LOGO_ICON_COMPONENTS,
@@ -41,6 +42,23 @@ function getThemeAwareAppearance(
 	return actualTheme === "dark" ? "inverse" : "brand";
 }
 
+function getLogoSizePx(size: AtlaskitLogoProps["size"]): number {
+	if (typeof size === "number") {
+		return size;
+	}
+
+	if (typeof size === "string") {
+		const numericSize = Number(size);
+		if (!Number.isNaN(numericSize)) {
+			return numericSize;
+		}
+
+		return CUSTOM_LOGO_SIZES[size] ?? CUSTOM_LOGO_SIZES.small;
+	}
+
+	return CUSTOM_LOGO_SIZES.small;
+}
+
 export function AtlassianLogo({
 	name,
 	themeAware = true,
@@ -50,6 +68,7 @@ export function AtlassianLogo({
 	color,
 	...props
 }: Readonly<AtlassianLogoProps>) {
+	const isMounted = useIsMounted();
 	const { actualTheme } = useTheme();
 	const components = variant === "lockup" ? LOGO_LOCKUP_COMPONENTS : LOGO_ICON_COMPONENTS;
 	const Component = components[name];
@@ -57,6 +76,19 @@ export function AtlassianLogo({
 	void color;
 
 	const needsDarkFix = !appearance && actualTheme === "dark" && resolvedAppearance === "inverse";
+	const placeholderSize = getLogoSizePx(size);
+
+	if (!isMounted) {
+		return (
+			<span className={cn(needsDarkFix && "ads-logo-inverse")}>
+				<span
+					aria-hidden
+					className="inline-block shrink-0 align-middle"
+					style={{ width: placeholderSize, height: placeholderSize }}
+				/>
+			</span>
+		);
+	}
 
 	return (
 		<span className={cn(needsDarkFix && "ads-logo-inverse")}>

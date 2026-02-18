@@ -36,6 +36,11 @@ export const API_ENDPOINTS = {
 	AGENTS_TEAM_SKILLS: `${API_BASE_URL}/api/agents-team/skills`,
 	AGENTS_TEAM_AGENTS: `${API_BASE_URL}/api/agents-team/agents`,
 	AGENTS_TEAM_CONFIG_SUMMARY: `${API_BASE_URL}/api/agents-team/config-summary`,
+	AGENTS_TEAM_THREADS: `${API_BASE_URL}/api/agents-team/threads`,
+	agentsTeamRuns: (limit?: number) =>
+		`${API_BASE_URL}/api/agents-team/runs${
+			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
+		}`,
 	agentsTeamRun: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}`,
 	agentsTeamRunStream: (runId: string) =>
@@ -46,10 +51,22 @@ export const API_ENDPOINTS = {
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/summary`,
 	agentsTeamRunVisualSummary: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/visual-summary`,
+	agentsTeamRunTasks: (runId: string) =>
+		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/tasks`,
+	agentsTeamRunFiles: (runId: string) =>
+		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/files`,
+	agentsTeamRunShare: (runId: string) =>
+		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/share`,
 	agentsTeamSkill: (id: string) =>
 		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(id)}`,
 	agentsTeamAgent: (id: string) =>
 		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(id)}`,
+	agentsTeamThreads: (limit?: number) =>
+		`${API_BASE_URL}/api/agents-team/threads${
+			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
+		}`,
+	agentsTeamThread: (threadId: string) =>
+		`${API_BASE_URL}/api/agents-team/threads/${encodeURIComponent(threadId)}`,
 };
 
 /**

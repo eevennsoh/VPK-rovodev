@@ -7,7 +7,8 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
-import type { AgentsTeamSkill, AgentsTeamAgent } from "@/lib/agents-team-config-types";
+import { API_ENDPOINTS } from "@/lib/api-config";
+import type { AgentRunListItem } from "@/lib/agents-team-run-types";
 import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
 import {
 	buildClarificationSummaryPrompt,
@@ -29,8 +30,12 @@ import ChatTitleRow from "./components/chat-title-row";
 import { useAgentsTeamChat } from "./hooks/use-agents-team-chat";
 import { useExecutionMode } from "./hooks/use-execution-mode";
 import { useAgentsTeamConfig } from "./hooks/use-agents-team-config";
-import SkillDialog from "./components/skill-dialog";
-import AgentDialog from "./components/agent-dialog";
+import { useConfigDialogs } from "./hooks/use-config-dialogs";
+import { ConfigDialogs } from "./components/config-dialogs";
+import {
+	selectRetryTasks,
+	type RetryTaskGroupKey,
+} from "./lib/retry-task-groups";
 import {
 	normalizeAgentsTeamMessages,
 	isAnyWidgetCurrentlyLoading,
@@ -40,10 +45,56 @@ import {
 	getLatestVisibleUserPrompt,
 } from "./lib/message-utils";
 
+function toDateTimestamp(value: string): number {
+	const timestamp = Date.parse(value);
+	return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function sortRunsByRecency(leftRun: AgentRunListItem, rightRun: AgentRunListItem): number {
+	const updatedDelta =
+		toDateTimestamp(rightRun.updatedAt) - toDateTimestamp(leftRun.updatedAt);
+	if (updatedDelta !== 0) {
+		return updatedDelta;
+	}
+
+	const createdDelta =
+		toDateTimestamp(rightRun.createdAt) - toDateTimestamp(leftRun.createdAt);
+	if (createdDelta !== 0) {
+		return createdDelta;
+	}
+
+	return rightRun.runId.localeCompare(leftRun.runId);
+}
+
+function parseErrorMessage(payload: unknown): string {
+	if (!payload || typeof payload !== "object") {
+		return "Request failed";
+	}
+
+	const record = payload as { error?: unknown; details?: unknown };
+	if (typeof record.error === "string" && record.error.trim()) {
+		return record.error.trim();
+	}
+	if (typeof record.details === "string" && record.details.trim()) {
+		return record.details.trim();
+	}
+
+	return "Request failed";
+}
+
+function toErrorMessage(error: unknown): string {
+	if (error instanceof Error && error.message.trim()) {
+		return error.message.trim();
+	}
+
+	return "Request failed";
+}
+
 export default function AgentsTeamView() {
 	const router = useRouter();
 	const [isOpen, setIsOpen] = useState(true);
 	const [isHovered, setIsHovered] = useState(false);
+	const [runHistory, setRunHistory] = useState<AgentRunListItem[]>([]);
 	const hasNavigatedToSummaryRef = useRef(false);
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const {
@@ -68,7 +119,6 @@ export default function AgentsTeamView() {
 		handleNewChat,
 		handleSelectChat,
 		handleDeleteChat,
-		handleDeleteMessage,
 	} = useAgentsTeamChat();
 
 	const {
@@ -82,52 +132,15 @@ export default function AgentsTeamView() {
 		deleteAgent,
 	} = useAgentsTeamConfig();
 
-	const [skillDialogOpen, setSkillDialogOpen] = useState(false);
-	const [agentDialogOpen, setAgentDialogOpen] = useState(false);
-	const [editingSkill, setEditingSkill] = useState<AgentsTeamSkill | null>(null);
-	const [editingAgent, setEditingAgent] = useState<AgentsTeamAgent | null>(null);
-
-	const handleEditSkill = useCallback((skill: AgentsTeamSkill) => {
-		setEditingSkill(skill);
-		setSkillDialogOpen(true);
-	}, []);
-
-	const handleNewSkill = useCallback(() => {
-		setEditingSkill(null);
-		setSkillDialogOpen(true);
-	}, []);
-
-	const handleSaveSkill = useCallback(
-		async (data: Parameters<typeof createSkill>[0]) => {
-			if (editingSkill) {
-				await updateSkill(editingSkill.id, data);
-			} else {
-				await createSkill(data);
-			}
-		},
-		[editingSkill, createSkill, updateSkill]
-	);
-
-	const handleEditAgent = useCallback((agent: AgentsTeamAgent) => {
-		setEditingAgent(agent);
-		setAgentDialogOpen(true);
-	}, []);
-
-	const handleNewAgent = useCallback(() => {
-		setEditingAgent(null);
-		setAgentDialogOpen(true);
-	}, []);
-
-	const handleSaveAgent = useCallback(
-		async (data: Parameters<typeof createAgent>[0]) => {
-			if (editingAgent) {
-				await updateAgent(editingAgent.id, data);
-			} else {
-				await createAgent(data);
-			}
-		},
-		[editingAgent, createAgent, updateAgent]
-	);
+	const { skillDialogProps, agentDialogProps, sidebarConfigHandlers } = useConfigDialogs({
+		skills,
+		createSkill,
+		updateSkill,
+		deleteSkill,
+		createAgent,
+		updateAgent,
+		deleteAgent,
+	});
 
 	const normalizedUiMessages = useMemo(
 		() => normalizeAgentsTeamMessages(rawUiMessages, isStreaming),
@@ -167,16 +180,12 @@ export default function AgentsTeamView() {
 	);
 
 	const {
-		isExecuting,
 		isExecutionActive,
 		executionState,
 		runId,
 		runStatus,
-		runCreatedAt,
-		runCompletedAt,
 		taskExecutions,
-		taskStatusGroups,
-		executionPlan,
+		run,
 		startExecution,
 		sendDirective,
 	} = useExecutionMode();
@@ -189,20 +198,59 @@ export default function AgentsTeamView() {
 		activeChatId !== null && pendingTitleChatId === activeChatId;
 
 	useEffect(() => {
-		if (!runId) {
+		if (!runId || executionState === "idle") {
+			hasNavigatedToSummaryRef.current = false;
 			return;
 		}
 
-		if (executionState === "completed" || executionState === "failed") {
-			if (!hasNavigatedToSummaryRef.current) {
-				hasNavigatedToSummaryRef.current = true;
-				router.push(`/agents-team/runs/${runId}`);
-			}
-			return;
+		if (!hasNavigatedToSummaryRef.current) {
+			hasNavigatedToSummaryRef.current = true;
+			router.push(`/agents-team/runs/${runId}`);
 		}
-
-		hasNavigatedToSummaryRef.current = false;
 	}, [executionState, router, runId]);
+
+	useEffect(() => {
+		let cancelled = false;
+		const loadRunHistory = async () => {
+			try {
+				const response = await fetch(
+					API_ENDPOINTS.agentsTeamRuns(),
+					{
+						cache: "no-store",
+					}
+				);
+				if (!response.ok || cancelled) {
+					return;
+				}
+
+				const payload = (await response.json()) as { runs?: AgentRunListItem[] };
+				if (!cancelled && Array.isArray(payload.runs)) {
+					setRunHistory(payload.runs);
+				}
+			} catch (error) {
+				console.error("[AGENTS-TEAM] Failed to load sidebar run history:", error);
+			}
+		};
+
+		void loadRunHistory();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [runId, runStatus]);
+
+	const sidebarRunHistory = useMemo(() => {
+		const runsById = new Map<string, AgentRunListItem>();
+		for (const runItem of runHistory) {
+			runsById.set(runItem.runId, runItem);
+		}
+		if (run) {
+			runsById.set(run.runId, run);
+		}
+
+		return Array.from(runsById.values())
+			.sort(sortRunsByRecency);
+	}, [run, runHistory]);
 
 	const handleClarificationSubmit = useCallback(
 		(answers: ClarificationAnswers) => {
@@ -229,9 +277,7 @@ export default function AgentsTeamView() {
 				selection,
 				activePlanWidget
 			);
-			const shouldStartRun =
-				selection.decision === "auto-accept" ||
-				selection.decision === "manual-approve";
+			const shouldStartRun = selection.decision === "auto-accept";
 
 			if (shouldStartRun && activePlanWidget) {
 				void startExecution({
@@ -286,6 +332,91 @@ export default function AgentsTeamView() {
 		}
 	}, [isAgentTeamMode, toggleAgentTeamMode]);
 
+	const handleRetryPlanWidget = useCallback(() => {
+		const retryPrompt = latestUserPrompt.trim();
+		if (!retryPrompt) {
+			return;
+		}
+
+		void handleSuggestedQuestionClick(retryPrompt);
+	}, [handleSuggestedQuestionClick, latestUserPrompt]);
+
+	const handleSelectRun = useCallback(
+		(selectedRunId: string) => {
+			router.push(`/agents-team/runs/${selectedRunId}`);
+		},
+		[router]
+	);
+
+	const handleDeleteRun = useCallback(
+		async (deletedRunId: string) => {
+			try {
+				const response = await fetch(
+					API_ENDPOINTS.agentsTeamRun(deletedRunId),
+					{ method: "DELETE" }
+				);
+				if (!response.ok) {
+					console.error("[AGENTS-TEAM] Failed to delete run:", response.status);
+					return;
+				}
+				setRunHistory((prev) => prev.filter((r) => r.runId !== deletedRunId));
+			} catch (error) {
+				console.error("[AGENTS-TEAM] Failed to delete run:", error);
+			}
+		},
+		[]
+	);
+
+	const handleRetryRunGroup = useCallback(
+		async (targetRunId: string, groupKey: RetryTaskGroupKey, taskIds: string[]) => {
+			const targetRun = sidebarRunHistory.find((item) => item.runId === targetRunId);
+			if (!targetRun) {
+				return;
+			}
+
+			const selectedTasks = selectRetryTasks(targetRun.tasks, groupKey, taskIds);
+			if (selectedTasks.length === 0) {
+				return;
+			}
+
+				try {
+					const response = await fetch(API_ENDPOINTS.agentsTeamRunTasks(targetRunId), {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+							retryTaskIds: selectedTasks.map((task) => task.id),
+						}),
+					});
+				if (!response.ok) {
+					const payload = (await response.json().catch(() => ({}))) as unknown;
+					throw new Error(parseErrorMessage(payload));
+				}
+
+				const payload = (await response.json()) as { run?: AgentRunListItem };
+				const nextRun = payload.run;
+				if (nextRun) {
+					setRunHistory((previousHistory) => {
+						const nextRunsById = new Map(
+							previousHistory.map((historyRun) => [historyRun.runId, historyRun] as const)
+						);
+						nextRunsById.set(nextRun.runId, nextRun);
+						return Array.from(nextRunsById.values()).sort(sortRunsByRecency);
+					});
+				}
+
+				router.push(`/agents-team/runs/${targetRunId}`);
+			} catch (error) {
+				console.error(
+					"[AGENTS-TEAM] Failed to retry run task group:",
+					toErrorMessage(error)
+				);
+			}
+		},
+		[router, sidebarRunHistory]
+	);
+
 	return (
 		<SidebarProvider
 			open={isOpen || isHovered}
@@ -306,31 +437,23 @@ export default function AgentsTeamView() {
 				onPinSidebar={handlePinSidebar}
 				chatHistory={chatHistory}
 				activeChatId={activeChatId}
+				runHistory={sidebarRunHistory}
+				activeRunId={runId}
 				isGeneratingTitle={isGeneratingTitle}
 				pendingTitleChatId={pendingTitleChatId}
+				onSelectRun={handleSelectRun}
+				onDeleteRun={handleDeleteRun}
+				onRetryRunGroup={handleRetryRunGroup}
 				onSelectChat={handleSelectChat}
 				onDeleteChat={handleDeleteChat}
 				onMouseEnter={handleHoverEnter}
 				onMouseLeave={handleHoverLeave}
-				isExecuting={isExecutionActive}
-				executionData={
-					isExecutionActive && executionPlan
-						? {
-								planTitle: executionPlan.title,
-								planEmoji: executionPlan.emoji ?? "\u270C\uFE0F",
-								taskStatusGroups,
-								runStatus: runStatus ?? (isExecuting ? "running" : "failed"),
-								runCreatedAt,
-								runCompletedAt,
-							}
-						: undefined
-				}
 				skills={skills}
 				agents={agents}
-				onEditSkill={handleEditSkill}
-				onNewSkill={handleNewSkill}
-				onEditAgent={handleEditAgent}
-				onNewAgent={handleNewAgent}
+				onEditSkill={sidebarConfigHandlers.onEditSkill}
+				onNewSkill={sidebarConfigHandlers.onNewSkill}
+				onEditAgent={sidebarConfigHandlers.onEditAgent}
+				onNewAgent={sidebarConfigHandlers.onNewAgent}
 				onCreateAgentTeam={handleCreateAgentTeam}
 			/>
 			<SidebarInset className={isChatMode ? "h-svh overflow-hidden" : undefined}>
@@ -381,7 +504,7 @@ export default function AgentsTeamView() {
 										onClarificationSubmit={handleClarificationSubmit}
 										onApprovalSubmit={handleApprovalSubmit}
 										onSuggestedQuestionClick={handleSuggestedQuestionClick}
-									onDeleteMessage={handleDeleteMessage}
+										onRetryPlanWidget={handleRetryPlanWidget}
 									/>
 								)}
 							</div>
@@ -400,21 +523,7 @@ export default function AgentsTeamView() {
 						/>
 				)}
 			</SidebarInset>
-			<SkillDialog
-				open={skillDialogOpen}
-				skill={editingSkill}
-				onOpenChange={setSkillDialogOpen}
-				onSave={handleSaveSkill}
-				onDelete={deleteSkill}
-			/>
-			<AgentDialog
-				open={agentDialogOpen}
-				agent={editingAgent}
-				availableSkills={skills}
-				onOpenChange={setAgentDialogOpen}
-				onSave={handleSaveAgent}
-				onDelete={deleteAgent}
-			/>
+			<ConfigDialogs skillDialog={skillDialogProps} agentDialog={agentDialogProps} />
 		</SidebarProvider>
 	);
 }

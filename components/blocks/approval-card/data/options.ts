@@ -8,7 +8,6 @@ export interface ApprovalOption {
 }
 
 export const APPROVAL_OPTIONS: ApprovalOption[] = [
-	{ id: "auto-accept", step: "1", label: "Yes, and auto-accept", selected: true },
-	{ id: "manual-approve", step: "2", label: "Yes, and manually approve edits" },
-	{ id: "continue-planning", step: "3", label: "No, keep planning" },
+	{ id: "auto-accept", step: "1", label: "Yes, let's start cooking" },
+	{ id: "continue-planning", step: "2", label: "No, keep planning" },
 ];

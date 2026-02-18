@@ -1,0 +1,3 @@
+[worktree: e2e] RovoDev base port: 8074
+[rovodev] Using acli wrapper: /opt/homebrew/bin/acli
+[rovodev] Starting: /opt/homebrew/bin/acli rovodev serve --disable-session-token 8074

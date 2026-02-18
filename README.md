@@ -197,10 +197,17 @@ ASAP_ISSUER
 Optional:
 
 ```
+AUTO_FALLBACK_TO_AI_GATEWAY=true       # Auto-route to AI Gateway when RovoDev Serve is unavailable
 DEBUG=true                              # Verbose logging
 PORT=8080                               # Backend port
 BACKEND_URL=http://localhost:8080       # Backend URL for dev proxy
 ```
+
+LLM routing behavior:
+
+- Default: RovoDev-first (`pnpm run rovodev` + `pnpm run dev`)
+- Fallback: if `AUTO_FALLBACK_TO_AI_GATEWAY=true`, chat endpoints switch to AI Gateway when RovoDev is down
+- Inspect current routing at `GET /api/health` under `llmRouting`
 
 See [guide-setup.md](./.cursor/skills/vpk-setup/references/guide-setup.md) for detailed credential setup.
 

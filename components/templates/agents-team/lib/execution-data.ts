@@ -6,7 +6,7 @@ import type {
 import type { ParsedPlanTask } from "@/components/templates/shared/lib/plan-widget";
 import type { AgentRun, AgentRunTask } from "@/lib/agents-team-run-types";
 
-export type TaskStatus = "todo" | "in-progress" | "in-review" | "done" | "failed";
+export type TaskStatus = "todo" | "in-progress" | "in-review" | "failed" | "done";
 
 export interface ExecutionTask {
 	id: string;
@@ -31,7 +31,24 @@ export interface TaskStatusGroups {
 	done: ExecutionTask[];
 	inReview: ExecutionTask[];
 	inProgress: ExecutionTask[];
+	failed: ExecutionTask[];
 	todo: ExecutionTask[];
+}
+
+export interface ProgressDisplayTask {
+	id: string;
+	label: string;
+	description: string;
+	agentName?: string;
+	agentAvatarSrc?: string;
+}
+
+export interface ProgressDisplayStatusGroups {
+	done: ProgressDisplayTask[];
+	inReview: ProgressDisplayTask[];
+	inProgress: ProgressDisplayTask[];
+	failed: ProgressDisplayTask[];
+	todo: ProgressDisplayTask[];
 }
 
 function agentStatusToTaskStatus(agentStatus: AgentExecutionStatus): TaskStatus {
@@ -47,12 +64,21 @@ function runTaskStatusToTaskStatus(runTaskStatus: AgentRunTask["status"]): TaskS
 	return "todo";
 }
 
-function runTaskStatusToAgentStatus(
-	runTaskStatus: AgentRunTask["status"] | null
-): AgentExecutionStatus {
-	if (runTaskStatus === "done") return "completed";
-	if (runTaskStatus === "failed" || runTaskStatus === "blocked-failed") return "failed";
-	return "working";
+function stripTaskMarkdownDecorators(label: string): string {
+	return label
+		.replace(/\*\*([^*\n]+)\*\*/g, "$1")
+		.replace(/__([^_\n]+)__/g, "$1")
+		.replace(/^[*_`\s]+/, "")
+		.replace(/[\s*_`]+$/, "")
+		.trim();
+}
+
+export function extractTaskHeading(label: string): string {
+	const normalizedLabel = stripTaskMarkdownDecorators(label);
+	const emDashIndex = normalizedLabel.indexOf("\u2014");
+	if (emDashIndex === -1) return normalizedLabel;
+	const heading = stripTaskMarkdownDecorators(normalizedLabel.slice(0, emDashIndex));
+	return heading.length > 0 ? heading : normalizedLabel;
 }
 
 export function extractAgentExecutionUpdates(
@@ -78,19 +104,20 @@ export function extractAgentExecutionUpdates(
 export function buildTaskExecutions(
 	updates: AgentExecutionUpdate[]
 ): TaskExecution[] {
-	const latestByTask = new Map<string, TaskExecution>();
+	const latestByTaskId = new Map<string, TaskExecution>();
 
 	for (const update of updates) {
-		const existing = latestByTask.get(update.taskId);
+		const existing = latestByTaskId.get(update.taskId);
 		if (existing) {
 			existing.status = update.status;
-			existing.agentId = update.agentId;
 			existing.agentName = update.agentName;
+			existing.taskId = update.taskId;
+			existing.taskLabel = update.taskLabel;
 			if (update.content) {
-				existing.content += update.content;
+				existing.content = `${existing.content}${update.content}`;
 			}
 		} else {
-			latestByTask.set(update.taskId, {
+			latestByTaskId.set(update.taskId, {
 				taskId: update.taskId,
 				taskLabel: update.taskLabel,
 				agentId: update.agentId,
@@ -101,7 +128,7 @@ export function buildTaskExecutions(
 		}
 	}
 
-	return Array.from(latestByTask.values());
+	return Array.from(latestByTaskId.values());
 }
 
 export function computeTaskStatusGroups(
@@ -126,6 +153,7 @@ export function computeTaskStatusGroups(
 		done: [],
 		inReview: [],
 		inProgress: [],
+		failed: [],
 		todo: [],
 	};
 
@@ -144,8 +172,10 @@ export function computeTaskStatusGroups(
 			groups.done.push(executionTask);
 		} else if (info.status === "in-review") {
 			groups.inReview.push(executionTask);
-		} else if (info.status === "in-progress" || info.status === "failed") {
+		} else if (info.status === "in-progress") {
 			groups.inProgress.push(executionTask);
+		} else if (info.status === "failed") {
+			groups.failed.push(executionTask);
 		} else {
 			groups.todo.push(executionTask);
 		}
@@ -161,6 +191,7 @@ export function computeTaskStatusGroupsFromRun(
 		done: [],
 		inReview: [],
 		inProgress: [],
+		failed: [],
 		todo: [],
 	};
 
@@ -177,8 +208,10 @@ export function computeTaskStatusGroupsFromRun(
 			groups.done.push(executionTask);
 		} else if (mappedStatus === "in-review") {
 			groups.inReview.push(executionTask);
-		} else if (mappedStatus === "in-progress" || mappedStatus === "failed") {
+		} else if (mappedStatus === "in-progress") {
 			groups.inProgress.push(executionTask);
+		} else if (mappedStatus === "failed") {
+			groups.failed.push(executionTask);
 		} else {
 			groups.todo.push(executionTask);
 		}
@@ -187,34 +220,69 @@ export function computeTaskStatusGroupsFromRun(
 	return groups;
 }
 
+function toProgressDisplayTask(task: ExecutionTask): ProgressDisplayTask {
+	return {
+		id: task.id,
+		label: extractTaskHeading(task.label),
+		description: task.id,
+		agentName: task.agentName,
+	};
+}
+
+export function toProgressDisplayStatusGroups(
+	taskStatusGroups: TaskStatusGroups
+): ProgressDisplayStatusGroups {
+	return {
+		done: taskStatusGroups.done.map(toProgressDisplayTask),
+		inReview: taskStatusGroups.inReview.map(toProgressDisplayTask),
+		inProgress: taskStatusGroups.inProgress.map(toProgressDisplayTask),
+		failed: taskStatusGroups.failed.map(toProgressDisplayTask),
+		todo: taskStatusGroups.todo.map(toProgressDisplayTask),
+	};
+}
+
 export function deriveTaskExecutionsFromRun(
 	run: AgentRun | null,
 	updates: ReadonlyArray<AgentExecutionUpdate> = []
 ): TaskExecution[] {
 	const streamedExecutions = buildTaskExecutions([...updates]);
-	if (streamedExecutions.length > 0) {
+	if (!run) {
 		return streamedExecutions;
 	}
 
-	if (!run) {
-		return [];
-	}
+	const agentsById = new Map(run.agents.map((agent) => [agent.agentId, agent] as const));
 
-	return run.tasks
-		.filter((task) => task.status !== "todo")
-		.map((task) => {
-			const agent = run.agents.find((a) => a.agentId === task.agentId);
-			return {
+	const runExecutions: TaskExecution[] = run.tasks.flatMap((task) => {
+		if (task.status === "todo") {
+			return [];
+		}
+
+		const status: AgentExecutionStatus =
+			task.status === "done"
+				? "completed"
+				: task.status === "failed" || task.status === "blocked-failed"
+					? "failed"
+					: "working";
+		const agent = agentsById.get(task.agentId);
+		const isCurrentTask = agent?.currentTaskId === task.id;
+		const content =
+			(isCurrentTask ? agent?.latestContent : null) ||
+			task.outputSummary ||
+			task.output ||
+			task.error ||
+			"";
+
+		return [
+			{
 				taskId: task.id,
 				taskLabel: task.label,
 				agentId: task.agentId,
-				agentName: task.agentName,
-				status: runTaskStatusToAgentStatus(task.status),
-				content:
-					(agent?.latestContent) ||
-					task.output ||
-					task.outputSummary ||
-					"",
-			};
-		});
+				agentName: task.agentName || agent?.agentName || "Agent",
+				status,
+				content,
+			},
+		];
+	});
+
+	return runExecutions.length > 0 ? runExecutions : streamedExecutions;
 }

@@ -167,6 +167,12 @@ export function ApprovalCard({ onSubmit, onDismiss, isSubmitting = false }: Read
 									onClick={() => {
 										handleSelectOption(option.id);
 										setFocusedIndex(index);
+										if (onSubmit) {
+											onSubmit({
+												decision: option.id,
+												customInstruction: undefined,
+											});
+										}
 									}}
 									onMouseEnter={() => setFocusedIndex(index)}
 									tabIndex={-1}
@@ -214,8 +220,8 @@ export function ApprovalCard({ onSubmit, onDismiss, isSubmitting = false }: Read
 
 			{onSubmit ? (
 				<footer className="flex items-center justify-end border-t border-border px-4 py-3">
-					<Button type="button" disabled={isSubmitting || (isCustomSelected && !customValue.trim())} onClick={handleSubmit}>
-						{isSubmitting ? "Submitting..." : "Submit approval"}
+					<Button type="button" variant="outline" disabled={isSubmitting || !isCustomSelected} onClick={handleSubmit}>
+						{isSubmitting ? "Submitting..." : "Submit"}
 					</Button>
 				</footer>
 			) : null}

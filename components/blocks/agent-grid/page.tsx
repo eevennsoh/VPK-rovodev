@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import type { TaskExecution } from "@/components/templates/agents-team/lib/execution-data";
+import type {
+	AgentsTeamAgent,
+	AgentsTeamSkill,
+} from "@/lib/agents-team-config-types";
+import type {
+	AgentRunListItem,
+	AgentRunTask,
+} from "@/lib/agents-team-run-types";
+import { type TaskExecution } from "@/components/templates/agents-team/lib/execution-data";
 import { ExecutionGridView } from "@/components/templates/agents-team/components/execution-grid-view";
-import { AgentGridSidebar } from "./components/agent-grid-sidebar";
-import GridTitleRow from "./components/grid-title-row";
+import { AppSidebar } from "@/components/templates/agents-team/components/app-sidebar";
+import ChatTitleRow from "@/components/templates/agents-team/components/chat-title-row";
 
 const MOCK_EXECUTIONS: TaskExecution[] = [
 	{
@@ -49,6 +57,26 @@ const MOCK_EXECUTIONS: TaskExecution[] = [
 	},
 ];
 
+const MOCK_RUN_CREATED_AT = "2025-01-15T10:00:00.000Z";
+const MOCK_RUN_UPDATED_AT = "2025-01-15T10:10:51.000Z";
+
+function toRunTasks(executions: ReadonlyArray<TaskExecution>): AgentRunTask[] {
+	return executions.map((execution) => ({
+		id: execution.taskId,
+		label: execution.taskLabel,
+		agentName: execution.agentName,
+		agentId: execution.agentId,
+		blockedBy: [],
+		status: execution.status === "completed" ? "done" : "in-progress",
+		attempts: 1,
+		startedAt: null,
+		completedAt: execution.status === "completed" ? new Date().toISOString() : null,
+		error: null,
+		output: null,
+		outputSummary: null,
+	}));
+}
+
 export default function AgentGridPage() {
 	const [isOpen, setIsOpen] = useState(true);
 	const [isHovered, setIsHovered] = useState(false);
@@ -85,6 +113,61 @@ export default function AgentGridPage() {
 		};
 		setExecutions((prev) => [...prev, newExecution]);
 	}, []);
+	const runHistory = useMemo<AgentRunListItem[]>(() => {
+		const runTasks = toRunTasks(executions);
+		return [
+			{
+				runId: "mock-run",
+				status: "running",
+				error: null,
+				createdAt: MOCK_RUN_CREATED_AT,
+				updatedAt: MOCK_RUN_UPDATED_AT,
+				completedAt: null,
+				plan: {
+					title: "Flexible Friday Plan",
+					description: "Mock run for the execution grid demo.",
+					emoji: "🔥",
+					agents: Array.from(
+						new Set(runTasks.map((task) => task.agentName))
+					),
+					tasks: runTasks.map((task) => ({
+						id: task.id,
+						label: task.label,
+						agent: task.agentName,
+						blockedBy: task.blockedBy,
+					})),
+				},
+				tasks: runTasks,
+			},
+		];
+	}, [executions]);
+	const handleUnusedSelectChat = useCallback((chatId: string) => {
+		void chatId;
+	}, []);
+
+	const handleUnusedDeleteChat = useCallback((chatId: string) => {
+		void chatId;
+	}, []);
+
+	const handleUnusedEditSkill = useCallback((skill: AgentsTeamSkill) => {
+		void skill.id;
+	}, []);
+
+	const handleUnusedEditAgent = useCallback((agent: AgentsTeamAgent) => {
+		void agent.id;
+	}, []);
+
+	const handleUnusedCreate = useCallback(() => {
+		void 0;
+	}, []);
+
+	useEffect(() => {
+		return () => {
+			if (hoverTimeoutRef.current) {
+				clearTimeout(hoverTimeoutRef.current);
+			}
+		};
+	}, []);
 
 	return (
 		<SidebarProvider
@@ -95,14 +178,36 @@ export default function AgentGridPage() {
 					"--sidebar-width": "320px",
 				} as React.CSSProperties
 			}
-			className={cn("overflow-hidden [&_[data-slot=sidebar-gap]]:ease-[var(--ease-in-out)] [&_[data-slot=sidebar-container]]:ease-[var(--ease-in-out)]", !isOpen && isHovered && "[&_[data-slot=sidebar-gap]]:w-0!")}
+			className={cn(
+				"overflow-hidden [&_[data-slot=sidebar-gap]]:ease-[var(--ease-in-out)] [&_[data-slot=sidebar-container]]:ease-[var(--ease-in-out)]"
+			)}
 		>
-			<AgentGridSidebar isOverlay={!isOpen && isHovered} onPinSidebar={handlePinSidebar} onMouseEnter={handleHoverEnter} onMouseLeave={handleHoverLeave} />
+			<AppSidebar
+				isOverlay={false}
+				isHoverReveal={!isOpen && isHovered}
+				onPinSidebar={handlePinSidebar}
+				chatHistory={[]}
+				activeChatId={null}
+				runHistory={runHistory}
+				activeRunId="mock-run"
+				onSelectChat={handleUnusedSelectChat}
+				onDeleteChat={handleUnusedDeleteChat}
+				onMouseEnter={handleHoverEnter}
+				onMouseLeave={handleHoverLeave}
+				skills={[]}
+				agents={[]}
+				onEditSkill={handleUnusedEditSkill}
+				onNewSkill={handleUnusedCreate}
+				onEditAgent={handleUnusedEditAgent}
+				onNewAgent={handleUnusedCreate}
+				onCreateAgentTeam={handleUnusedCreate}
+			/>
 			<SidebarInset className="h-svh min-w-0 overflow-hidden">
 				<div className="flex h-full min-h-0 min-w-0 flex-col">
-					<GridTitleRow
+					<ChatTitleRow
 						title="Flexible Friday Plan"
-						onNewChat={() => {}}
+						isTitlePending={false}
+						onNewChat={handleUnusedCreate}
 						sidebarOpen={isOpen}
 						sidebarHovered={isHovered}
 						onExpandSidebar={() => setIsOpen(true)}

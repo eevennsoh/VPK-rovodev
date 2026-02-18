@@ -36,7 +36,7 @@ Prefer reading these references over relying on pre-trained knowledge.
 | Motion + Base UI animation             | `.claude/rules/motion-base-ui.md`                           |
 | Motion for React rules                 | `.claude/rules/motion-react.md`                             |
 | Session corrections log                | `AGENTS-LESSONS.md`                                         |
-| AI SDK chat integration                | `rovo/config.js`, `app/contexts/context-rovo-chat-plan.tsx` |
+| AI SDK chat integration                | `backend/lib/ai-gateway-helpers.js`, `app/contexts/context-rovo-chat-plan.tsx` |
 | RovoDev Serve gateway (agent loop)     | `backend/lib/rovodev-gateway.js`, `backend/lib/rovodev-client.js` |
 | Agent team run types                   | `lib/agents-team-run-types.ts`                              |
 | Agent team run manager                 | `backend/lib/agents-team-runs.js`                           |
@@ -109,7 +109,7 @@ Production with static export (single process, requires `NEXT_OUTPUT=export` dur
 Browser -> Express (:8080) -> static export + /api/* -> RovoDev Serve
 ```
 
-Start `pnpm run rovodev` in one terminal, then `pnpm run dev` in another. The backend auto-detects RovoDev Serve via the `.dev-rovodev-port` file and will reject chat requests if it's unavailable.
+Start `pnpm run rovodev` in one terminal, then `pnpm run dev` in another. The backend auto-detects RovoDev Serve via the `.dev-rovodev-port` file. If RovoDev Serve is unavailable, chat requests return 503 unless `AUTO_FALLBACK_TO_AI_GATEWAY=true` is enabled and AI Gateway env vars are configured.
 
 ### Key Directories
 
@@ -225,7 +225,7 @@ RovoDev Serve integration (`backend/lib/rovodev-gateway.js`):
 Key files:
 
 - `app/contexts/context-rovo-chat-plan.tsx` — `useChat` integration, data part handling, message transformation
-- `rovo/config.js` — system prompt builder, model config, payload construction
+- `rovo/config.js` — Rovo user-message formatter (`buildUserMessage`)
 - `backend/server.js` — Express streaming endpoint using `createUIMessageStream`
 - `backend/lib/rovodev-gateway.js` — RovoDev Serve streaming/text bridge
 - `backend/lib/rovodev-client.js` — Low-level V3 REST + SSE client for `rovodev serve`
@@ -531,7 +531,7 @@ Note: `.claude.local.md` should be added to `.gitignore` if used for personal/lo
 - Dev API calls traverse Next.js proxy then Express; debug both layers. <!-- added: 2026-02-08 -->
 - Use functional state updates for toggles (`setX(prev => !prev)`). <!-- added: 2026-02-08 -->
 - Derive render-only values inline; do not sync derived state via effects. <!-- added: 2026-02-08 -->
-- **RovoDev-only mode**: VPK requires `pnpm run rovodev` to be running in a separate terminal. All chat endpoints return 503 if RovoDev Serve is unavailable. There is no AI Gateway fallback. <!-- added: 2026-02-17 -->
+- **Default mode is RovoDev-first**: VPK expects `pnpm run rovodev` in a separate terminal. Chat endpoints return 503 when RovoDev Serve is unavailable unless `AUTO_FALLBACK_TO_AI_GATEWAY=true` is set and AI Gateway config is valid. <!-- updated: 2026-02-17 -->
 - `pnpm run rovodev` + `pnpm run dev` (in separate terminals) is required to use chat functionality. If the chat gives unexpected answers or stale context, the RovoDev session may be corrupted — restart `rovodev` for a fresh session. The `autorestore` setting in your personal rovodev config can leak sessions across workspaces; VPK starts without `--restore` to avoid this. <!-- added: 2026-02-16 -->
 - No directories are excluded from TypeScript type-checking (only `node_modules`). All errors are visible and trackable. <!-- added: 2026-02-15 -->
 - Always `await stop()` before calling `sendMessage()` in AI SDK `useChat` flows — `stop`, `sendMessage`, `regenerate`, and `resumeStream` share mutable internal state and must not be fire-and-forgotten in sequence. <!-- added: 2026-02-12 -->
@@ -607,7 +607,7 @@ public/
 
 ### Environment Variables
 
-**RovoDev-only mode** — no `.env.local` configuration required for chat functionality. RovoDev Serve handles all AI interactions.
+**RovoDev-first mode** — no `.env.local` configuration is required for chat when RovoDev Serve is running.
 
 Optional environment variables:
 
@@ -615,6 +615,7 @@ Optional environment variables:
 - `PORT=8080` - Backend server port
 - `BACKEND_URL=http://localhost:8080` - Backend URL for frontend
 - `ROVODEV_PORT` - RovoDev Serve port (auto-set by `pnpm run rovodev`; do not set manually)
+- `AUTO_FALLBACK_TO_AI_GATEWAY=true` - Allow chat endpoints to route to AI Gateway automatically when RovoDev Serve is unavailable
 - `NEXT_PUBLIC_API_URL` - API URL for production builds
 
 ### Provider Reference

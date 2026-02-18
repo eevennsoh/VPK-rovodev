@@ -23,6 +23,7 @@ import {
 } from "@/components/ui-ai/plan";
 import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
 import { parsePlanWidgetPayload, type ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
+import { derivePlanEmojiFromTitle, resolvePlanDisplayTitle } from "@/components/templates/shared/lib/plan-identity";
 import type { ClarificationAnswers, ParsedQuestionCardPayload } from "@/components/templates/shared/lib/question-card-widget";
 import { Footer } from "@/components/ui/footer";
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
@@ -36,7 +37,6 @@ import { useDismissibleCards } from "../hooks/use-dismissible-cards";
 
 const CHAT_COMPOSER_BASE_BOTTOM_PADDING = "128px";
 const CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING = "320px";
-const AWAITING_INDICATOR_BOTTOM_PADDING = "112px";
 const OVERLAY_CARD_BOTTOM_PADDING = "520px";
 
 interface AgentsTeamChatViewProps {
@@ -59,7 +59,7 @@ interface AgentsTeamChatViewProps {
 	onClarificationSubmit: (answers: ClarificationAnswers) => void;
 	onApprovalSubmit: (selection: PlanApprovalSelection) => void;
 	onSuggestedQuestionClick: (question: string) => Promise<void> | void;
-	onDeleteMessage?: (messageId: string) => void;
+	onRetryPlanWidget?: () => void;
 }
 
 export default function AgentsTeamChatView({
@@ -82,7 +82,7 @@ export default function AgentsTeamChatView({
 	onClarificationSubmit,
 	onApprovalSubmit,
 	onSuggestedQuestionClick,
-	onDeleteMessage,
+	onRetryPlanWidget,
 }: Readonly<AgentsTeamChatViewProps>) {
 	const { conversationContextRef, scrollSpacerRef } = useScrollAnchoring({
 		uiMessages,
@@ -105,24 +105,23 @@ export default function AgentsTeamChatView({
 					: "Processing your request";
 
 	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isWidgetLoading && !isStreaming;
-	const gatedShouldShowApprovalCard = shouldShowApprovalCard && isPlanResponseComplete;
+	const gatedShouldShowApprovalCard = shouldShowApprovalCard && isPlanResponseComplete && !isStreaming;
 	const hasPendingResponseCard = gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
-	const shouldCollapsePendingCard = hasPendingResponseCard && showScrollButton;
-	const showQuestionCardOverlay = gatedShouldShowQuestionCard && !shouldCollapsePendingCard;
-	const showApprovalCardOverlay = gatedShouldShowApprovalCard && !shouldCollapsePendingCard;
+	const showQuestionCardOverlay = gatedShouldShowQuestionCard;
+	const showApprovalCardOverlay = gatedShouldShowApprovalCard;
 	const showBottomOverlayCard = showQuestionCardOverlay || showApprovalCardOverlay;
 	const isAwaitingUserInput = hasPendingResponseCard;
 	const chatComposerBottomPadding = queuedPrompts.length > 0 ? CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING : CHAT_COMPOSER_BASE_BOTTOM_PADDING;
-	const contentBottomPadding = showBottomOverlayCard ? OVERLAY_CARD_BOTTOM_PADDING : hasPendingResponseCard ? AWAITING_INDICATOR_BOTTOM_PADDING : chatComposerBottomPadding;
+	const contentBottomPadding = showBottomOverlayCard ? OVERLAY_CARD_BOTTOM_PADDING : chatComposerBottomPadding;
 	const shouldShowBottomGradient = showBottomOverlayCard || !hasPendingResponseCard;
 
 	useEffect(() => {
-		if (!showBottomOverlayCard || showScrollButton) return;
+		if (!showBottomOverlayCard) return;
 		void conversationContextRef.current?.scrollToBottom({
 			animation: "instant",
 			ignoreEscapes: true,
 		});
-	}, [conversationContextRef, showBottomOverlayCard, showScrollButton]);
+	}, [conversationContextRef, showBottomOverlayCard]);
 
 	return (
 		<div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -133,20 +132,24 @@ export default function AgentsTeamChatView({
 						streamingIndicatorMessages={streamingUiMessages}
 						hideScrollbar
 						onSuggestedQuestionClick={onSuggestedQuestionClick}
-						onDeleteMessage={onDeleteMessage}
 						conversationContextRef={conversationContextRef}
 						scrollSpacerRef={scrollSpacerRef}
 						contentTopPadding="24px"
 						contentBottomPadding={contentBottomPadding}
 						isStreaming={isStreaming}
 						streamingIndicatorVariant="reasoning-expanded"
-						thinkingLabel="Reasoning"
+						thinkingLabel="Thinking"
 						showFeedbackActions={false}
 						showFollowUpSuggestions={!isAwaitingUserInput}
 						showAwaitingIndicator={isAwaitingUserInput || isWidgetLoading}
 						awaitingIndicatorLabel={
 							isWidgetLoading ? widgetLoadingLabel : gatedShouldShowQuestionCard ? "Waiting for your answers" : gatedShouldShowApprovalCard ? "Waiting for your approval" : "Processing your request"
 						}
+						onRetryWidget={(widgetType) => {
+							if (widgetType === "plan") {
+								onRetryPlanWidget?.();
+							}
+						}}
 						renderWidget={(widget, message) => {
 							if (widget.type !== "plan") return null;
 
@@ -159,7 +162,6 @@ export default function AgentsTeamChatView({
 									<PlanCardWidgetInline
 										title={parsedPlanWidget.title}
 										description={parsedPlanWidget.description}
-										emoji={parsedPlanWidget.emoji}
 										tasks={parsedPlanWidget.tasks}
 										agents={parsedPlanWidget.agents}
 										isStreaming={isPlanWidgetStreaming}
@@ -333,6 +335,23 @@ function BottomOverlayContent({
 	) : null;
 }
 
+function stripTaskMarkdownDecorators(label: string): string {
+	return label
+		.replace(/\*\*([^*\n]+)\*\*/g, "$1")
+		.replace(/__([^_\n]+)__/g, "$1")
+		.replace(/^[*_`\s]+/, "")
+		.replace(/[\s*_`]+$/, "")
+		.trim();
+}
+
+function extractTaskHeading(label: string): string {
+	const normalizedLabel = stripTaskMarkdownDecorators(label);
+	const emDashIndex = normalizedLabel.indexOf("\u2014"); // em-dash "—"
+	if (emDashIndex === -1) return normalizedLabel;
+	const heading = stripTaskMarkdownDecorators(normalizedLabel.slice(0, emDashIndex));
+	return heading.length > 0 ? heading : normalizedLabel;
+}
+
 function resolveBlockedByLabels(task: PlanTask, allTasks: PlanTask[]): string[] {
 	return task.blockedBy
 		.map((blockedById) => {
@@ -347,11 +366,10 @@ interface PlanCardWidgetInlineProps {
 	tasks: PlanTask[];
 	agents?: string[];
 	description?: string;
-	emoji?: string;
 	isStreaming?: boolean;
 }
 
-function PlanCardWidgetInline({ title, tasks, agents = [], description, emoji = "\u270C\uFE0F", isStreaming = false }: Readonly<PlanCardWidgetInlineProps>): React.ReactElement | null {
+function PlanCardWidgetInline({ title, tasks, agents = [], description, isStreaming = false }: Readonly<PlanCardWidgetInlineProps>): React.ReactElement | null {
 	const [isOpen, setIsOpen] = useState(true);
 	const visibleTasks = tasks.filter((task) => task.label.trim().length > 0);
 	const [streamRevealCount, setStreamRevealCount] = useState(0);
@@ -372,15 +390,17 @@ function PlanCardWidgetInline({ title, tasks, agents = [], description, emoji = 
 		return null;
 	}
 
+	const displayTitle = resolvePlanDisplayTitle(title, visibleTasks);
+	const displayEmoji = derivePlanEmojiFromTitle(displayTitle);
 	const descriptionText = description?.trim() ? description : `${visibleTasks.length} tasks`;
 
 	return (
 		<Plan className="w-full gap-3 py-0 shadow-xs" open={isOpen} onOpenChange={setIsOpen} isStreaming={isStreaming}>
 			<PlanHeader className={cn("items-center px-4 pt-4", !isOpen && "pb-4")}>
 				<div className="flex min-w-0 items-center gap-3">
-					<PlanAvatar emoji={emoji} />
+					<PlanAvatar emoji={displayEmoji} />
 					<div className="min-w-0">
-						<PlanTitle className="truncate text-sm leading-5 font-semibold text-text">{title}</PlanTitle>
+						<PlanTitle className="truncate text-sm leading-5 font-semibold text-text">{displayTitle}</PlanTitle>
 						<PlanDescription className="text-xs leading-4 text-text-subtlest">{descriptionText}</PlanDescription>
 					</div>
 				</div>
@@ -394,7 +414,7 @@ function PlanCardWidgetInline({ title, tasks, agents = [], description, emoji = 
 
 				<PlanTaskList>
 					{visibleTasks.slice(0, revealedCount).map((task, index) => (
-						<PlanTaskItem key={task.id} index={index + 1} label={task.label} blockedByLabels={resolveBlockedByLabels(task, tasks)} agent={task.agent} />
+						<PlanTaskItem key={task.id} index={index + 1} label={extractTaskHeading(task.label)} blockedByLabels={resolveBlockedByLabels(task, tasks)} agent={task.agent} />
 					))}
 				</PlanTaskList>
 			</PlanContent>

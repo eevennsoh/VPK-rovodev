@@ -1,4 +1,5 @@
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
+import { resolvePlanDisplayTitle } from "@/components/templates/shared/lib/plan-identity";
 
 interface StringRecord {
 	[key: string]: unknown;
@@ -17,6 +18,14 @@ export interface ParsedPlanWidgetPayload {
 	emoji?: string;
 	tasks: ParsedPlanTask[];
 	agents: string[];
+}
+
+const MERMAID_BLOCK_REGEX = /```mermaid\b[\s\S]*?```/gi;
+const MERMAID_EDGE_REGEX =
+	/\b[A-Za-z0-9_-]+\s*(?:-->|==>|-.->)\s*(?:\|[^|\n]+\|\s*)?[A-Za-z0-9_-]+\b/;
+
+function createMermaidBlockRegex(): RegExp {
+	return new RegExp(MERMAID_BLOCK_REGEX.source, MERMAID_BLOCK_REGEX.flags);
 }
 
 function isStringRecord(value: unknown): value is StringRecord {
@@ -72,11 +81,6 @@ export function parsePlanWidgetPayload(
 	}
 
 	const record = isStringRecord(value.payload) ? value.payload : value;
-	const title =
-		getNonEmptyString(record.title) ??
-		getNonEmptyString(record.name) ??
-		getNonEmptyString(record.planTitle) ??
-		"Plan";
 	const taskCandidates = Array.isArray(record.tasks)
 		? record.tasks
 		: Array.isArray(record.steps)
@@ -93,6 +97,13 @@ export function parsePlanWidgetPayload(
 	if (tasks.length === 0) {
 		return null;
 	}
+	const title = resolvePlanDisplayTitle(
+		getNonEmptyString(record.title) ??
+			getNonEmptyString(record.name) ??
+			getNonEmptyString(record.planTitle) ??
+			undefined,
+		tasks
+	);
 
 	const description =
 		getNonEmptyString(record.description) ??
@@ -115,6 +126,33 @@ export function parsePlanWidgetPayload(
 		tasks,
 		agents,
 	};
+}
+
+export function extractMermaidBlocksFromText(value: string): string[] {
+	if (!value.trim()) {
+		return [];
+	}
+
+	return Array.from(value.matchAll(createMermaidBlockRegex()), (match) =>
+		match[0].trim()
+	);
+}
+
+export function stripMermaidBlocksFromText(value: string): string {
+	if (!value.trim()) {
+		return "";
+	}
+
+	return value.replace(createMermaidBlockRegex(), "").trim();
+}
+
+export function hasDependencyEdgesInMermaid(value: string): boolean {
+	const mermaidBlocks = extractMermaidBlocksFromText(value);
+	if (mermaidBlocks.length === 0) {
+		return false;
+	}
+
+	return mermaidBlocks.some((block) => MERMAID_EDGE_REGEX.test(block));
 }
 
 export function getLatestPlanWidgetPayload(

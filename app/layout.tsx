@@ -86,6 +86,58 @@ export default async function RootLayout({
 	root.classList.add(resolvedColorMode);
 	root.style.colorScheme = resolvedColorMode;
 
+	if ("${process.env.NODE_ENV}" === "development") {
+		const appGlobalsChunkPattern = /\\/_next\\/static\\/chunks\\/app_globals_[^/]+\\.css(?:\\?.*)?$/;
+		const head = document.head;
+
+		if (head) {
+			const toAbsoluteHref = (href) => {
+				try {
+					return new URL(href, window.location.href).href;
+				} catch {
+					return href;
+				}
+			};
+
+			const ensureStylesheetLink = (href) => {
+				const targetAbsoluteHref = toAbsoluteHref(href);
+				const hasStylesheet = Array.from(
+					head.querySelectorAll('link[rel="stylesheet"][href]')
+				).some((link) => {
+					const existingHref = link.getAttribute("href");
+					return (
+						typeof existingHref === "string" &&
+						(existingHref === href || toAbsoluteHref(existingHref) === targetAbsoluteHref)
+					);
+				});
+
+				if (hasStylesheet) {
+					return;
+				}
+
+				const stylesheet = document.createElement("link");
+				stylesheet.rel = "stylesheet";
+				stylesheet.href = href;
+				stylesheet.setAttribute("data-vpk-dev-css-chunk-guard", "head-script");
+				head.appendChild(stylesheet);
+			};
+
+			const preloadLinks = head.querySelectorAll('link[as="style"][href]');
+			for (const preloadLink of Array.from(preloadLinks)) {
+				if (!preloadLink.relList.contains("preload")) {
+					continue;
+				}
+
+				const href = preloadLink.getAttribute("href");
+				if (typeof href !== "string" || !appGlobalsChunkPattern.test(href)) {
+					continue;
+				}
+
+				ensureStylesheetLink(href);
+			}
+		}
+	}
+
 })();
 `;
 

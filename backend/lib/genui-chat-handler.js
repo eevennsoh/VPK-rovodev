@@ -1,4 +1,9 @@
-const { generateTextViaRovoDev, streamViaRovoDev } = require("./rovodev-gateway");
+const {
+	generateTextViaRovoDev,
+	streamViaRovoDev,
+	WAIT_FOR_TURN_TIMEOUT_MS,
+} = require("./rovodev-gateway");
+const { createAIGatewayProvider } = require("./ai-gateway-provider");
 const { getGenuiSystemPrompt } = require("./genui-system-prompt");
 const {
 	getMissingChildReferences,
@@ -8,6 +13,9 @@ const {
 
 const GENUI_META_PREFIX = "[genui-meta]";
 const WEB_LOOKUP_TIMEOUT_MS = 4500;
+const DEFAULT_ROVODEV_UNAVAILABLE_MESSAGE =
+	"RovoDev Serve is required but not available. Please start RovoDev Serve with 'pnpm run rovodev' before using UI Generation.";
+const DEFAULT_AI_GATEWAY_PROVIDER = createAIGatewayProvider({ logger: console });
 
 const STRICT_RETRY_INSTRUCTION = `
 ## Retry Enforcement
@@ -302,6 +310,34 @@ function buildFailureOutput(rawText, failureType, requirementMisses = []) {
 	return `${narrative}\n\n${guidance}`;
 }
 
+function classifyAIGatewayFailureStage(error) {
+	const message = error instanceof Error ? error.message : String(error ?? "");
+
+	if (
+		/AI Gateway URL is not configured|Server configuration error|AI_GATEWAY_URL|AI_GATEWAY_USE_CASE_ID|AI_GATEWAY_CLOUD_ID|AI_GATEWAY_USER_ID/i.test(message)
+	) {
+		return "config";
+	}
+
+	if (/ASAP_|authentication|Authorization|status 401|status 403|auth/i.test(message)) {
+		return "auth";
+	}
+
+	if (/stream|SSE|response body is empty|timeout|timed out/i.test(message)) {
+		return "stream";
+	}
+
+	return "request";
+}
+
+function createRovoDevUnavailableError() {
+	const error = new Error(DEFAULT_ROVODEV_UNAVAILABLE_MESSAGE);
+	error.code = "ROVODEV_UNAVAILABLE";
+	error.backendSelected = "rovodev";
+	error.failureStage = "unavailable";
+	return error;
+}
+
 /**
  * Generate assistant text via RovoDev Serve.
  *
@@ -313,27 +349,61 @@ async function generateAssistantText({
 	systemPrompt,
 	messages,
 	onTextDelta,
+	rovoDevAvailable,
+	fallbackEnabled,
+	aiGatewayProvider,
 }) {
-	// Build a single prompt that includes the system instructions
-	// and the full conversation history for RovoDev Serve
 	const conversationLines = messages.map(
 		(msg) => `[${msg.role === "assistant" ? "Assistant" : "User"}]\n${msg.content}`
 	);
 	const prompt = conversationLines.join("\n\n");
+	const combinedMessage = `[System Instructions]\n${systemPrompt}\n[End System Instructions]\n\n${prompt}`;
 
-	if (typeof onTextDelta === "function") {
-		const chunks = [];
-		await streamViaRovoDev({
-			message: `[System Instructions]\n${systemPrompt}\n[End System Instructions]\n\n${prompt}`,
-			onTextDelta: (delta) => {
-				chunks.push(delta);
-				onTextDelta(delta);
-			},
+	if (rovoDevAvailable) {
+		if (typeof onTextDelta === "function") {
+			const chunks = [];
+			await streamViaRovoDev({
+				message: combinedMessage,
+				onTextDelta: (delta) => {
+					chunks.push(delta);
+					onTextDelta(delta);
+				},
+			});
+			return chunks.join("");
+		}
+
+		return generateTextViaRovoDev({
+			system: systemPrompt,
+			prompt,
+			conflictPolicy: "wait-for-turn",
+			timeoutMs: WAIT_FOR_TURN_TIMEOUT_MS,
 		});
-		return chunks.join("");
 	}
 
-	return generateTextViaRovoDev({ system: systemPrompt, prompt });
+	if (!fallbackEnabled) {
+		throw createRovoDevUnavailableError();
+	}
+
+	try {
+		const provider = aiGatewayProvider || DEFAULT_AI_GATEWAY_PROVIDER;
+		const text = await provider.generateText({
+			system: systemPrompt,
+			prompt: combinedMessage,
+			maxOutputTokens: 3500,
+			temperature: 0.3,
+		});
+
+		if (typeof onTextDelta === "function" && typeof text === "string" && text.length > 0) {
+			onTextDelta(text);
+		}
+
+		return text;
+	} catch (error) {
+		const normalizedError = error instanceof Error ? error : new Error(String(error));
+		normalizedError.backendSelected = "ai-gateway";
+		normalizedError.failureStage = classifyAIGatewayFailureStage(normalizedError);
+		throw normalizedError;
+	}
 }
 
 function extractRelatedTopicTexts(topics, output = []) {
@@ -503,7 +573,7 @@ function buildSuccessOutput({
  * Accepts `{ messages: [{ role, content }], strictSpec?, allowWebLookup? }`
  * and returns mixed text + json-render patch output.
  */
-async function genuiChatHandler(req, res) {
+async function genuiChatHandler(req, res, options = {}) {
 	try {
 		const {
 			messages: rawMessages,
@@ -511,6 +581,15 @@ async function genuiChatHandler(req, res) {
 			allowWebLookup,
 			streamResponse = true,
 		} = req.body || {};
+		const rovoDevAvailable =
+			typeof options.isRovoDevAvailable === "function"
+				? await options.isRovoDevAvailable()
+				: true;
+		const fallbackEnabled =
+			typeof options.isAIGatewayFallbackEnabled === "function"
+				? options.isAIGatewayFallbackEnabled()
+				: false;
+		const aiGatewayProvider = options.aiGatewayProvider || DEFAULT_AI_GATEWAY_PROVIDER;
 		const normalizedMessages = normalizeMessages(rawMessages);
 
 		if (normalizedMessages.length === 0) {
@@ -541,6 +620,9 @@ async function genuiChatHandler(req, res) {
 		const baseText = await generateAssistantText({
 			systemPrompt: basePrompt,
 			messages: normalizedMessages,
+			rovoDevAvailable,
+			fallbackEnabled,
+			aiGatewayProvider,
 			onTextDelta:
 				streamResponse === true
 					? (delta) => {
@@ -632,6 +714,9 @@ async function genuiChatHandler(req, res) {
 			const retryText = await generateAssistantText({
 				systemPrompt: strictRetryPrompt,
 				messages: normalizedMessages,
+				rovoDevAvailable,
+				fallbackEnabled,
+				aiGatewayProvider,
 			});
 			const retryAnalysis = analyzeGeneratedText(retryText);
 			logAttempt("strict-retry", retryAnalysis, requirements);
@@ -660,6 +745,9 @@ async function genuiChatHandler(req, res) {
 				const webRetryText = await generateAssistantText({
 					systemPrompt: webRetryPrompt,
 					messages: normalizedMessages,
+					rovoDevAvailable,
+					fallbackEnabled,
+					aiGatewayProvider,
 				});
 				const webRetryAnalysis = analyzeGeneratedText(webRetryText);
 				logAttempt("web-retry", webRetryAnalysis, requirements);
@@ -722,14 +810,31 @@ async function genuiChatHandler(req, res) {
 		console.error("[GENUI-CHAT] Error:", error);
 		if (!res.headersSent) {
 			const message = error instanceof Error ? error.message : String(error);
-			const isRovoDevError = message.includes("RovoDev") || message.includes("rovodev");
-			return res.status(isRovoDevError ? 503 : 500).json({
-				error: isRovoDevError
-					? "RovoDev Serve is required but not available"
-					: "Internal server error",
-				details: isRovoDevError
-					? "Please start RovoDev Serve with 'pnpm run rovodev' before using UI Generation."
-					: message,
+			const backendSelected = error?.backendSelected;
+			if (error?.code === "ROVODEV_UNAVAILABLE" || backendSelected === "rovodev") {
+				return res.status(503).json({
+					error: "RovoDev Serve is required but not available",
+					details: message,
+					backendSelected: "rovodev",
+					failureStage: "unavailable",
+				});
+			}
+
+			if (backendSelected === "ai-gateway") {
+				const failureStage =
+					error?.failureStage || classifyAIGatewayFailureStage(error);
+				const statusCode = failureStage === "config" ? 500 : 502;
+				return res.status(statusCode).json({
+					error: "AI Gateway request failed",
+					details: message,
+					backendSelected: "ai-gateway",
+					failureStage,
+				});
+			}
+
+			return res.status(500).json({
+				error: "Internal server error",
+				details: message,
 			});
 		}
 		res.end();

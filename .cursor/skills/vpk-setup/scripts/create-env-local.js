@@ -9,6 +9,20 @@
 const fs = require('fs');
 const { execSync } = require('child_process');
 
+function getEnvValueFromText(envText, key) {
+	if (!envText || typeof envText !== 'string') {
+		return null;
+	}
+
+	const pattern = new RegExp(`^\\s*${key}\\s*=\\s*(.+)$`, 'm');
+	const match = envText.match(pattern);
+	if (!match || !match[1]) {
+		return null;
+	}
+
+	return match[1].trim();
+}
+
 // Get use case ID from args (REQUIRED)
 const useCaseId = process.argv[2];
 if (!useCaseId) {
@@ -42,6 +56,13 @@ if (!fs.existsSync('.asap-config')) {
 
 const config = JSON.parse(fs.readFileSync('.asap-config', 'utf8'));
 const escaped = config.privateKey.replace(/\n/g, '\\n');
+const existingEnvText = fs.existsSync('.env.local') ? fs.readFileSync('.env.local', 'utf8') : '';
+const preservedGoogleUrl = getEnvValueFromText(existingEnvText, 'AI_GATEWAY_URL_GOOGLE');
+const preservedFallbackFlag = getEnvValueFromText(existingEnvText, 'AUTO_FALLBACK_TO_AI_GATEWAY');
+const preservedDebug = getEnvValueFromText(existingEnvText, 'DEBUG');
+const preservedPort = getEnvValueFromText(existingEnvText, 'PORT');
+const preservedBackendUrl = getEnvValueFromText(existingEnvText, 'BACKEND_URL');
+const preservedPublicApiUrl = getEnvValueFromText(existingEnvText, 'NEXT_PUBLIC_API_URL');
 
 const envContent = `# AI Gateway Configuration
 # Default: Claude via Bedrock (to switch to OpenAI, see guide-model-switch.md)
@@ -49,7 +70,7 @@ const envContent = `# AI Gateway Configuration
 # OpenAI: /v1/openai/v1/chat/completions
 AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-3-5-haiku-20241022-v1:0/invoke-with-response-stream
 # Google/Gemini endpoint (for provider: "google" chat/image requests and Google TTS route derivation)
-# AI_GATEWAY_URL_GOOGLE=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publishers/google/v1/chat/completions
+${preservedGoogleUrl ? `AI_GATEWAY_URL_GOOGLE=${preservedGoogleUrl}` : '# AI_GATEWAY_URL_GOOGLE=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publishers/google/v1/chat/completions'}
 AI_GATEWAY_USE_CASE_ID=${useCaseId}
 AI_GATEWAY_CLOUD_ID=local-testing
 AI_GATEWAY_USER_ID=${email}
@@ -60,7 +81,9 @@ ASAP_KID=${config.kid}
 ASAP_ISSUER=${config.issuer}
 
 # Frontend configuration (for production builds)
-# NEXT_PUBLIC_API_URL=https://your-service-name.us-west-2.platdev.atl-paas.net
+# NEXT_PUBLIC_API_URL=https://your-service-name.us-west-2.platdev.atl-paas.net${preservedPublicApiUrl ? `\nNEXT_PUBLIC_API_URL=${preservedPublicApiUrl}` : ''}
+
+# Optional runtime flags${preservedFallbackFlag ? `\nAUTO_FALLBACK_TO_AI_GATEWAY=${preservedFallbackFlag}` : ''}${preservedDebug ? `\nDEBUG=${preservedDebug}` : ''}${preservedPort ? `\nPORT=${preservedPort}` : ''}${preservedBackendUrl ? `\nBACKEND_URL=${preservedBackendUrl}` : ''}
 `;
 
 fs.writeFileSync('.env.local', envContent);

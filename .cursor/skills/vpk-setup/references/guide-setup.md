@@ -93,6 +93,8 @@ rm -f .next/dev/lock
 
 **No AI response:** Check `.env.local` has ASAP credentials properly set (ASAP_KID, ASAP_ISSUER, ASAP_PRIVATE_KEY)
 
+**Bedrock 403 but OpenAI works:** Pull latest backend code and verify `backend/lib/ai-gateway-helpers.js` does not rewrite Bedrock URLs to `/provider/bedrock/format/openai/...`; restart backend after updating.
+
 **More help:** Enable `DEBUG=true` in `.env.local`
 
 ---

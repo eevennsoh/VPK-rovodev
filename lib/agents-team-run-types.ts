@@ -73,12 +73,64 @@ export interface AgentRunVisualSummary {
 	error?: string;
 }
 
-export interface AgentRunGenuiSummary {
+export interface AgentRunGenuiWidget {
+	id: string;
+	title: string;
 	spec: Spec;
+	createdAt: string;
+	status: "ready" | "failed";
+	error?: string;
+}
+
+export interface AgentRunGenuiSummary {
+	widgets: AgentRunGenuiWidget[];
+	spec?: Spec;
 	partial: boolean;
 	createdAt: string;
 	status: "ready" | "failed";
 	error?: string;
+}
+
+export type AgentRunArtifactType =
+	| "summary-md"
+	| "visual-html"
+	| "genui-json"
+	| "audio"
+	| "task-output"
+	| "link";
+
+export interface AgentRunArtifact {
+	id: string;
+	type: AgentRunArtifactType;
+	title: string;
+	path?: string;
+	url?: string;
+	mimeType?: string;
+	sizeBytes?: number;
+	createdAt: string;
+	iteration: number;
+	taskId?: string;
+}
+
+export type AgentRunShareTarget = "confluence" | "slack";
+
+export interface AgentRunConfluenceShareInput {
+	baseUrl?: string;
+	spaceKey?: string;
+	title?: string;
+	parentPageId?: string;
+}
+
+export interface AgentRunShareRequest {
+	target: AgentRunShareTarget;
+	confluence?: AgentRunConfluenceShareInput;
+}
+
+export interface AgentRunShareResponse {
+	ok: true;
+	target: AgentRunShareTarget;
+	externalUrl?: string;
+	messageTs?: string;
 }
 
 export interface AgentRun {
@@ -98,7 +150,23 @@ export interface AgentRun {
 	userPrompt: string;
 	customInstruction?: string;
 	conversationContext: Array<{ type: "user" | "assistant"; content: string }>;
+	iteration: number;
+	artifacts: AgentRunArtifact[];
+	activeBatchId: string | null;
 }
+
+export type AgentRunListItem = Pick<
+	AgentRun,
+	| "runId"
+	| "status"
+	| "error"
+	| "createdAt"
+	| "updatedAt"
+	| "completedAt"
+	| "plan"
+	| "tasks"
+> &
+	Partial<Pick<AgentRun, "summary" | "visualSummary" | "genuiSummary">>;
 
 export type AgentRunStreamEvent =
 	| {
@@ -116,6 +184,7 @@ export type AgentRunStreamEvent =
 				| "task.retrying"
 				| "directive.recorded"
 				| "run.completed"
+				| "run.resumed"
 				| "run.summary-ready"
 				| "run.failed";
 			timestamp: string;

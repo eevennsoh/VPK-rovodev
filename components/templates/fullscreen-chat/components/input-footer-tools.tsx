@@ -57,7 +57,7 @@ export default function InputFooterTools({
 					<PromptInputActionMenuTrigger aria-label="Add" size="icon-sm" variant="ghost">
 						<AddIcon label="" />
 					</PromptInputActionMenuTrigger>
-					<PromptInputActionMenuContent side="top" align="start" sideOffset={8} className="w-auto min-w-[200px] p-1">
+					<PromptInputActionMenuContent side="top" align="start" sideOffset={8}>
 						<InputAddMenu onClose={() => setIsAddMenuOpen(false)} />
 					</PromptInputActionMenuContent>
 				</PromptInputActionMenu>

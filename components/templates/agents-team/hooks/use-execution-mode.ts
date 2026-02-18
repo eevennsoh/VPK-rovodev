@@ -13,6 +13,11 @@ import {
 	type TaskExecution,
 	type TaskStatusGroups,
 } from "../lib/execution-data";
+import {
+	applyExecutionUpdate,
+	mergeStreamedExecutions,
+	type TaskExecutionByTaskId,
+} from "../lib/task-execution-stream";
 import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 
 export type ExecutionState = "idle" | "executing" | "completed" | "failed";
@@ -78,6 +83,7 @@ const EMPTY_TASK_STATUS_GROUPS: TaskStatusGroups = {
 	done: [],
 	inReview: [],
 	inProgress: [],
+	failed: [],
 	todo: [],
 };
 
@@ -120,6 +126,7 @@ function deriveTodoGroupsFromPlan(plan: ParsedPlanWidgetPayload): TaskStatusGrou
 		done: [],
 		inReview: [],
 		inProgress: [],
+		failed: [],
 		todo: plan.tasks.map((task) => ({
 			id: task.id,
 			label: task.label,
@@ -162,96 +169,6 @@ function getErrorMessage(error: unknown): string {
 	return "Request failed";
 }
 
-type TaskExecutionById = Record<string, TaskExecution>;
-
-function applyExecutionUpdate(
-	previousById: TaskExecutionById,
-	update: AgentExecutionUpdate
-): TaskExecutionById {
-	if (!update.agentId || !update.taskId) {
-		return previousById;
-	}
-
-	const existingExecution = previousById[update.taskId];
-	if (existingExecution && existingExecution.taskId === update.taskId) {
-		const nextContent = update.content
-			? `${existingExecution.content}${update.content}`
-			: existingExecution.content;
-		const hasChanged =
-			existingExecution.agentName !== update.agentName ||
-			existingExecution.taskLabel !== update.taskLabel ||
-			existingExecution.status !== update.status ||
-			existingExecution.content !== nextContent;
-		if (!hasChanged) {
-			return previousById;
-		}
-
-		return {
-			...previousById,
-			[update.taskId]: {
-				...existingExecution,
-				agentName: update.agentName,
-				taskLabel: update.taskLabel,
-				status: update.status,
-				content: nextContent,
-			},
-		};
-	}
-
-	const nextExecution: TaskExecution = {
-		taskId: update.taskId,
-		taskLabel: update.taskLabel,
-		agentId: update.agentId,
-		agentName: update.agentName,
-		status: update.status,
-		content: update.content ?? "",
-	};
-	if (
-		existingExecution &&
-		existingExecution.agentName === nextExecution.agentName &&
-		existingExecution.taskId === nextExecution.taskId &&
-		existingExecution.taskLabel === nextExecution.taskLabel &&
-		existingExecution.status === nextExecution.status &&
-		existingExecution.content === nextExecution.content
-	) {
-		return previousById;
-	}
-
-	return {
-		...previousById,
-		[update.taskId]: nextExecution,
-	};
-}
-
-function mergeStreamedExecutions(
-	baseExecutions: ReadonlyArray<TaskExecution>,
-	streamedExecutionsById: TaskExecutionById
-): TaskExecution[] {
-	const streamedExecutions = Object.values(streamedExecutionsById);
-	if (streamedExecutions.length === 0) {
-		return [...baseExecutions];
-	}
-
-	const mergedById = new Map(
-		baseExecutions.map((execution) => [execution.taskId, execution] as const)
-	);
-	for (const streamedExecution of streamedExecutions) {
-		mergedById.set(streamedExecution.taskId, streamedExecution);
-	}
-
-	const orderedExecutions = baseExecutions.map(
-		(execution) => mergedById.get(execution.taskId) ?? execution
-	);
-	const baseTaskIds = new Set(baseExecutions.map((execution) => execution.taskId));
-	for (const streamedExecution of streamedExecutions) {
-		if (!baseTaskIds.has(streamedExecution.taskId)) {
-			orderedExecutions.push(streamedExecution);
-		}
-	}
-
-	return orderedExecutions;
-}
-
 export function useExecutionMode(): UseExecutionModeReturn {
 	const [executionState, setExecutionState] = useState<ExecutionState>("idle");
 	const [cachedPlan, setCachedPlan] = useState<ParsedPlanWidgetPayload | null>(null);
@@ -259,7 +176,7 @@ export function useExecutionMode(): UseExecutionModeReturn {
 	const [runId, setRunId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [streamedExecutionsByTaskId, setStreamedExecutionsByTaskId] =
-		useState<TaskExecutionById>({});
+		useState<TaskExecutionByTaskId>({});
 	const activeRunIdRef = useRef<string | null>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const queuedExecutionUpdatesRef = useRef<AgentExecutionUpdate[]>([]);
@@ -285,8 +202,8 @@ export function useExecutionMode(): UseExecutionModeReturn {
 		}
 
 		queuedExecutionUpdatesRef.current = [];
-		setStreamedExecutionsByTaskId((previousById) => {
-			let nextById = previousById;
+		setStreamedExecutionsByTaskId((previousByTaskId) => {
+			let nextById = previousByTaskId;
 			for (const update of queuedUpdates) {
 				nextById = applyExecutionUpdate(nextById, update);
 			}
@@ -348,8 +265,8 @@ export function useExecutionMode(): UseExecutionModeReturn {
 
 			flushQueuedExecutionUpdates();
 			if ("update" in event && event.update) {
-				setStreamedExecutionsByTaskId((previousById) =>
-					applyExecutionUpdate(previousById, event.update as AgentExecutionUpdate)
+				setStreamedExecutionsByTaskId((previousByTaskId) =>
+					applyExecutionUpdate(previousByTaskId, event.update as AgentExecutionUpdate)
 				);
 			}
 

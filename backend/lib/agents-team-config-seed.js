@@ -28,6 +28,7 @@ Throughout the entire workflow, operate in read-only mode. Do not write or updat
 2. **Ask follow-ups only if blocking**
    - Ask **at most 1–2 questions**.
    - Only ask if you cannot responsibly plan without the answer; prefer multiple-choice.
+   - If clarification answers are already provided in the conversation, do not ask another question round.
    - If unsure but not blocked, make a reasonable assumption and proceed.
 
 3. **Create a plan using the template below**

@@ -5,10 +5,28 @@ import { useEffect } from "react";
 const APP_GLOBALS_CHUNK_PATTERN = /\/_next\/static\/chunks\/app_globals_[^/]+\.css(?:\?.*)?$/;
 const STYLESHEET_MARKER = "data-vpk-dev-css-chunk-guard";
 
+function resolveAbsoluteHref(href: string): string {
+	try {
+		return new URL(href, window.location.href).href;
+	} catch {
+		return href;
+	}
+}
+
 function ensureStylesheetLink(head: HTMLHeadElement, href: string) {
 	const existingStylesheet = Array.from(
 		head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href]')
-	).some((link) => link.getAttribute("href") === href);
+	).some((link) => {
+		const existingHref = link.getAttribute("href");
+		if (!existingHref) {
+			return false;
+		}
+
+		return (
+			existingHref === href ||
+			resolveAbsoluteHref(existingHref) === resolveAbsoluteHref(href)
+		);
+	});
 
 	if (existingStylesheet) {
 		return;
@@ -17,15 +35,18 @@ function ensureStylesheetLink(head: HTMLHeadElement, href: string) {
 	const link = document.createElement("link");
 	link.rel = "stylesheet";
 	link.href = href;
-	link.disabled = true;
 	link.setAttribute(STYLESHEET_MARKER, "true");
 	head.appendChild(link);
 }
 
 function syncAppGlobalsStylesheetLink(head: HTMLHeadElement) {
-	const preloadLinks = head.querySelectorAll<HTMLLinkElement>('link[rel="preload"][as="style"][href]');
+	const preloadLinks = head.querySelectorAll<HTMLLinkElement>('link[as="style"][href]');
 
 	for (const preloadLink of Array.from(preloadLinks)) {
+		if (!preloadLink.relList.contains("preload")) {
+			continue;
+		}
+
 		const href = preloadLink.getAttribute("href");
 
 		if (!href || !APP_GLOBALS_CHUNK_PATTERN.test(href)) {
@@ -53,7 +74,7 @@ export function DevTurbopackCssChunkGuard() {
 			syncAppGlobalsStylesheetLink(head);
 		});
 
-		observer.observe(head, { childList: true });
+		observer.observe(head, { childList: true, subtree: true });
 
 		return () => {
 			observer.disconnect();

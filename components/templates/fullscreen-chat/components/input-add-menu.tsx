@@ -1,6 +1,6 @@
 "use client";
 
-import { token } from "@/lib/tokens";
+import { PromptInputActionMenuItem } from "@/components/ui-ai/prompt-input";
 import { ADD_MENU_ITEMS } from "../data/input-menu-items";
 
 interface InputAddMenuProps {
@@ -13,23 +13,13 @@ export default function InputAddMenu({ onClose }: Readonly<InputAddMenuProps>) {
 			{ADD_MENU_ITEMS.map((item) => {
 				const IconComponent = item.icon;
 				return (
-					<button
-						type="button"
+					<PromptInputActionMenuItem
 						key={item.label}
-						onClick={onClose}
-						className="w-full bg-bg-neutral-subtle p-1.5 text-left transition-colors hover:bg-bg-neutral-subtle-hovered"
-						style={{
-							borderRadius: token("radius.small"),
-							cursor: "pointer",
-							display: "block",
-							border: "none",
-						}}
+						onSelect={onClose}
+						elemBefore={<IconComponent label="" />}
 					>
-						<div className="flex items-center gap-2">
-							<IconComponent label={item.label} />
-							<span className="text-sm">{item.text}</span>
-						</div>
-					</button>
+						{item.text}
+					</PromptInputActionMenuItem>
 				);
 			})}
 		</>

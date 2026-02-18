@@ -338,7 +338,9 @@ export function buildClarificationSummaryPrompt(
 		`Here are my clarification answers for "${questionCard.title}":`,
 		...answerSummaryLines,
 		"",
-		"Use these details and continue by generating the plan tasks.",
+		"Use these details to generate the final plan tasks now.",
+		"Do not ask more clarification questions unless I explicitly request another round.",
+		"Use the create-plan skill and return a plan widget with concrete tasks.",
 	].join("\n");
 }
 

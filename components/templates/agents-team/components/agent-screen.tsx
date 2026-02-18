@@ -10,7 +10,6 @@ import {
 } from "@/components/ui-ai/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import type { TaskExecution } from "../lib/execution-data";
 
 interface AgentScreenProps {
@@ -27,8 +26,6 @@ function areAgentScreenPropsEqual(
 		previous.execution.taskId === next.execution.taskId &&
 		previous.execution.taskLabel === next.execution.taskLabel &&
 		previous.execution.agentId === next.execution.agentId &&
-		previous.execution.agentName === next.execution.agentName &&
-		previous.execution.agentAvatarUrl === next.execution.agentAvatarUrl &&
 		previous.execution.status === next.execution.status &&
 		previous.execution.content === next.execution.content
 	);
@@ -53,7 +50,7 @@ export const AgentScreen = memo(function AgentScreen({
 	return (
 		<div
 			className={cn(
-				"flex flex-col overflow-hidden border-b border-r border-border",
+				"flex flex-col overflow-hidden bg-surface",
 				className
 			)}
 		>
@@ -66,19 +63,9 @@ export const AgentScreen = memo(function AgentScreen({
 						>
 							{execution.taskLabel}
 						</span>
-						<div className="flex items-center gap-1">
-							<span className="text-xs leading-4 text-text-subtlest">
-								{execution.taskId}
-							</span>
-							<span className="text-xs leading-4 text-text-subtlest">•</span>
-							<Avatar size="xs" shape="hexagon">
-								<AvatarImage src={execution.agentAvatarUrl ?? "/avatar-agent/dev-agents/wildcard-1.svg"} alt={execution.agentName} />
-								<AvatarFallback>{execution.agentName.charAt(0)}</AvatarFallback>
-							</Avatar>
-							<span className="text-xs leading-4 text-text-subtlest">
-								{execution.agentName}
-							</span>
-						</div>
+						<span className="text-xs leading-4 text-text-subtlest">
+							{execution.taskId}
+						</span>
 					</div>
 				</div>
 			</div>

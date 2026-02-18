@@ -1,3 +1,5 @@
+const { inferTaskDependencies } = require("./dag-inference");
+
 const MAX_TASKS = 20;
 const DEFAULT_MIN_TASKS = 2;
 const DEFAULT_PROGRESSIVE_MIN_TASKS = 1;
@@ -7,11 +9,14 @@ function normalizeWhitespace(value) {
 }
 
 function stripMarkdownDecorators(value) {
-	return normalizeWhitespace(
-		value
-			.replace(/^[*_`\s]+/, "")
-			.replace(/[\s*_`]+$/, "")
-	);
+	const withoutInlineStrong = value
+		.replace(/\*\*([^*\n]+)\*\*/g, "$1")
+		.replace(/__([^_\n]+)__/g, "$1");
+	const withoutEdgeDecorators = withoutInlineStrong
+		.replace(/^[*_`\s]+/, "")
+		.replace(/[\s*_`]+$/, "");
+
+	return normalizeWhitespace(withoutEdgeDecorators);
 }
 
 function isLikelySectionHeading(line) {
@@ -74,6 +79,53 @@ function truncateWords(value, maxWords) {
 	return words.slice(0, maxWords).join(" ").trim();
 }
 
+function isGenericPlanTitle(value) {
+	const normalizedTitle = normalizeWhitespace(
+		stripMarkdownDecorators(value || "")
+	).toLowerCase();
+	if (!normalizedTitle) {
+		return true;
+	}
+
+	return (
+		normalizedTitle === "plan" ||
+		normalizedTitle === "execution plan" ||
+		normalizedTitle === "project plan" ||
+		normalizedTitle === "work plan" ||
+		normalizedTitle === "task plan" ||
+		normalizedTitle === "untitled task run"
+	);
+}
+
+function derivePlanTitleFromTasks(tasks) {
+	if (!Array.isArray(tasks) || tasks.length === 0) {
+		return "Untitled task run";
+	}
+
+	for (const task of tasks) {
+		const normalizedLabel = normalizeWhitespace(
+			stripMarkdownDecorators(task.label || "")
+		);
+		if (!normalizedLabel) {
+			continue;
+		}
+
+		const emDashIndex = normalizedLabel.indexOf("—");
+		const heading = emDashIndex === -1
+			? normalizedLabel
+			: normalizeWhitespace(
+					stripMarkdownDecorators(normalizedLabel.slice(0, emDashIndex))
+				) || normalizedLabel;
+		if (!heading || isGenericPlanTitle(heading)) {
+			continue;
+		}
+
+		return truncateWords(heading, 8);
+	}
+
+	return "Untitled task run";
+}
+
 function derivePlanTitle(lines, actionItemsHeadingIndex) {
 	for (let index = 0; index < actionItemsHeadingIndex; index += 1) {
 		const line = lines[index];
@@ -109,7 +161,7 @@ function derivePlanTitle(lines, actionItemsHeadingIndex) {
 		return truncateWords(normalizedLine, 8);
 	}
 
-	return "Plan";
+	return "Untitled task run";
 }
 
 function deriveProgressivePlanTitle(lines, listStartIndex) {
@@ -139,6 +191,146 @@ function hasPlanSignal(value) {
 	return /\b(action\s*items?|plan|steps?|tasks?|roadmap|timeline|milestones?)\b/i.test(
 		value
 	);
+}
+
+function hasPhaseHeadingSignal(lines) {
+	if (!Array.isArray(lines) || lines.length === 0) {
+		return false;
+	}
+
+	return lines.some((line) =>
+		/^\s*(?:#{1,6}\s+)?phase\s+\d+\b/i.test(line.trim())
+	);
+}
+
+function isLikelyQuestionTaskLabel(label) {
+	const normalizedLabel = normalizeWhitespace(stripMarkdownDecorators(label || ""));
+	if (!normalizedLabel) {
+		return false;
+	}
+
+	if (/[?]$/.test(normalizedLabel)) {
+		return true;
+	}
+
+	return /^(what|which|when|where|who|why|how|can|should|do|does|is|are)\b/i.test(
+		normalizedLabel
+	);
+}
+
+function parseNumberedListItemLabel(line) {
+	const numberedItemPattern =
+		/^\s*\d+[\.)]\s+(?:\[(?:\s|x|X)\]\s*)?(?:\u2610\s*)?(.+)$/;
+	const numberedMatch = line.match(numberedItemPattern);
+	if (!numberedMatch?.[1]) {
+		return null;
+	}
+
+	const normalizedLabel = stripMarkdownDecorators(numberedMatch[1]);
+	return normalizedLabel.length > 0 ? normalizedLabel : null;
+}
+
+function findFirstNumberedListItemIndex(lines) {
+	for (let index = 0; index < lines.length; index += 1) {
+		if (parseNumberedListItemLabel(lines[index])) {
+			return index;
+		}
+	}
+
+	return -1;
+}
+
+function collectStructuredPlanTasks(lines, maxTasks) {
+	const tasks = [];
+	let activeTaskIndex = -1;
+
+	for (let index = 0; index < lines.length; index += 1) {
+		const line = lines[index];
+		const numberedLabel = parseNumberedListItemLabel(line);
+		if (numberedLabel) {
+			tasks.push({
+				id: `task-${tasks.length + 1}`,
+				label: numberedLabel,
+				blockedBy: [],
+			});
+			activeTaskIndex = tasks.length - 1;
+			if (tasks.length >= maxTasks) {
+				break;
+			}
+			continue;
+		}
+
+		if (activeTaskIndex !== -1 && isContinuationLine(line)) {
+			tasks[activeTaskIndex].label = normalizeWhitespace(
+				`${tasks[activeTaskIndex].label} ${line.trim()}`
+			);
+			continue;
+		}
+
+		activeTaskIndex = -1;
+	}
+
+	return tasks;
+}
+
+function isLikelyNarrativeIntroLine(value) {
+	return /^(?:thanks|thank you|here'?s|let me|i(?:'|’)ll|i will|based on)\b/i.test(
+		value
+	);
+}
+
+function normalizeTitleCandidate(line) {
+	const normalizedLine = stripMarkdownDecorators(
+		(line || "")
+			.replace(/^#{1,6}\s*/, "")
+			.replace(/:$/, "")
+	);
+	if (!normalizedLine) {
+		return "";
+	}
+
+	return normalizeWhitespace(normalizedLine);
+}
+
+function deriveStructuredPlanTitle(lines, listStartIndex, tasks) {
+	for (let index = 0; index < listStartIndex; index += 1) {
+		const line = lines[index];
+		if (parseListItemLabel(line)) {
+			continue;
+		}
+
+		const candidate = normalizeTitleCandidate(line);
+		if (!candidate) {
+			continue;
+		}
+		if (isActionItemsHeading(candidate)) {
+			continue;
+		}
+		if (/^phase\s+\d+\b/i.test(candidate)) {
+			continue;
+		}
+		if (!/\bplan\b/i.test(candidate)) {
+			continue;
+		}
+		if (candidate.length > 60) {
+			continue;
+		}
+		if (/[.!?]$/.test(candidate)) {
+			continue;
+		}
+		if (isLikelyNarrativeIntroLine(candidate)) {
+			continue;
+		}
+
+		return truncateWords(candidate, 8);
+	}
+
+	const fallbackTitle = deriveProgressivePlanTitle(lines, listStartIndex);
+	if (!isGenericPlanTitle(fallbackTitle)) {
+		return fallbackTitle;
+	}
+
+	return derivePlanTitleFromTasks(tasks);
 }
 
 function findFirstListItemIndex(lines, startIndex = 0) {
@@ -230,15 +422,22 @@ function extractPlanWidgetPayloadFromText(rawText, options = {}) {
 		return null;
 	}
 
-	const tasks = collectPlanTasks(lines, actionItemsHeadingIndex + 1, maxTasks);
+	const tasks = inferTaskDependencies(
+		collectPlanTasks(lines, actionItemsHeadingIndex + 1, maxTasks)
+	);
 
 	if (tasks.length < minTasks) {
 		return null;
 	}
 
+	const derivedTitle = derivePlanTitle(lines, actionItemsHeadingIndex);
+	const title = isGenericPlanTitle(derivedTitle)
+		? derivePlanTitleFromTasks(tasks)
+		: derivedTitle;
+
 	return {
 		type: "plan",
-		title: derivePlanTitle(lines, actionItemsHeadingIndex),
+		title,
 		tasks,
 	};
 }
@@ -283,17 +482,78 @@ function extractProgressivePlanWidgetPayloadFromText(rawText, options = {}) {
 		return null;
 	}
 
-	const tasks = collectPlanTasks(lines, listStartIndex, maxTasks);
+	const tasks = inferTaskDependencies(
+		collectPlanTasks(lines, listStartIndex, maxTasks)
+	);
 	if (tasks.length < minTasks) {
 		return null;
 	}
 
+	const derivedTitle =
+		actionItemsHeadingIndex !== -1
+			? derivePlanTitle(lines, actionItemsHeadingIndex)
+			: deriveProgressivePlanTitle(lines, listStartIndex);
+	const title = isGenericPlanTitle(derivedTitle)
+		? derivePlanTitleFromTasks(tasks)
+		: derivedTitle;
+
 	return {
 		type: "plan",
-		title:
-			actionItemsHeadingIndex !== -1
-				? derivePlanTitle(lines, actionItemsHeadingIndex)
-				: deriveProgressivePlanTitle(lines, listStartIndex),
+		title,
+		tasks,
+	};
+}
+
+function extractPlanWidgetPayloadFromStructuredText(rawText, options = {}) {
+	if (typeof rawText !== "string") {
+		return null;
+	}
+
+	const normalizedText = rawText.trim();
+	if (!normalizedText) {
+		return null;
+	}
+
+	const minTasks =
+		typeof options.minTasks === "number" && options.minTasks > 0
+			? Math.floor(options.minTasks)
+			: DEFAULT_MIN_TASKS;
+	const maxTasks =
+		typeof options.maxTasks === "number" && options.maxTasks > 0
+			? Math.floor(options.maxTasks)
+			: MAX_TASKS;
+
+	const lines = normalizedText.split(/\r?\n/);
+	const hasPlanLikeSignal = hasPlanSignal(normalizedText);
+	const hasPhaseSignal = hasPhaseHeadingSignal(lines);
+	if (!hasPlanLikeSignal && !hasPhaseSignal) {
+		return null;
+	}
+
+	const numberedTasks = collectStructuredPlanTasks(lines, maxTasks);
+	const tasks = inferTaskDependencies(numberedTasks);
+	if (tasks.length < minTasks) {
+		return null;
+	}
+
+	const questionLikeTaskCount = tasks.reduce(
+		(count, task) =>
+			isLikelyQuestionTaskLabel(task.label) ? count + 1 : count,
+		0
+	);
+	if (questionLikeTaskCount >= Math.ceil(tasks.length / 2)) {
+		return null;
+	}
+
+	const firstListItemIndex = findFirstNumberedListItemIndex(lines);
+	const title =
+		firstListItemIndex !== -1
+			? deriveStructuredPlanTitle(lines, firstListItemIndex, tasks)
+			: derivePlanTitleFromTasks(tasks);
+
+	return {
+		type: "plan",
+		title,
 		tasks,
 	};
 }
@@ -301,4 +561,5 @@ function extractProgressivePlanWidgetPayloadFromText(rawText, options = {}) {
 module.exports = {
 	extractPlanWidgetPayloadFromText,
 	extractProgressivePlanWidgetPayloadFromText,
+	extractPlanWidgetPayloadFromStructuredText,
 };

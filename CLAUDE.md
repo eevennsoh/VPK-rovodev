@@ -171,6 +171,11 @@ Backend (`backend/server.js`):
 - `PUT /api/agents-team/agents/:id`
 - `DELETE /api/agents-team/agents/:id`
 - `GET /api/agents-team/config-summary`
+- `GET /api/agents-team/threads`
+- `GET /api/agents-team/threads/:threadId`
+- `POST /api/agents-team/threads`
+- `PUT /api/agents-team/threads/:threadId`
+- `DELETE /api/agents-team/threads/:threadId`
 
 Dev proxy routes (`app/api/*/route.ts`) forward to backend:
 
@@ -191,6 +196,8 @@ Dev proxy routes (`app/api/*/route.ts`) forward to backend:
 - `app/api/agents-team/skills/route.ts`
 - `app/api/agents-team/skills/[id]/route.ts`
 - `app/api/agents-team/config-summary/route.ts`
+- `app/api/agents-team/threads/route.ts`
+- `app/api/agents-team/threads/[threadId]/route.ts`
 
 ### AI SDK / Chat Architecture
 

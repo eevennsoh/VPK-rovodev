@@ -2,7 +2,6 @@ import type { ParsedPlanTask, ParsedPlanWidgetPayload } from "@/components/templ
 
 export type PlanApprovalDecision =
 	| "auto-accept"
-	| "manual-approve"
 	| "continue-planning"
 	| "custom";
 
@@ -49,11 +48,7 @@ export function createPlanApprovalSubmission(
 
 function getDecisionLabel(decision: PlanApprovalDecision): string {
 	if (decision === "auto-accept") {
-		return "Yes, let's cook!";
-	}
-
-	if (decision === "manual-approve") {
-		return "Yes, and manually approve edits";
+		return "Yes, let's start cooking";
 	}
 
 	if (decision === "continue-planning") {

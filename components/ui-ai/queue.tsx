@@ -31,7 +31,7 @@ export interface QueueTodo {
 export type QueueItemProps = ComponentProps<"li">;
 
 export const QueueItem = ({ className, ...props }: QueueItemProps) => (
-	<li className={cn("group flex flex-col gap-1 rounded-2xl pl-3 pr-0.5 py-1 text-sm transition-colors hover:bg-muted", className)} {...props} />
+	<li className={cn("group flex h-8 flex-col justify-center gap-1 rounded-2xl pl-3 pr-0.5 text-sm transition-colors hover:bg-muted", className)} {...props} />
 );
 
 export type QueueItemIndicatorProps = ComponentProps<"span"> & {
@@ -151,5 +151,5 @@ export const QueueSectionContent = ({ className, ...props }: QueueSectionContent
 export type QueueProps = ComponentProps<"div">;
 
 export const Queue = ({ className, ...props }: QueueProps) => (
-	<div className={cn("flex flex-col gap-2 rounded-2xl border border-border bg-background px-3 pt-2 pb-2 shadow-xs", className)} {...props} />
+	<div className={cn("flex flex-col gap-2 rounded-2xl border border-border bg-background px-3 pt-2 pb-0 shadow-xs", className)} {...props} />
 );

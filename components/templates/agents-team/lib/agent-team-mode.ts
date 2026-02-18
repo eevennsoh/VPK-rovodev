@@ -1,11 +1,19 @@
 export const AGENT_TEAM_MODE_CONTEXT_DESCRIPTION = [
 	"Agent team mode is enabled.",
-	"Start straight in the planning phase.",
-	"Always use the create-plan skill for this request.",
+	"IMPORTANT: Before generating any plan, you MUST first ask clarifying questions using the request_user_input tool.",
+	"Always ask at least one round of 2-4 clarifying questions to understand the user's intent, constraints, and preferences before planning.",
+	"Never skip the clarification step — even if the request seems clear, ask questions to refine scope, priorities, or approach.",
+	"After receiving clarification answers, use the create-plan skill to generate the plan.",
 	"Treat the request as planning or brainstorming on any topic.",
-	"Clarification is optional; if needed, ask via a question-card widget.",
-	"After any clarification answers, continue and finish the plan.",
 	"Do not finish without generating a plan widget with a concrete task list.",
+].join(" ");
+
+export const AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION = [
+	"Agent team mode is enabled.",
+	"The user has already answered clarification questions for this planning request.",
+	"Do not call request_user_input again unless the user explicitly asks for another clarification round.",
+	"Use the create-plan skill now and produce a final plan widget with a concrete task list.",
+	"Do not finish without generating a plan widget with tasks.",
 ].join(" ");
 
 export const AGENT_TEAM_MODE_PLAN_RETRY_PROMPT = [

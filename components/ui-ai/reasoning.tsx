@@ -4,160 +4,268 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { useControllableState } from "@/hooks/use-controllable-state";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
+import RovoIconGlyph from "@atlaskit/icon-lab/core/rovo";
 import { ChevronDownIcon } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Image from "next/image";
 import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+	createContext,
+	memo,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
 } from "react";
 import { Streamdown } from "streamdown";
 
 import { Shimmer } from "./shimmer";
 
 interface ReasoningContextValue {
-  isStreaming: boolean;
-  isOpen: boolean;
-  setIsOpen: (open: boolean) => void;
-  duration: number | undefined;
+	isStreaming: boolean;
+	isOpen: boolean;
+	setIsOpen: (open: boolean) => void;
+	duration: number | undefined;
+	maxVisibleTimelineItems: number;
+	setTimelineEntryCount: (count: number) => void;
 }
 
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
 
 export const useReasoning = () => {
-  const context = useContext(ReasoningContext);
-  if (!context) {
-    throw new Error("Reasoning components must be used within Reasoning");
-  }
-  return context;
+	const context = useContext(ReasoningContext);
+	if (!context) {
+		throw new Error("Reasoning components must be used within Reasoning");
+	}
+	return context;
 };
 
 export type ReasoningProps = ComponentProps<typeof Collapsible> & {
-  isStreaming?: boolean;
-  open?: boolean;
-  defaultOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  duration?: number;
+	isStreaming?: boolean;
+	open?: boolean;
+	defaultOpen?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	duration?: number;
+	autoCollapseAtCount?: number;
+	collapseDelayMs?: number;
+	maxVisibleTimelineItems?: number;
 };
 
 const AUTO_CLOSE_DELAY = 1000;
 const MS_IN_S = 1000;
+const DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS = 5;
+const TIMELINE_STATUS_LINE_REGEX =
+	/^(?:used|using|invoking|completed|running|calling|tool call failed|failed)\b/i;
+
+interface TimelineEntry {
+	id: string;
+	label: string;
+}
+
+function parseTimelineEntries(value: string): TimelineEntry[] {
+	const lines = value
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+	if (lines.length === 0) {
+		return [];
+	}
+
+	const areAllStatusLines = lines.every((line) =>
+		TIMELINE_STATUS_LINE_REGEX.test(line)
+	);
+	if (!areAllStatusLines) {
+		return [];
+	}
+
+	return lines.map((line, index) => ({
+		id: `${index}-${line.toLowerCase().replace(/\s+/g, " ")}`,
+		label: line,
+	}));
+}
+
+function ReasoningStatusIcon({
+	isCompleted = false,
+}: Readonly<{ isCompleted?: boolean }>): ReactNode {
+	return (
+		<span className="inline-flex size-5 items-center justify-center">
+			<RovoIconGlyph
+				color={isCompleted ? token("color.icon.subtle") : token("color.icon")}
+				label=""
+				size="small"
+			/>
+		</span>
+	);
+}
 
 export const Reasoning = memo(
-  ({
-    className,
-    isStreaming = false,
-    open,
-    defaultOpen,
-    onOpenChange,
-    duration: durationProp,
-    children,
-    ...props
-  }: ReasoningProps) => {
-    const resolvedDefaultOpen = defaultOpen ?? isStreaming;
-    // Track if defaultOpen was explicitly set to false (to prevent auto-open)
-    const isExplicitlyClosed = defaultOpen === false;
+	({
+		className,
+		isStreaming = false,
+		open,
+		defaultOpen,
+		onOpenChange,
+		duration: durationProp,
+		autoCollapseAtCount = DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS,
+		collapseDelayMs = AUTO_CLOSE_DELAY,
+		maxVisibleTimelineItems = DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS,
+		children,
+		...props
+	}: ReasoningProps) => {
+		const resolvedDefaultOpen = defaultOpen ?? isStreaming;
+		const isExplicitlyClosed = defaultOpen === false;
 
-    const [isOpen, setIsOpen] = useControllableState<boolean>({
-      defaultProp: resolvedDefaultOpen,
-      onChange: onOpenChange,
-      prop: open,
-    });
-    const [duration, setDuration] = useControllableState<number | undefined>({
-      defaultProp: undefined,
-      prop: durationProp,
-    });
+		const [isOpen, setIsOpen] = useControllableState<boolean>({
+			defaultProp: resolvedDefaultOpen,
+			onChange: onOpenChange,
+			prop: open,
+		});
+		const [duration, setDuration] = useControllableState<number | undefined>({
+			defaultProp: undefined,
+			prop: durationProp,
+		});
+		const [timelineEntryCount, setTimelineEntryCount] = useState(0);
 
-    const hasEverStreamedRef = useRef(isStreaming);
-    const [hasAutoClosed, setHasAutoClosed] = useState(false);
-    const startTimeRef = useRef<number | null>(null);
-    const hasUserClosedRef = useRef(false);
-    const prevStreamingRef = useRef(false);
+		const hasEverStreamedRef = useRef(isStreaming);
+		const startTimeRef = useRef<number | null>(null);
+		const hasUserClosedRef = useRef(false);
+		const hasAutoCollapsedAtCountRef = useRef(false);
+		const hasAutoCollapsedOnCompletionRef = useRef(false);
+		const prevStreamingRef = useRef(isStreaming);
 
-    // Track when streaming starts and compute duration
-    useEffect(() => {
-      if (isStreaming && !prevStreamingRef.current) {
-        hasUserClosedRef.current = false;
-      }
-      prevStreamingRef.current = isStreaming;
+		useEffect(() => {
+			const isStartingStream = isStreaming && !prevStreamingRef.current;
+			if (isStartingStream) {
+				hasUserClosedRef.current = false;
+				hasAutoCollapsedAtCountRef.current = false;
+				hasAutoCollapsedOnCompletionRef.current = false;
+			}
 
-      if (isStreaming) {
-        hasEverStreamedRef.current = true;
-        if (startTimeRef.current === null) {
-          startTimeRef.current = Date.now();
-        }
-      } else if (startTimeRef.current !== null) {
-        setDuration(Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S));
-        startTimeRef.current = null;
-      }
-    }, [isStreaming, setDuration]);
+			if (isStreaming) {
+				hasEverStreamedRef.current = true;
+				if (startTimeRef.current === null) {
+					startTimeRef.current = Date.now();
+				}
+			} else if (startTimeRef.current !== null) {
+				setDuration(Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S));
+				startTimeRef.current = null;
+			}
 
-    // Auto-open when streaming starts (unless explicitly closed)
-    useEffect(() => {
-      if (isStreaming && !isOpen && !isExplicitlyClosed && !hasUserClosedRef.current) {
-        setIsOpen(true);
-      }
-    }, [isStreaming, isOpen, setIsOpen, isExplicitlyClosed]);
+			prevStreamingRef.current = isStreaming;
+		}, [isStreaming, setDuration]);
 
-    // Auto-close when streaming ends (once only, and only if it ever streamed)
-    useEffect(() => {
-      if (
-        hasEverStreamedRef.current &&
-        !isStreaming &&
-        isOpen &&
-        !hasAutoClosed
-      ) {
-        const timer = setTimeout(() => {
-          setIsOpen(false);
-          setHasAutoClosed(true);
-        }, AUTO_CLOSE_DELAY);
+		useEffect(() => {
+			if (
+				isStreaming &&
+				!isOpen &&
+				!isExplicitlyClosed &&
+				!hasUserClosedRef.current
+			) {
+				setIsOpen(true);
+			}
+		}, [isExplicitlyClosed, isOpen, isStreaming, setIsOpen]);
 
-        return () => clearTimeout(timer);
-      }
-    }, [isStreaming, isOpen, setIsOpen, hasAutoClosed]);
+		useEffect(() => {
+			if (!isStreaming || !isOpen || hasAutoCollapsedAtCountRef.current) {
+				return;
+			}
+			if (timelineEntryCount < autoCollapseAtCount) {
+				return;
+			}
 
-    const handleOpenChange = useCallback(
-      (newOpen: boolean) => {
-        if (!newOpen && isStreaming) {
-          hasUserClosedRef.current = true;
-        }
-        setIsOpen(newOpen);
-      },
-      [setIsOpen, isStreaming]
-    );
+			const timer = setTimeout(() => {
+				setIsOpen(false);
+				hasAutoCollapsedAtCountRef.current = true;
+				hasUserClosedRef.current = true;
+			}, collapseDelayMs);
 
-    const contextValue = useMemo(
-      () => ({ duration, isOpen, isStreaming, setIsOpen }),
-      [duration, isOpen, isStreaming, setIsOpen]
-    );
+			return () => clearTimeout(timer);
+		}, [
+			autoCollapseAtCount,
+			collapseDelayMs,
+			isOpen,
+			isStreaming,
+			setIsOpen,
+			timelineEntryCount,
+		]);
 
-    return (
-      <ReasoningContext.Provider value={contextValue}>
-        <Collapsible
-          className={cn("not-prose mb-4", className)}
-          onOpenChange={handleOpenChange}
-          open={isOpen}
-          {...props}
-        >
-          {children}
-        </Collapsible>
-      </ReasoningContext.Provider>
-    );
-  }
+		useEffect(() => {
+			if (
+				!hasEverStreamedRef.current ||
+				isStreaming ||
+				!isOpen ||
+				hasAutoCollapsedOnCompletionRef.current
+			) {
+				return;
+			}
+
+			const timer = setTimeout(() => {
+				setIsOpen(false);
+				hasAutoCollapsedOnCompletionRef.current = true;
+			}, collapseDelayMs);
+
+			return () => clearTimeout(timer);
+		}, [collapseDelayMs, isOpen, isStreaming, setIsOpen]);
+
+		const handleOpenChange = useCallback(
+			(newOpen: boolean) => {
+				if (!newOpen && isStreaming) {
+					hasUserClosedRef.current = true;
+				}
+				setIsOpen(newOpen);
+			},
+			[setIsOpen, isStreaming]
+		);
+
+		const handleTimelineEntryCountChange = useCallback((count: number) => {
+			setTimelineEntryCount((previous) =>
+				previous === count ? previous : count
+			);
+		}, []);
+
+		const contextValue = useMemo(
+			() => ({
+				duration,
+				isOpen,
+				isStreaming,
+				maxVisibleTimelineItems,
+				setIsOpen,
+				setTimelineEntryCount: handleTimelineEntryCountChange,
+			}),
+			[
+				duration,
+				handleTimelineEntryCountChange,
+				isOpen,
+				isStreaming,
+				maxVisibleTimelineItems,
+				setIsOpen,
+			]
+		);
+
+		return (
+			<ReasoningContext.Provider value={contextValue}>
+				<Collapsible
+					className={cn("not-prose mb-4", className)}
+					onOpenChange={handleOpenChange}
+					open={isOpen}
+					{...props}
+				>
+					{children}
+				</Collapsible>
+			</ReasoningContext.Provider>
+		);
+	}
 );
 
 const DOT_COLORS = ["#1868db", "#bf63f3", "#fca700"] as const;
@@ -174,231 +282,289 @@ const isCompletedStatusLabel = (label: ReactNode) => {
 };
 
 export type ReasoningTriggerProps = ComponentProps<
-  typeof CollapsibleTrigger
+	typeof CollapsibleTrigger
 > & {
-  label?: string;
-  completedLabel?: (duration?: number) => ReactNode;
+	label?: string;
+	completedLabel?: (duration?: number) => ReactNode;
 };
 
 const defaultReasoningCompletedLabel = (duration?: number) => {
-  if (duration === undefined) {
-    return "Thought for a few seconds";
-  }
-  return `Thought for ${duration} seconds`;
+	if (duration === undefined) {
+		return "Thought for a few seconds";
+	}
+	return `Thought for ${duration} seconds`;
 };
 
 export const ReasoningTrigger = memo(
-  ({
-    className,
-    children,
-    label = "Thinking",
-    completedLabel = defaultReasoningCompletedLabel,
-    ...props
-  }: ReasoningTriggerProps) => {
-    const { isStreaming, isOpen, duration } = useReasoning();
-    const isComplete = !isStreaming && duration !== undefined && duration > 0;
-    const hasCompletedStatusLabel = isCompletedStatusLabel(label);
-    const shouldShowCompletedState = isComplete || hasCompletedStatusLabel;
-    const completedStateLabel = hasCompletedStatusLabel ? label : completedLabel(duration);
+	({
+		className,
+		children,
+		label = "Thinking",
+		completedLabel = defaultReasoningCompletedLabel,
+		...props
+	}: ReasoningTriggerProps) => {
+		const { isStreaming, isOpen, duration } = useReasoning();
+		const isComplete = !isStreaming && duration !== undefined && duration > 0;
+		const hasCompletedStatusLabel = isCompletedStatusLabel(label);
+		const shouldShowCompletedState = isComplete || hasCompletedStatusLabel;
+		const completedStateLabel = hasCompletedStatusLabel
+			? label
+			: completedLabel(duration);
 
-    return (
-      <CollapsibleTrigger
-        className={cn(
-          "flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
-          className
-        )}
-        {...props}
-      >
-        {children ?? (
-          <>
-            {shouldShowCompletedState ? (
-              <>
-                <Image
-                  src="/loading/rovo-logo.png"
-                  alt=""
-                  width={20}
-                  height={20}
-                />
-                <span>{completedStateLabel}</span>
-              </>
-            ) : (
-              <>
-                <style
-                  dangerouslySetInnerHTML={{
-                    __html: `
-                      @keyframes dot-reveal {
-                        0%, 20% { opacity: 0; }
-                        40%, 100% { opacity: 1; }
-                      }
-                    `,
-                  }}
-                />
-                <Image
-                  src="/loading/rovo-logo.gif"
-                  alt=""
-                  width={20}
-                  height={20}
-                  unoptimized
-                />
-                <span className="inline-flex items-baseline">
-                  <Shimmer duration={1} as="span">
-                    {label}
-                  </Shimmer>
-                  <span className="inline-flex items-baseline" aria-hidden="true">
-                    {DOT_COLORS.map((color, i) => (
-                      <span
-                        key={i}
-                        className="text-sm leading-none"
-                        style={{
-                          color,
-                          animation: "dot-reveal 1.2s ease-in-out infinite",
-                          animationDelay: `${i * 0.2}s`,
-                        }}
-                      >
-                        .
-                      </span>
-                    ))}
-                  </span>
-                </span>
-              </>
-            )}
-            <ChevronDownIcon
-              className={cn(
-                "size-4 transition-transform",
-                isOpen ? "rotate-180" : "rotate-0"
-              )}
-            />
-          </>
-        )}
-      </CollapsibleTrigger>
-    );
-  }
+		return (
+			<CollapsibleTrigger
+				className={cn(
+					"flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
+					className
+				)}
+				{...props}
+			>
+				{children ?? (
+					<>
+						{shouldShowCompletedState ? (
+							<>
+								<ReasoningStatusIcon isCompleted />
+								<span>{completedStateLabel}</span>
+							</>
+						) : (
+							<>
+								<style
+									dangerouslySetInnerHTML={{
+										__html: `
+											@keyframes dot-reveal {
+												0%, 20% { opacity: 0; }
+												40%, 100% { opacity: 1; }
+											}
+										`,
+									}}
+								/>
+								<Image
+									alt=""
+									height={20}
+									src="/loading/rovo-logo.gif"
+									unoptimized
+									width={20}
+								/>
+								<span className="inline-flex items-baseline">
+									<Shimmer duration={1} as="span">
+										{label}
+									</Shimmer>
+									<span className="inline-flex items-baseline" aria-hidden="true">
+										{DOT_COLORS.map((color, i) => (
+											<span
+												key={i}
+												className="text-sm leading-none"
+												style={{
+													animation: "dot-reveal 1.2s ease-in-out infinite",
+													animationDelay: `${i * 0.2}s`,
+													color,
+												}}
+											>
+												.
+											</span>
+										))}
+									</span>
+								</span>
+							</>
+						)}
+						<ChevronDownIcon
+							className={cn(
+								"size-4 transition-transform",
+								isOpen ? "rotate-180" : "rotate-0"
+							)}
+						/>
+					</>
+				)}
+			</CollapsibleTrigger>
+		);
+	}
 );
 
 export type ReasoningContentProps = ComponentProps<
-  typeof CollapsibleContent
+	typeof CollapsibleContent
 > & {
-  children: string;
+	children: string;
+	timelineMode?: "auto" | "always" | "never";
+	maxVisibleTimelineItems?: number;
 };
 
 const streamdownPlugins = { cjk, code, math, mermaid };
 
 export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => (
-    <CollapsibleContent
-      className={cn(
-        "mt-4 text-sm",
-        "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
-        className
-      )}
-      {...props}
-    >
-      <Streamdown plugins={streamdownPlugins} {...props}>
-        {children}
-      </Streamdown>
-    </CollapsibleContent>
-  )
+	({
+		className,
+		children,
+		timelineMode = "auto",
+		maxVisibleTimelineItems,
+		...props
+	}: ReasoningContentProps) => {
+		const {
+			maxVisibleTimelineItems: contextMaxVisibleTimelineItems,
+			setTimelineEntryCount,
+		} = useReasoning();
+		const shouldReduceMotion = useReducedMotion();
+
+		const timelineEntries = useMemo(() => parseTimelineEntries(children), [children]);
+		const shouldRenderTimeline =
+			timelineMode === "always" ||
+			(timelineMode === "auto" && timelineEntries.length > 0);
+		const resolvedMaxVisibleTimelineItems =
+			maxVisibleTimelineItems ?? contextMaxVisibleTimelineItems;
+		const visibleTimelineEntries = shouldRenderTimeline
+			? timelineEntries.slice(-resolvedMaxVisibleTimelineItems)
+			: [];
+
+		useEffect(() => {
+			setTimelineEntryCount(shouldRenderTimeline ? timelineEntries.length : 0);
+
+			return () => {
+				setTimelineEntryCount(0);
+			};
+		}, [setTimelineEntryCount, shouldRenderTimeline, timelineEntries.length]);
+
+		return (
+			<CollapsibleContent
+				className={cn(
+					"mt-4 text-sm",
+					"data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+					className
+				)}
+				{...props}
+			>
+				{shouldRenderTimeline ? (
+					<div className="relative pl-6">
+						<div
+							aria-hidden
+							className="absolute bottom-0 left-2.5 top-0 w-px bg-border"
+						/>
+						<div className="space-y-1">
+							<AnimatePresence initial={false}>
+								{visibleTimelineEntries.map((entry) => (
+									<motion.p
+										key={entry.id}
+										animate={
+											shouldReduceMotion ? undefined : { opacity: 1, y: 0 }
+										}
+										className="m-0 text-left text-sm leading-7 text-text-subtle"
+										exit={
+											shouldReduceMotion ? undefined : { opacity: 0, y: 6 }
+										}
+										initial={
+											shouldReduceMotion ? false : { opacity: 0, y: -6 }
+										}
+										layout={!shouldReduceMotion}
+										transition={{ duration: 0.2, ease: "easeOut" }}
+									>
+										{entry.label}
+									</motion.p>
+								))}
+							</AnimatePresence>
+						</div>
+					</div>
+				) : (
+					<Streamdown plugins={streamdownPlugins}>{children}</Streamdown>
+				)}
+			</CollapsibleContent>
+		);
+	}
 );
 
 export type AdsReasoningTriggerProps = ComponentProps<
-  typeof CollapsibleTrigger
+	typeof CollapsibleTrigger
 > & {
-  label?: string;
-  completedLabel?: (duration?: number) => ReactNode;
-  showChevron?: boolean;
+	label?: string;
+	completedLabel?: (duration?: number) => ReactNode;
+	showChevron?: boolean;
 };
 
 const defaultCompletedLabel = (duration?: number) => {
-  if (duration === undefined) {
-    return "Thought for a few seconds";
-  }
-  return `Thought for ${duration} seconds`;
+	if (duration === undefined) {
+		return "Thought for a few seconds";
+	}
+	return `Thought for ${duration} seconds`;
 };
 
 export const AdsReasoningTrigger = memo(
-  ({
-    className,
-    label = "Thinking",
-    completedLabel = defaultCompletedLabel,
-    showChevron = true,
-    ...props
-  }: AdsReasoningTriggerProps) => {
-    const { isStreaming, isOpen, duration } = useReasoning();
-    const isComplete = !isStreaming && duration !== undefined && duration > 0;
-    const hasCompletedStatusLabel = isCompletedStatusLabel(label);
-    const shouldShowCompletedState = isComplete || hasCompletedStatusLabel;
-    const completedStateLabel = hasCompletedStatusLabel ? label : completedLabel(duration);
+	({
+		className,
+		label = "Thinking",
+		completedLabel = defaultCompletedLabel,
+		showChevron = true,
+		...props
+	}: AdsReasoningTriggerProps) => {
+		const { isStreaming, isOpen, duration } = useReasoning();
+		const isComplete = !isStreaming && duration !== undefined && duration > 0;
+		const hasCompletedStatusLabel = isCompletedStatusLabel(label);
+		const shouldShowCompletedState = isComplete || hasCompletedStatusLabel;
+		const completedStateLabel = hasCompletedStatusLabel
+			? label
+			: completedLabel(duration);
 
-    return (
-      <CollapsibleTrigger
-        className={cn(
-          "flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
-          className
-        )}
-        {...props}
-      >
-        {shouldShowCompletedState ? (
-          <>
-            <Image
-              src="/loading/rovo-logo.png"
-              alt=""
-              width={20}
-              height={20}
-            />
-            <span>{completedStateLabel}</span>
-          </>
-        ) : (
-          <>
-            <style
-              dangerouslySetInnerHTML={{
-                __html: `
-                  @keyframes dot-reveal {
-                    0%, 20% { opacity: 0; }
-                    40%, 100% { opacity: 1; }
-                  }
-                `,
-              }}
-            />
-            <Image
-              src="/loading/rovo-logo.gif"
-              alt=""
-              width={20}
-              height={20}
-              unoptimized
-            />
-            <span className="inline-flex items-baseline">
-              <Shimmer duration={1} as="span">
-                {label}
-              </Shimmer>
-              <span className="inline-flex items-baseline" aria-hidden="true">
-                {DOT_COLORS.map((color, i) => (
-                  <span
-                    key={i}
-                    className="text-sm leading-none"
-                    style={{
-                      color,
-                      animation: "dot-reveal 1.2s ease-in-out infinite",
-                      animationDelay: `${i * 0.2}s`,
-                    }}
-                  >
-                    .
-                  </span>
-                ))}
-              </span>
-            </span>
-          </>
-        )}
-        {showChevron ? (
-          <ChevronDownIcon
-            className={cn(
-              "size-4 transition-transform",
-              isOpen ? "rotate-180" : "rotate-0"
-            )}
-          />
-        ) : null}
-      </CollapsibleTrigger>
-    );
-  }
+		return (
+			<CollapsibleTrigger
+				className={cn(
+					"flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
+					className
+				)}
+				{...props}
+			>
+				{shouldShowCompletedState ? (
+					<>
+						<ReasoningStatusIcon isCompleted />
+						<span>{completedStateLabel}</span>
+					</>
+				) : (
+					<>
+						<style
+							dangerouslySetInnerHTML={{
+								__html: `
+									@keyframes dot-reveal {
+										0%, 20% { opacity: 0; }
+										40%, 100% { opacity: 1; }
+									}
+								`,
+							}}
+						/>
+						<Image
+							alt=""
+							height={20}
+							src="/loading/rovo-logo.gif"
+							unoptimized
+							width={20}
+						/>
+						<span className="inline-flex items-baseline">
+							<Shimmer duration={1} as="span">
+								{label}
+							</Shimmer>
+							<span className="inline-flex items-baseline" aria-hidden="true">
+								{DOT_COLORS.map((color, i) => (
+									<span
+										key={i}
+										className="text-sm leading-none"
+										style={{
+											animation: "dot-reveal 1.2s ease-in-out infinite",
+											animationDelay: `${i * 0.2}s`,
+											color,
+										}}
+									>
+										.
+									</span>
+								))}
+							</span>
+						</span>
+					</>
+				)}
+				{showChevron ? (
+					<ChevronDownIcon
+						className={cn(
+							"size-4 transition-transform",
+							isOpen ? "rotate-180" : "rotate-0"
+						)}
+					/>
+				) : null}
+			</CollapsibleTrigger>
+		);
+	}
 );
 
 Reasoning.displayName = "Reasoning";

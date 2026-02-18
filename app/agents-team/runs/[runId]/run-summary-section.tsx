@@ -1,17 +1,45 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
+import ChevronUpIcon from "@atlaskit/icon/core/chevron-up";
 import LinkExternalIcon from "@atlaskit/icon/core/link-external";
+import {
+	AudioPlayer,
+	AudioPlayerControlBar,
+	AudioPlayerDurationDisplay,
+	AudioPlayerElement,
+	AudioPlayerPlayButton,
+	AudioPlayerTimeDisplay,
+	AudioPlayerTimeRange,
+} from "@/components/ui-ai/audio-player";
+import { Spinner } from "@/components/ui/spinner";
 import type {
 	AgentRun,
 	AgentRunSummary,
 	AgentRunVisualSummary,
 	AgentRunGenuiSummary,
+	AgentRunGenuiWidget,
 } from "@/lib/agents-team-run-types";
+import {
+	derivePlanEmojiFromTitle,
+	resolvePlanDisplayTitle,
+} from "@/components/templates/shared/lib/plan-identity";
 import { JsonRenderView } from "@/lib/json-render/renderer";
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_DURATION_MS = 60000;
+const WIDGET_SLOT_COUNT = 4;
+
+type WidgetSlotStatus = "ready" | "failed" | "pending";
+
+interface ResolvedWidgetSlot {
+	id: string;
+	title: string;
+	spec: AgentRunGenuiWidget["spec"] | null;
+	status: WidgetSlotStatus;
+	error?: string;
+}
 
 interface RunSummaryResponse {
 	run?: AgentRun;
@@ -27,6 +55,7 @@ interface RunSummarySectionProps {
 	initialSummary: AgentRunSummary | null;
 	initialVisualSummary: AgentRunVisualSummary | null;
 	initialGenuiSummary: AgentRunGenuiSummary | null;
+	audioSummaryUrl?: string | null;
 	collapsible?: boolean;
 	defaultCollapsed?: boolean;
 }
@@ -69,18 +98,90 @@ function toErrorMessage(error: unknown): string {
 	return "Failed to load run summary.";
 }
 
-function isGenuiSpecRenderable(genuiSummary: AgentRunGenuiSummary | null): boolean {
-	if (!genuiSummary || genuiSummary.status !== "ready") {
+function hasRenderableSpec(spec: AgentRunGenuiWidget["spec"] | null | undefined): boolean {
+	if (!spec || typeof spec !== "object") {
 		return false;
 	}
 
-	const spec = genuiSummary.spec;
 	return (
 		typeof spec.root === "string" &&
-		spec.root.length > 0 &&
+		spec.root.trim().length > 0 &&
 		typeof spec.elements === "object" &&
+		spec.elements !== null &&
+		!Array.isArray(spec.elements) &&
 		Object.keys(spec.elements).length > 0
 	);
+}
+
+function createDefaultWidgetSlot(index: number): ResolvedWidgetSlot {
+	return {
+		id: `interactive-widget-${index + 1}`,
+		title: `Interactive widget ${index + 1}`,
+		spec: null,
+		status: "pending",
+	};
+}
+
+function resolveWidgetSlots(genuiSummary: AgentRunGenuiSummary | null): ResolvedWidgetSlot[] {
+	const slots = Array.from({ length: WIDGET_SLOT_COUNT }, (_, index) =>
+		createDefaultWidgetSlot(index)
+	);
+
+	if (!genuiSummary) {
+		return slots;
+	}
+
+	const widgets = Array.isArray(genuiSummary.widgets)
+		? genuiSummary.widgets.slice(0, WIDGET_SLOT_COUNT)
+		: [];
+
+	if (widgets.length > 0) {
+		for (const [index, widget] of widgets.entries()) {
+			const hasSpec = hasRenderableSpec(widget.spec);
+			const nextStatus: WidgetSlotStatus =
+				widget.status === "ready" && hasSpec
+					? "ready"
+					: widget.status === "failed" || !hasSpec
+						? "failed"
+						: "pending";
+
+			slots[index] = {
+				id: widget.id || slots[index].id,
+				title: widget.title || slots[index].title,
+				spec: hasSpec ? widget.spec : null,
+				status: nextStatus,
+				error:
+					typeof widget.error === "string" && widget.error.trim()
+						? widget.error.trim()
+						: undefined,
+			};
+		}
+
+		return slots;
+	}
+
+	const legacySpecCandidate = genuiSummary.spec;
+	const legacySpec =
+		legacySpecCandidate && hasRenderableSpec(legacySpecCandidate)
+			? legacySpecCandidate
+			: null;
+	slots[0] = {
+		id: "interactive-widget-1",
+		title: "Interactive widget 1",
+		spec: legacySpec,
+		status:
+			legacySpec && genuiSummary.status === "ready"
+				? "ready"
+				: genuiSummary.status === "failed"
+					? "failed"
+					: "pending",
+		error:
+			typeof genuiSummary.error === "string" && genuiSummary.error.trim()
+				? genuiSummary.error.trim()
+				: undefined,
+	};
+
+	return slots;
 }
 
 export function RunSummarySection({
@@ -89,8 +190,9 @@ export function RunSummarySection({
 	initialSummary,
 	initialVisualSummary,
 	initialGenuiSummary,
-	collapsible = false,
-	defaultCollapsed = false,
+	audioSummaryUrl = null,
+	collapsible = true,
+	defaultCollapsed = true,
 }: Readonly<RunSummarySectionProps>) {
 	const [run, setRun] = useState<AgentRun>(initialRun);
 	const [summary, setSummary] = useState<AgentRunSummary | null>(initialSummary);
@@ -210,106 +312,134 @@ export function RunSummarySection({
 		(summary === null || visualSummary === null || genuiSummary === null) &&
 		!pollError &&
 		!hasPollingTimedOut;
-
-	const hasRenderableGenuiSpec = isGenuiSpecRenderable(genuiSummary);
+	const widgetSlots = useMemo(() => resolveWidgetSlots(genuiSummary), [genuiSummary]);
+	const runDisplayTitle = useMemo(() => {
+		const resolvedTitle = resolvePlanDisplayTitle(run.plan.title, run.plan.tasks);
+		const resolvedEmoji = derivePlanEmojiFromTitle(resolvedTitle);
+		return `${resolvedEmoji} ${resolvedTitle}`;
+	}, [run.plan.tasks, run.plan.title]);
 
 	return (
 		<div className="flex flex-col gap-4">
-			<section className="rounded-xl border border-border bg-surface-raised p-5">
-				<div className={collapsible ? "flex items-center justify-between" : undefined}>
-					<div>
-						<h2 className="text-base font-semibold text-text">Final synthesis</h2>
-						<p className="mt-1 text-xs text-text-subtlest">
+			<section className="my-6 flex flex-col items-center gap-3 px-1 text-center">
+				<h1 className="text-3xl font-semibold text-text">{runDisplayTitle}</h1>
+				<div className="w-full max-w-[440px]">
+					{audioSummaryUrl ? (
+						<AudioPlayer>
+							<AudioPlayerElement src={audioSummaryUrl} />
+							<AudioPlayerControlBar>
+								<AudioPlayerPlayButton />
+								<AudioPlayerTimeDisplay />
+								<AudioPlayerTimeRange />
+								<AudioPlayerDurationDisplay />
+							</AudioPlayerControlBar>
+						</AudioPlayer>
+					) : (
+						<div className="rounded-xl border border-border bg-surface-raised px-4 py-3 text-sm text-text-subtle">
+							Audio summary has not been generated yet.
+						</div>
+					)}
+				</div>
+				<p className="text-sm text-text-subtle">{formatDateTime(run.createdAt)}</p>
+			</section>
+
+			<section className="overflow-hidden rounded-xl border border-border bg-surface-raised">
+				<div className="flex items-center justify-between">
+					<button
+						type="button"
+						onClick={
+							collapsible
+								? () => setIsCollapsed((previous) => !previous)
+								: undefined
+						}
+						className="flex h-12 w-full items-center justify-between px-4 text-left"
+					>
+						<span className="text-sm font-semibold text-text">Final synthesis</span>
+						{collapsible ? (
+							isCollapsed ? (
+								<ChevronDownIcon label="Expand final synthesis" size="small" />
+							) : (
+								<ChevronUpIcon label="Collapse final synthesis" size="small" />
+							)
+						) : null}
+					</button>
+				</div>
+				{!isCollapsed ? (
+					<div className="border-t border-border px-4 py-4">
+						<p className="text-xs text-text-subtlest">
 							Generated {formatDateTime(summary?.createdAt ?? null)}
 							{summary?.partial ? " · Partial completion" : ""}
 						</p>
-					</div>
-					{collapsible ? (
-						<button
-							type="button"
-							onClick={() => setIsCollapsed((prev) => !prev)}
-							className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
-						>
-							{isCollapsed ? "Show" : "Hide"}
-						</button>
-					) : null}
-				</div>
-				{!isCollapsed ? (
-					<div className="mt-4 rounded-lg bg-surface-sunken p-4">
-						{summary ? (
-							<pre className="whitespace-pre-wrap text-sm text-text">{summary.content}</pre>
-						) : (
-							<div aria-live="polite" className="flex flex-col gap-3">
-								<p className="text-sm text-text">Final synthesis is being generated in the background.</p>
-								{isPolling ? (
-									<p className="text-xs text-text-subtle">
-										Checking for summary updates every 2 seconds.
+						<div className="mt-3 rounded-lg bg-surface-sunken p-4">
+							{summary ? (
+								<pre className="whitespace-pre-wrap text-sm text-text">{summary.content}</pre>
+							) : (
+								<div aria-live="polite" className="flex flex-col gap-3">
+									<p className="text-sm text-text">
+										Final synthesis is being generated in the background.
 									</p>
-								) : null}
-								{hasPollingTimedOut ? (
-									<p className="text-xs text-text-subtle">
-										Summary generation is taking longer than expected.
-									</p>
-								) : null}
-								{pollError ? <p className="text-xs text-text-danger">{pollError}</p> : null}
-								{hasPollingTimedOut || pollError ? (
-									<div>
-										<button
-											type="button"
-											onClick={restartPolling}
-											className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
-										>
-											Refresh summary
-										</button>
-									</div>
-								) : null}
-							</div>
-						)}
+									{isPolling ? (
+										<p className="text-xs text-text-subtle">
+											Checking for summary updates every 2 seconds.
+										</p>
+									) : null}
+									{hasPollingTimedOut ? (
+										<p className="text-xs text-text-subtle">
+											Summary generation is taking longer than expected.
+										</p>
+									) : null}
+									{pollError ? <p className="text-xs text-text-danger">{pollError}</p> : null}
+									{hasPollingTimedOut || pollError ? (
+										<div>
+											<button
+												type="button"
+												onClick={restartPolling}
+												className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
+											>
+												Refresh summary
+											</button>
+										</div>
+									) : null}
+								</div>
+							)}
+						</div>
 					</div>
 				) : null}
 			</section>
 
-			<section className="rounded-xl border border-border bg-surface-raised p-5">
-				<div>
-					<h2 className="text-base font-semibold text-text">Interactive summary</h2>
-					<p className="mt-1 text-xs text-text-subtlest">
-						Generated {formatDateTime(genuiSummary?.createdAt ?? null)}
-						{genuiSummary?.partial ? " · Partial completion" : ""}
-					</p>
-				</div>
-				<div className="mt-4 rounded-lg bg-surface-sunken p-4">
-					{hasRenderableGenuiSpec && genuiSummary ? (
-						<div className="flex flex-col gap-2">
-							{genuiSummary.status === "failed" ? (
-								<p className="text-xs text-text-danger">
-									{genuiSummary.error || "Failed to generate interactive summary."}
-								</p>
-							) : null}
-							<JsonRenderView spec={genuiSummary.spec} />
+			<section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+				{widgetSlots.map((widgetSlot, index) => (
+					<div
+						key={`${widgetSlot.id}:${index}`}
+						className="min-h-[220px] rounded-xl border border-border bg-surface-raised p-3"
+					>
+						{widgetSlot.status === "ready" && widgetSlot.spec ? (
+							<div className="h-full overflow-auto">
+								<JsonRenderView spec={widgetSlot.spec} />
+							</div>
+							) : widgetSlot.status === "failed" ? (
+								<div className="flex h-full items-center">
+									<p className="text-sm text-text-danger">
+										{widgetSlot.error || "Failed to generate interactive widget."}
+									</p>
+								</div>
+							) : (
+								<div aria-live="polite" className="flex h-full items-center justify-center">
+									<Spinner
+										size="lg"
+										className="text-text-subtle"
+										label="Generating interactive widget"
+									/>
+								</div>
+							)}
 						</div>
-					) : genuiSummary?.status === "failed" ? (
-						<div className="flex flex-col gap-2">
-							<p className="text-xs text-text-danger">
-								{genuiSummary.error || "Failed to generate interactive summary."}
-							</p>
-						</div>
-					) : (
-						<div aria-live="polite" className="flex flex-col gap-2">
-							<p className="text-sm text-text">Interactive summary is being generated.</p>
-							{isPolling ? (
-								<p className="text-xs text-text-subtle">
-									Checking for interactive summary updates every 2 seconds.
-								</p>
-							) : null}
-						</div>
-					)}
-				</div>
-			</section>
+					))}
+				</section>
 
 			<section className="rounded-xl border border-border bg-surface-raised p-5">
-				<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between gap-3">
 					<div>
-						<h2 className="text-base font-semibold text-text">Visual summary</h2>
+						<h2 className="text-base font-semibold text-text">Generated webpage</h2>
 						<p className="mt-1 text-xs text-text-subtlest">
 							Generated {formatDateTime(visualSummary?.createdAt ?? null)}
 							{visualSummary?.partial ? " · Partial completion" : ""}
@@ -330,33 +460,27 @@ export function RunSummarySection({
 					) : null}
 				</div>
 				<div className="mt-4 rounded-lg bg-surface-sunken p-3">
-					{visualSummary ? (
-						<div className="flex flex-col gap-2">
-							{visualSummary.status === "failed" ? (
-								<p className="text-xs text-text-danger">
-									Visual presenter fallback used:{" "}
-									{visualSummary.error || "Failed to generate visual summary."}
+						{visualSummary ? (
+							<div className="flex flex-col gap-2">
+								{visualSummary.status === "failed" ? (
+									<p className="text-xs text-text-danger">
+										Visual presenter fallback used: {visualSummary.error || "Failed to generate visual summary."}
 								</p>
 							) : null}
 							<iframe
 								title="Run visual summary preview"
 								className="h-[620px] w-full rounded-md border border-border bg-surface"
 								sandbox=""
-								srcDoc={visualSummary.html}
-							/>
-						</div>
-					) : (
-						<div aria-live="polite" className="flex flex-col gap-2">
-							<p className="text-sm text-text">Visual summary page is being generated.</p>
-							{isPolling ? (
-								<p className="text-xs text-text-subtle">
-									Checking for visual summary updates every 2 seconds.
-								</p>
-							) : null}
-						</div>
-					)}
-				</div>
-			</section>
+									srcDoc={visualSummary.html}
+								/>
+							</div>
+						) : (
+							<div aria-live="polite" className="flex min-h-[420px] items-center justify-center">
+								<Spinner size="xl" className="text-text-subtle" label="Preparing generated webpage" />
+							</div>
+						)}
+					</div>
+				</section>
 		</div>
 	);
 }

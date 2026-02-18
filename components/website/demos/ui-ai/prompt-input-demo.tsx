@@ -123,26 +123,36 @@ export function PromptInputDemoChatComposer() {
 									<PromptInputActionMenuTrigger aria-label="Add" size="icon-sm" variant="ghost">
 										<AddIcon label="" />
 									</PromptInputActionMenuTrigger>
-									<PromptInputActionMenuContent className="w-auto min-w-[200px] p-1">
-										<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-											<UploadIcon label="Upload file" />
-											<span>Upload file</span>
+									<PromptInputActionMenuContent>
+										<PromptInputActionMenuItem
+											onSelect={() => setIsAddMenuOpen(false)}
+											elemBefore={<UploadIcon label="" />}
+										>
+											Upload file
 										</PromptInputActionMenuItem>
-										<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-											<LinkIcon label="Add link" />
-											<span>Add a link</span>
+										<PromptInputActionMenuItem
+											onSelect={() => setIsAddMenuOpen(false)}
+											elemBefore={<LinkIcon label="" />}
+										>
+											Add a link
 										</PromptInputActionMenuItem>
-										<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-											<MentionIcon label="Mention someone" />
-											<span>Mention someone</span>
+										<PromptInputActionMenuItem
+											onSelect={() => setIsAddMenuOpen(false)}
+											elemBefore={<MentionIcon label="" />}
+										>
+											Mention someone
 										</PromptInputActionMenuItem>
-										<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-											<AddIcon label="More formatting" />
-											<span>More formatting</span>
+										<PromptInputActionMenuItem
+											onSelect={() => setIsAddMenuOpen(false)}
+											elemBefore={<AddIcon label="" />}
+										>
+											More formatting
 										</PromptInputActionMenuItem>
-										<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-											<PageIcon label="Add current page as context" />
-											<span>Add current page as context</span>
+										<PromptInputActionMenuItem
+											onSelect={() => setIsAddMenuOpen(false)}
+											elemBefore={<PageIcon label="" />}
+										>
+											Add current page as context
 										</PromptInputActionMenuItem>
 									</PromptInputActionMenuContent>
 								</PromptInputActionMenu>
@@ -581,17 +591,23 @@ export function PromptInputDemoActionMenu() {
 								<AddIcon label="" />
 							</PromptInputActionMenuTrigger>
 							<PromptInputActionMenuContent className="min-w-[240px] p-1">
-								<PromptInputActionMenuItem onClick={() => setPrompt("Summarize this thread into three bullet points.")}>
-									<UploadIcon label="" />
-									<span>Summarize thread</span>
+								<PromptInputActionMenuItem
+									onSelect={() => setPrompt("Summarize this thread into three bullet points.")}
+									elemBefore={<UploadIcon label="" />}
+								>
+									Summarize thread
 								</PromptInputActionMenuItem>
-								<PromptInputActionMenuItem onClick={() => setPrompt("List action items and owners from this conversation.")}>
-									<MentionIcon label="" />
-									<span>Extract action items</span>
+								<PromptInputActionMenuItem
+									onSelect={() => setPrompt("List action items and owners from this conversation.")}
+									elemBefore={<MentionIcon label="" />}
+								>
+									Extract action items
 								</PromptInputActionMenuItem>
-								<PromptInputActionMenuItem onClick={() => setPrompt("Draft a response in a concise professional tone.")}>
-									<PageIcon label="" />
-									<span>Draft response</span>
+								<PromptInputActionMenuItem
+									onSelect={() => setPrompt("Draft a response in a concise professional tone.")}
+									elemBefore={<PageIcon label="" />}
+								>
+									Draft response
 								</PromptInputActionMenuItem>
 							</PromptInputActionMenuContent>
 						</PromptInputActionMenu>

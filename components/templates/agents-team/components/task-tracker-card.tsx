@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
+import CrossCircleIcon from "@atlaskit/icon/core/cross-circle";
 import NodeIcon from "@atlaskit/icon/core/node";
 import VideoStopOverlayIcon from "@atlaskit/icon/core/video-stop-overlay";
-import SyncIcon from "@atlaskit/icon-lab/core/sync";
 import type { TaskStatusGroups } from "../lib/execution-data";
 
 function getRunStatusLabel(status: "running" | "completed" | "failed"): string {
@@ -85,7 +85,9 @@ function TaskGroupRow({ label, count, icon }: Readonly<TaskGroupRowProps>) {
 	);
 }
 
-function TaskStatusIcon({ status }: Readonly<{ status: "done" | "in-progress" | "todo" }>) {
+function TaskStatusIcon({
+	status,
+}: Readonly<{ status: "done" | "in-progress" | "failed" | "todo" }>) {
 	if (status === "done") {
 		return (
 			<NodeIcon label="" size="small" color={token("color.icon.success")} />
@@ -97,6 +99,12 @@ function TaskStatusIcon({ status }: Readonly<{ status: "done" | "in-progress" | 
 			<div className="flex size-3 items-center justify-center">
 				<div className="size-3 animate-spin rounded-full border border-border border-t-text-subtle" />
 			</div>
+		);
+	}
+
+	if (status === "failed") {
+		return (
+			<CrossCircleIcon label="" size="small" color={token("color.icon.danger")} />
 		);
 	}
 
@@ -134,6 +142,7 @@ export function TaskTrackerCard({
 	const totalDone = taskStatusGroups.done.length;
 	const totalInReview = taskStatusGroups.inReview.length;
 	const totalInProgress = taskStatusGroups.inProgress.length;
+	const totalFailed = taskStatusGroups.failed.length;
 	const totalTodo = taskStatusGroups.todo.length;
 	const runStatusLabel = getRunStatusLabel(runStatus);
 	const runStatusToneClass = getRunStatusToneClass(runStatus);
@@ -185,7 +194,6 @@ export function TaskTrackerCard({
 							{totalRuns} runs
 						</span>
 						<span className="text-xs leading-4 text-text-subtlest">•</span>
-						<SyncIcon label="" size="small" color={token("color.icon.subtle")} />
 						<span className={`text-xs leading-4 ${runStatusToneClass}`}>
 							{runStatusLabel}
 						</span>
@@ -201,6 +209,8 @@ export function TaskTrackerCard({
 								<TaskStatusIcon status={totalInReview > 0 ? "in-progress" : "todo"} />
 								<div className="h-6 w-px border-l border-dashed border-border" />
 								<TaskStatusIcon status={totalInProgress > 0 ? "in-progress" : "todo"} />
+								<div className="h-6 w-px border-l border-dashed border-border" />
+								<TaskStatusIcon status={totalFailed > 0 ? "failed" : "todo"} />
 								<div className="h-6 w-px border-l border-dashed border-border" />
 								<TaskStatusIcon status="todo" />
 							</div>
@@ -221,7 +231,12 @@ export function TaskTrackerCard({
 									icon={null}
 								/>
 								<TaskGroupRow
-									label="Tasks"
+									label="Failed"
+									count={totalFailed}
+									icon={null}
+								/>
+								<TaskGroupRow
+									label="Pending"
 									count={totalTodo}
 									icon={null}
 								/>

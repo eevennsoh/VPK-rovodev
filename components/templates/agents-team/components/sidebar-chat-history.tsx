@@ -3,8 +3,6 @@
 import DeleteIcon from "@atlaskit/icon/core/delete";
 import { Button } from "@/components/ui/button";
 import { Shimmer } from "@/components/ui-ai/shimmer";
-import SearchIcon from "@atlaskit/icon/core/search";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +16,7 @@ interface SidebarChatHistoryProps {
 	activeChatId: string | null;
 	isGeneratingTitle?: boolean;
 	pendingChatId?: string | null;
+	sectionLabel?: string;
 	onSelectChat: (id: string) => void;
 	onDeleteChat: (id: string) => void;
 }
@@ -27,23 +26,16 @@ export default function SidebarChatHistory({
 	activeChatId,
 	isGeneratingTitle = false,
 	pendingChatId = null,
+	sectionLabel = "Chat",
 	onSelectChat,
 	onDeleteChat,
 }: Readonly<SidebarChatHistoryProps>) {
 	return (
 		<div className="flex w-full flex-col">
-			<div className="p-3">
-				<InputGroup>
-					<InputGroupAddon>
-						<SearchIcon label="Search" />
-					</InputGroupAddon>
-					<InputGroupInput placeholder="Search" aria-label="Search" />
-				</InputGroup>
-			</div>
 			<div className="flex flex-col px-3">
 				<div className="px-1.5 py-2">
 					<span style={{ font: token("font.heading.xxsmall") }} className="text-text-subtlest">
-						Chat
+						{sectionLabel}
 					</span>
 				</div>
 				<div className="flex flex-col">
@@ -53,13 +45,15 @@ export default function SidebarChatHistory({
 							style={{ font: token("font.heading.xsmall") }}
 							aria-label="Generating chat title"
 						>
-							<Shimmer
-								as="span"
-								duration={1}
-								className="max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
-							>
-								Generating chat title
-							</Shimmer>
+							<div className="min-w-0 flex flex-1 items-center">
+								<Shimmer
+									as="span"
+									duration={1}
+									className="block max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+								>
+									Generating chat title
+								</Shimmer>
+							</div>
 						</div>
 					) : null}
 					{items.map((item) => (
@@ -109,13 +103,13 @@ function ChatHistoryRow({
 				isActive ? "bg-bg-neutral" : "hover:bg-bg-neutral-subtle-hovered",
 			)}
 		>
-			<div style={{ font: token("font.heading.xsmall") }} className="min-w-0 flex-1">
+			<div style={{ font: token("font.heading.xsmall") }} className="min-w-0 flex flex-1 items-center">
 				{isPendingTitle ? (
 					<Shimmer
 						key={`${item.id}:${item.title}`}
 						as="span"
 						duration={1}
-						className="max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+						className="block max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
 					>
 						{item.title}
 					</Shimmer>

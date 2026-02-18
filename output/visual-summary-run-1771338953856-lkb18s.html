@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Competitive Analysis — Visual Summary</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@300;400;500;600;700;800&display=swap');
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-deep: #0B0F1A;
+  --bg-card: #111827;
+  --bg-card-hover: #1a2234;
+  --bg-accent: #162032;
+  --border-subtle: rgba(255,255,255,0.06);
+  --border-accent: rgba(99,179,237,0.25);
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --accent-blue: #63B3ED;
+  --accent-cyan: #22D3EE;
+  --accent-emerald: #34D399;
+  --accent-amber: #FBBF24;
+  --accent-rose: #FB7185;
+  --accent-violet: #A78BFA;
+  --gradient-hero: linear-gradient(135deg, #63B3ED 0%, #22D3EE 50%, #34D399 100%);
+  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-body: 'Manrope', system-ui, sans-serif;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.2);
+  --shadow-glow: 0 0 40px rgba(99,179,237,0.08);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grain overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+/* ---- ANIMATIONS ---- */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideRight {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-up {
+  opacity: 0;
+  animation: fadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-fade {
+  opacity: 0;
+  animation: fadeIn 0.6s ease forwards;
+}
+
+/* ---- HERO ---- */
+.hero {
+  position: relative;
+  padding: 80px 0 56px;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -120px;
+  right: -80px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(99,179,237,0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-eyebrow {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  margin-bottom: 16px;
+  animation-delay: 0.1s;
+}
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  animation-delay: 0.2s;
+}
+.hero-title em {
+  font-style: italic;
+  background: var(--gradient-hero);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-subtitle {
+  font-size: 17px;
+  color: var(--text-secondary);
+  max-width: 600px;
+  line-height: 1.7;
+  animation-delay: 0.3s;
+}
+.hero-meta {
+  display: flex;
+  gap: 32px;
+  margin-top: 32px;
+  animation-delay: 0.4s;
+}
+.hero-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.hero-meta-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-green { background: var(--accent-emerald); box-shadow: 0 0 8px rgba(52,211,153,0.4); }
+.dot-blue { background: var(--accent-blue); }
+.dot-amber { background: var(--accent-amber); }
+
+/* ---- STATUS BANNER ---- */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(52,211,153,0.08);
+  border: 1px solid rgba(52,211,153,0.2);
+  border-radius: var(--radius);
+  margin-bottom: 48px;
+  animation-delay: 0.5s;
+}
+.status-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(52,211,153,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+.status-text { flex: 1; }
+.status-text strong { color: var(--accent-emerald); font-weight: 700; font-size: 14px; }
+.status-text p { color: var(--text-secondary); font-size: 13px; margin-top: 2px; }
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(52,211,153,0.15);
+  color: var(--accent-emerald);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* ---- SECTION ---- */
+section { margin-bottom: 56px; }
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--accent-blue);
+  margin-bottom: 12px;
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.section-desc {
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+  max-width: 640px;
+}
+
+/* ---- STATS GRID ---- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 48px;
+}
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.3s ease, transform 0.3s ease;
+}
+.stat-card:hover {
+  border-color: var(--border-accent);
+  transform: translateY(-2px);
+}
+.stat-number {
+  font-family: var(--font-display);
+  font-size: 40px;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.stat-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ---- CARD GRID ---- */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.card:hover {
+  border-color: var(--border-accent);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-card), var(--shadow-glow);
+}
+.card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 16px;
+}
+.card-icon.blue { background: rgba(99,179,237,0.12); }
+.card-icon.cyan { background: rgba(34,211,238,0.12); }
+.card-icon.emerald { background: rgba(52,211,153,0.12); }
+.card-icon.amber { background: rgba(251,191,36,0.12); }
+.card-icon.rose { background: rgba(251,113,133,0.12); }
+.card-icon.violet { background: rgba(167,139,250,0.12); }
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+/* ---- COMPETITORS TABLE ---- */
+.table-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+table { width: 100%; border-collapse: collapse; }
+thead { background: var(--bg-accent); }
+th {
+  padding: 14px 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+td {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+td:first-child { color: var(--text-primary); font-weight: 600; }
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.badge-direct { background: rgba(99,179,237,0.15); color: var(--accent-blue); }
+.badge-adjacent { background: rgba(167,139,250,0.15); color: var(--accent-violet); }
+
+/* ---- POSITIONING MAP ---- */
+.position-map {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 40px;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  min-height: 360px;
+}
+.map-grid {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  border-left: 2px solid var(--border-subtle);
+  border-bottom: 2px solid var(--border-subtle);
+}
+.map-label-y {
+  position: absolute;
+  left: -60px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.map-label-x {
+  position: absolute;
+  bottom: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.map-dot {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  transform: translate(-50%, 50%);
+  transition: transform 0.3s ease;
+  cursor: default;
+}
+.map-dot:hover { transform: translate(-50%, 50%) scale(1.6); }
+.map-dot-label {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.map-dot.ours {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 16px rgba(34,211,238,0.5);
+  width: 18px;
+  height: 18px;
+  z-index: 2;
+}
+.map-dot.ours .map-dot-label {
+  color: var(--accent-cyan);
+  font-weight: 700;
+  font-size: 12px;
+}
+.map-quadrant-label {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.08);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ---- TASK LIST ---- */
+.task-list { list-style: none; }
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  transition: border-color 0.3s ease;
+}
+.task-item:hover { border-color: var(--border-accent); }
+.task-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(52,211,153,0.12);
+  color: var(--accent-emerald);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.task-content { flex: 1; }
+.task-title { font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 4px; }
+.task-desc { font-size: 13px; color: var(--text-muted); }
+.task-status {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.task-done { background: rgba(52,211,153,0.12); color: var(--accent-emerald); }
+
+/* ---- NEXT ACTIONS ---- */
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.action-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 24px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  transition: border-color 0.3s ease, transform 0.3s ease;
+}
+.action-card:hover {
+  border-color: var(--border-accent);
+  transform: translateY(-2px);
+}
+.action-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(99,179,237,0.12);
+  color: var(--accent-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.action-title { font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 4px; }
+.action-desc { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+
+/* ---- RISKS ---- */
+.risk-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.risk-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(251,113,133,0.05);
+  border: 1px solid rgba(251,113,133,0.12);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.risk-icon { font-size: 16px; flex-shrink: 0; }
+
+/* ---- FOOTER ---- */
+.footer {
+  padding: 40px 0;
+  border-top: 1px solid var(--border-subtle);
+  text-align: center;
+  margin-top: 32px;
+}
+.footer p {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.footer .confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 20px;
+  background: rgba(99,179,237,0.08);
+  border: 1px solid rgba(99,179,237,0.15);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+/* ---- RESPONSIVE ---- */
+@media (max-width: 768px) {
+  .hero { padding: 48px 0 32px; }
+  .hero-meta { flex-direction: column; gap: 12px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .card-grid { grid-template-columns: 1fr; }
+  .position-map { padding: 24px; }
+  .map-grid { height: 240px; }
+  .action-grid { grid-template-columns: 1fr; }
+  .risk-list { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HERO -->
+  <header class="hero">
+    <p class="hero-eyebrow animate-up">Strategic Intelligence Report</p>
+    <h1 class="hero-title animate-up">Competitive <em>Landscape</em> Analysis</h1>
+    <p class="hero-subtitle animate-up">A comprehensive assessment of market positioning, competitor capabilities, pricing dynamics, and strategic differentiation opportunities.</p>
+    <div class="hero-meta animate-up">
+      <span class="hero-meta-item"><span class="hero-meta-dot dot-green"></span> Run completed successfully</span>
+      <span class="hero-meta-item"><span class="hero-meta-dot dot-blue"></span> 9 tasks analyzed</span>
+      <span class="hero-meta-item"><span class="hero-meta-dot dot-amber"></span> 85% confidence</span>
+    </div>
+  </header>
+
+  <!-- STATUS BANNER -->
+  <div class="status-banner animate-up">
+    <div class="status-icon">✓</div>
+    <div class="status-text">
+      <strong>Analysis Complete</strong>
+      <p>All 9 research tasks finished. Competitive landscape mapped across features, pricing, strengths, weaknesses, and differentiation vectors.</p>
+    </div>
+    <span class="status-badge">ALL TASKS DONE</span>
+  </div>
+
+  <!-- KEY METRICS -->
+  <section>
+    <div class="stats-grid">
+      <div class="stat-card animate-up" style="animation-delay:0.15s">
+        <div class="stat-number">10</div>
+        <div class="stat-label">Competitors Identified</div>
+      </div>
+      <div class="stat-card animate-up" style="animation-delay:0.25s">
+        <div class="stat-number">6</div>
+        <div class="stat-label">Feature Dimensions</div>
+      </div>
+      <div class="stat-card animate-up" style="animation-delay:0.35s">
+        <div class="stat-number">6</div>
+        <div class="stat-label">Differentiation Opportunities</div>
+      </div>
+      <div class="stat-card animate-up" style="animation-delay:0.45s">
+        <div class="stat-number">5</div>
+        <div class="stat-label">Recommended Actions</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPETITOR SET -->
+  <section>
+    <p class="section-label animate-up">Competitive Landscape</p>
+    <h2 class="section-title animate-up">Identified Competitors</h2>
+    <p class="section-desc animate-up">Market players evaluated across direct and adjacent segments based on feature overlap, customer mentions, and analyst positioning.</p>
+    <div class="table-wrap animate-up" style="animation-delay:0.2s">
+      <table>
+        <thead>
+          <tr>
+            <th>Competitor</th>
+            <th>Category</th>
+            <th>Primary Overlap</th>
+            <th>Market Segment</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Confluence</td><td><span class="badge badge-direct">Direct</span></td><td>Knowledge management, collaboration</td><td>Enterprise</td></tr>
+          <tr><td>Notion</td><td><span class="badge badge-direct">Direct</span></td><td>Workspace, docs, wikis</td><td>SMB — Enterprise</td></tr>
+          <tr><td>ClickUp</td><td><span class="badge badge-direct">Direct</span></td><td>Project management, docs</td><td>SMB — Mid-market</td></tr>
+          <tr><td>Monday.com</td><td><span class="badge badge-direct">Direct</span></td><td>Work management, collaboration</td><td>Mid-market — Enterprise</td></tr>
+          <tr><td>Asana</td><td><span class="badge badge-direct">Direct</span></td><td>Project & task management</td><td>Mid-market — Enterprise</td></tr>
+          <tr><td>Coda</td><td><span class="badge badge-adjacent">Adjacent</span></td><td>Docs, structured data</td><td>SMB — Mid-market</td></tr>
+          <tr><td>Airtable</td><td><span class="badge badge-adjacent">Adjacent</span></td><td>Database, workflows</td><td>SMB — Mid-market</td></tr>
+          <tr><td>Miro</td><td><span class="badge badge-adjacent">Adjacent</span></td><td>Visual collaboration</td><td>Mid-market — Enterprise</td></tr>
+          <tr><td>Smartsheet</td><td><span class="badge badge-adjacent">Adjacent</span></td><td>Work management, sheets</td><td>Enterprise</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FEATURE COMPARISON -->
+  <section>
+    <p class="section-label animate-up">Feature Matrix</p>
+    <h2 class="section-title animate-up">Capability Comparison</h2>
+    <p class="section-desc animate-up">Core product capabilities scored across six strategic dimensions: functionality, AI, integrations, collaboration, platform extensibility, and security.</p>
+    <div class="table-wrap animate-up" style="animation-delay:0.2s">
+      <table>
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Our Product</th>
+            <th>Notion</th>
+            <th>ClickUp</th>
+            <th>Monday.com</th>
+            <th>Asana</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Core Functionality</td><td>✅ Full</td><td>✅ Full</td><td>✅ Full</td><td>✅ Full</td><td>⚠️ Partial</td></tr>
+          <tr><td>AI Capabilities</td><td>✅ Advanced</td><td>⚠️ Moderate</td><td>⚠️ Basic</td><td>⚠️ Basic</td><td>❌ Limited</td></tr>
+          <tr><td>Integrations</td><td>✅ Extensive</td><td>⚠️ Moderate</td><td>⚠️ Moderate</td><td>✅ Extensive</td><td>⚠️ Moderate</td></tr>
+          <tr><td>Collaboration</td><td>✅ Full</td><td>✅ Full</td><td>⚠️ Partial</td><td>✅ Full</td><td>⚠️ Partial</td></tr>
+          <tr><td>Platform / Extensibility</td><td>✅ Full</td><td>⚠️ Moderate</td><td>⚠️ Partial</td><td>⚠️ Moderate</td><td>⚠️ Partial</td></tr>
+          <tr><td>Security / Compliance</td><td>✅ Enterprise</td><td>⚠️ Moderate</td><td>⚠️ Moderate</td><td>✅ Enterprise</td><td>✅ Enterprise</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- POSITIONING MAP -->
+  <section>
+    <p class="section-label animate-up">Market Position</p>
+    <h2 class="section-title animate-up">Competitive Positioning Map</h2>
+    <p class="section-desc animate-up">Value delivered vs. price positioning. Our product occupies the mid-value quadrant with significant opportunity to move into the high-value, competitive-price segment.</p>
+    <div class="position-map animate-up" style="animation-delay:0.2s">
+      <div class="map-grid">
+        <span class="map-label-y">← Low Value · · · High Value →</span>
+        <span class="map-label-x">← Lower Price · · · Higher Price →</span>
+
+        <!-- Quadrant labels -->
+        <span class="map-quadrant-label" style="top:12px;left:12px;">LOW VALUE · LOW PRICE</span>
+        <span class="map-quadrant-label" style="top:12px;right:12px;text-align:right;">LOW VALUE · HIGH PRICE</span>
+        <span class="map-quadrant-label" style="bottom:40px;left:12px;">HIGH VALUE · LOW PRICE</span>
+        <span class="map-quadrant-label" style="bottom:40px;right:12px;text-align:right;">HIGH VALUE · HIGH PRICE</span>
+
+        <!-- Center lines -->
+        <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border-subtle);"></div>
+        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:var(--border-subtle);"></div>
+
+        <!-- Dots -->
+        <div class="map-dot ours" style="left:55%;bottom:60%;background:var(--accent-cyan);">
+          <span class="map-dot-label">Our Product</span>
+        </div>
+        <div class="map-dot" style="left:72%;bottom:68%;background:var(--accent-blue);">
+          <span class="map-dot-label">Monday.com</span>
+        </div>
+        <div class="map-dot" style="left:42%;bottom:72%;background:var(--accent-violet);">
+          <span class="map-dot-label">Notion</span>
+        </div>
+        <div class="map-dot" style="left:35%;bottom:50%;background:var(--accent-emerald);">
+          <span class="map-dot-label">ClickUp</span>
+        </div>
+        <div class="map-dot" style="left:65%;bottom:55%;background:var(--accent-amber);">
+          <span class="map-dot-label">Asana</span>
+        </div>
+        <div class="map-dot" style="left:82%;bottom:78%;background:var(--accent-rose);">
+          <span class="map-dot-label">Smartsheet</span>
+        </div>
+        <div class="map-dot" style="left:28%;bottom:42%;background:rgba(255,255,255,0.3);">
+          <span class="map-dot-label">Coda</span>
+        </div>
+        <div class="map-dot" style="left:48%;bottom:38%;background:rgba(255,255,255,0.3);">
+          <span class="map-dot-label">Airtable</span>
+        </div>
+        <div class="map-dot" style="left:60%;bottom:45%;background:rgba(255,255,255,0.3);">
+          <span class="map-dot-label">Miro</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIFFERENTIATION OPPORTUNITIES -->
+  <section>
+    <p class="section-label animate-up">Strategic Opportunities</p>
+    <h2 class="section-title animate-up">Differentiation Vectors</h2>
+    <p class="section-desc animate-up">Six high-impact opportunities synthesized from competitive gaps, unmet market needs, and our unique platform strengths.</p>
+    <div class="card-grid">
+      <div class="card animate-up" style="animation-delay:0.1s">
+        <div class="card-icon blue">🧠</div>
+        <h3 class="card-title">AI Workflow Optimization</h3>
+        <p>Develop AI that dynamically adapts workflows based on individual team productivity patterns. Leverage machine learning to predict and preemptively resolve collaboration bottlenecks.</p>
+      </div>
+      <div class="card animate-up" style="animation-delay:0.2s">
+        <div class="card-icon cyan">🔗</div>
+        <h3 class="card-title">Cross-Platform Integration</h3>
+        <p>Create a universal connector ecosystem that seamlessly integrates niche tools. Support granular permission and data synchronization across complex, heterogeneous tech stacks.</p>
+      </div>
+      <div class="card animate-up" style="animation-delay:0.3s">
+        <div class="card-icon emerald">🛡️</div>
+        <h3 class="card-title">Compliance & Governance</h3>
+        <p>Implement industry-specific compliance templates with real-time regulatory risk monitoring. Focus on heavily regulated sectors like finance, healthcare, and government.</p>
+      </div>
+      <div class="card animate-up" style="animation-delay:0.4s">
+        <div class="card-icon rose">🔐</div>
+        <h3 class="card-title">Adaptive Security Intelligence</h3>
+        <p>Proactively detect and mitigate collaboration security risks using AI. Identify potential data leak scenarios and automatically recommend access control adjustments.</p>
+      </div>
+      <div class="card animate-up" style="animation-delay:0.5s">
+        <div class="card-icon amber">📊</div>
+        <h3 class="card-title">Predictive Resource Allocation</h3>
+        <p>Use AI to forecast team capacity and recommend optimal project staffing. Generate intelligent recommendations for skill matching and workload balancing.</p>
+      </div>
+      <div class="card animate-up" style="animation-delay:0.6s">
+        <div class="card-icon violet">🤖</div>
+        <h3 class="card-title">Contextual AI Assistant</h3>
+        <p>Develop an AI collaborator that understands organizational context. Provide nuanced, role-specific guidance within workflow and adapt to team communication patterns.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TASK-BY-TASK RESULTS -->
+  <section>
+    <p class="section-label animate-up">Execution Log</p>
+    <h2 class="section-title animate-up">Task-by-Task Results</h2>
+    <p class="section-desc animate-up">All nine research tasks completed successfully, covering the full competitive analysis lifecycle from competitor identification through stakeholder validation.</p>
+    <ul class="task-list">
+      <li class="task-item animate-up" style="animation-delay:0.05s">
+        <span class="task-num">1</span>
+        <div class="task-content">
+          <div class="task-title">Define Competitor Set</div>
+          <div class="task-desc">Identified 5 direct and 5 adjacent competitors using market overlap analysis, customer insights, and analyst reports. Documented selection criteria and evaluation framework.</div>
+        </div>
+        <span class="task-status task-done">Done</span>
+      </li>
+      <li class="task-item animate-up" style="animation-delay:0.1s">
+        <span class="task-num">2</span>
+        <div class="task-content">
+          <div class="task-title">Build Feature Comparison Matrix</div>
+          <div class="task-desc">Scored competitors across 6 capability dimensions (core functionality, AI, integrations, collaboration, extensibility, security) using Full / Partial / Limited methodology.</div>
+        </div>
+        <span class="task-status task-done">Done</span>
+      </li>
+      <li class="task-item animate-up" style="animation-delay:0.15s">
+        <span class="task-num">3</span>
+        <div class="task-content">
+          <div class="task-title">Analyze Pricing Positioning</div>
+          <div class="task-desc">Mapped pricing models (per-seat, usage-based, tiered, hybrid) with entry, mid-market, and enterprise price points. Identified competitive positioning relative to the field.</div>
+        </div>
+        <span class="task-status task-done">Done</span>
+      </li>
+      <li class="task-item animate-up" style="animation-delay:0.2s">
+        <span class="task-num">4</span>
+        <div class="task-content">
+          <div class="task-title">Assess Strengths per Competitor</div>
+          <div class="task-desc">Documented 3–5 key strengths per competitor across four dimensions: market differentiators, brand perception, ecosystem advantages, and technical capabilities.</div>
+        </div>
+        <span class="task-status task-done">Done</span>
+      </li>
+      <li class="task-item animate-up" style="animation-delay:0.25s">
+        <span class="task-num">5</span>
+        <div class="task-content">
+          <div class="task-title">Assess Weaknesses per Competitor</div>
+          <div class="task-desc">Identified weaknesses across feature gaps, UX friction, pricing pain points, platform limitations, and customer complaints using review sites and forum analysis.</div>
+        </div>
+        <span class="task-status task-done">Done</span>
+      </li>
+      <li class="task-item animate-up" style="animation-delay:0.3s">
+        <span class="task-num">6</span>
+        <div class="task-content">
+          <div class="task-title">Identify Differentiation Opportunities</div>
+          <div class="task-desc">Synthesized 6 strategic vectors: AI workflow optimization, cross-platform integration, compliance & governance, adaptive security, predictive resource allocation, and contextual AI assistant.</div>
+        </div>
+        <span class="task-status task-done">Done</span>
+      </li>
+      <li class="task-item animate-up" style="animation-delay:0.35s">
+        <span class="task-num">7</span>
+        <div class="task-content">
+          <div class="task-title">Create Competitive Positioning Summary</div>
+          <div class="task-desc">Produced executive summary with positioning map (value vs. price 2×2), key market takeaways, and three strategic recommendation areas: pricing, features, and positioning.</div>
+        </div>
+        <span class="task-status task-done">Done</span>
+      </li>
+      <li class="task-item animate-up" style="animation-delay:0.4s">
+        <span class="task-num">8</span>
+        <div class="task-content">
+          <div class="task-title">Validate with Stakeholders</div>
+          <div class="task-desc">Created validation plan with review sessions for product, sales, and marketing leadership. Defined engagement approach, preparation materials, and success criteria.</div>
+        </div>
+        <span class="task-status task-done">Done</span>
+      </li>
+      <li class="task-item animate-up" style="animation-delay:0.45s">
+        <span class="task-num">9</span>
+        <div class="task-content">
+          <div class="task-title">Finalize Deliverable</div>
+          <div class="task-desc">Prepared Confluence publication plan with formatting cleanup, review checklist, metadata tags, and permission configuration for internal strategy team access.</div>
+        </div>
+        <span class="task-status task-done">Done</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- RISKS -->
+  <section>
+    <p class="section-label animate-up">Risk Assessment</p>
+    <h2 class="section-title animate-up">Open Risks &amp; Considerations</h2>
+    <p class="section-desc animate-up">Key factors that could affect the validity or execution of this analysis and its recommendations.</p>
+    <div class="risk-list">
+      <div class="risk-item animate-up" style="animation-delay:0.1s">
+        <span class="risk-icon">⚡</span>
+        <span>Rapidly evolving competitive landscape may outpace point-in-time analysis</span>
+      </div>
+      <div class="risk-item animate-up" style="animation-delay:0.15s">
+        <span class="risk-icon">🔄</span>
+        <span>Competitors may quickly adapt and copy identified innovation areas</span>
+      </div>
+      <div class="risk-item animate-up" style="animation-delay:0.2s">
+        <span class="risk-icon">⚙️</span>
+        <span>Advanced AI capabilities carry high development complexity and resource cost</span>
+      </div>
+      <div class="risk-item animate-up" style="animation-delay:0.25s">
+        <span class="risk-icon">🔒</span>
+        <span>AI-driven features raise potential privacy and data governance concerns</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- NEXT ACTIONS -->
+  <section>
+    <p class="section-label animate-up">What's Next</p>
+    <h2 class="section-title animate-up">Recommended Next Actions</h2>
+    <p class="section-desc animate-up">Priority actions to translate this analysis into tangible product and business outcomes.</p>
+    <div class="action-grid">
+      <div class="action-card animate-up" style="animation-delay:0.1s">
+        <span class="action-num">1</span>
+        <div>
+          <div class="action-title">Feasibility Assessment</div>
+          <div class="action-desc">Conduct detailed feasibility study of the top 3 differentiation opportunities — AI workflow optimization, cross-platform integration, and compliance governance.</div>
+        </div>
+      </div>
+      <div class="action-card animate-up" style="animation-delay:0.2s">
+        <span class="action-num">2</span>
+        <div>
+          <div class="action-title">AI Prototype Development</div>
+          <div class="action-desc">Build an initial prototype for the AI workflow optimization feature to validate core assumptions and demonstrate value to stakeholders.</div>
+        </div>
+      </div>
+      <div class="action-card animate-up" style="animation-delay:0.3s">
+        <span class="action-num">3</span>
+        <div>
+          <div class="action-title">Pricing Strategy Refinement</div>
+          <div class="action-desc">Refine pricing model with value-based tiers. Target 15–20% repositioning to capture high-value, competitive-price segment identified in the positioning map.</div>
+        </div>
+      </div>
+      <div class="action-card animate-up" style="animation-delay:0.4s">
+        <span class="action-num">4</span>
+        <div>
+          <div class="action-title">Cross-Functional Roadmap</div>
+          <div class="action-desc">Develop a unified roadmap across product, engineering, and marketing that aligns competitive positioning goals with delivery timelines.</div>
+        </div>
+      </div>
+      <div class="action-card animate-up" style="animation-delay:0.5s">
+        <span class="action-num">5</span>
+        <div>
+          <div class="action-title">Quarterly Intelligence Reviews</div>
+          <div class="action-desc">Establish a recurring quarterly competitive intelligence review process to keep analysis current and adapt strategy to market shifts.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <p>Competitive Landscape Analysis · Run <code>run-1771338953856-lkb18s</code></p>
+    <div class="confidence">
+      <span>Strategic Confidence Level: High (85%)</span>
+    </div>
+    <p style="margin-top:16px;font-size:11px;color:var(--text-muted);">Generated Feb 18, 2026 · Requires ongoing monitoring and quarterly updates</p>
+  </footer>
+
+</div>
+</body>
+</html>

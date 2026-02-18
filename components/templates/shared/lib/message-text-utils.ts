@@ -1,3 +1,38 @@
+const MERMAID_BLOCK_REGEX = /```mermaid\b[\s\S]*?```/gi;
+const MERMAID_EDGE_REGEX =
+	/\b[A-Za-z0-9_-]+\s*(?:-->|==>|-.->)\s*(?:\|[^|\n]+\|\s*)?[A-Za-z0-9_-]+\b/;
+
+function createMermaidBlockRegex(): RegExp {
+	return new RegExp(MERMAID_BLOCK_REGEX.source, MERMAID_BLOCK_REGEX.flags);
+}
+
+function extractMermaidBlocksFromText(value: string): string[] {
+	if (!value.trim()) {
+		return [];
+	}
+
+	return Array.from(value.matchAll(createMermaidBlockRegex()), (match) =>
+		match[0].trim()
+	);
+}
+
+function stripMermaidBlocksFromText(value: string): string {
+	if (!value.trim()) {
+		return "";
+	}
+
+	return value.replace(createMermaidBlockRegex(), "").trim();
+}
+
+function hasDependencyEdgesInMermaid(value: string): boolean {
+	const mermaidBlocks = extractMermaidBlocksFromText(value);
+	if (mermaidBlocks.length === 0) {
+		return false;
+	}
+
+	return mermaidBlocks.some((block) => MERMAID_EDGE_REGEX.test(block));
+}
+
 /**
  * Text normalization helpers for AI-generated message content.
  *
@@ -101,6 +136,61 @@ function isContinuationLine(line: string): boolean {
 	return /^\s{2,}\S/.test(line) || /^\t\S/.test(line);
 }
 
+function isPlanNarrativeNoiseLine(line: string): boolean {
+	const trimmedLine = line.trim();
+	if (!trimmedLine) {
+		return false;
+	}
+
+	if (
+		/^(?:used|invoking|completed|running|calling)\s+[A-Za-z0-9_.:-]+/i.test(
+			trimmedLine
+		)
+	) {
+		return true;
+	}
+
+	if (/^(?:great idea!?|here(?:['\u2019]?)s the plan:?)/i.test(trimmedLine)) {
+		return true;
+	}
+
+	if (/^let me\s+/i.test(trimmedLine) || /^now i\b/i.test(trimmedLine)) {
+		return true;
+	}
+
+	return /^#{1,6}\s*plan\b/i.test(trimmedLine) || /^plan:?$/i.test(trimmedLine);
+}
+
+function extractPlanSummaryTail(value: string, maxSummaryLines: number): string {
+	const lines = value
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0)
+		.filter((line) => !isActionListItemLine(line))
+		.filter((line) => !isLikelySectionHeading(line))
+		.filter((line) => !isPlanNarrativeNoiseLine(line))
+		.filter((line) => !/^```/.test(line));
+	if (lines.length === 0) {
+		return "";
+	}
+
+	return lines
+		.slice(-maxSummaryLines)
+		.map((line) => line.replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1"))
+		.join("\n")
+		.trim();
+}
+
+export interface PlanRenderableText {
+	text: string;
+	mermaid: string;
+	summary: string;
+}
+
+interface ExtractPlanRenderableTextOptions {
+	maxSummaryLines?: number;
+}
+
 /**
  * Remove the "Action items" section from a planning response when tasks are
  * already rendered in a dedicated plan card widget.
@@ -186,4 +276,39 @@ export function removeActionItemsSection(value: string): string {
 	}
 
 	return compactedLines.join("\n").trim();
+}
+
+export function extractPlanRenderableText(
+	value: string,
+	options: ExtractPlanRenderableTextOptions = {}
+): PlanRenderableText {
+	const maxSummaryLines =
+		typeof options.maxSummaryLines === "number" && options.maxSummaryLines > 0
+			? Math.floor(options.maxSummaryLines)
+			: 2;
+
+	const normalizedText = removeActionItemsSection(
+		removeLeadingSingleCharacterFragment(value)
+	);
+	if (!normalizedText) {
+		return {
+			text: "",
+			mermaid: "",
+			summary: "",
+		};
+	}
+
+	const mermaidBlocks = extractMermaidBlocksFromText(normalizedText).filter((block) =>
+		hasDependencyEdgesInMermaid(block)
+	);
+	const mermaidText = mermaidBlocks.join("\n\n").trim();
+	const narrativeText = stripMermaidBlocksFromText(normalizedText);
+	const summary = extractPlanSummaryTail(narrativeText, maxSummaryLines);
+	const combinedText = [mermaidText, summary].filter(Boolean).join("\n\n").trim();
+
+	return {
+		text: combinedText,
+		mermaid: mermaidText,
+		summary,
+	};
 }

@@ -8,6 +8,10 @@ import type {
 	AgentsTeamAgent,
 	AgentsTeamAgentInput,
 } from "@/lib/agents-team-config-types";
+import {
+	DEFAULT_SKILLS,
+	DEFAULT_AGENTS,
+} from "@/lib/agents-team-config-seed";
 
 async function parseJsonResponse<T>(
 	response: Response,
@@ -33,8 +37,8 @@ async function parseJsonResponse<T>(
 }
 
 export function useAgentsTeamConfig() {
-	const [skills, setSkills] = useState<AgentsTeamSkill[]>([]);
-	const [agents, setAgents] = useState<AgentsTeamAgent[]>([]);
+	const [skills, setSkills] = useState<AgentsTeamSkill[]>(DEFAULT_SKILLS);
+	const [agents, setAgents] = useState<AgentsTeamAgent[]>(DEFAULT_AGENTS);
 	const [isLoading, setIsLoading] = useState(false);
 	const hasFetchedRef = useRef(false);
 

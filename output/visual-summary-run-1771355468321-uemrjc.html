@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Event Plan — Visual Summary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#faf8f4;--bg-warm:#f5f0e8;--bg-card:#ffffff;--bg-card-alt:#fefcf8;
+--ink:#1a1612;--ink-mid:#4a4139;--ink-soft:#7d7368;--ink-faint:#b5aa9d;
+--terracotta:#c4654a;--terracotta-dim:rgba(196,101,74,0.08);--terracotta-glow:rgba(196,101,74,0.18);
+--sage:#5a7a64;--sage-dim:rgba(90,122,100,0.08);--sage-glow:rgba(90,122,100,0.2);
+--ochre:#c49b3a;--ochre-dim:rgba(196,155,58,0.1);--ochre-glow:rgba(196,155,58,0.2);
+--slate:#5b6d82;--slate-dim:rgba(91,109,130,0.08);
+--plum:#7a5980;--plum-dim:rgba(122,89,128,0.08);
+--border:rgba(26,22,18,0.08);--border-warm:rgba(196,155,58,0.2);
+--shadow-sm:0 1px 3px rgba(26,22,18,0.04),0 1px 2px rgba(26,22,18,0.06);
+--shadow-md:0 4px 12px rgba(26,22,18,0.06),0 2px 4px rgba(26,22,18,0.04);
+--shadow-lg:0 12px 32px rgba(26,22,18,0.08),0 4px 8px rgba(26,22,18,0.04);
+--font-display:'Playfair Display',Georgia,serif;
+--font-body:'Source Sans 3',system-ui,sans-serif;
+--radius:6px;
+}
+html{font-size:15px;-webkit-font-smoothing:antialiased}
+body{font-family:var(--font-body);background:var(--bg);color:var(--ink);line-height:1.65;min-height:100vh;overflow-x:hidden}
+
+/* Subtle texture overlay */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+background-image:url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h1v1H0z' fill='%23000' fill-opacity='0.015'/%3E%3C/svg%3E");
+opacity:0.5}
+
+/* Warm gradient glow */
+.bg-glow{position:fixed;top:-200px;right:-100px;width:800px;height:800px;
+background:radial-gradient(ellipse,rgba(196,155,58,0.06) 0%,transparent 60%);pointer-events:none;z-index:0}
+.bg-glow-2{position:fixed;bottom:-200px;left:-100px;width:600px;height:600px;
+background:radial-gradient(ellipse,rgba(196,101,74,0.04) 0%,transparent 60%);pointer-events:none;z-index:0}
+
+/* Animations */
+@keyframes riseIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes expandLine{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes fillBar{from{width:0}to{width:var(--fill,100%)}}
+@keyframes softPulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.rise{animation:riseIn 0.5s cubic-bezier(0.22,1,0.36,1) both}
+.r1{animation-delay:0.05s}.r2{animation-delay:0.1s}.r3{animation-delay:0.15s}
+.r4{animation-delay:0.2s}.r5{animation-delay:0.25s}.r6{animation-delay:0.3s}
+.r7{animation-delay:0.35s}.r8{animation-delay:0.4s}.r9{animation-delay:0.45s}
+.r10{animation-delay:0.5s}.r11{animation-delay:0.55s}.r12{animation-delay:0.6s}
+.r13{animation-delay:0.65s}.r14{animation-delay:0.7s}.r15{animation-delay:0.75s}
+.r16{animation-delay:0.8s}.r17{animation-delay:0.85s}
+
+/* Layout */
+.frame{max-width:880px;margin:0 auto;padding:56px 32px 80px;position:relative;z-index:1}
+
+/* Header */
+.hdr{text-align:center;padding:24px 0 40px}
+.hdr-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:0.65rem;font-weight:700;
+letter-spacing:0.2em;text-transform:uppercase;color:var(--sage);margin-bottom:20px}
+.hdr-eyebrow::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--sage);animation:softPulse 2.4s infinite}
+.hdr-title{font-family:var(--font-display);font-size:3rem;font-weight:700;line-height:1.15;color:var(--ink);margin-bottom:8px;letter-spacing:-0.01em}
+.hdr-title em{font-style:italic;color:var(--terracotta);font-weight:400}
+.hdr-sub{font-size:1.05rem;font-weight:300;color:var(--ink-soft);max-width:520px;margin:0 auto;line-height:1.6}
+
+/* Divider */
+.divider{display:flex;align-items:center;gap:14px;margin:36px 0}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent)}
+.divider-dot{width:6px;height:6px;border-radius:50%;background:var(--ochre);opacity:0.4;flex-shrink:0}
+
+/* Status banner */
+.status-banner{display:flex;align-items:center;justify-content:center;gap:16px;padding:14px 28px;
+background:var(--sage-dim);border:1px solid rgba(90,122,100,0.15);border-radius:var(--radius);margin-bottom:8px}
+.status-icon{width:10px;height:10px;border-radius:50%;background:var(--sage);
+box-shadow:0 0 10px var(--sage-glow);flex-shrink:0}
+.status-label{font-size:0.82rem;font-weight:600;color:var(--sage);letter-spacing:0.02em}
+.status-meta{margin-left:auto;font-size:0.72rem;font-weight:500;color:var(--ink-faint)}
+
+/* Section headers */
+.section{margin-top:52px}
+.section-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+.section-num{font-family:var(--font-display);font-size:2.6rem;font-weight:400;color:var(--ink-faint);opacity:0.25;line-height:1}
+.section-title{font-family:var(--font-display);font-size:1.3rem;color:var(--ink);font-weight:600}
+.section-line{height:1px;background:linear-gradient(90deg,var(--terracotta),var(--ochre),transparent 80%);
+margin-bottom:22px;transform-origin:left;animation:expandLine 0.8s cubic-bezier(0.22,1,0.36,1) both}
+
+/* Metric cards */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.metric{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
+padding:22px 16px;text-align:center;box-shadow:var(--shadow-sm);transition:box-shadow 0.25s,border-color 0.25s}
+.metric:hover{box-shadow:var(--shadow-md);border-color:var(--border-warm)}
+.metric-val{font-family:var(--font-display);font-size:1.8rem;font-weight:700;color:var(--terracotta);line-height:1.1}
+.metric-lbl{font-size:0.65rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-faint);margin-top:8px}
+
+/* Outcome cards */
+.outcomes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.outcome{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
+padding:24px;box-shadow:var(--shadow-sm);transition:box-shadow 0.25s,border-color 0.25s}
+.outcome:hover{box-shadow:var(--shadow-md);border-color:var(--border-warm)}
+.outcome-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.outcome-icon{width:28px;height:28px;border-radius:var(--radius);display:flex;align-items:center;
+justify-content:center;font-size:0.85rem;flex-shrink:0}
+.outcome-title{font-family:var(--font-display);font-size:0.95rem;font-weight:600;color:var(--ink)}
+.outcome ul{list-style:none}
+.outcome li{font-size:0.82rem;color:var(--ink-mid);padding:4px 0 4px 18px;position:relative;line-height:1.5}
+.outcome li::before{content:'';position:absolute;left:0;top:12px;width:8px;height:1.5px;background:var(--ochre);opacity:0.5}
+
+/* Task cards */
+.task-group{font-size:0.6rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;
+color:var(--terracotta);margin:28px 0 14px 2px;display:flex;align-items:center;gap:10px}
+.task-group::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.task{display:flex;align-items:flex-start;gap:14px;padding:16px 20px;background:var(--bg-card);
+border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;
+box-shadow:var(--shadow-sm);transition:box-shadow 0.25s,border-color 0.25s}
+.task:hover{box-shadow:var(--shadow-md);border-color:var(--border-warm)}
+.task-num{font-family:var(--font-display);font-size:0.85rem;font-weight:700;color:var(--terracotta);
+min-width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+background:var(--terracotta-dim);border-radius:var(--radius);flex-shrink:0;margin-top:1px}
+.task-body{flex:1;min-width:0}
+.task-name{font-family:var(--font-display);font-size:0.88rem;font-weight:600;color:var(--ink);line-height:1.4}
+.task-desc{font-size:0.78rem;color:var(--ink-soft);margin-top:4px;line-height:1.6}
+.task-badge{font-size:0.58rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+padding:3px 10px;border-radius:3px;flex-shrink:0;margin-top:3px}
+.badge-done{background:var(--sage-dim);color:var(--sage);border:1px solid rgba(90,122,100,0.18)}
+.task-agent{display:inline-block;font-size:0.55rem;font-weight:700;letter-spacing:0.08em;
+text-transform:uppercase;padding:2px 8px;border-radius:3px;margin-top:6px;
+background:var(--slate-dim);color:var(--slate);border:1px solid rgba(91,109,130,0.15)}
+
+/* Risk section */
+.risks{background:var(--bg-card);border:1px solid rgba(196,101,74,0.15);border-radius:var(--radius);
+padding:24px;box-shadow:var(--shadow-sm)}
+.risks ul{list-style:none}
+.risks li{font-size:0.84rem;color:var(--ink-mid);padding:5px 0 5px 22px;position:relative;line-height:1.55}
+.risks li::before{content:'◇';position:absolute;left:2px;top:5px;font-size:0.6rem;color:var(--terracotta);opacity:0.7}
+
+/* Next actions */
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.action-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
+padding:24px;box-shadow:var(--shadow-sm);transition:box-shadow 0.25s,border-color 0.25s}
+.action-card:hover{box-shadow:var(--shadow-md);border-color:var(--border-warm)}
+.action-phase{font-size:0.58rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;
+color:var(--ochre);margin-bottom:6px}
+.action-title{font-family:var(--font-display);font-size:1rem;font-weight:600;color:var(--ink);margin-bottom:12px}
+.action-card ol{list-style:none;counter-reset:act}
+.action-card li{font-size:0.8rem;color:var(--ink-mid);padding:4px 0 4px 24px;position:relative;
+counter-increment:act;line-height:1.5}
+.action-card li::before{content:counter(act);position:absolute;left:0;top:4px;
+font-family:var(--font-display);font-size:0.72rem;font-weight:700;color:var(--ochre);opacity:0.6;
+width:16px;height:16px;display:flex;align-items:center;justify-content:center}
+
+/* Confidence */
+.confidence{margin-top:52px;text-align:center;padding:36px;background:var(--bg-card);
+border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.conf-label{font-size:0.62rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;
+color:var(--ink-faint);margin-bottom:14px}
+.conf-track{height:6px;background:var(--bg-warm);border-radius:3px;overflow:hidden;max-width:360px;margin:0 auto 14px}
+.conf-fill{height:100%;background:linear-gradient(90deg,var(--ochre),var(--terracotta));border-radius:3px;
+--fill:100%;animation:fillBar 1.3s cubic-bezier(0.22,1,0.36,1) 0.6s both}
+.conf-val{font-family:var(--font-display);font-size:2.2rem;font-weight:700;color:var(--terracotta)}
+.conf-note{font-size:0.82rem;color:var(--ink-soft);margin-top:4px}
+
+/* Footer */
+.footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--border);
+display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.footer span{font-size:0.68rem;color:var(--ink-faint);letter-spacing:0.02em}
+.footer .mono{font-family:'SF Mono',SFMono-Regular,Consolas,monospace;opacity:0.5}
+
+@media(max-width:680px){
+.hdr-title{font-size:2rem}
+.metrics{grid-template-columns:1fr 1fr}
+.outcomes{grid-template-columns:1fr}
+.actions{grid-template-columns:1fr}
+.footer{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-glow-2"></div>
+<div class="frame">
+
+<!-- HEADER -->
+<header class="hdr rise r1">
+<div class="hdr-eyebrow">Run Complete — Final Synthesis</div>
+<h1 class="hdr-title">Team Event<br><em>Planning</em></h1>
+<p class="hdr-sub">A comprehensive plan for organizing a hybrid team-building experience — from defining goals through execution, feedback, and retrospective.</p>
+</header>
+
+<div class="divider rise r2"><div class="divider-dot"></div></div>
+
+<!-- STATUS -->
+<div class="status-banner rise r2">
+<div class="status-icon"></div>
+<span class="status-label">All Tasks Complete</span>
+<span class="status-meta">10 / 10 tasks done</span>
+</div>
+
+<!-- METRICS -->
+<section class="section rise r3">
+<div class="section-head">
+<span class="section-num">01</span>
+<span class="section-title">Key Metrics</span>
+</div>
+<div class="section-line"></div>
+<div class="metrics">
+<div class="metric">
+<div class="metric-val">10</div>
+<div class="metric-lbl">Tasks Completed</div>
+</div>
+<div class="metric">
+<div class="metric-val">100%</div>
+<div class="metric-lbl">Completion Rate</div>
+</div>
+<div class="metric">
+<div class="metric-val">5</div>
+<div class="metric-lbl">Themes Covered</div>
+</div>
+<div class="metric">
+<div class="metric-val">5</div>
+<div class="metric-lbl">Next Actions</div>
+</div>
+</div>
+</section>
+
+<!-- KEY OUTCOMES -->
+<section class="section rise r4">
+<div class="section-head">
+<span class="section-num">02</span>
+<span class="section-title">Key Outcomes</span>
+</div>
+<div class="section-line"></div>
+<div class="outcomes">
+<div class="outcome">
+<div class="outcome-head">
+<div class="outcome-icon" style="background:var(--terracotta-dim);color:var(--terracotta)">🎯</div>
+<div class="outcome-title">Event Strategy</div>
+</div>
+<ul>
+<li>Primary goal: Team bonding & communication</li>
+<li>Format: Hybrid team challenge</li>
+<li>Balanced in-person and virtual elements</li>
+<li>Inclusive design for diverse team members</li>
+</ul>
+</div>
+<div class="outcome">
+<div class="outcome-head">
+<div class="outcome-icon" style="background:var(--ochre-dim);color:var(--ochre)">💰</div>
+<div class="outcome-title">Financial Planning</div>
+</div>
+<ul>
+<li>Per-person budget: $50–$150 range</li>
+<li>Detailed breakdown with 10% contingency</li>
+<li>Clear ROI justification for approval</li>
+<li>Multiple funding source options identified</li>
+</ul>
+</div>
+<div class="outcome">
+<div class="outcome-head">
+<div class="outcome-icon" style="background:var(--sage-dim);color:var(--sage)">📋</div>
+<div class="outcome-title">Team Engagement</div>
+</div>
+<ul>
+<li>Comprehensive preference survey designed</li>
+<li>Dietary and accessibility needs captured</li>
+<li>Multi-channel communication strategy</li>
+<li>Maximized participation through flexibility</li>
+</ul>
+</div>
+<div class="outcome">
+<div class="outcome-head">
+<div class="outcome-icon" style="background:var(--plum-dim);color:var(--plum)">⚙️</div>
+<div class="outcome-title">Logistics & Execution</div>
+</div>
+<ul>
+<li>2-hour agenda with structured flow</li>
+<li>Clear role assignments: MC, photographer, logistics</li>
+<li>Catering, A/V, transport all covered</li>
+<li>Post-event feedback loop established</li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- TASK-BY-TASK RESULTS -->
+<section class="section rise r5">
+<div class="section-head">
+<span class="section-num">03</span>
+<span class="section-title">Task-by-Task Results</span>
+</div>
+<div class="section-line"></div>
+
+<div class="task-group">Phase 1 — Strategy & Setup</div>
+
+<div class="task rise r6">
+<div class="task-num">1</div>
+<div class="task-body">
+<div class="task-name">Define event goals and format</div>
+<div class="task-desc">Selected hybrid team challenge format focused on bonding and communication. Evaluated in-person, virtual, and hybrid options. Recommended a simultaneous in-person and virtual team competition with diverse engagement elements.</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+
+<div class="task rise r7">
+<div class="task-num">2</div>
+<div class="task-body">
+<div class="task-name">Set budget and get approval</div>
+<div class="task-desc">Established $50–$150 per-person budget range with 60% activities, 25% catering, 10% contingency, 5% misc. Identified team/departmental budget sources and prepared ROI-backed approval proposal.</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+
+<div class="task rise r8">
+<div class="task-num">3</div>
+<div class="task-body">
+<div class="task-name">Survey the team for preferences</div>
+<div class="task-desc">Designed a 5-minute, 4-question survey covering event type, date availability, dietary restrictions, and accessibility needs. Anonymous responses encouraged via Google Forms or Microsoft Forms.</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+
+<div class="task-group">Phase 2 — Planning & Logistics</div>
+
+<div class="task rise r9">
+<div class="task-num">4</div>
+<div class="task-body">
+<div class="task-name">Pick date, time, and venue</div>
+<div class="task-desc">Defined venue selection criteria (capacity, accessibility, budget). Considered time zones and work schedules. Prepared 2–3 backup alternatives with cancellation/change policies confirmed.</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+
+<div class="task rise r10">
+<div class="task-num">5</div>
+<div class="task-body">
+<div class="task-name">Plan the agenda and activities</div>
+<div class="task-desc">Structured 2-hour agenda: Arrival (15 min) → Main Challenge (60 min) → Social Time (30 min) → Wrap-up (15 min). Included icebreaker ("Team Connections") and collaborative problem-solving challenge with 4–6 person teams.</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+
+<div class="task rise r11">
+<div class="task-num">6</div>
+<div class="task-body">
+<div class="task-name">Handle logistics</div>
+<div class="task-desc">Comprehensive logistics covering catering ($25–35/person), parking and transport, A/V equipment checklist, swag/prizes ($10–15/person), and vendor contracts with insurance verification.</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+
+<div class="task-group">Phase 3 — Communication & Execution</div>
+
+<div class="task rise r12">
+<div class="task-num">7</div>
+<div class="task-body">
+<div class="task-name">Send invitations and reminders</div>
+<div class="task-desc">Multi-channel invitation strategy via calendar, Slack, and email. Three-touch reminder cadence: initial invite (2–3 weeks out), first reminder (1 week), final reminder (2 days before).</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+
+<div class="task rise r13">
+<div class="task-num">8</div>
+<div class="task-body">
+<div class="task-name">Run the event</div>
+<div class="task-desc">Assigned day-of roles: Host/MC, Photographer, Logistics Point Person. Arrival 60–90 minutes early for setup, tech testing, and readiness checks. Prepared contingency plans for technical failures.</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+
+<div class="task-group">Phase 4 — Follow-up & Retrospective</div>
+
+<div class="task rise r14">
+<div class="task-num">9</div>
+<div class="task-body">
+<div class="task-name">Capture feedback and follow up</div>
+<div class="task-desc">Designed post-event survey with enjoyment, improvement, and satisfaction (1–5 scale) questions. Planned photo sharing in team channel and personalized thank-you notes to participants and vendors.</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+
+<div class="task rise r15">
+<div class="task-num">10</div>
+<div class="task-body">
+<div class="task-name">Document learnings for next time</div>
+<div class="task-desc">Created retrospective template tracking: what worked, areas to improve, final cost vs. budget variance, attendance rate, cost per participant, and actionable recommendations for future events.</div>
+<div class="task-agent">Rovo</div>
+</div>
+<div class="task-badge badge-done">Done</div>
+</div>
+</section>
+
+<!-- RISKS -->
+<section class="section rise r15">
+<div class="section-head">
+<span class="section-num">04</span>
+<span class="section-title">Open Risks &amp; Decisions</span>
+</div>
+<div class="section-line"></div>
+<div class="risks">
+<ul>
+<li>Technical integration challenges with hybrid format (backup equipment and hotspot recommended)</li>
+<li>Uneven participant engagement across in-person and virtual attendees</li>
+<li>Last-minute logistical disruptions — venue changes, catering adjustments, equipment failure</li>
+<li>Low survey response rate may skew planning assumptions</li>
+<li>Budget approval delay could compress the planning timeline</li>
+</ul>
+</div>
+</section>
+
+<!-- NEXT ACTIONS -->
+<section class="section rise r16">
+<div class="section-head">
+<span class="section-num">05</span>
+<span class="section-title">Recommended Next Actions</span>
+</div>
+<div class="section-line"></div>
+<div class="actions">
+<div class="action-card">
+<div class="action-phase">Immediate</div>
+<div class="action-title">Execute & Iterate</div>
+<ol>
+<li>Implement lessons learned from this plan in the actual event</li>
+<li>Develop a standardized event planning template for reuse</li>
+<li>Establish a recurring team preference survey process</li>
+</ol>
+</div>
+<div class="action-card">
+<div class="action-phase">Follow-up</div>
+<div class="action-title">Scale & Improve</div>
+<ol>
+<li>Create a formal event retrospective documentation approach</li>
+<li>Build a budget and planning playbook for future team activities</li>
+</ol>
+</div>
+</div>
+</section>
+
+<!-- CONFIDENCE -->
+<div class="confidence rise r17">
+<div class="conf-label">Plan Completeness</div>
+<div class="conf-track"><div class="conf-fill"></div></div>
+<div class="conf-val">100%</div>
+<div class="conf-note">All 10 tasks completed successfully across 4 phases</div>
+</div>
+
+<!-- FOOTER -->
+<footer class="footer rise r17">
+<span>Team Event Planning — Visual Summary</span>
+<span>Generated Feb 18, 2026</span>
+<span class="mono">run-1771355468321-uemrjc</span>
+</footer>
+
+</div>
+</body>
+</html>

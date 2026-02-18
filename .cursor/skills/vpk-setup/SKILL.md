@@ -100,6 +100,8 @@ atlas asap key save --key YOUR-USE-CASE-ID/$TIMESTAMP --service YOUR-USE-CASE-ID
 node ./.cursor/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID
 # Optional (explicit override of git config):
 # node ./.cursor/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID your-email@atlassian.com
+# Script preserves existing optional keys when regenerating .env.local:
+# AI_GATEWAY_URL_GOOGLE, AUTO_FALLBACK_TO_AI_GATEWAY, DEBUG, PORT, BACKEND_URL
 
 # Start development servers
 # Port auto-discovery: If 3000/8080 are busy, servers automatically use 3001+/8081+
@@ -220,6 +222,7 @@ For detailed model switching instructions, see [references/guide-model-switch.md
 | No AI response                  | Verify health check passes                                                                                                                                 |
 | **Mismatched ASAP KID**         | **You generated timestamp twice! Regenerate with single timestamp**                                                                                        |
 | "Model Id [X] not found"        | Model not whitelisted. Run `atlas ml aigateway usecase view --id YOUR-USE-CASE-ID -e stg-west` to check available models                                   |
+| Bedrock 403 while OpenAI works  | Pull latest branch and confirm `backend/lib/ai-gateway-helpers.js` does **not** rewrite Bedrock URL to `/provider/bedrock/format/openai/...`; restart backend |
 | Want to switch models           | See [Model Switching Guide](references/guide-model-switch.md)                                                                                              |
 
 ### Port Auto-Discovery

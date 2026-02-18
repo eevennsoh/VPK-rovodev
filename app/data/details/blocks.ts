@@ -12,7 +12,7 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 		usage: `import AgentsProgress from "@/components/blocks/agent-progress/page";
 
 <AgentsProgress />
-<AgentsProgress runStatus="completed" collapsed />
+<AgentsProgress runStatus="completed" defaultCollapsed />
 <AgentsProgress runStatus="failed" />`,
 		props: [
 			{
@@ -30,7 +30,7 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 			{
 				name: "taskStatusGroups",
 				type: "ProgressStatusGroups",
-				description: "Object with done, inReview, inProgress, and todo task arrays.",
+				description: "Object with done, inReview, inProgress, failed, and todo task arrays.",
 			},
 			{
 				name: "runStatus",
@@ -61,7 +61,7 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 				description: "Number of agents shown in the running status text.",
 			},
 			{
-				name: "collapsed",
+				name: "defaultCollapsed",
 				type: "boolean",
 				default: "false",
 				description: "When true, hides the task list and status bar, showing only the header.",

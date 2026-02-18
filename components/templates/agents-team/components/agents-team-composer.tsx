@@ -121,26 +121,36 @@ export default function AgentsTeamComposer({
 								<PromptInputActionMenuTrigger aria-label="Add" size="icon-sm" variant="ghost">
 									<AddIcon label="" />
 								</PromptInputActionMenuTrigger>
-								<PromptInputActionMenuContent className="w-auto min-w-[200px] p-1">
-									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-										<UploadIcon label="Upload file" />
-										<span>Upload file</span>
+								<PromptInputActionMenuContent>
+									<PromptInputActionMenuItem
+										onSelect={() => setIsAddMenuOpen(false)}
+										elemBefore={<UploadIcon label="" />}
+									>
+										Upload file
 									</PromptInputActionMenuItem>
-									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-										<LinkIcon label="Add link" />
-										<span>Add a link</span>
+									<PromptInputActionMenuItem
+										onSelect={() => setIsAddMenuOpen(false)}
+										elemBefore={<LinkIcon label="" />}
+									>
+										Add a link
 									</PromptInputActionMenuItem>
-									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-										<MentionIcon label="Mention someone" />
-										<span>Mention someone</span>
+									<PromptInputActionMenuItem
+										onSelect={() => setIsAddMenuOpen(false)}
+										elemBefore={<MentionIcon label="" />}
+									>
+										Mention someone
 									</PromptInputActionMenuItem>
-									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-										<AddIcon label="More formatting" />
-										<span>More formatting</span>
+									<PromptInputActionMenuItem
+										onSelect={() => setIsAddMenuOpen(false)}
+										elemBefore={<AddIcon label="" />}
+									>
+										More formatting
 									</PromptInputActionMenuItem>
-									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)}>
-										<PageIcon label="Add current page as context" />
-										<span>Add current page as context</span>
+									<PromptInputActionMenuItem
+										onSelect={() => setIsAddMenuOpen(false)}
+										elemBefore={<PageIcon label="" />}
+									>
+										Add current page as context
 									</PromptInputActionMenuItem>
 								</PromptInputActionMenuContent>
 							</PromptInputActionMenu>
