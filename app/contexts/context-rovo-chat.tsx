@@ -34,6 +34,7 @@ export interface SendPromptOptions {
 	approval?: unknown;
 	agentTeamMode?: boolean;
 	agentTeamRequestId?: string;
+	creationMode?: "skill" | "agent";
 }
 
 export interface QueuedPromptItem {
@@ -88,7 +89,7 @@ interface RovoChatContextType {
 	closeChat: () => void;
 	uiMessages: RovoUIMessage[];
 	sendPrompt: (prompt: string, options?: SendPromptOptions) => Promise<void>;
-	stopStreaming: () => void;
+	stopStreaming: () => Promise<void>;
 	clearSuggestedQuestions: () => void;
 	resetChat: () => void;
 	replaceMessages: (messages: ReadonlyArray<RovoUIMessage>) => void;
@@ -297,6 +298,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 											userName: saved.options?.userName,
 											agentTeamMode: saved.options?.agentTeamMode,
 											agentTeamRequestId: saved.options?.agentTeamRequestId,
+											creationMode: saved.options?.creationMode,
 											hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 										},
 									}
@@ -319,6 +321,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 											userName: saved.options?.userName,
 											agentTeamMode: saved.options?.agentTeamMode,
 											agentTeamRequestId: saved.options?.agentTeamRequestId,
+											creationMode: saved.options?.creationMode,
 											hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 										},
 									}
@@ -432,6 +435,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 							userName: promptItem.options?.userName,
 							agentTeamMode: promptItem.options?.agentTeamMode,
 							agentTeamRequestId: promptItem.options?.agentTeamRequestId,
+							creationMode: promptItem.options?.creationMode,
 							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 						},
 					}
@@ -454,6 +458,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 							userName: promptItem.options?.userName,
 							agentTeamMode: promptItem.options?.agentTeamMode,
 							agentTeamRequestId: promptItem.options?.agentTeamRequestId,
+							creationMode: promptItem.options?.creationMode,
 							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 						},
 					}
@@ -616,16 +621,18 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 		}
 	}, [stop]);
 
-	const stopStreaming = useCallback(() => {
+	const stopStreaming = useCallback(async () => {
 		if (activePromptRef.current) {
 			shouldFinalizeActivePromptRef.current = true;
 		}
 
 		isCancellingRef.current = true;
-		void cancelCurrentStream().finally(() => {
+		try {
+			await cancelCurrentStream();
+		} finally {
 			isCancellingRef.current = false;
 			queueTick();
-		});
+		}
 	}, [cancelCurrentStream, queueTick]);
 
 	const resetChat = useCallback(() => {

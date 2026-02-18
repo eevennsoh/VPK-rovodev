@@ -29,3 +29,11 @@ export type {
 
 // Other contexts
 export { SidebarProvider, useSidebar } from "./context-sidebar";
+
+// Creation mode context
+export {
+	CreationModeProvider,
+	useCreationModeState,
+	useCreationModeActions,
+} from "./context-creation-mode";
+export type { CreationMode } from "./context-creation-mode";

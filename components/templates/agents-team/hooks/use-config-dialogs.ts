@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useCreationModeActions } from "@/app/contexts/context-creation-mode";
 import type {
 	AgentsTeamSkill,
 	AgentsTeamSkillInput,
@@ -55,6 +56,7 @@ export function useConfigDialogs({
 	const [agentDialogOpen, setAgentDialogOpen] = useState(false);
 	const [editingSkill, setEditingSkill] = useState<AgentsTeamSkill | null>(null);
 	const [editingAgent, setEditingAgent] = useState<AgentsTeamAgent | null>(null);
+	const { setSkillCreationMode, setAgentCreationMode } = useCreationModeActions();
 
 	const handleEditSkill = useCallback((skill: AgentsTeamSkill) => {
 		setEditingSkill(skill);
@@ -62,9 +64,8 @@ export function useConfigDialogs({
 	}, []);
 
 	const handleNewSkill = useCallback(() => {
-		setEditingSkill(null);
-		setSkillDialogOpen(true);
-	}, []);
+		setSkillCreationMode();
+	}, [setSkillCreationMode]);
 
 	const handleSaveSkill = useCallback(
 		async (data: AgentsTeamSkillInput) => {
@@ -83,9 +84,8 @@ export function useConfigDialogs({
 	}, []);
 
 	const handleNewAgent = useCallback(() => {
-		setEditingAgent(null);
-		setAgentDialogOpen(true);
-	}, []);
+		setAgentCreationMode();
+	}, [setAgentCreationMode]);
 
 	const handleSaveAgent = useCallback(
 		async (data: AgentsTeamAgentInput) => {

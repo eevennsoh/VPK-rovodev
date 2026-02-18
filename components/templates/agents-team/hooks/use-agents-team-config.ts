@@ -125,6 +125,8 @@ export function useAgentsTeamConfig() {
 				);
 				if (!result) return null;
 				setSkills((prev) => [...prev, result.skill]);
+				// Persist to seed files in background
+				fetch(API_ENDPOINTS.agentsTeamSkillPersist(result.skill.id), { method: "POST" }).catch(() => {});
 				return result.skill;
 			} catch (error) {
 				console.error("Failed to create skill:", error);
@@ -189,6 +191,8 @@ export function useAgentsTeamConfig() {
 				);
 				if (!result) return null;
 				setAgents((prev) => [...prev, result.agent]);
+				// Persist to seed files in background
+				fetch(API_ENDPOINTS.agentsTeamAgentPersist(result.agent.id), { method: "POST" }).catch(() => {});
 				return result.agent;
 			} catch (error) {
 				console.error("Failed to create agent:", error);

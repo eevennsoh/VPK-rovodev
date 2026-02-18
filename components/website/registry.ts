@@ -75,6 +75,7 @@ const UI_DEMO: Record<string, ComponentType> = {
 	"progress-tracker": dynamic(() => import("./demos/ui/progress-tracker-demo"), { ssr: false }),
 	radio: dynamic(() => import("./demos/ui/radio-group-demo"), { ssr: false }),
 	"split-button": dynamic(() => import("./demos/ui/split-button-demo"), { ssr: false }),
+	"skill-card": dynamic(() => import("./demos/ui/skill-card-demo"), { ssr: false }),
 	"skill-tag": dynamic(() => import("./demos/ui/skill-tag-demo"), { ssr: false }),
 	tag: dynamic(() => import("./demos/ui/tag-demo"), { ssr: false }),
 
@@ -863,6 +864,11 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"split-button-demo-destructive": dynamic(() => import("./demos/ui/split-button-demo").then((mod) => ({ default: mod.SplitButtonDemoDestructive })), { ssr: false }),
 	"split-button-demo-disabled": dynamic(() => import("./demos/ui/split-button-demo").then((mod) => ({ default: mod.SplitButtonDemoDisabled })), { ssr: false }),
 	"split-button-demo-variants": dynamic(() => import("./demos/ui/split-button-demo").then((mod) => ({ default: mod.SplitButtonDemoVariants })), { ssr: false }),
+	// Skill Card
+	"skill-card-demo-default": dynamic(() => import("./demos/ui/skill-card-demo").then((mod) => ({ default: mod.default })), { ssr: false }),
+	"skill-card-demo-app-source": dynamic(() => import("./demos/ui/skill-card-demo").then((mod) => ({ default: mod.SkillCardDemoAppSource })), { ssr: false }),
+	"skill-card-demo-custom-source": dynamic(() => import("./demos/ui/skill-card-demo").then((mod) => ({ default: mod.SkillCardDemoCustomSource })), { ssr: false }),
+	"skill-card-demo-no-description": dynamic(() => import("./demos/ui/skill-card-demo").then((mod) => ({ default: mod.SkillCardDemoWithoutDescription })), { ssr: false }),
 	// Skill Tag
 	"skill-tag-demo-default": dynamic(() => import("./demos/ui/skill-tag-demo").then((mod) => ({ default: mod.SkillTagDemoDefault })), { ssr: false }),
 	"skill-tag-demo-colors": dynamic(() => import("./demos/ui/skill-tag-demo").then((mod) => ({ default: mod.SkillTagDemoColors })), { ssr: false }),

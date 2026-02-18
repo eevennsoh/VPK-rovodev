@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { QueuedPromptItem } from "@/app/contexts";
+import { useCreationModeState, useCreationModeActions } from "@/app/contexts/context-creation-mode";
 import {
 	PromptInput,
 	PromptInputActionMenu,
@@ -10,6 +11,7 @@ import {
 	PromptInputActionMenuTrigger,
 	PromptInputBody,
 	PromptInputFooter,
+	PromptInputHeader,
 	PromptInputSubmit,
 	PromptInputTextarea,
 	PromptInputTools,
@@ -17,6 +19,8 @@ import {
 import { Queue, QueueItem, QueueItemActions, QueueItemContent, QueueItemIndicator, QueueList } from "@/components/ui-ai/queue";
 import { SpeechInput } from "@/components/ui-ai/speech-input";
 import { Button } from "@/components/ui/button";
+import { SkillTag } from "@/components/ui/skill-tag";
+import SkillIcon from "@atlaskit/icon-lab/core/skill";
 import { composerUpwardShadow, composerPromptInputClassName, composerTextareaClassName, textareaCSS } from "@/components/blocks/shared-ui/composer-styles";
 import DeleteIcon from "@atlaskit/icon/core/delete";
 import AddIcon from "@atlaskit/icon/core/add";
@@ -57,6 +61,8 @@ export default function AgentsTeamComposer({
 	autoFocus = true,
 }: Readonly<AgentsTeamComposerProps>) {
 	const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+	const { mode: creationMode } = useCreationModeState();
+	const { clearCreationMode } = useCreationModeActions();
 	const hasQueuedPrompts = queuedPrompts.length > 0;
 	const handleSpeechTranscription = (text: string) => {
 		const trimmedTranscription = text.trim();
@@ -67,6 +73,12 @@ export default function AgentsTeamComposer({
 		const trimmedPrompt = prompt.trimEnd();
 		onPromptChange(trimmedPrompt ? `${trimmedPrompt} ${trimmedTranscription}` : trimmedTranscription);
 	};
+
+	const creationModeLabel = creationMode === "skill" ? "skill-development" : creationMode === "agent" ? "agent-development" : null;
+	const creationModeIcon = creationMode === "skill"
+		? <SkillIcon label="" size="small" />
+		: <AgentIcon label="" size="small" />;
+	const creationModeColor = "default" as const;
 
 	return (
 		<div className="relative">
@@ -99,6 +111,18 @@ export default function AgentsTeamComposer({
 			) : null}
 			<div className="relative z-10 rounded-xl border border-border bg-surface px-4 pb-4 pt-4" style={{ boxShadow: composerUpwardShadow }}>
 				<PromptInput allowOverflow onSubmit={onSubmit} className={`${composerPromptInputClassName} relative z-10`}>
+					{creationModeLabel ? (
+						<PromptInputHeader className="px-0 pt-0">
+							<SkillTag
+								icon={creationModeIcon}
+								color={creationModeColor}
+								onRemove={clearCreationMode}
+							>
+								{creationModeLabel}
+							</SkillTag>
+						</PromptInputHeader>
+					) : null}
+
 					<PromptInputBody>
 						<PromptInputTextarea
 							value={prompt}

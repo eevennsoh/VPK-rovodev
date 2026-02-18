@@ -222,7 +222,7 @@ export default function AgentsTeamChatView({
 			</div>
 
 			<div className="absolute inset-x-0 bottom-0 z-20 flex justify-center">
-				{showQuestionCardOverlay ? (
+				{showQuestionCardOverlay || showApprovalCardOverlay ? (
 					<Footer hideIcon>
 						<span>
 							<kbd className="font-sans">↑</kbd> <kbd className="font-sans">↓</kbd> to navigate

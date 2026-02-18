@@ -17,6 +17,15 @@ interface SidebarFooterProps {
 	onNewAgent: () => void;
 }
 
+function focusComposerInput() {
+	requestAnimationFrame(() => {
+		const textarea = document.querySelector<HTMLTextAreaElement>(
+			'textarea[aria-label="Chat message input"]'
+		);
+		textarea?.focus();
+	});
+}
+
 export default function SidebarFooter({
 	skills,
 	agents,
@@ -27,6 +36,16 @@ export default function SidebarFooter({
 }: Readonly<SidebarFooterProps>) {
 	const [skillsOpen, setSkillsOpen] = useState(false);
 	const [agentsOpen, setAgentsOpen] = useState(false);
+
+	const handleNewSkill = () => {
+		onNewSkill();
+		focusComposerInput();
+	};
+
+	const handleNewAgent = () => {
+		onNewAgent();
+		focusComposerInput();
+	};
 
 	return (
 		<div className="flex flex-col">
@@ -65,7 +84,7 @@ export default function SidebarFooter({
 							variant="ghost"
 							size="sm"
 							className="w-full justify-start gap-2 text-text-subtlest"
-							onClick={onNewSkill}
+							onClick={handleNewSkill}
 						>
 							<AddIcon label="" size="small" />
 							Add skill
@@ -109,7 +128,7 @@ export default function SidebarFooter({
 							variant="ghost"
 							size="sm"
 							className="w-full justify-start gap-2 text-text-subtlest"
-							onClick={onNewAgent}
+							onClick={handleNewAgent}
 						>
 							<AddIcon label="" size="small" />
 							Add agent
@@ -121,7 +140,7 @@ export default function SidebarFooter({
 			{/* Bottom label */}
 			<div className="flex items-center justify-center border-t border-border p-3">
 				<span className="text-xs text-text-subtlest">
-					Agent team • Concept
+					Rovo • Concept
 				</span>
 			</div>
 		</div>

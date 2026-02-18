@@ -41,7 +41,9 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 	const { conversationContextRef, scrollSpacerRef } = useScrollAnchoring({ uiMessages });
 
 	useEffect(() => {
-		return () => stopStreaming();
+		return () => {
+			void stopStreaming();
+		};
 	}, [stopStreaming]);
 
 	const buildSendOptions = useCallback(() => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -12,13 +13,23 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/utils/theme-wrapper";
 import { token } from "@/lib/tokens";
+import CrossIcon from "@atlaskit/icon/core/cross";
 import SearchIcon from "@atlaskit/icon/core/search";
 import SidebarCollapseIcon from "@atlaskit/icon/core/sidebar-collapse";
 import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@/components/ui/empty";
 import type { AgentsTeamSkill, AgentsTeamAgent } from "@/lib/agents-team-config-types";
 import type { AgentRunListItem } from "@/lib/agents-team-run-types";
 import type { RetryTaskGroupKey } from "@/components/templates/agents-team/lib/retry-task-groups";
+import { filterItemsBySidebarSearch } from "@/components/templates/agents-team/lib/sidebar-search";
 import SidebarChatHistory, {
 	type ChatHistoryItem,
 } from "./sidebar-chat-history";
@@ -79,8 +90,24 @@ export function AppSidebar({
 	...props
 }: Readonly<AppSidebarProps>) {
 	const { toggleSidebar } = useSidebar();
-	const hasRunHistory = runHistory.length > 0;
-	const hasChatHistory = chatHistory.length > 0 || Boolean(isGeneratingTitle);
+	const [searchQuery, setSearchQuery] = useState("");
+	const normalizedSearchQuery = searchQuery.trim();
+	const showGeneratingTitle = Boolean(isGeneratingTitle) && normalizedSearchQuery.length === 0;
+	const filteredRunHistory = useMemo(
+		() => filterItemsBySidebarSearch(runHistory, searchQuery, (run) => run.plan.title),
+		[runHistory, searchQuery]
+	);
+	const filteredChatHistory = useMemo(
+		() => filterItemsBySidebarSearch(chatHistory, searchQuery, (chat) => chat.title),
+		[chatHistory, searchQuery]
+	);
+	const hasAnyHistory = runHistory.length > 0 || chatHistory.length > 0 || Boolean(isGeneratingTitle);
+	const hasRunHistory = filteredRunHistory.length > 0;
+	const hasChatHistory = filteredChatHistory.length > 0 || showGeneratingTitle;
+	const showNoResults =
+		normalizedSearchQuery.length > 0 &&
+		filteredRunHistory.length === 0 &&
+		filteredChatHistory.length === 0;
 
 	return (
 		<Sidebar
@@ -137,19 +164,38 @@ export function AppSidebar({
 				</div>
 			</SidebarHeader>
 			<SidebarContent className="bg-bg-neutral-subtle pb-[7.5rem]">
-				{hasRunHistory || hasChatHistory ? (
+				{hasAnyHistory ? (
 					<div className="flex flex-col">
 						<div className="p-3">
 							<InputGroup>
 								<InputGroupAddon>
 									<SearchIcon label="Search" />
 								</InputGroupAddon>
-								<InputGroupInput placeholder="Search" aria-label="Search" />
+								<InputGroupInput
+									placeholder="Search"
+									aria-label="Search"
+									type="search"
+									className="[&::-webkit-search-cancel-button]:hidden"
+									value={searchQuery}
+									onChange={(event) => setSearchQuery(event.currentTarget.value)}
+								/>
+								{searchQuery && (
+									<InputGroupAddon align="inline-end">
+										<InputGroupButton
+											size="icon-xs"
+											variant="ghost"
+											onClick={() => setSearchQuery("")}
+											aria-label="Clear search"
+										>
+											<CrossIcon label="" size="small" />
+										</InputGroupButton>
+									</InputGroupAddon>
+								)}
 							</InputGroup>
 						</div>
 						{hasRunHistory ? (
 							<SidebarRunHistory
-								items={runHistory}
+								items={filteredRunHistory}
 								activeRunId={activeRunId}
 								onSelectRun={onSelectRun}
 								onDeleteRun={onDeleteRun}
@@ -158,14 +204,53 @@ export function AppSidebar({
 						) : null}
 						{hasChatHistory ? (
 							<SidebarChatHistory
-								items={chatHistory}
+								items={filteredChatHistory}
 								activeChatId={activeChatId}
-								isGeneratingTitle={isGeneratingTitle}
+								isGeneratingTitle={showGeneratingTitle}
 								pendingChatId={pendingTitleChatId}
 								sectionLabel="Chats"
 								onSelectChat={onSelectChat}
 								onDeleteChat={onDeleteChat}
 							/>
+						) : null}
+						{showNoResults ? (
+							<div className="px-3 pb-2">
+								<Empty width="narrow" className="gap-4 py-2">
+									<EmptyHeader>
+										<EmptyMedia>
+											<Image
+												src="/illustration-spot/empty-state/comment/light.svg"
+												alt=""
+												width={160}
+												height={160}
+												aria-hidden
+												className="dark:hidden"
+											/>
+											<Image
+												src="/illustration-spot/empty-state/comment/dark.svg"
+												alt=""
+												width={160}
+												height={160}
+												aria-hidden
+												className="hidden dark:block"
+											/>
+										</EmptyMedia>
+										<EmptyTitle>No results</EmptyTitle>
+										<EmptyDescription>
+											We couldn&apos;t find anything matching your search.
+										</EmptyDescription>
+									</EmptyHeader>
+									<EmptyContent>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => setSearchQuery("")}
+										>
+											Clear search
+										</Button>
+									</EmptyContent>
+								</Empty>
+							</div>
 						) : null}
 					</div>
 				) : (

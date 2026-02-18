@@ -32,7 +32,9 @@ export function useRovoViewChat() {
 	});
 
 	useEffect(() => {
-		return () => stopStreaming();
+		return () => {
+			void stopStreaming();
+		};
 	}, [stopStreaming]);
 
 	const handleSubmit = useCallback(async () => {

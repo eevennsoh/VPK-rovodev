@@ -57,6 +57,7 @@ export const ADS_EQUIVALENTS: Record<string, AdsEquivalent> = {
 	switch: "@atlaskit/toggle",
 	table: "@atlaskit/dynamic-table",
 	tabs: "@atlaskit/tabs",
+	"skill-tag": "@atlaskit/tag",
 	tag: "@atlaskit/tag",
 	"time-picker": { package: "@atlaskit/datetime-picker", importPath: "@atlaskit/datetime-picker", namedExport: "TimePicker" },
 	tile: "@atlaskit/tile",

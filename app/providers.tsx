@@ -3,6 +3,7 @@
 import { ThemeWrapper } from "@/components/utils/theme-wrapper";
 import { SidebarProvider } from "@/app/contexts/context-sidebar";
 import { RovoChatProvider } from "@/app/contexts/context-rovo-chat";
+import { CreationModeProvider } from "@/app/contexts/context-creation-mode";
 
 // VPK does not initialize Atlassian Feature Gates in local prototype mode.
 // Override the problematic Rovo logo gate locally to avoid uninitialized FG client warnings.
@@ -29,9 +30,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 	return (
 		<ThemeWrapper>
 			<SidebarProvider>
-				<RovoChatProvider>
-					{children}
-				</RovoChatProvider>
+				<CreationModeProvider>
+					<RovoChatProvider>
+						{children}
+					</RovoChatProvider>
+				</CreationModeProvider>
 			</SidebarProvider>
 		</ThemeWrapper>
 	);

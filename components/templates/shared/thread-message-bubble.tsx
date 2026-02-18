@@ -229,7 +229,6 @@ export function ThreadMessageBubble({
 			{shouldRenderMessageText ? (
 				<MessageContent
 					className={cn(
-						"px-3",
 						(widgetDataPart || isWidgetLoading) && "mb-2"
 					)}
 				>

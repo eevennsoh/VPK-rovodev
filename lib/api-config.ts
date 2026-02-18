@@ -61,6 +61,10 @@ export const API_ENDPOINTS = {
 		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(id)}`,
 	agentsTeamAgent: (id: string) =>
 		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(id)}`,
+	agentsTeamSkillPersist: (id: string) =>
+		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(id)}/persist`,
+	agentsTeamAgentPersist: (id: string) =>
+		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(id)}/persist`,
 	agentsTeamThreads: (limit?: number) =>
 		`${API_BASE_URL}/api/agents-team/threads${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""

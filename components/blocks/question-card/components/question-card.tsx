@@ -5,6 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ProgressIndicator } from "@/components/ui/progress-indicator";
+import {
+	getCustomOptionIndex,
+	getNextFocusedIndex,
+	getTotalOptionSlots,
+	getVisibleOptionCount,
+} from "@/components/blocks/question-card/lib/option-slots";
 import ChevronLeftIcon from "@atlaskit/icon/core/chevron-left";
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import CrossIcon from "@atlaskit/icon/core/cross";
@@ -33,7 +39,6 @@ export interface QuestionCardProps {
 }
 
 const MAX_GENERATED_OPTIONS = 3;
-const CUSTOM_OPTION_INDEX = MAX_GENERATED_OPTIONS;
 const CUSTOM_OPTION_PLACEHOLDER = "Tell Rovo what to do...";
 
 function getSelectedValues(answerValue: QuestionCardAnswerValue | undefined): string[] {
@@ -115,6 +120,7 @@ function QuestionInput({
 	question,
 	answerValue,
 	focusedIndex,
+	customOptionIndex,
 	isSubmitting,
 	customInputRef,
 	onFocusIndex,
@@ -123,13 +129,15 @@ function QuestionInput({
 	question: QuestionCardQuestion;
 	answerValue: QuestionCardAnswerValue | undefined;
 	focusedIndex: number;
+	customOptionIndex: number;
 	isSubmitting: boolean;
 	customInputRef: React.RefObject<HTMLInputElement | null>;
 	onFocusIndex: (index: number) => void;
 	onAnswerChange: (value: QuestionCardAnswerValue, options?: Readonly<{ autoAdvance?: boolean }>) => void;
 }>): React.ReactElement {
 	const selectedValues = getSelectedValues(answerValue);
-	const visibleOptions = question.options.slice(0, MAX_GENERATED_OPTIONS);
+	const visibleOptionCount = getVisibleOptionCount(question.options.length, MAX_GENERATED_OPTIONS);
+	const visibleOptions = question.options.slice(0, visibleOptionCount);
 	const customInputValue = getCustomInputValue(question, answerValue);
 
 	return (
@@ -161,21 +169,20 @@ function QuestionInput({
 			<li
 				className="flex h-8 items-center gap-4 rounded-lg pl-2"
 				onMouseEnter={() => {
-					onFocusIndex(CUSTOM_OPTION_INDEX);
+					onFocusIndex(customOptionIndex);
 					customInputRef.current?.focus();
 				}}
 			>
-				<span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">4</span>
+				<span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">{customOptionIndex + 1}</span>
 				<Input
 					ref={customInputRef}
 					aria-label={`${question.label} custom answer`}
 					value={customInputValue}
 					onChange={(event) => onAnswerChange((event.target as HTMLInputElement).value)}
-					onFocus={() => onFocusIndex(CUSTOM_OPTION_INDEX)}
+					onFocus={() => onFocusIndex(customOptionIndex)}
 					disabled={isSubmitting}
 					placeholder={CUSTOM_OPTION_PLACEHOLDER}
 					className="h-8 border-input bg-bg-input text-sm leading-5"
-					tabIndex={-1}
 				/>
 			</li>
 		</ul>
@@ -196,8 +203,9 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 	const currentQuestion = questions[safeQuestionIndex];
 	const canGoToPreviousQuestion = safeQuestionIndex > 0;
 	const canGoToNextQuestion = safeQuestionIndex < totalQuestions - 1;
-	const visibleOptionCount = Math.min(currentQuestion.options.length, MAX_GENERATED_OPTIONS);
-	const totalOptionSlots = visibleOptionCount + 1;
+	const visibleOptionCount = getVisibleOptionCount(currentQuestion.options.length, MAX_GENERATED_OPTIONS);
+	const customOptionIndex = getCustomOptionIndex(visibleOptionCount);
+	const totalOptionSlots = getTotalOptionSlots(visibleOptionCount);
 
 	const allQuestionsAnswered = questions.every((question) => isQuestionAnswered(question, answers));
 
@@ -215,10 +223,10 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 	}, [safeQuestionIndex]);
 
 	useEffect(() => {
-		if (focusedIndex === CUSTOM_OPTION_INDEX) {
+		if (focusedIndex === customOptionIndex) {
 			customInputRef.current?.focus();
 		}
-	}, [focusedIndex]);
+	}, [focusedIndex, customOptionIndex]);
 
 	const resetFocusForNewQuestion = useCallback(() => {
 		setFocusedIndex(0);
@@ -309,7 +317,7 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 					if (isCustomInputFocused) {
 						cardRef.current?.focus();
 					}
-					setFocusedIndex((previous) => (previous <= 0 ? totalOptionSlots - 1 : previous - 1));
+					setFocusedIndex((previous) => getNextFocusedIndex(previous, totalOptionSlots, "up"));
 					break;
 				}
 				case "ArrowDown": {
@@ -317,7 +325,7 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 					if (isCustomInputFocused) {
 						cardRef.current?.focus();
 					}
-					setFocusedIndex((previous) => (previous >= totalOptionSlots - 1 ? 0 : previous + 1));
+					setFocusedIndex((previous) => getNextFocusedIndex(previous, totalOptionSlots, "down"));
 					break;
 				}
 				case "Enter": {
@@ -334,7 +342,7 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 						if (option) {
 							handleSelectOption(option.id);
 						}
-					} else if (focusedIndex === CUSTOM_OPTION_INDEX) {
+					} else if (focusedIndex === customOptionIndex) {
 						customInputRef.current?.focus();
 					}
 					break;
@@ -371,6 +379,7 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 			totalOptionSlots,
 			focusedIndex,
 			visibleOptionCount,
+			customOptionIndex,
 			currentQuestion,
 			canGoToPreviousQuestion,
 			canGoToNextQuestion,
@@ -408,6 +417,7 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 					question={currentQuestion}
 					answerValue={answers[currentQuestion.id]}
 					focusedIndex={focusedIndex}
+					customOptionIndex={customOptionIndex}
 					isSubmitting={isSubmitting}
 					customInputRef={customInputRef}
 					onFocusIndex={setFocusedIndex}

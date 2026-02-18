@@ -459,28 +459,26 @@ export function RunSummarySection({
 						</button>
 					) : null}
 				</div>
-				<div className="mt-4 rounded-lg bg-surface-sunken p-3">
-						{visualSummary ? (
-							<div className="flex flex-col gap-2">
-								{visualSummary.status === "failed" ? (
-									<p className="text-xs text-text-danger">
-										Visual presenter fallback used: {visualSummary.error || "Failed to generate visual summary."}
-								</p>
-							) : null}
-							<iframe
-								title="Run visual summary preview"
-								className="h-[620px] w-full rounded-md border border-border bg-surface"
-								sandbox=""
-									srcDoc={visualSummary.html}
-								/>
-							</div>
-						) : (
-							<div aria-live="polite" className="flex min-h-[420px] items-center justify-center">
-								<Spinner size="xl" className="text-text-subtle" label="Preparing generated webpage" />
-							</div>
-						)}
+				{visualSummary ? (
+					<div className="mt-4 flex flex-col gap-2">
+						{visualSummary.status === "failed" ? (
+							<p className="text-xs text-text-danger">
+								Visual presenter fallback used: {visualSummary.error || "Failed to generate visual summary."}
+							</p>
+						) : null}
+						<iframe
+							title="Run visual summary preview"
+							className="h-[620px] w-full rounded-md border border-border bg-surface"
+							sandbox=""
+							srcDoc={visualSummary.html}
+						/>
 					</div>
-				</section>
+				) : (
+					<div aria-live="polite" className="mt-4 flex min-h-[420px] items-center justify-center">
+						<Spinner size="xl" className="text-text-subtle" label="Preparing generated webpage" />
+					</div>
+				)}
+			</section>
 		</div>
 	);
 }

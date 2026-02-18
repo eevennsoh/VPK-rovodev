@@ -551,6 +551,112 @@ function buildPlanningQuestionCardSessionId(agentTeamRequestId) {
 
 const agentsTeamConfigManager = createConfigManager();
 
+// --- Seed file persistence helpers ---
+
+const fs = require("fs").promises;
+const persistedIds = new Set();
+
+function escapeForTemplate(str) {
+	if (typeof str !== "string") return "";
+	return str.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, "\\$").replace(/\n/g, "\\n").replace(/\r/g, "\\r");
+}
+
+async function appendSkillToSeedFiles(skill) {
+	// Append to frontend seed (TypeScript)
+	const frontendPath = path.join(__dirname, "..", "lib", "agents-team-config-seed.ts");
+	const frontendContent = await fs.readFile(frontendPath, "utf8");
+
+	const tsEntry = `\t{
+\t\tid: "${skill.id}",
+\t\tname: "${escapeForTemplate(skill.name)}",
+\t\tdescription:\n\t\t\t"${escapeForTemplate(skill.description)}",
+\t\tcontent: \`${escapeForTemplate(skill.content)}\`,
+\t\tisDefault: true,
+\t\tcreatedAt: now,
+\t\tupdatedAt: now,
+\t},`;
+
+	const updatedFrontend = frontendContent.replace(
+		/^(export const DEFAULT_SKILLS:\s*AgentsTeamSkill\[\]\s*=\s*\[)([\s\S]*?)(\n\];)/m,
+		(_, open, items, close) => `${open}${items}\n${tsEntry}${close}`
+	);
+	await fs.writeFile(frontendPath, updatedFrontend, "utf8");
+
+	// Append to backend seed (JavaScript)
+	const backendPath = path.join(__dirname, "lib", "agents-team-config-seed.js");
+	const backendContent = await fs.readFile(backendPath, "utf8");
+
+	const jsEntry = `\t{
+\t\tname: "${escapeForTemplate(skill.name)}",
+\t\tdescription:\n\t\t\t"${escapeForTemplate(skill.description)}",
+\t\tcontent: \`${escapeForTemplate(skill.content)}\`,
+\t},`;
+
+	const updatedBackend = backendContent.replace(
+		/^(const DEFAULT_SKILLS\s*=\s*\[)([\s\S]*?)(\n\];)/m,
+		(_, open, items, close) => `${open}${items}\n${jsEntry}${close}`
+	);
+	await fs.writeFile(backendPath, updatedBackend, "utf8");
+
+	console.log(`[AGENTS-CONFIG] Persisted skill "${skill.name}" to seed files`);
+}
+
+async function appendAgentToSeedFiles(agent) {
+	const resolvedSkillNames = (agent.equippedSkills || [])
+		.map((id) => agentsTeamConfigManager.getSkill(id))
+		.filter(Boolean)
+		.map((s) => s.name);
+
+	// Append to frontend seed (TypeScript)
+	const frontendPath = path.join(__dirname, "..", "lib", "agents-team-config-seed.ts");
+	const frontendContent = await fs.readFile(frontendPath, "utf8");
+
+	const equippedSkillsTs = resolvedSkillNames.length > 0
+		? `[${resolvedSkillNames.map((n) => `SEED_SKILL_${n.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_ID`).join(", ")}]`
+		: "[]";
+
+	const tsEntry = `\t{
+\t\tid: "${agent.id}",
+\t\tname: "${escapeForTemplate(agent.name)}",
+\t\tdescription:\n\t\t\t"${escapeForTemplate(agent.description)}",
+\t\tsystemPrompt: \`${escapeForTemplate(agent.systemPrompt)}\`,
+\t\tmodel: "${agent.model || "sonnet"}",
+\t\tallowedTools: ${JSON.stringify(agent.allowedTools || [])},
+\t\tequippedSkills: ${equippedSkillsTs},
+\t\tmaxTurns: undefined,
+\t\tisDefault: true,
+\t\tcreatedAt: now,
+\t\tupdatedAt: now,
+\t},`;
+
+	const updatedFrontend = frontendContent.replace(
+		/^(export const DEFAULT_AGENTS:\s*AgentsTeamAgent\[\]\s*=\s*\[)([\s\S]*?)(\n\];)/m,
+		(_, open, items, close) => `${open}${items}\n${tsEntry}${close}`
+	);
+	await fs.writeFile(frontendPath, updatedFrontend, "utf8");
+
+	// Append to backend seed (JavaScript)
+	const backendPath = path.join(__dirname, "lib", "agents-team-config-seed.js");
+	const backendContent = await fs.readFile(backendPath, "utf8");
+
+	const jsEntry = `\t{
+\t\tname: "${escapeForTemplate(agent.name)}",
+\t\tdescription:\n\t\t\t"${escapeForTemplate(agent.description)}",
+\t\tsystemPrompt: \`${escapeForTemplate(agent.systemPrompt)}\`,
+\t\tmodel: "${agent.model || "sonnet"}",
+\t\tallowedTools: ${JSON.stringify(agent.allowedTools || [])},
+\t\tequippedSkillsByName: ${JSON.stringify(resolvedSkillNames)},
+\t},`;
+
+	const updatedBackend = backendContent.replace(
+		/^(const DEFAULT_AGENTS\s*=\s*\[)([\s\S]*?)(\n\];)/m,
+		(_, open, items, close) => `${open}${items}\n${jsEntry}${close}`
+	);
+	await fs.writeFile(backendPath, updatedBackend, "utf8");
+
+	console.log(`[AGENTS-CONFIG] Persisted agent "${agent.name}" to seed files`);
+}
+
 const agentsTeamRunManager = createRunManager({
 	baseDir: path.join(__dirname, "data"),
 	buildSystemPrompt: null, // Not used in RovoDev-only mode
@@ -1989,7 +2095,7 @@ Rules:
 - Every question must be "single-select".
 - Every question must include 1-3 options.
 - Do not include a custom free-text option in the JSON options.
-- The UI automatically renders option 3 as "Tell Rovo what to do...".
+- The UI automatically appends a "Tell Rovo what to do..." free-text field after the generated options.
 - Do not generate a plan or task list.
 - This is round ${round} of ${maxRounds}.
 - If previous answers are partial, ask only missing/high-impact follow-ups.
@@ -2178,14 +2284,31 @@ app.post("/api/chat-sdk", async (req, res) => {
 	try {
 		const {
 			messages,
-			contextDescription,
+			contextDescription: rawContextDescription,
 			provider,
 			agentTeamMode: rawAgentTeamMode,
 			agentTeamRequestId,
+			creationMode,
 			hasQueuedPrompts: rawHasQueuedPrompts,
 		} = req.body || {};
 		const hasQueuedPrompts = Boolean(rawHasQueuedPrompts);
 		const agentTeamMode = Boolean(rawAgentTeamMode);
+
+		// If creationMode is set, load the instruction file and prepend to contextDescription
+		let contextDescription = rawContextDescription;
+		if (creationMode === "skill" || creationMode === "agent") {
+			const fileName = creationMode === "skill" ? "skill-development.md" : "agent-development.md";
+			const filePath = path.join(__dirname, "..", "custom", fileName);
+			try {
+				const fs = require("fs");
+				const instructions = fs.readFileSync(filePath, "utf8");
+				const prefix = `You are in ${creationMode} creation mode. Follow the instructions below to help the user create a new ${creationMode}.\n\nIMPORTANT: Use the request_user_input tool (question cards) to gather requirements from the user. Ask clarifying questions about the ${creationMode} they want to create.\n\nOnce you have enough information, generate the complete ${creationMode} configuration and call the POST /api/agents-team/${creationMode}s endpoint to create it. After successful creation, call POST /api/agents-team/${creationMode}s/{id}/persist to save it permanently.\n\n---\n\n${instructions}`;
+				contextDescription = contextDescription ? `${prefix}\n\n${contextDescription}` : prefix;
+			} catch (readError) {
+				console.error(`[CHAT-SDK] Failed to read ${fileName}:`, readError.message);
+			}
+		}
+
 		const latestVisibleUserMessage = getLatestVisibleUserMessage(messages);
 		const latestUserMessageSource = getLatestUserMessageSource(messages);
 		const isPostClarificationTurn =
@@ -3706,6 +3829,46 @@ app.delete("/api/agents-team/agents/:id", (req, res) => {
 		console.error("[AGENTS-CONFIG] Failed to delete agent:", error);
 		const message = error instanceof Error ? error.message : "Failed to delete agent";
 		return res.status(400).json({ error: message });
+	}
+});
+
+// --- Persist skill/agent to seed files (survives server restart) ---
+
+app.post("/api/agents-team/skills/:id/persist", async (req, res) => {
+	try {
+		const skill = agentsTeamConfigManager.getSkill(req.params.id);
+		if (!skill) {
+			return res.status(404).json({ error: "Skill not found" });
+		}
+		if (skill.isDefault || persistedIds.has(skill.id)) {
+			return res.status(400).json({ error: "Skill already persisted" });
+		}
+		await appendSkillToSeedFiles(skill);
+		persistedIds.add(skill.id);
+		return res.status(200).json({ success: true });
+	} catch (error) {
+		console.error("[AGENTS-CONFIG] Failed to persist skill:", error);
+		const message = error instanceof Error ? error.message : "Failed to persist skill";
+		return res.status(500).json({ error: message });
+	}
+});
+
+app.post("/api/agents-team/agents/:id/persist", async (req, res) => {
+	try {
+		const agent = agentsTeamConfigManager.getAgent(req.params.id);
+		if (!agent) {
+			return res.status(404).json({ error: "Agent not found" });
+		}
+		if (agent.isDefault || persistedIds.has(agent.id)) {
+			return res.status(400).json({ error: "Agent already persisted" });
+		}
+		await appendAgentToSeedFiles(agent);
+		persistedIds.add(agent.id);
+		return res.status(200).json({ success: true });
+	} catch (error) {
+		console.error("[AGENTS-CONFIG] Failed to persist agent:", error);
+		const message = error instanceof Error ? error.message : "Failed to persist agent";
+		return res.status(500).json({ error: message });
 	}
 });
 

@@ -2847,27 +2847,71 @@ const steps: ProgressTrackerStep[] = [
 		],
 	},
 
+	"skill-card": {
+		description:
+			"Compound hover-preview card for skills. Built on VPK HoverCard primitives with a trigger, title/description content, optional icon, and attribution source.",
+		usage: `import { SkillCard } from "@/components/ui/skill-card"
+import { Button } from "@/components/ui/button"
+import PageIcon from "@atlaskit/icon/core/page"
+
+<SkillCard.Root>
+  <SkillCard.Trigger render={<Button variant="outline" />}>
+    Hover to preview
+  </SkillCard.Trigger>
+  <SkillCard.Content
+    skillName="Create Google Drive document"
+    description="Create, name, and store a document in the right folder."
+    icon={{ render: <PageIcon label="" size="small" />, label: "Document" }}
+    source={{ type: "app", name: "Google Drive", logoSrc: "/3p/google-drive/16.svg" }}
+  />
+</SkillCard.Root>`,
+		props: [
+			{ name: "skillName", type: "string", required: true, description: "Primary title shown in the card header." },
+			{ name: "description", type: "string", description: "Optional secondary text. Truncated to two lines when present." },
+			{ name: "icon", type: "{ render: ReactElement; label: string; className?: string }", description: "Optional icon descriptor rendered before the title via VPK Icon wrapper." },
+			{
+				name: "source",
+				type: '{ type: "app"; name: string; logoSrc?: string } | { type: "custom"; name: string; avatarSrc?: string; fallbackInitials?: string }',
+				description: "Optional attribution row shown at the bottom of the card.",
+			},
+			{ name: "side", type: '"top" | "right" | "bottom" | "left"', default: '"top"', description: "Popup side relative to trigger (inherited from HoverCardContent)." },
+			{ name: "openDelay", type: "number", description: "Delay before opening on hover (inherited from SkillCard.Root)." },
+			{ name: "closeDelay", type: "number", description: "Delay before closing after hover leaves (inherited from SkillCard.Root)." },
+		],
+		subComponents: [
+			{ name: "SkillCard.Root", description: "Hover-card root controller (open state and timing)." },
+			{ name: "SkillCard.Trigger", description: "Interactive trigger element for opening the card." },
+			{ name: "SkillCard.Content", description: "Card surface with title, description, and source attribution." },
+		],
+		examples: [
+			{ title: "Default", demoSlug: "skill-card-demo-default" },
+			{ title: "App source", description: "Attribution row with app logo and name.", demoSlug: "skill-card-demo-app-source" },
+			{ title: "Custom source", description: "Attribution row with user avatar and name.", demoSlug: "skill-card-demo-custom-source" },
+			{ title: "No description", description: "Compact content with title and source only.", demoSlug: "skill-card-demo-no-description" },
+		],
+	},
+
 	"skill-tag": {
 		description: "Skewed parallelogram-shaped tag for displaying AI skill references inline. Features a colored slash bar on the left edge, optional icon, and counter-skewed content.",
 		usage: `import { SkillTag, SkillTagGroup } from "@/components/ui/skill-tag"
 import SearchIcon from "@atlaskit/icon/core/search"
 
-<SkillTag icon={<SearchIcon label="" size="small" />} color="blue">
+<SkillTag icon={<SearchIcon label="" size="small" />} color="teamwork">
   Search
 </SkillTag>`,
 		props: [
 			{
 				name: "color",
-				type: '"blue" | "green" | "red" | "yellow" | "purple" | "teal"',
-				default: '"blue"',
-				description: "Color of the left slash bar. Maps to ADS border tokens (brand, success, danger, warning, discovery, information).",
+				type: '"default" | "2p3p" | "platform" | "teamwork" | "software" | "strategy" | "service" | "product"',
+				default: '"default"',
+				description: "Collection variant. Controls both slash bar color and icon color. Maps to Figma collection names.",
 			},
 			{ name: "icon", type: "ReactNode", description: "Icon rendered before the label (12px, counter-skewed to remain upright)." },
 			{ name: "onClick", type: "(e: MouseEvent) => void", description: "Click handler. When provided, adds hover/active states and pointer cursor." },
 		],
 		examples: [
 			{ title: "Default", demoSlug: "skill-tag-demo-default" },
-			{ title: "Colors", description: "All 6 color variants.", demoSlug: "skill-tag-demo-colors" },
+			{ title: "Colors", description: "All 8 collection variants.", demoSlug: "skill-tag-demo-colors" },
 			{ title: "With icon", description: "Tags with ADS icons.", demoSlug: "skill-tag-demo-with-icon" },
 			{ title: "Interactive", description: "Clickable tags with hover/active states.", demoSlug: "skill-tag-demo-interactive" },
 			{ title: "Group", description: "SkillTagGroup for organizing multiple tags.", demoSlug: "skill-tag-demo-group" },
