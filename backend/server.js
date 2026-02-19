@@ -72,6 +72,7 @@ const ROVODEV_PORTS_FILE = path.join(__dirname, "..", ".dev-rovodev-ports");
 /** Cached availability state — refreshed on each request via the port file. */
 let _rovoDevAvailable = false;
 let _rovoDevChecked = false;
+let _rovoDevLastRefresh = 0;
 /** @type {import("./lib/rovodev-pool") | null} */
 let _rovoDevPool = null;
 
@@ -194,6 +195,8 @@ async function refreshRovoDevAvailability() {
  * Returns true if RovoDev Serve is available. Uses cached result if already checked,
  * otherwise performs a fresh check. The port file is re-read on each call to detect
  * if RovoDev was started or stopped since last check.
+ * 
+ * Periodically refreshes the pool to pick up newly available ports.
  */
 async function isRovoDevAvailable() {
 	const fs = require("fs");
@@ -217,6 +220,16 @@ async function isRovoDevAvailable() {
 
 	// If the port file appeared or we haven't checked yet, do a fresh health check
 	if (!_rovoDevChecked || !_rovoDevAvailable) {
+		return refreshRovoDevAvailability();
+	}
+
+	// Periodically refresh pool to pick up newly healthy ports (every 60 seconds)
+	const now = Date.now();
+	if (!_rovoDevLastRefresh) {
+		_rovoDevLastRefresh = now;
+	}
+	if (now - _rovoDevLastRefresh > 60000) {
+		_rovoDevLastRefresh = now;
 		return refreshRovoDevAvailability();
 	}
 

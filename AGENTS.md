@@ -363,8 +363,9 @@ Exports:
 ### Development
 
 - Install dependencies: `pnpm install`
-- Start RovoDev Serve (separate terminal): `pnpm run rovodev`
-- Start frontend + backend: `pnpm run dev` (auto-detects rovodev serve via port file)
+- First-time MCP setup: `pnpm run rovodev:setup` (interactive, approve MCP servers, then Ctrl+C)
+- Start everything: `pnpm run rovodev` (starts rovodev serve pool + backend + frontend)
+- Start frontend + backend only: `pnpm run dev` (requires rovodev serve already running)
 - Start frontend only: `pnpm run dev:frontend`
 - Start backend only: `pnpm run dev:backend`
 
@@ -532,7 +533,7 @@ Note: `.claude.local.md` should be added to `.gitignore` if used for personal/lo
 - Use functional state updates for toggles (`setX(prev => !prev)`). <!-- added: 2026-02-08 -->
 - Derive render-only values inline; do not sync derived state via effects. <!-- added: 2026-02-08 -->
 - **Default mode is RovoDev-first**: VPK expects `pnpm run rovodev` in a separate terminal. Chat endpoints return 503 when RovoDev Serve is unavailable unless `AUTO_FALLBACK_TO_AI_GATEWAY=true` is set and AI Gateway config is valid. <!-- updated: 2026-02-17 -->
-- `pnpm run rovodev` + `pnpm run dev` (in separate terminals) is required to use chat functionality. RovoDev configuration (billing site, MCP permissions) is persisted across restarts via the `--restore` flag. If the chat gives unexpected answers or stale context, the RovoDev session may be corrupted — restart `pnpm run rovodev` for a fresh session. <!-- updated: 2026-02-19 -->
+- `pnpm run rovodev` + `pnpm run dev` (in separate terminals) is required to use chat functionality. If the chat gives unexpected answers or stale context, the RovoDev session may be corrupted — restart `pnpm run rovodev` for a fresh session. <!-- updated: 2026-02-19 -->
 - No directories are excluded from TypeScript type-checking (only `node_modules`). All errors are visible and trackable. <!-- added: 2026-02-15 -->
 - Always `await stop()` before calling `sendMessage()` in AI SDK `useChat` flows — `stop`, `sendMessage`, `regenerate`, and `resumeStream` share mutable internal state and must not be fire-and-forgotten in sequence. <!-- added: 2026-02-12 -->
 - CSS `gap` doesn't transition away when a flex child collapses to `w-0`. Replace parent `gap-*` with transitioning `mr-*`/`ml-*` on the collapsible element (e.g., `mr-3` → `mr-0` alongside `w-0 opacity-0`). <!-- added: 2026-02-12 -->

@@ -88,9 +88,9 @@ function Tile({
 			aria-label={label}
 			className={cn(
 				tileVariants({ size, variant }),
-				isInset
-				? cn("p-0.5", INSET_CHILD_SIZES[size ?? "medium"])
-				: "[&_img]:size-full [&_svg]:size-full",
+			isInset
+			? cn("p-0.5", INSET_CHILD_SIZES[size ?? "medium"])
+			: "[&_span]:flex [&_span]:size-full [&_span]:items-center [&_span]:justify-center [&_img]:size-full [&_svg]:size-full",
 				hasBorder && "border border-border",
 				className
 			)}

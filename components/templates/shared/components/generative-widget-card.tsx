@@ -51,6 +51,32 @@ interface GenerativeWidgetCardShellProps {
 	onOpenPreview?: () => void;
 }
 
+interface GenerativeWidgetHeaderData {
+	contentTypeLabel: string;
+	metadata: ReturnType<typeof resolveGenerativeWidgetMetadata>;
+	sourceLabel: string;
+	sourceLogoSrc: string;
+}
+
+function resolveGenerativeWidgetHeaderData(
+	widget: ParsedGenerativeWidget
+): GenerativeWidgetHeaderData {
+	const metadata = resolveGenerativeWidgetMetadata(widget);
+	const sourceLogoSrc = resolveGenerativeWidgetLogoSrc({
+		sourceLogoSrc: metadata.sourceLogoSrc,
+		sourceName: metadata.sourceName,
+	});
+	const sourceLabel = metadata.sourceName ?? "VPK";
+	const contentTypeLabel = formatContentTypeLabel(metadata.contentType);
+
+	return {
+		contentTypeLabel,
+		metadata,
+		sourceLabel,
+		sourceLogoSrc,
+	};
+}
+
 function renderContentTypeIcon(contentType: GenerativeContentType, label: string): ReactNode {
 	if (contentType === "image") {
 		return <ImageIcon label={label} size="small" />;
@@ -71,29 +97,55 @@ function renderContentTypeIcon(contentType: GenerativeContentType, label: string
 	return <FileIcon label={label} size="small" />;
 }
 
-function renderWidgetBody(widget: ParsedGenerativeWidget, previewMode: boolean): ReactNode {
+function renderWidgetBody(
+	widget: ParsedGenerativeWidget,
+	previewMode: boolean,
+	withContainer = true
+): ReactNode {
 	if (widget.type === "genui-preview") {
+		const content = <JsonRenderView spec={widget.spec} />;
+		if (!withContainer) {
+			return previewMode ? (
+				<div className="max-h-[65vh] overflow-auto">
+					{content}
+				</div>
+			) : content;
+		}
+
 		return (
-			<div
-				className={cn(
-					"overflow-hidden rounded-md border border-border bg-surface",
-					previewMode ? "max-h-[65vh] overflow-auto p-4" : "p-3"
-				)}
-			>
-				<JsonRenderView spec={widget.spec} />
+		<div
+			className={cn(
+				"overflow-hidden rounded-md bg-surface",
+				previewMode ? "max-h-[65vh] overflow-auto p-4" : "p-3"
+			)}
+		>
+				{content}
 			</div>
 		);
 	}
 
 	if (widget.type === "audio-preview") {
-		return (
-			<div className="rounded-md border border-border bg-surface p-3">
+		const content = (
+			<>
 				<AudioPlayerElement controls preload="metadata" src={widget.audioUrl} />
 				{widget.transcript ? (
-					<p className="mt-2 text-xs text-text-subtle">
+					<p className={cn("text-xs text-text-subtle", withContainer ? "mt-2" : "mt-3")}>
 						{widget.transcript}
 					</p>
 				) : null}
+			</>
+		);
+		if (!withContainer) {
+			return (
+				<div>
+					{content}
+				</div>
+			);
+		}
+
+		return (
+			<div className="rounded-md bg-surface p-3">
+				{content}
 			</div>
 		);
 	}
@@ -107,7 +159,10 @@ function renderWidgetBody(widget: ParsedGenerativeWidget, previewMode: boolean):
 						href={image.url}
 						target="_blank"
 						rel="noreferrer"
-						className="block overflow-hidden rounded-md border border-border bg-surface"
+						className={cn(
+							"block overflow-hidden",
+							withContainer ? "rounded-md bg-surface" : ""
+						)}
 					>
 						<Image
 							src={image.url}
@@ -132,13 +187,12 @@ function GenerativeWidgetCardShell({
 	previewMode = false,
 	onOpenPreview,
 }: Readonly<GenerativeWidgetCardShellProps>): ReactNode {
-	const metadata = resolveGenerativeWidgetMetadata(widget);
-	const sourceLogoSrc = resolveGenerativeWidgetLogoSrc({
-		sourceLogoSrc: metadata.sourceLogoSrc,
-		sourceName: metadata.sourceName,
-	});
-	const sourceLabel = metadata.sourceName ?? "VPK";
-	const contentTypeLabel = formatContentTypeLabel(metadata.contentType);
+	const {
+		contentTypeLabel,
+		metadata,
+		sourceLabel,
+		sourceLogoSrc,
+	} = resolveGenerativeWidgetHeaderData(widget);
 
 	return (
 		<Card className={cn("w-full gap-0 p-0", className)}>
@@ -201,7 +255,7 @@ export function GenerativeWidgetCard({
 		return null;
 	}
 
-	const metadata = resolveGenerativeWidgetMetadata(parsedWidget);
+	const { metadata, sourceLabel, sourceLogoSrc } = resolveGenerativeWidgetHeaderData(parsedWidget);
 
 	return (
 		<div className={cn("pb-2", className)}>
@@ -211,15 +265,28 @@ export function GenerativeWidgetCard({
 					onOpenPreview={() => setPreviewOpen(true)}
 				/>
 				<DialogContent className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-5xl" size="xl">
-					<DialogHeader className="sr-only">
-						<DialogTitle>{metadata.title}</DialogTitle>
-						<DialogDescription>{metadata.description}</DialogDescription>
+					<DialogHeader className="px-4 py-3">
+						<div className="flex min-w-0 items-center gap-3">
+							<Image
+								src={sourceLogoSrc}
+								alt={`${sourceLabel} logo`}
+								width={32}
+								height={32}
+								unoptimized
+								className="rounded-md border border-border bg-surface object-contain"
+							/>
+							<div className="min-w-0 flex-1">
+								<DialogTitle className="truncate text-sm leading-5 font-semibold">
+									{metadata.title}
+								</DialogTitle>
+								<DialogDescription className="line-clamp-2 text-xs leading-4">
+									{metadata.description}
+								</DialogDescription>
+							</div>
+						</div>
 					</DialogHeader>
 					<div className="p-4">
-						<GenerativeWidgetCardShell
-							widget={parsedWidget}
-							previewMode
-						/>
+						{renderWidgetBody(parsedWidget, true, false)}
 					</div>
 				</DialogContent>
 			</Dialog>

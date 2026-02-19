@@ -463,7 +463,9 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"card-demo-login": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoLogin })), { ssr: false }),
 	"card-demo-meeting-notes": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoMeetingNotes })), { ssr: false }),
 	"card-demo-small-size": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoSmallSize })), { ssr: false }),
-	"card-demo-app-preview": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoAppPreview })), { ssr: false }),
+	"card-demo-generative-card": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoGenerativeCard })), { ssr: false }),
+	"card-demo-generative-card-1p": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoGenerativeCard1p })), { ssr: false }),
+	"card-demo-generative-card-icon": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoGenerativeCardIcon })), { ssr: false }),
 	"card-demo-with-image-small": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoWithImageSmall })), { ssr: false }),
 	"card-demo-with-image": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoWithImage })), { ssr: false }),
 	// Table

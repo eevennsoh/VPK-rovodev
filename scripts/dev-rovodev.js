@@ -1,11 +1,10 @@
-const net = require("node:net");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, execSync } = require("node:child_process");
 const { getRovodevBasePort } = require("./lib/worktree-ports");
+const { isPortAvailable, checkRovodevHealth, resolveRovodevBin } = require("./lib/rovodev-utils");
 
 try {
-	// Allow ROVODEV_SITE_URL overrides from .env.local for local dev flows.
 	require("dotenv").config({ path: path.join(process.cwd(), ".env.local") });
 } catch {
 	// ignore dotenv loading failures
@@ -23,48 +22,45 @@ const configuredBillingSiteUrl =
 const portFile = path.join(process.cwd(), ".dev-rovodev-port");
 const portsFile = path.join(process.cwd(), ".dev-rovodev-ports");
 
-const unsupportedErrors = new Set([
-	"EADDRNOTAVAIL",
-	"EAFNOSUPPORT",
-	"EPROTONOSUPPORT",
-	"ENOTSUP",
-]);
+/**
+ * Kill stale RovoDev instances on unhealthy ports.
+ * Returns count of instances killed.
+ */
+const cleanupStaleInstances = async (minPort, maxPort) => {
+	console.log(`[rovodev] Scanning for stale instances (ports ${minPort}-${maxPort})...`);
+	let killed = 0;
 
-const canListen = (options, { allowUnsupported = false } = {}) =>
-	new Promise((resolve) => {
-		const server = net.createServer();
-		server.unref();
-		server.once("error", (err) => {
-			if (err.code === "EADDRINUSE" || err.code === "EACCES") {
-				resolve(false);
-				return;
-			}
-			if (allowUnsupported && unsupportedErrors.has(err.code)) {
-				resolve(true);
-				return;
-			}
-			resolve(false);
-		});
-		server.once("listening", () => {
-			server.close(() => resolve(true));
-		});
-		server.listen(options);
-	});
+	for (let port = minPort; port <= maxPort; port++) {
+		const health = await checkRovodevHealth(port);
 
-const isPortAvailable = async (port) => {
-	const ipv4Available = await canListen({ port, host: "0.0.0.0" }, {
-		allowUnsupported: true,
-	});
-	if (!ipv4Available) {
-		return false;
+		if (health.status === "unreachable") {
+			// Port is not responding, skip
+			continue;
+		}
+
+		// Port is responding but unhealthy (MCP servers failed)
+		if (!health.healthy) {
+			console.log(
+				`[rovodev] Found unhealthy instance on port ${port} (status: ${health.status}). Killing...`
+			);
+			try {
+				// Try to kill by port number using lsof + kill
+				execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`, {
+					stdio: "pipe",
+				});
+				killed++;
+				await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for kill to take effect
+			} catch {
+				// Ignore kill errors
+			}
+		}
 	}
 
-	const ipv6Available = await canListen(
-		{ port, host: "::", ipv6Only: true },
-		{ allowUnsupported: true }
-	);
+	if (killed > 0) {
+		console.log(`[rovodev] Killed ${killed} stale instance(s).`);
+	}
 
-	return ipv6Available !== false;
+	return killed;
 };
 
 const findAvailablePorts = async (count) => {
@@ -133,129 +129,11 @@ const readRecordedPorts = () => {
 	return null;
 };
 
-/**
- * Resolve the rovodev binary and return { bin, args } where `args` are any
- * extra arguments that must be prepended before "serve".
- *
- * For standalone `rovodev` binary: { bin: "/path/to/rovodev", servePrefix: [] }
- * For `acli` wrapper:              { bin: "/path/to/acli", servePrefix: ["rovodev"] }
- */
-const resolveRovodevBin = () => {
-	const { execSync } = require("node:child_process");
-
-	// 1. Check PATH for `rovodev` first
-	try {
-		const binPath = execSync("which rovodev", {
-			encoding: "utf8",
-			stdio: ["pipe", "pipe", "pipe"],
-		}).trim();
-		if (binPath) {
-			return { bin: binPath, servePrefix: [] };
-		}
-	} catch {
-		// not on PATH
-	}
-
-	// 2. Check PATH for `acli` (user-managed, typically more up-to-date)
-	try {
-		const acliBinPath = execSync("which acli", {
-			encoding: "utf8",
-			stdio: ["pipe", "pipe", "pipe"],
-		}).trim();
-		if (acliBinPath) {
-			console.log(`[rovodev] Using acli wrapper: ${acliBinPath}`);
-			return { bin: acliBinPath, servePrefix: ["rovodev"] };
-		}
-	} catch {
-		// not on PATH
-	}
-
-	// 3. Check ~/.rovodev/bin as a common install location
-	const homeDir = require("node:os").homedir();
-	const homeBinPath = path.join(homeDir, ".rovodev", "bin", "rovodev");
-	if (fs.existsSync(homeBinPath)) {
-		return { bin: homeBinPath, servePrefix: [] };
-	}
-
-	// 4. Search Atlascode extension paths (Cursor / VS Code)
-	//    The binary is installed per-workspace under:
-	//    ~/Library/Application Support/{Cursor,Code}/User/workspaceStorage/*/
-	//      atlassian.atlascode/atlascode-rovodev-bin/*/atlassian_cli_rovodev
-	const editorDirs = [
-		path.join(homeDir, "Library", "Application Support", "Cursor", "User", "workspaceStorage"),
-		path.join(homeDir, "Library", "Application Support", "Code", "User", "workspaceStorage"),
-		path.join(homeDir, ".config", "Cursor", "User", "workspaceStorage"),
-		path.join(homeDir, ".config", "Code", "User", "workspaceStorage"),
-	];
-
-	let latestBin = null;
-	let latestVersion = [0, 0, 0];
-
-	const parseVersion = (v) => {
-		const parts = v.split(".").map(Number);
-		return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
-	};
-
-	const isNewerVersion = (a, b) => {
-		for (let i = 0; i < 3; i++) {
-			if (a[i] !== b[i]) return a[i] > b[i];
-		}
-		return false;
-	};
-
-	for (const editorDir of editorDirs) {
-		if (!fs.existsSync(editorDir)) {
-			continue;
-		}
-
-		let workspaceDirs;
-		try {
-			workspaceDirs = fs.readdirSync(editorDir);
-		} catch {
-			continue;
-		}
-
-		for (const wsDir of workspaceDirs) {
-			const rovodevBinDir = path.join(
-				editorDir,
-				wsDir,
-				"atlassian.atlascode",
-				"atlascode-rovodev-bin"
-			);
-
-			if (!fs.existsSync(rovodevBinDir)) {
-				continue;
-			}
-
-			let versions;
-			try {
-				versions = fs.readdirSync(rovodevBinDir);
-			} catch {
-				continue;
-			}
-
-			for (const version of versions) {
-				const binPath = path.join(rovodevBinDir, version, "atlassian_cli_rovodev");
-				if (fs.existsSync(binPath)) {
-					const parsed = parseVersion(version);
-					if (!latestBin || isNewerVersion(parsed, latestVersion)) {
-						latestBin = binPath;
-						latestVersion = parsed;
-					}
-				}
-			}
-		}
-	}
-
-	if (latestBin) {
-		console.log(`[rovodev] Found Atlascode binary (v${latestVersion.join(".")}): ${latestBin}`);
-		return { bin: latestBin, servePrefix: [] };
-	}
-
-	return { bin: "rovodev", servePrefix: [] };
-};
-
 const run = async () => {
+	// Clean up any stale/unhealthy instances before starting
+	const scanMax = basePort + maxTries;
+	await cleanupStaleInstances(basePort, scanMax);
+
 	// Check if existing pool processes are still running
 	const recordedPorts = readRecordedPorts();
 	if (recordedPorts !== null) {
@@ -265,14 +143,29 @@ const run = async () => {
 		).every(Boolean);
 
 		if (allInUse) {
-			writePortFiles(recordedPorts);
-			console.log(
-				`RovoDev serve pool already running on ports ${recordedPorts.join(", ")}. Reusing existing processes.`
+			// Verify they're actually healthy, not just in use
+			const healthChecks = await Promise.all(
+				recordedPorts.map(async (p) => {
+					const health = await checkRovodevHealth(p);
+					return { port: p, healthy: health.healthy };
+				})
 			);
-			return;
-		}
 
-		cleanup();
+			const allHealthy = healthChecks.every((h) => h.healthy);
+			if (allHealthy) {
+				writePortFiles(recordedPorts);
+				console.log(
+					`RovoDev serve pool already running on ports ${recordedPorts.join(", ")}. Reusing existing processes.`
+				);
+				return;
+			}
+
+			// Some are unhealthy, clean up and restart
+			console.log(`[rovodev] Some existing instances are unhealthy. Restarting...`);
+			cleanup();
+		} else {
+			cleanup();
+		}
 	}
 
 	const ports = await findAvailablePorts(poolSize);
@@ -303,14 +196,11 @@ const run = async () => {
 		// without needing to coordinate Bearer tokens. This is safe because
 		// rovodev serve only listens on 127.0.0.1.
 
-		// Use --restore to persist billing site, MCP permissions, and other
-		// config across restarts within this workspace.
 		// Use --respect-configured-permissions to honor the global ~/.rovodev/config.yml
 		// so you don't need to re-approve MCP servers on every restart.
 		const spawnArgs = [
 			...servePrefix,
 			"serve",
-			"--restore",
 			"--disable-session-token",
 			"--respect-configured-permissions",
 			"--site-url",

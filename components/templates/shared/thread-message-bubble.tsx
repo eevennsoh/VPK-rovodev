@@ -163,7 +163,7 @@ export function ThreadMessageBubble({
 		(shouldShowToolsSection && toolParts.length > 0) ||
 		sources.length > 0 ||
 		showSuggestions ||
-		(shouldShowWidgetSections && isWidgetLoading) ||
+		(shouldShowWidgetSections && isWidgetLoading && Boolean(renderLoadingWidget)) ||
 		shouldShowWidgetError ||
 		Boolean(renderedWidget);
 	if (!hasRenderableContent) {

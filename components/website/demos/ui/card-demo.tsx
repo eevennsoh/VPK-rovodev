@@ -1,12 +1,18 @@
+"use client";
+
+import { useState } from "react";
 import { CaptionsIcon, PlusIcon } from "lucide-react";
 import Image from "next/image";
-import { useId, useState } from "react";
+import CalendarIcon from "@atlaskit/icon/core/calendar";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { ConfluenceLogo } from "@/components/ui/logo";
+import { Tile } from "@/components/ui/tile";
 
 export default function CardDemo() {
 	return (
@@ -27,15 +33,10 @@ export function CardDemoDefaultSize() {
 		<Card size="default" className="mx-auto w-full max-w-sm">
 			<CardHeader>
 				<CardTitle>Default Card</CardTitle>
-				<CardDescription>
-					This card uses the default size variant.
-				</CardDescription>
+				<CardDescription>This card uses the default size variant.</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<p>
-					The card component supports a size prop that defaults to
-					&quot;default&quot; for standard spacing and sizing.
-				</p>
+				<p>The card component supports a size prop that defaults to &quot;default&quot; for standard spacing and sizing.</p>
 			</CardContent>
 			<CardFooter>
 				<Button variant="outline" className="w-full">
@@ -67,10 +68,7 @@ export function CardDemoFooterWithBorderSmall() {
 	return (
 		<Card size="sm" className="mx-auto w-full max-w-sm">
 			<CardContent>
-				<p>
-					The footer has a border-t class applied, creating a visual
-					separation between the content and footer sections.
-				</p>
+				<p>The footer has a border-t class applied, creating a visual separation between the content and footer sections.</p>
 			</CardContent>
 			<CardFooter className="border-t">
 				<Button variant="outline" size="sm" className="w-full">
@@ -85,10 +83,7 @@ export function CardDemoFooterWithBorder() {
 	return (
 		<Card className="mx-auto w-full max-w-sm">
 			<CardContent>
-				<p>
-					The footer has a border-t class applied, creating a visual
-					separation between the content and footer sections.
-				</p>
+				<p>The footer has a border-t class applied, creating a visual separation between the content and footer sections.</p>
 			</CardContent>
 			<CardFooter className="border-t">
 				<Button variant="outline" className="w-full">
@@ -104,15 +99,10 @@ export function CardDemoHeaderWithBorderSmall() {
 		<Card size="sm" className="mx-auto w-full max-w-sm">
 			<CardHeader className="border-b">
 				<CardTitle>Header with Border</CardTitle>
-				<CardDescription>
-					This is a small card with a header that has a bottom border.
-				</CardDescription>
+				<CardDescription>This is a small card with a header that has a bottom border.</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<p>
-					The header has a border-b class applied, creating a visual
-					separation between the header and content sections.
-				</p>
+				<p>The header has a border-b class applied, creating a visual separation between the header and content sections.</p>
 			</CardContent>
 		</Card>
 	);
@@ -123,15 +113,10 @@ export function CardDemoHeaderWithBorder() {
 		<Card className="mx-auto w-full max-w-sm">
 			<CardHeader className="border-b">
 				<CardTitle>Header with Border</CardTitle>
-				<CardDescription>
-					This is a card with a header that has a bottom border.
-				</CardDescription>
+				<CardDescription>This is a card with a header that has a bottom border.</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<p>
-					The header has a border-b class applied, creating a visual
-					separation between the header and content sections.
-				</p>
+				<p>The header has a border-b class applied, creating a visual separation between the header and content sections.</p>
 			</CardContent>
 		</Card>
 	);
@@ -142,29 +127,19 @@ export function CardDemoLogin() {
 		<Card className="mx-auto w-full max-w-sm">
 			<CardHeader>
 				<CardTitle>Login to your account</CardTitle>
-				<CardDescription>
-					Enter your email below to login to your account
-				</CardDescription>
+				<CardDescription>Enter your email below to login to your account</CardDescription>
 			</CardHeader>
 			<CardContent>
 				<form>
 					<FieldGroup>
 						<Field>
 							<FieldLabel htmlFor="email">Email</FieldLabel>
-							<Input
-								id="email"
-								type="email"
-								placeholder="m@example.com"
-								required
-							/>
+							<Input id="email" type="email" placeholder="m@example.com" required />
 						</Field>
 						<Field>
 							<div className="flex items-center">
 								<FieldLabel htmlFor="password">Password</FieldLabel>
-								<a
-									href="#"
-									className="ml-auto inline-block underline-offset-4 hover:underline"
-								>
+								<a href="#" className="ml-auto inline-block underline-offset-4 hover:underline">
 									Forgot your password?
 								</a>
 							</div>
@@ -196,9 +171,7 @@ export function CardDemoMeetingNotes() {
 		<Card className="mx-auto w-full max-w-sm">
 			<CardHeader>
 				<CardTitle>Meeting Notes</CardTitle>
-				<CardDescription>
-					Transcript from the meeting with the client.
-				</CardDescription>
+				<CardDescription>Transcript from the meeting with the client.</CardDescription>
 				<CardAction>
 					<Button variant="outline" size="sm">
 						<CaptionsIcon data-icon="inline-start" />
@@ -207,10 +180,7 @@ export function CardDemoMeetingNotes() {
 				</CardAction>
 			</CardHeader>
 			<CardContent>
-				<p>
-					Client requested dashboard redesign with focus on mobile
-					responsiveness.
-				</p>
+				<p>Client requested dashboard redesign with focus on mobile responsiveness.</p>
 				<ol className="mt-4 flex list-decimal flex-col gap-2 pl-6">
 					<li>New analytics widgets for daily/weekly metrics</li>
 					<li>Simplified navigation menu</li>
@@ -226,17 +196,11 @@ export function CardDemoMeetingNotes() {
 						<AvatarFallback>CN</AvatarFallback>
 					</Avatar>
 					<Avatar>
-						<AvatarImage
-							src="https://github.com/maxleiter.png"
-							alt="@maxleiter"
-						/>
+						<AvatarImage src="https://github.com/maxleiter.png" alt="@maxleiter" />
 						<AvatarFallback>LR</AvatarFallback>
 					</Avatar>
 					<Avatar>
-						<AvatarImage
-							src="https://github.com/evilrabbit.png"
-							alt="@evilrabbit"
-						/>
+						<AvatarImage src="https://github.com/evilrabbit.png" alt="@evilrabbit" />
 						<AvatarFallback>ER</AvatarFallback>
 					</Avatar>
 					<AvatarGroupCount>+8</AvatarGroupCount>
@@ -261,15 +225,10 @@ export function CardDemoSmallSize() {
 		<Card size="sm" className="mx-auto w-full max-w-sm">
 			<CardHeader>
 				<CardTitle>Small Card</CardTitle>
-				<CardDescription>
-					This card uses the small size variant.
-				</CardDescription>
+				<CardDescription>This card uses the small size variant.</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<p>
-					The card component supports a size prop that can be set to
-					&quot;sm&quot; for a more compact appearance.
-				</p>
+				<p>The card component supports a size prop that can be set to &quot;sm&quot; for a more compact appearance.</p>
 			</CardContent>
 			<CardFooter>
 				<Button variant="outline" size="sm" className="w-full">
@@ -325,9 +284,7 @@ export function CardDemoWithImageSmall() {
 			/>
 			<CardHeader>
 				<CardTitle>Beautiful Landscape</CardTitle>
-				<CardDescription>
-					A stunning view that captures the essence of natural beauty.
-				</CardDescription>
+				<CardDescription>A stunning view that captures the essence of natural beauty.</CardDescription>
 			</CardHeader>
 			<CardFooter>
 				<Button size="sm" className="w-full">
@@ -351,9 +308,7 @@ export function CardDemoWithImage() {
 			/>
 			<CardHeader>
 				<CardTitle>Beautiful Landscape</CardTitle>
-				<CardDescription>
-					A stunning view that captures the essence of natural beauty.
-				</CardDescription>
+				<CardDescription>A stunning view that captures the essence of natural beauty.</CardDescription>
 			</CardHeader>
 			<CardFooter>
 				<Button className="w-full">
@@ -365,57 +320,119 @@ export function CardDemoWithImage() {
 	);
 }
 
-export function CardDemoAppPreview() {
-	const [isExpanded, setIsExpanded] = useState(true);
-	const detailsId = useId();
+export function CardDemoGenerativeCard() {
+	const [expanded, setExpanded] = useState(true);
 
 	return (
-			<Card className={`mx-auto w-full max-w-[380px] gap-0 p-0 transition-[height] duration-200 ${isExpanded ? "h-[458px]" : "h-16"}`}>
-				<CardHeader className={`h-16 ${isExpanded ? "border-b" : ""} px-4 py-3`}>
-				<div className="flex items-center gap-3">
-					<Image
-						src="/3p/google-calendar/32.svg"
-						alt="Google Calendar logo"
-						width={32}
-						height={32}
-					/>
-					<div className="flex flex-col">
-						<CardTitle className="text-sm leading-5 font-bold">
-							Schedule meeting
-						</CardTitle>
-						<CardDescription className="text-xs leading-4">
-							Extra description
-						</CardDescription>
+		<Card className="mx-auto w-full max-w-[380px] gap-0 p-0">
+			<CardHeader className={cn("px-4 py-3", expanded && "border-b")}>
+				<div className="flex min-w-0 items-center gap-3">
+					<Tile label="Google Calendar" size="medium" variant="transparent" isInset={false}>
+						<Image src="/3p/google-calendar/32.svg" alt="" width={32} height={32} />
+					</Tile>
+					<div className="min-w-0 flex-1">
+						<CardTitle className="truncate text-sm leading-5 font-semibold">Schedule meeting</CardTitle>
+						<CardDescription className="line-clamp-2 text-xs leading-4">Google Calendar</CardDescription>
 					</div>
 				</div>
 				<CardAction className="self-center">
-					<Button
-						variant="ghost"
-						size="icon"
-						className="text-text-subtle aria-expanded:border-transparent aria-expanded:bg-transparent aria-expanded:text-text-subtle"
-						aria-controls={detailsId}
-						aria-expanded={isExpanded}
-						aria-label={isExpanded ? "Collapse card details" : "Expand card details"}
-						onClick={() => setIsExpanded((previous) => !previous)}
-					>
-						<span className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : "rotate-0"}`}>
+					<Button variant="ghost" size="icon" className="text-text-subtle" aria-label={expanded ? "Collapse card details" : "Expand card details"} onClick={() => setExpanded((prev) => !prev)}>
+						<span className="transition-transform duration-200 ease-in-out" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
 							<ChevronDownIcon label="" size="small" />
 						</span>
 					</Button>
 				</CardAction>
 			</CardHeader>
-			{isExpanded ? (
-				<>
-					<CardContent id={detailsId} className="px-4 py-4">
-						<div className="h-[298px] w-full bg-neutral-300" />
+			<div className="grid transition-[grid-template-rows] duration-200 ease-in-out" style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}>
+				<div className="overflow-hidden">
+					<CardContent className="px-4 py-4">
+						<div className="flex h-[298px] w-full items-center justify-center overflow-hidden rounded-md bg-surface p-3 text-xs text-text-subtlest">Generated content preview</div>
 					</CardContent>
-						<CardFooter className="h-16 justify-end !bg-card px-4 py-4">
-							<Button variant="outline" className="h-8 min-w-[117px]">
-								Open preview
-							</Button>
-						</CardFooter>
-				</>
-			) : null}
+					<CardFooter className="h-16 justify-end px-4 py-4">
+						<Button variant="outline" className="h-8 min-w-[117px]">
+							Open preview
+						</Button>
+					</CardFooter>
+				</div>
+			</div>
+		</Card>
+	);
+}
+
+export function CardDemoGenerativeCard1p() {
+	const [expanded, setExpanded] = useState(true);
+
+	return (
+		<Card className="mx-auto w-full max-w-[380px] gap-0 p-0">
+			<CardHeader className={cn("px-4 py-3", expanded && "border-b")}>
+				<div className="flex min-w-0 items-center gap-3">
+					<Tile label="Confluence" size="medium" variant="transparent" isInset={false} hasBorder>
+						<ConfluenceLogo size="medium" />
+					</Tile>
+					<div className="min-w-0 flex-1">
+						<CardTitle className="truncate text-sm leading-5 font-semibold">Confluence</CardTitle>
+						<CardDescription className="line-clamp-2 text-xs leading-4">Document collaboration</CardDescription>
+					</div>
+				</div>
+				<CardAction className="self-center">
+					<Button variant="ghost" size="icon" className="text-text-subtle" aria-label={expanded ? "Collapse card details" : "Expand card details"} onClick={() => setExpanded((prev) => !prev)}>
+						<span className="transition-transform duration-200 ease-in-out" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+							<ChevronDownIcon label="" size="small" />
+						</span>
+					</Button>
+				</CardAction>
+			</CardHeader>
+			<div className="grid transition-[grid-template-rows] duration-200 ease-in-out" style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}>
+				<div className="overflow-hidden">
+					<CardContent className="px-4 py-4">
+						<div className="flex h-[298px] w-full items-center justify-center overflow-hidden rounded-md bg-surface p-3 text-xs text-text-subtlest">Generated content preview</div>
+					</CardContent>
+					<CardFooter className="h-16 justify-end px-4 py-4">
+						<Button variant="outline" className="h-8 min-w-[117px]">
+							Open preview
+						</Button>
+					</CardFooter>
+				</div>
+			</div>
+		</Card>
+	);
+}
+
+export function CardDemoGenerativeCardIcon() {
+	const [expanded, setExpanded] = useState(true);
+
+	return (
+		<Card className="mx-auto w-full max-w-[380px] gap-0 p-0">
+			<CardHeader className={cn("px-4 py-3", expanded && "border-b")}>
+				<div className="flex min-w-0 items-center gap-3">
+					<Tile label="Calendar" size="medium" variant="blueSubtle">
+						<CalendarIcon label="" />
+					</Tile>
+					<div className="min-w-0 flex-1">
+						<CardTitle className="truncate text-sm leading-5 font-semibold">Team calendar</CardTitle>
+						<CardDescription className="line-clamp-2 text-xs leading-4">View upcoming events</CardDescription>
+					</div>
+				</div>
+				<CardAction className="self-center">
+					<Button variant="ghost" size="icon" className="text-text-subtle" aria-label={expanded ? "Collapse card details" : "Expand card details"} onClick={() => setExpanded((prev) => !prev)}>
+						<span className="transition-transform duration-200 ease-in-out" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+							<ChevronDownIcon label="" size="small" />
+						</span>
+					</Button>
+				</CardAction>
+			</CardHeader>
+			<div className="grid transition-[grid-template-rows] duration-200 ease-in-out" style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}>
+				<div className="overflow-hidden">
+					<CardContent className="px-4 py-4">
+						<div className="flex h-[298px] w-full items-center justify-center overflow-hidden rounded-md bg-surface p-3 text-xs text-text-subtlest">Generated content preview</div>
+					</CardContent>
+					<CardFooter className="h-16 justify-end px-4 py-4">
+						<Button variant="outline" className="h-8 min-w-[117px]">
+							Open preview
+						</Button>
+					</CardFooter>
+				</div>
+			</div>
 		</Card>
 	);
 }
