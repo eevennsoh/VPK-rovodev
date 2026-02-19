@@ -183,6 +183,9 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"dialog-demo-scrollable-content": dynamic(() => import("./demos/ui/dialog-demo").then((mod) => ({ default: mod.DialogDemoScrollableContent })), { ssr: false }),
 	"dialog-demo-with-form": dynamic(() => import("./demos/ui/dialog-demo").then((mod) => ({ default: mod.DialogDemoWithForm })), { ssr: false }),
 	"dialog-demo-with-sticky-footer": dynamic(() => import("./demos/ui/dialog-demo").then((mod) => ({ default: mod.DialogDemoWithStickyFooter })), { ssr: false }),
+	"dialog-demo-warning": dynamic(() => import("./demos/ui/dialog-demo").then((mod) => ({ default: mod.DialogDemoWarning })), { ssr: false }),
+	"dialog-demo-destructive": dynamic(() => import("./demos/ui/dialog-demo").then((mod) => ({ default: mod.DialogDemoDestructive })), { ssr: false }),
+	"dialog-demo-widths": dynamic(() => import("./demos/ui/dialog-demo").then((mod) => ({ default: mod.DialogDemoWidths })), { ssr: false }),
 	// Tabs
 	"tabs-demo-default": dynamic(() => import("./demos/ui/tabs-demo").then((mod) => ({ default: mod.TabsDemoDefault })), { ssr: false }),
 	"tabs-demo-line": dynamic(() => import("./demos/ui/tabs-demo").then((mod) => ({ default: mod.TabsDemoLine })), { ssr: false }),
@@ -460,6 +463,7 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"card-demo-login": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoLogin })), { ssr: false }),
 	"card-demo-meeting-notes": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoMeetingNotes })), { ssr: false }),
 	"card-demo-small-size": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoSmallSize })), { ssr: false }),
+	"card-demo-app-preview": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoAppPreview })), { ssr: false }),
 	"card-demo-with-image-small": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoWithImageSmall })), { ssr: false }),
 	"card-demo-with-image": dynamic(() => import("./demos/ui/card-demo").then((mod) => ({ default: mod.CardDemoWithImage })), { ssr: false }),
 	// Table

@@ -614,3 +614,85 @@ export function DialogDemoWithStickyFooter() {
 		</Dialog>
 	);
 }
+
+export function DialogDemoWarning() {
+	return (
+		<Dialog>
+			<DialogTrigger render={<Button variant="outline" />}>
+				Warning dialog
+			</DialogTrigger>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle variant="warning">Cannot complete action</DialogTitle>
+					<DialogDescription>
+						You are about to permanently delete this page and all of its
+						contents. This action is not reversible.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<DialogClose render={<Button variant="outline" />}>
+						Cancel
+					</DialogClose>
+					<Button>Continue</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+export function DialogDemoDestructive() {
+	return (
+		<Dialog>
+			<DialogTrigger render={<Button variant="outline" />}>
+				Destructive dialog
+			</DialogTrigger>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle variant="destructive">
+						Delete this repository?
+					</DialogTitle>
+					<DialogDescription>
+						This repository will be permanently deleted, including all issues,
+						pull requests, and settings. This cannot be undone.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<DialogClose render={<Button variant="outline" />}>
+						Cancel
+					</DialogClose>
+					<Button variant="destructive">Delete repository</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+export function DialogDemoWidths() {
+	const sizes = [
+		{ value: "sm" as const, label: "Small (400px)" },
+		{ value: "md" as const, label: "Medium (600px)" },
+		{ value: "lg" as const, label: "Large (800px)" },
+		{ value: "xl" as const, label: "X-Large" },
+	];
+
+	return (
+		<div className="flex flex-wrap items-center gap-2">
+			{sizes.map(({ value, label }) => (
+				<Dialog key={value}>
+					<DialogTrigger render={<Button variant="outline" size="sm" />}>
+						{label}
+					</DialogTrigger>
+					<DialogContent size={value}>
+						<DialogHeader>
+							<DialogTitle>{label}</DialogTitle>
+							<DialogDescription>
+								This dialog uses the &ldquo;{value}&rdquo; size preset.
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter showCloseButton />
+					</DialogContent>
+				</Dialog>
+			))}
+		</div>
+	);
+}

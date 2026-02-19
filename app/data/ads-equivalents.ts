@@ -24,6 +24,7 @@ export const ADS_EQUIVALENTS: Record<string, AdsEquivalent> = {
 	comment: "@atlaskit/comment",
 	"date-picker": { package: "@atlaskit/datetime-picker", importPath: "@atlaskit/datetime-picker", namedExport: "DatePicker" },
 	"date-time-picker": { package: "@atlaskit/datetime-picker", importPath: "@atlaskit/datetime-picker", namedExport: "DateTimePicker" },
+	dialog: "@atlaskit/modal-dialog",
 	"dropdown-menu": "@atlaskit/dropdown-menu",
 	empty: "@atlaskit/empty-state",
 	field: "@atlaskit/textfield",
