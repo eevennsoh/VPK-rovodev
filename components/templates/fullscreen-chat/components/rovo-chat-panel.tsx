@@ -25,6 +25,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		uiMessages,
 		userName,
 		isStreaming,
+		isSubmitPending,
 		queuedPrompts,
 		removeQueuedPrompt,
 		isListening,
@@ -48,12 +49,13 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		handleClarificationSubmit,
 		stopStreaming,
 	} = useRovoChatPanel({ product });
+	const isRequestInFlight = isStreaming || isSubmitPending;
 	const activeQuestionCardKey = useMemo(
 		() => (activeQuestionCard ? `${activeQuestionCard.sessionId}-${activeQuestionCard.round}` : null),
 		[activeQuestionCard]
 	);
 	const [dismissedQuestionCardKey, setDismissedQuestionCardKey] = useState<string | null>(null);
-	const shouldShowQuestionCard = !isStreaming && activeQuestionCard !== null && dismissedQuestionCardKey !== activeQuestionCardKey;
+	const shouldShowQuestionCard = !isRequestInFlight && activeQuestionCard !== null && dismissedQuestionCardKey !== activeQuestionCardKey;
 	const dismissQuestionCard = useCallback(() => {
 		if (!activeQuestionCardKey) {
 			return;
@@ -99,6 +101,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				conversationContextRef={conversationContextRef}
 				scrollSpacerRef={scrollSpacerRef}
 				isStreaming={isStreaming}
+				isSubmitPending={isSubmitPending}
 			/>
 
 			{shouldShowQuestionCard && activeQuestionCard ? (
@@ -119,7 +122,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 					prompt={prompt}
 					interimText={interimText}
 					isListening={isListening}
-					isStreaming={isStreaming}
+					isStreaming={isRequestInFlight}
 					onPromptChange={setPrompt}
 					onSubmit={handleSubmit}
 					onToggleDictation={toggleDictation}

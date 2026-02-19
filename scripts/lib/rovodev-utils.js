@@ -44,8 +44,24 @@ const isPortAvailable = async (port) => {
 		{ port, host: "::", ipv6Only: true },
 		{ allowUnsupported: true }
 	);
+	if (ipv6Available === false) {
+		return false;
+	}
 
-	return ipv6Available !== false;
+	// On macOS, 0.0.0.0/:: can appear available while loopback is occupied.
+	const localhostV4 = await canListen({ port, host: "127.0.0.1" }, {
+		allowUnsupported: true,
+	});
+	if (!localhostV4) {
+		return false;
+	}
+
+	const localhostV6 = await canListen(
+		{ port, host: "::1" },
+		{ allowUnsupported: true }
+	);
+
+	return localhostV6 !== false;
 };
 
 /**

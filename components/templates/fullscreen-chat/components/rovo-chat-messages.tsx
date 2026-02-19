@@ -18,6 +18,7 @@ interface RovoChatMessagesProps {
 	contentBottomPadding?: string;
 	hideScrollbar?: boolean;
 	isStreaming?: boolean;
+	isSubmitPending?: boolean;
 	messageMode?: "plan" | "ask";
 	enableSmartWidgets?: boolean;
 }
@@ -33,6 +34,7 @@ export default function RovoChatMessages({
 	contentBottomPadding,
 	hideScrollbar = true,
 	isStreaming = false,
+	isSubmitPending = false,
 	messageMode = "ask",
 	enableSmartWidgets = false,
 }: Readonly<RovoChatMessagesProps>) {
@@ -46,6 +48,7 @@ export default function RovoChatMessages({
 			contentBottomPadding={contentBottomPadding}
 			hideScrollbar={hideScrollbar}
 			isStreaming={isStreaming}
+			isSubmitPending={isSubmitPending}
 			messageMode={messageMode}
 			showWidgetSections={enableSmartWidgets}
 			streamingIndicatorVariant="reasoning-expanded"

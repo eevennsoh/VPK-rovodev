@@ -4,8 +4,21 @@ import { Suspense, type ComponentType } from "react";
 import { token } from "@/lib/tokens";
 import type { DemoLayout, ExampleDefinition } from "@/app/data/component-detail-types";
 import { getVariantDemoComponent } from "@/components/website/registry";
-import { Badge } from "@/components/ui/badge";
+import { Lozenge } from "@/components/ui/lozenge";
 import { DocSection } from "./doc-section";
+
+/** Map example badge variant (Badge-style names) to Lozenge variant. */
+const badgeVariantToLozenge: Record<string, "neutral" | "success" | "danger" | "information" | "discovery" | "warning"> = {
+	neutral: "neutral",
+	success: "success",
+	danger: "danger",
+	information: "information",
+	discovery: "discovery",
+	warning: "warning",
+	secondary: "neutral",
+	default: "neutral",
+	info: "information",
+};
 import { AnchorLinkButton } from "./doc-section";
 
 function slugify(name: string) {
@@ -68,9 +81,12 @@ function ExampleItem({
 					>
 						{example.title}
 						{example.badge ? (
-							<Badge variant={example.badge.variant as "discovery"} className="ml-2 align-middle">
+							<Lozenge
+								variant={badgeVariantToLozenge[example.badge.variant] ?? "neutral"}
+								className="ml-2 align-middle"
+							>
 								{example.badge.label}
-							</Badge>
+							</Lozenge>
 						) : null}
 					</h3>
 					<AnchorLinkButton id={id} label={example.title} />

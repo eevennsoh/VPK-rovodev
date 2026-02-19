@@ -104,6 +104,7 @@ export default function AgentsTeamView() {
 		togglePlanMode,
 		isChatMode,
 		isStreaming,
+		isSubmitPending,
 		stopStreaming,
 		isGeneratingTitle,
 		pendingTitleChatId,
@@ -488,6 +489,7 @@ export default function AgentsTeamView() {
 										prompt={prompt}
 										isPlanMode={isPlanMode}
 										isStreaming={isStreaming}
+										isSubmitPending={isSubmitPending}
 										isWidgetLoading={isWidgetLoading}
 										loadingWidgetType={loadingWidgetType}
 										isPlanResponseComplete={isPlanMessageComplete}
@@ -512,7 +514,7 @@ export default function AgentsTeamView() {
 				) : (
 						<AgentsTeamInitialView
 							prompt={prompt}
-							isStreaming={isStreaming}
+							isStreaming={isStreaming || isSubmitPending}
 							isPlanMode={isPlanMode}
 							queuedPrompts={queuedPrompts}
 							onPromptChange={setPrompt}

@@ -12,6 +12,7 @@ import {
 	getAllDataParts,
 	getLatestDataPart,
 	getMessageText,
+	getThinkingToolCallSummaries,
 	isMessageTextStreaming,
 	type RovoUIMessage,
 	type RovoRenderableUIMessage,
@@ -21,7 +22,9 @@ import {
 	AdsReasoningTrigger,
 	Reasoning,
 	ReasoningContent,
+	ReasoningSection,
 } from "@/components/ui-ai/reasoning";
+import { AssistantThinkingToolsSection } from "./assistant-thinking-tools-section";
 import styles from "./chat-messages.module.css";
 
 export interface ChatMessagesProps {
@@ -34,6 +37,7 @@ export interface ChatMessagesProps {
 	contentBottomPadding?: string;
 	hideScrollbar?: boolean;
 	isStreaming?: boolean;
+	isSubmitPending?: boolean;
 	messageMode?: "plan" | "ask";
 	thinkingLabel?: string;
 	reasoningContent?: string;
@@ -115,6 +119,7 @@ export function ChatMessages({
 	contentBottomPadding,
 	hideScrollbar = true,
 	isStreaming = false,
+	isSubmitPending = false,
 	messageMode = "plan",
 	thinkingLabel = "Thinking",
 	reasoningContent,
@@ -194,11 +199,13 @@ export function ChatMessages({
 		isAssistantAwaitingOutput &&
 		getLatestDataPart(lastStreamingSourceMessage, "data-thinking-status") !== null;
 
-	const shouldShowStreamingIndicator =
+	const shouldShowStreamingIndicatorFromStream =
 		isStreaming &&
 		streamingIndicatorSourceMessages.length > 0 &&
 		(lastStreamingSourceMessage?.role === "user" || isAssistantAwaitingOutput) &&
 		!hasInlineThinkingStatus;
+	const shouldShowStreamingIndicator =
+		shouldShowStreamingIndicatorFromStream || isSubmitPending;
 
 	const thinkingStatusParts = hasAssistantThinkingStatus
 		? getAllDataParts(lastStreamingSourceMessage, "data-thinking-status")
@@ -212,11 +219,19 @@ export function ChatMessages({
 				.filter(Boolean)
 				.join("\n\n") || reasoningContent
 		: reasoningContent;
+	const thinkingToolCalls =
+		hasAssistantThinkingStatus && lastStreamingSourceMessage
+			? getThinkingToolCallSummaries(lastStreamingSourceMessage)
+			: [];
 	const shouldUseExpandedReasoning =
 		streamingIndicatorVariant === "reasoning-expanded";
 	const trimmedReasoningContent = resolvedReasoningContent?.trim() ?? "";
 	const hasResolvedReasoningContent = trimmedReasoningContent.length > 0;
-	const reasoningContentVersion = thinkingStatusParts.length;
+	const hasThinkingToolCalls = thinkingToolCalls.length > 0;
+	const hasStreamingReasoningDetails =
+		hasResolvedReasoningContent || hasThinkingToolCalls;
+	const reasoningContentVersion =
+		thinkingStatusParts.length + thinkingToolCalls.length;
 	const streamingReasoningKey = shouldUseExpandedReasoning
 		? `${lastStreamingSourceMessage?.id ?? "stream"}:${reasoningContentVersion}`
 		: `${lastStreamingSourceMessage?.id ?? "stream"}:${resolvedThinkingLabel}`;
@@ -263,22 +278,22 @@ export function ChatMessages({
 						latestTurnClassName={styles.latestTurn}
 						latestTurnDataAttribute="data-rovo-latest-turn"
 						messages={renderableMessages}
-							renderMessage={(message) => (
-								<ThreadMessageBubble
-									message={message}
-									surface="fullscreen"
-									assistantStreamingRenderMode={assistantStreamingRenderMode}
-									showFeedbackActions={showFeedbackActions}
-									showFollowUpSuggestions={showFollowUpSuggestions}
-									onSuggestionClick={onSuggestedQuestionClick}
-									onDeleteMessage={onDeleteMessage}
-									showThinkingStatusSection={message.role === "assistant" && message.id === lastAssistantMessageId}
-									showToolsSection={!isPureMode}
-									showWidgetSections={shouldShowWidgetSections}
-									renderLoadingWidget={renderLoadingWidget}
-									renderWidget={renderWidget}
-									onRetryWidget={onRetryWidget}
-								/>
+						renderMessage={(message) => (
+							<ThreadMessageBubble
+								message={message}
+								surface="fullscreen"
+								assistantStreamingRenderMode={assistantStreamingRenderMode}
+								showFeedbackActions={showFeedbackActions}
+								showFollowUpSuggestions={showFollowUpSuggestions}
+								onSuggestionClick={onSuggestedQuestionClick}
+								onDeleteMessage={onDeleteMessage}
+								showThinkingStatusSection={message.role === "assistant" && message.id === lastAssistantMessageId}
+								showToolsSection={!isPureMode}
+								showWidgetSections={shouldShowWidgetSections}
+								renderLoadingWidget={renderLoadingWidget}
+								renderWidget={renderWidget}
+								onRetryWidget={onRetryWidget}
+							/>
 						)}
 					/>
 				)}
@@ -292,19 +307,35 @@ export function ChatMessages({
 									isStreaming={shouldShowStreamingIndicator}
 									defaultOpen={
 										shouldUseExpandedReasoning &&
-										hasResolvedReasoningContent
+										hasStreamingReasoningDetails
 									}
 								>
 									<AdsReasoningTrigger
 										label={resolvedThinkingLabel}
 										showChevron={
 											shouldUseExpandedReasoning &&
-											hasResolvedReasoningContent
+											hasStreamingReasoningDetails
 										}
 									/>
-									{shouldUseExpandedReasoning && hasResolvedReasoningContent ? (
+									{shouldUseExpandedReasoning &&
+									hasStreamingReasoningDetails ? (
 										<ReasoningContent>
-											{trimmedReasoningContent}
+											<div className="space-y-4">
+												{hasResolvedReasoningContent ? (
+													<ReasoningSection title="Thinking">
+														{trimmedReasoningContent}
+													</ReasoningSection>
+												) : null}
+												{hasThinkingToolCalls ? (
+													<ReasoningSection title="Tools">
+														<AssistantThinkingToolsSection
+															defaultOpenMode="running"
+															idPrefix={lastStreamingSourceMessage?.id ?? "stream"}
+															thinkingToolCalls={thinkingToolCalls}
+														/>
+													</ReasoningSection>
+												) : null}
+											</div>
 										</ReasoningContent>
 									) : null}
 								</Reasoning>

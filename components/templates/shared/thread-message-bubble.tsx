@@ -10,6 +10,7 @@ import {
 	getMessageReasoning,
 	getMessageSources,
 	getMessageText,
+	getThinkingToolCallSummaries,
 	getMessageToolParts,
 	isMessageTextStreaming,
 	type RovoRenderableUIMessage,
@@ -35,6 +36,7 @@ import {
 import { UserMessageBubble } from "./components/user-message-bubble";
 import { AssistantFeedbackActions } from "./components/assistant-feedback-actions";
 import { AssistantReasoningSection } from "./components/assistant-reasoning-section";
+import { AssistantThinkingToolsSection } from "./components/assistant-thinking-tools-section";
 import { AssistantToolsSection } from "./components/assistant-tools-section";
 import { AssistantSourcesSection } from "./components/assistant-sources-section";
 import { AssistantSuggestionsSection } from "./components/assistant-suggestions-section";
@@ -114,6 +116,8 @@ export function ThreadMessageBubble({
 	const reasoning = getMessageReasoning(message);
 	const sources = getMessageSources(message);
 	const toolParts = getMessageToolParts(message);
+	const thinkingToolCalls = getThinkingToolCallSummaries(message);
+	const thinkingToolCallsForStatus = toolParts.length > 0 ? [] : thinkingToolCalls;
 	const shouldShowToolsSection = showToolsSection ?? true;
 	const shouldShowWidgetSections = showWidgetSections ?? true;
 
@@ -211,10 +215,12 @@ export function ThreadMessageBubble({
 					.filter(Boolean)
 					.join("\n\n");
 				const hasThinkingText = Boolean(accumulatedContent);
-				const hasTools = toolParts.length > 0;
+				const hasToolParts = toolParts.length > 0;
+				const hasThinkingToolCalls = thinkingToolCallsForStatus.length > 0;
+				const hasTools = hasToolParts || hasThinkingToolCalls;
 				const hasDetails = hasThinkingText || hasTools;
 				return (
-					<div className="px-6 pt-2">
+					<div className="pt-2">
 						<Reasoning className="mb-0" defaultOpen={hasDetails} isStreaming={isStreaming}>
 							<AdsReasoningTrigger
 								label={thinkingStatusPart.data.label}
@@ -234,13 +240,23 @@ export function ThreadMessageBubble({
 										) : null}
 										{hasTools ? (
 											<ReasoningSection title="Tools">
-												<div className="-mx-6">
-													<AssistantToolsSection
-														messageId={message.id}
-														toolParts={toolParts}
+												{hasToolParts ? (
+													<div className="-mx-6">
+														<AssistantToolsSection
+															messageId={message.id}
+															toolParts={toolParts}
+															defaultOpenMode="running"
+														/>
+													</div>
+												) : null}
+												{hasThinkingToolCalls ? (
+													<AssistantThinkingToolsSection
+														className="pt-1"
 														defaultOpenMode="running"
+														idPrefix={message.id}
+														thinkingToolCalls={thinkingToolCallsForStatus}
 													/>
-												</div>
+												) : null}
 											</ReasoningSection>
 										) : null}
 									</div>

@@ -13,6 +13,7 @@ try {
 const basePort = getRovodevBasePort();
 const maxTries = Number.parseInt(process.env.PORT_SEARCH_MAX ?? "20", 10);
 const poolSize = Math.max(1, Number.parseInt(process.env.ROVODEV_POOL_SIZE ?? "6", 10));
+const forceCleanStart = process.env.ROVODEV_FORCE_CLEAN_START !== "false";
 const defaultBillingSiteUrl = "https://hello.atlassian.net";
 const configuredBillingSiteUrl =
 	typeof process.env.ROVODEV_SITE_URL === "string" &&
@@ -21,6 +22,53 @@ const configuredBillingSiteUrl =
 		: defaultBillingSiteUrl;
 const portFile = path.join(process.cwd(), ".dev-rovodev-port");
 const portsFile = path.join(process.cwd(), ".dev-rovodev-ports");
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getListeningPids = (port) => {
+	try {
+		const output = execSync(`lsof -ti:${port} -sTCP:LISTEN`, {
+			encoding: "utf8",
+			stdio: ["pipe", "pipe", "pipe"],
+		})
+			.trim()
+			.split("\n")
+			.map((line) => Number.parseInt(line.trim(), 10))
+			.filter((pid) => Number.isInteger(pid) && pid > 0);
+		return Array.from(new Set(output));
+	} catch {
+		return [];
+	}
+};
+
+/**
+ * Kill all listeners in the candidate RovoDev port range.
+ * This guarantees a clean start for local development.
+ */
+const cleanupAllInstances = async (minPort, maxPort) => {
+	console.log(`[rovodev] Force clean start enabled. Killing listeners on ports ${minPort}-${maxPort}...`);
+	const killedPids = new Set();
+
+	for (let port = minPort; port <= maxPort; port++) {
+		const pids = getListeningPids(port);
+		for (const pid of pids) {
+			if (killedPids.has(pid)) {
+				continue;
+			}
+			try {
+				process.kill(pid, "SIGKILL");
+				killedPids.add(pid);
+			} catch {
+				// ignore kill failures (process may have already exited)
+			}
+		}
+	}
+
+	if (killedPids.size > 0) {
+		console.log(`[rovodev] Killed ${killedPids.size} stale process(es).`);
+		await sleep(250);
+	}
+};
 
 /**
  * Kill stale RovoDev instances on unhealthy ports.
@@ -130,9 +178,14 @@ const readRecordedPorts = () => {
 };
 
 const run = async () => {
-	// Clean up any stale/unhealthy instances before starting
-	const scanMax = basePort + maxTries;
-	await cleanupStaleInstances(basePort, scanMax);
+	// Clean up instances before starting.
+	const scanMax = basePort + maxTries - 1;
+	if (forceCleanStart) {
+		await cleanupAllInstances(basePort, scanMax);
+		cleanup();
+	} else {
+		await cleanupStaleInstances(basePort, scanMax);
+	}
 
 	// Check if existing pool processes are still running
 	const recordedPorts = readRecordedPorts();

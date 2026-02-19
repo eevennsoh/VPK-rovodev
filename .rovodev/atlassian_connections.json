@@ -1,0 +1,12 @@
+{
+	"jiraProjects": [
+		{
+			"siteUrl": "https://hello.atlassian.net",
+			"cloudId": "a436116f-02ce-4520-8fbb-7301462a1674"
+		},
+		{
+			"siteUrl": "https://venn-test.atlassian.net",
+			"cloudId": "2a105513-2d26-4124-8c5e-206465986e12"
+		}
+	]
+}

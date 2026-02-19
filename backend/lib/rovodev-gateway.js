@@ -17,6 +17,7 @@
  */
 
 const { sendMessageStreaming, sendMessageSync, cancelChat, getRovoDevPort } = require("./rovodev-client");
+const { toPreview } = require("./tool-output-sanitizer");
 
 const RETRY_INITIAL_DELAY_MS = 250;
 const RETRY_DELAY_STEP_MS = 250;
@@ -293,6 +294,69 @@ function buildThinkingStatusFromToolEvent(toolName, phase) {
 	};
 }
 
+function buildThinkingEventFromToolEvent({
+	toolName,
+	toolCallId,
+	phase,
+	input,
+	output,
+	outputPreview,
+	outputTruncated,
+	outputBytes,
+	suppressedRawOutput,
+	errorText,
+}) {
+	const resolvedToolName = normalizeToolName(toolName) ?? "Tool";
+	const resolvedToolCallId =
+		typeof toolCallId === "string" && toolCallId.trim()
+			? toolCallId.trim()
+			: undefined;
+	const resolvedPhase =
+		phase === "start" || phase === "result" || phase === "error"
+			? phase
+			: null;
+	if (!resolvedPhase) {
+		return null;
+	}
+
+	const eventId = resolvedToolCallId
+		? `${resolvedToolCallId}:${resolvedPhase}:${Date.now()}`
+		: `thinking-event:${resolvedToolName}:${resolvedPhase}:${Date.now()}`;
+	const event = {
+		eventId,
+		phase: resolvedPhase,
+		toolName: resolvedToolName,
+		timestamp: new Date().toISOString(),
+	};
+
+	if (resolvedToolCallId) {
+		event.toolCallId = resolvedToolCallId;
+	}
+	if (input !== undefined) {
+		event.input = input;
+	}
+	if (output !== undefined) {
+		event.output = output;
+	}
+	if (typeof outputPreview === "string" && outputPreview.length > 0) {
+		event.outputPreview = outputPreview;
+	}
+	if (outputTruncated === true) {
+		event.outputTruncated = true;
+	}
+	if (typeof outputBytes === "number" && Number.isFinite(outputBytes)) {
+		event.outputBytes = outputBytes;
+	}
+	if (suppressedRawOutput === true) {
+		event.suppressedRawOutput = true;
+	}
+	if (typeof errorText === "string" && errorText.trim()) {
+		event.errorText = errorText.trim();
+	}
+
+	return event;
+}
+
 /**
  * Streams a message through RovoDev Serve, calling `onTextDelta` for each
  * text chunk — matching the same callback interface as
@@ -309,6 +373,7 @@ function buildThinkingStatusFromToolEvent(toolName, phase) {
  * @param {string} params.message - The full message to send to RovoDev
  * @param {function} params.onTextDelta - Called with each text delta string
  * @param {function} [params.onThinkingStatus] - Called when Rovo emits tool events that map to thinking status labels/content
+ * @param {function} [params.onThinkingEvent] - Called with structured tool timeline events
  * @param {function} [params.onToolCallStart] - Called with structured tool-call details when a tool starts
  * @param {function} [params.onRetry] - Called when a 409 retry is about to happen (for UI indicators)
  * @param {AbortSignal} [params.signal] - Optional signal to abort the stream (e.g. on client disconnect)
@@ -318,6 +383,7 @@ async function streamViaRovoDev({
 	message,
 	onTextDelta,
 	onThinkingStatus,
+	onThinkingEvent,
 	onToolCallStart,
 	onRetry,
 	signal,
@@ -365,6 +431,21 @@ async function streamViaRovoDev({
 									buildThinkingStatusFromToolEvent(resolvedToolName, "start")
 								);
 							}
+							if (typeof onThinkingEvent === "function") {
+								const toolInputPreview =
+									chunk.toolInput !== undefined
+										? toPreview(chunk.toolInput).text
+										: undefined;
+								const thinkingEvent = buildThinkingEventFromToolEvent({
+									toolName: resolvedToolName,
+									toolCallId: chunk.toolCallId,
+									phase: "start",
+									input: toolInputPreview,
+								});
+								if (thinkingEvent) {
+									onThinkingEvent(thinkingEvent);
+								}
+							}
 							return;
 						}
 
@@ -374,6 +455,17 @@ async function streamViaRovoDev({
 								: null;
 							const resolvedToolName =
 								normalizeToolName(chunk.toolName) ?? rememberedToolName;
+							const outputPreview =
+								typeof chunk.outputPreview === "string"
+									? chunk.outputPreview
+									: toPreview(chunk.text).text;
+							const outputTruncated =
+								chunk.outputTruncated === true ||
+								outputPreview !== chunk.text;
+							const outputBytes =
+								typeof chunk.outputBytes === "number"
+									? chunk.outputBytes
+									: toPreview(chunk.text).bytes;
 
 							if (chunk.toolCallId) {
 								toolNameByCallId.delete(chunk.toolCallId);
@@ -386,6 +478,23 @@ async function streamViaRovoDev({
 										chunk.type === "tool_error" ? "error" : "result"
 									)
 								);
+							}
+							if (typeof onThinkingEvent === "function") {
+								const isToolError = chunk.type === "tool_error";
+								const thinkingEvent = buildThinkingEventFromToolEvent({
+									toolName: resolvedToolName,
+									toolCallId: chunk.toolCallId,
+									phase: isToolError ? "error" : "result",
+									output: !isToolError ? outputPreview : undefined,
+									outputPreview,
+									outputTruncated,
+									outputBytes,
+									suppressedRawOutput: outputTruncated,
+									errorText: isToolError ? outputPreview : undefined,
+								});
+								if (thinkingEvent) {
+									onThinkingEvent(thinkingEvent);
+								}
 							}
 						}
 					},

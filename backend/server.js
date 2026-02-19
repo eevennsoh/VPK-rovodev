@@ -58,6 +58,12 @@ const { detectPlanningIntent } = require("./lib/planning-intent");
 const {
 	shouldGatePlanningQuestionCard,
 } = require("./lib/planning-question-gate");
+const {
+	MAX_INLINE_ASSISTANT_JSON_CHARS,
+	ASSISTANT_JSON_SUPPRESSION_TEXT,
+	toPreview,
+	sanitizeAssistantNarrative,
+} = require("./lib/tool-output-sanitizer");
 
 console.log("[STARTUP] Dependencies loaded");
 
@@ -3472,6 +3478,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 				let hasExplicitPlanPayload = false;
 				const emittedQuestionCardToolCalls = new Set();
 				let pendingQuestionCardLoadingWidgetId = null;
+				let hasSuppressedLargeAssistantJson = false;
 
 				let bufferedAssistantText = "";
 
@@ -3533,7 +3540,28 @@ app.post("/api/chat-sdk", async (req, res) => {
 						return;
 					}
 
-					assistantText += delta;
+					if (hasSuppressedLargeAssistantJson) {
+						return;
+					}
+
+					const nextAssistantText = assistantText + delta;
+					const narrativeSuppression = sanitizeAssistantNarrative(
+						nextAssistantText,
+						{
+							maxChars: MAX_INLINE_ASSISTANT_JSON_CHARS,
+							replacement: ASSISTANT_JSON_SUPPRESSION_TEXT,
+						}
+					);
+					if (narrativeSuppression.replaced) {
+						hasSuppressedLargeAssistantJson = true;
+						const suppressionNotice = `\n\n${ASSISTANT_JSON_SUPPRESSION_TEXT}`;
+						assistantText += suppressionNotice;
+						bufferedAssistantText += suppressionNotice;
+						flushBufferedAssistantText({ force: true });
+						return;
+					}
+
+					assistantText = nextAssistantText;
 					bufferedAssistantText += delta;
 
 					if (!isClassifierIntentLeakCandidate(bufferedAssistantText)) {
@@ -3559,6 +3587,98 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 
 					return value.replace(/(?:\s*(?:\.{3}|…))+$/u, "").trim();
+				};
+
+				const normalizeThinkingPhase = (value) => {
+					if (value === "start" || value === "result" || value === "error") {
+						return value;
+					}
+					return null;
+				};
+
+				const sanitizeThinkingEvent = (value) => {
+					if (!value || typeof value !== "object") {
+						return null;
+					}
+
+					const phase = normalizeThinkingPhase(value.phase);
+					if (!phase) {
+						return null;
+					}
+
+					const toolName = getNonEmptyString(value.toolName) ?? "Tool";
+					const eventId =
+						getNonEmptyString(value.eventId) ??
+						`thinking-event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+					const timestamp =
+						getNonEmptyString(value.timestamp) ?? new Date().toISOString();
+					const toolCallId = getNonEmptyString(value.toolCallId) ?? undefined;
+
+					const payload = {
+						eventId,
+						phase,
+						toolName,
+						timestamp,
+					};
+
+					if (toolCallId) {
+						payload.toolCallId = toolCallId;
+					}
+
+					if (phase === "start" && value.input !== undefined) {
+						const inputPreview = toPreview(value.input);
+						if (inputPreview.text) {
+							payload.input = inputPreview.text;
+						}
+					}
+
+					const outputCandidate =
+						value.outputPreview !== undefined ? value.outputPreview : value.output;
+					const outputPreview =
+						outputCandidate !== undefined ? toPreview(outputCandidate) : null;
+					const outputBytes =
+						typeof value.outputBytes === "number" && Number.isFinite(value.outputBytes)
+							? value.outputBytes
+							: outputPreview?.bytes;
+					const outputTruncated =
+						Boolean(value.outputTruncated) || Boolean(outputPreview?.truncated);
+
+					if (phase === "result" && outputPreview?.text) {
+						payload.output = outputPreview.text;
+						payload.outputPreview = outputPreview.text;
+						if (outputTruncated) {
+							payload.outputTruncated = true;
+							payload.suppressedRawOutput = true;
+						}
+						if (typeof outputBytes === "number" && Number.isFinite(outputBytes)) {
+							payload.outputBytes = outputBytes;
+						}
+					}
+
+					if (phase === "error") {
+						const errorCandidate =
+							getNonEmptyString(value.errorText) ?? outputPreview?.text ?? null;
+						if (errorCandidate) {
+							const errorPreview = toPreview(errorCandidate);
+							if (errorPreview.text) {
+								payload.errorText = errorPreview.text;
+							}
+						}
+
+						if (outputPreview?.text) {
+							payload.output = outputPreview.text;
+							payload.outputPreview = outputPreview.text;
+						}
+						if (outputTruncated || Boolean(value.suppressedRawOutput)) {
+							payload.outputTruncated = true;
+							payload.suppressedRawOutput = true;
+						}
+						if (typeof outputBytes === "number" && Number.isFinite(outputBytes)) {
+							payload.outputBytes = outputBytes;
+						}
+					}
+
+					return payload;
 				};
 
 				const emitPlanWidgetLoading = (loading) => {
@@ -4111,6 +4231,18 @@ app.post("/api/chat-sdk", async (req, res) => {
 									label,
 									content: rawContent.length > 0 ? rawContent : undefined,
 								},
+							});
+						},
+						onThinkingEvent: (thinkingEvent) => {
+							const sanitizedEvent = sanitizeThinkingEvent(thinkingEvent);
+							if (!sanitizedEvent) {
+								return;
+							}
+
+							writer.write({
+								type: "data-thinking-event",
+								id: sanitizedEvent.eventId,
+								data: sanitizedEvent,
 							});
 						},
 						onRetry: (() => {

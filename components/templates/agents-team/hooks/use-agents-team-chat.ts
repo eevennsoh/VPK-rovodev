@@ -177,6 +177,7 @@ interface UseAgentsTeamChatReturn {
 	togglePlanMode: () => void;
 	isChatMode: boolean;
 	isStreaming: boolean;
+	isSubmitPending: boolean;
 	stopStreaming: () => Promise<void>;
 	isGeneratingTitle: boolean;
 	pendingTitleChatId: string | null;
@@ -219,6 +220,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	const {
 		uiMessages,
 		isStreaming,
+		isSubmitPending,
 		sendPrompt,
 		stopStreaming,
 		replaceMessages,
@@ -1002,6 +1004,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		togglePlanMode,
 		isChatMode,
 		isStreaming,
+		isSubmitPending,
 		stopStreaming,
 		isGeneratingTitle,
 		pendingTitleChatId,

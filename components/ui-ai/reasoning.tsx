@@ -292,7 +292,7 @@ const defaultReasoningCompletedLabel = (duration?: number) => {
 	if (duration === undefined) {
 		return "Thought for a few seconds";
 	}
-	return `Thought for ${duration} seconds`;
+	return `Thought for ${duration} ${duration === 1 ? "second" : "seconds"}`;
 };
 
 export const ReasoningTrigger = memo(
@@ -511,7 +511,7 @@ const defaultCompletedLabel = (duration?: number) => {
 	if (duration === undefined) {
 		return "Thought for a few seconds";
 	}
-	return `Thought for ${duration} seconds`;
+	return `Thought for ${duration} ${duration === 1 ? "second" : "seconds"}`;
 };
 
 export type ReasoningSectionProps = ComponentProps<"div"> & {
@@ -522,7 +522,7 @@ export const ReasoningSection = memo(
 	({ className, title, children, ...props }: ReasoningSectionProps) => (
 		<div className={cn("space-y-2", className)} {...props}>
 			{title ? (
-				<h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+				<h4 className="font-medium text-muted-foreground text-[12px]">
 					{title}
 				</h4>
 			) : null}

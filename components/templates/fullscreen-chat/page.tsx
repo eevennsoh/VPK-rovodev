@@ -38,8 +38,10 @@ export default function RovoView() {
 		handleSuggestedQuestionClick,
 		handleBackToStart,
 		isStreaming,
+		isSubmitPending,
 		stopStreaming,
 	} = useRovoViewChat();
+	const isRequestInFlight = isStreaming || isSubmitPending;
 
 	const { conversationContextRef, scrollSpacerRef } = useScrollAnchoring({
 		uiMessages,
@@ -50,7 +52,7 @@ export default function RovoView() {
 		[activeQuestionCard]
 	);
 	const [dismissedQuestionCardKey, setDismissedQuestionCardKey] = useState<string | null>(null);
-	const shouldShowQuestionCard = !isStreaming && activeQuestionCard !== null && dismissedQuestionCardKey !== activeQuestionCardKey;
+	const shouldShowQuestionCard = !isRequestInFlight && activeQuestionCard !== null && dismissedQuestionCardKey !== activeQuestionCardKey;
 	const dismissQuestionCard = useCallback(() => {
 		if (!activeQuestionCardKey) {
 			return;
@@ -68,7 +70,7 @@ export default function RovoView() {
 					prompt={prompt}
 					interimText={interimText}
 					isListening={isListening}
-					isStreaming={isStreaming}
+					isStreaming={isRequestInFlight}
 					onPromptChange={setPrompt}
 					onSubmit={handleSubmit}
 					onToggleDictation={toggleDictation}
@@ -101,6 +103,7 @@ export default function RovoView() {
 									conversationContextRef={conversationContextRef}
 									scrollSpacerRef={scrollSpacerRef}
 									isStreaming={isStreaming}
+									isSubmitPending={isSubmitPending}
 								/>
 						</div>
 					</div>
@@ -124,7 +127,7 @@ export default function RovoView() {
 								prompt={prompt}
 								interimText={interimText}
 								isListening={isListening}
-								isStreaming={isStreaming}
+								isStreaming={isRequestInFlight}
 								onPromptChange={setPrompt}
 								onSubmit={handleSubmit}
 								onToggleDictation={toggleDictation}

@@ -27,6 +27,7 @@ export function useRovoViewChat() {
 		stopStreaming,
 		resetChat,
 		isStreaming,
+		isSubmitPending,
 		queuedPrompts,
 		removeQueuedPrompt,
 	} = useRovoChat();
@@ -162,6 +163,7 @@ export function useRovoViewChat() {
 		handleSuggestedQuestionClick,
 		handleBackToStart,
 		isStreaming,
+		isSubmitPending,
 		handleClarificationSubmit,
 		stopStreaming,
 	};

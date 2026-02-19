@@ -44,6 +44,7 @@ interface AgentsTeamChatViewProps {
 	prompt: string;
 	isPlanMode: boolean;
 	isStreaming: boolean;
+	isSubmitPending: boolean;
 	isWidgetLoading: boolean;
 	loadingWidgetType: string | null;
 	isPlanResponseComplete: boolean;
@@ -67,6 +68,7 @@ export default function AgentsTeamChatView({
 	prompt,
 	isPlanMode,
 	isStreaming,
+	isSubmitPending,
 	isWidgetLoading,
 	loadingWidgetType,
 	isPlanResponseComplete,
@@ -104,9 +106,10 @@ export default function AgentsTeamChatView({
 				: loadingWidgetType === "work-items"
 					? "Comparing Jira work items"
 					: "Processing your request";
+	const isRequestInFlight = isStreaming || isSubmitPending;
 
-	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isWidgetLoading && !isStreaming;
-	const gatedShouldShowApprovalCard = shouldShowApprovalCard && isPlanResponseComplete && !isStreaming;
+	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isWidgetLoading && !isRequestInFlight;
+	const gatedShouldShowApprovalCard = shouldShowApprovalCard && isPlanResponseComplete && !isRequestInFlight;
 	const hasPendingResponseCard = gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
 	const showQuestionCardOverlay = gatedShouldShowQuestionCard;
 	const showApprovalCardOverlay = gatedShouldShowApprovalCard;
@@ -138,6 +141,7 @@ export default function AgentsTeamChatView({
 						contentTopPadding="24px"
 						contentBottomPadding={contentBottomPadding}
 						isStreaming={isStreaming}
+						isSubmitPending={isSubmitPending}
 						streamingIndicatorVariant="reasoning-expanded"
 						thinkingLabel="Thinking"
 						showFeedbackActions={false}
@@ -212,7 +216,7 @@ export default function AgentsTeamChatView({
 						activeQuestionCard={activeQuestionCard}
 						activeQuestionCardKey={activeQuestionCardKey}
 						activePlanKey={activePlanKey}
-						isStreaming={isStreaming}
+						isStreaming={isRequestInFlight}
 						prompt={prompt}
 						onClarificationSubmit={onClarificationSubmit}
 						onApprovalSubmit={onApprovalSubmit}

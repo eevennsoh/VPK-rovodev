@@ -21,6 +21,40 @@ export interface AgentExecutionUpdate {
 	content?: string;
 }
 
+export type ThinkingEventPhase = "start" | "result" | "error";
+
+export interface ThinkingEventUpdate {
+	eventId: string;
+	phase: ThinkingEventPhase;
+	toolName: string;
+	toolCallId?: string;
+	input?: unknown;
+	output?: unknown;
+	outputPreview?: string;
+	outputTruncated?: boolean;
+	outputBytes?: number;
+	suppressedRawOutput?: boolean;
+	errorText?: string;
+	timestamp: string;
+}
+
+export type ThinkingToolState = "running" | "completed" | "error";
+
+export interface ThinkingToolCallSummary {
+	id: string;
+	toolName: string;
+	toolCallId?: string;
+	state: ThinkingToolState;
+	input?: unknown;
+	output?: unknown;
+	outputPreview?: string;
+	outputTruncated?: boolean;
+	outputBytes?: number;
+	suppressedRawOutput?: boolean;
+	errorText?: string;
+	timestamp?: string;
+}
+
 export type RovoDataParts = {
 	"widget-loading": {
 		type?: string;
@@ -42,6 +76,7 @@ export type RovoDataParts = {
 		label: string;
 		content?: string;
 	};
+	"thinking-event": ThinkingEventUpdate;
 	"agent-execution": AgentExecutionUpdate;
 };
 
@@ -199,6 +234,146 @@ export function getMessageToolParts(
 	message: Pick<RovoUIMessage, "parts">
 ): RovoToolPart[] {
 	return message.parts.filter(isToolUIPart);
+}
+
+export function getThinkingEvents(
+	message: Pick<RovoUIMessage, "parts">
+): ThinkingEventUpdate[] {
+	return getAllDataParts(message, "data-thinking-event").map((part) => part.data);
+}
+
+export function getThinkingToolCallSummaries(
+	message: Pick<RovoUIMessage, "parts">
+): ThinkingToolCallSummary[] {
+	const events = getThinkingEvents(message);
+	if (events.length === 0) {
+		return [];
+	}
+
+	const summaries: ThinkingToolCallSummary[] = [];
+	const summaryIndexByKey = new Map<string, number>();
+
+	for (const [index, event] of events.entries()) {
+		const eventId =
+			typeof event.eventId === "string" && event.eventId.trim()
+				? event.eventId.trim()
+				: `thinking-event-${index}`;
+		const toolCallId =
+			typeof event.toolCallId === "string" && event.toolCallId.trim()
+				? event.toolCallId.trim()
+				: undefined;
+		const key = toolCallId ? `call:${toolCallId}` : `event:${eventId}`;
+		const toolName =
+			typeof event.toolName === "string" && event.toolName.trim()
+				? event.toolName.trim()
+				: "Tool";
+		const timestamp =
+			typeof event.timestamp === "string" && event.timestamp.trim()
+				? event.timestamp.trim()
+				: undefined;
+		const summaryIndex = summaryIndexByKey.get(key);
+		const eventOutputPreview =
+			typeof event.outputPreview === "string"
+				? event.outputPreview
+				: event.output;
+		const eventOutputTruncated = event.outputTruncated === true;
+		const eventOutputBytes =
+			typeof event.outputBytes === "number" && Number.isFinite(event.outputBytes)
+				? event.outputBytes
+				: undefined;
+		const eventSuppressedRawOutput = event.suppressedRawOutput === true;
+
+		if (summaryIndex === undefined) {
+			summaries.push({
+				id: key,
+				toolName,
+				toolCallId,
+				state:
+					event.phase === "error"
+						? "error"
+						: event.phase === "result"
+							? "completed"
+							: "running",
+				input: event.input,
+				output: event.phase === "result" ? eventOutputPreview : undefined,
+				outputPreview:
+					event.phase === "result" || event.phase === "error"
+						? typeof eventOutputPreview === "string"
+							? eventOutputPreview
+							: undefined
+						: undefined,
+				outputTruncated: eventOutputTruncated || undefined,
+				outputBytes: eventOutputBytes,
+				suppressedRawOutput: eventSuppressedRawOutput || undefined,
+				errorText:
+					event.phase === "error"
+						? event.errorText ??
+							(typeof eventOutputPreview === "string"
+								? eventOutputPreview
+								: undefined)
+						: undefined,
+				timestamp,
+			});
+			summaryIndexByKey.set(key, summaries.length - 1);
+			continue;
+		}
+
+		const summary = summaries[summaryIndex];
+		summary.toolName = toolName;
+		summary.toolCallId = toolCallId;
+		if (timestamp) {
+			summary.timestamp = timestamp;
+		}
+		if (event.phase === "start") {
+			if (summary.state !== "completed" && summary.state !== "error") {
+				summary.state = "running";
+			}
+			if (event.input !== undefined) {
+				summary.input = event.input;
+			}
+			continue;
+		}
+		if (event.phase === "result") {
+			summary.state = "completed";
+			summary.errorText = undefined;
+			if (eventOutputPreview !== undefined) {
+				summary.output = eventOutputPreview;
+			}
+			if (typeof eventOutputPreview === "string") {
+				summary.outputPreview = eventOutputPreview;
+			}
+			if (eventOutputTruncated) {
+				summary.outputTruncated = true;
+			}
+			if (eventOutputBytes !== undefined) {
+				summary.outputBytes = eventOutputBytes;
+			}
+			if (eventSuppressedRawOutput) {
+				summary.suppressedRawOutput = true;
+			}
+			continue;
+		}
+		summary.state = "error";
+		if (typeof eventOutputPreview === "string") {
+			summary.outputPreview = eventOutputPreview;
+		}
+		if (eventOutputTruncated) {
+			summary.outputTruncated = true;
+		}
+		if (eventOutputBytes !== undefined) {
+			summary.outputBytes = eventOutputBytes;
+		}
+		if (eventSuppressedRawOutput) {
+			summary.suppressedRawOutput = true;
+		}
+		summary.errorText =
+			event.errorText ??
+			(typeof eventOutputPreview === "string"
+				? eventOutputPreview
+				: summary.errorText);
+	}
+
+	return summaries;
 }
 
 export function getToolPartName(toolPart: RovoToolPart): string {

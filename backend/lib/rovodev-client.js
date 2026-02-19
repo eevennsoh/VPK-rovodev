@@ -13,6 +13,9 @@
  */
 
 const http = require("http");
+const {
+	toPreview,
+} = require("./tool-output-sanitizer");
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -87,7 +90,9 @@ function getToolCallInput(part) {
  *   - "request-usage"       → token usage stats (skip)
  *   - "close"               → stream end (skip)
  *
- * Returns { type, text, toolName?, toolCallId?, toolInput? } or null if the event should be skipped.
+ * Returns
+ * { type, text, toolName?, toolCallId?, toolInput?, outputPreview?, outputTruncated?, outputBytes? }
+ * or null if the event should be skipped.
  */
 function extractChunkFromEvent(eventName, parsed) {
 	// Events to skip entirely
@@ -134,7 +139,8 @@ function extractChunkFromEvent(eventName, parsed) {
 
 	if (eventName === "retry-prompt" || eventName === "tool-return") {
 		const rawContent = parsed?.content ?? "";
-		const content = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent, null, 2);
+		const preview = toPreview(rawContent);
+		const content = preview.text;
 		const toolName = parsed?.tool_name || "";
 		const toolCallId = parsed?.tool_call_id || "";
 		const isError = content.toLowerCase().includes("error");
@@ -143,6 +149,9 @@ function extractChunkFromEvent(eventName, parsed) {
 			text: content,
 			toolName,
 			toolCallId,
+			outputPreview: content,
+			outputTruncated: preview.truncated,
+			outputBytes: preview.bytes,
 		};
 	}
 
@@ -202,7 +211,8 @@ function extractChunkFromEvent(eventName, parsed) {
 		parsed?.choices?.[0]?.delta?.content ??
 		"";
 
-	const text = typeof rawText === "string" ? rawText : JSON.stringify(rawText, null, 2);
+	const preview = toPreview(rawText);
+	const text = preview.text;
 	return text ? { type: "text", text } : null;
 }
 

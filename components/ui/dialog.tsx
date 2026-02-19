@@ -74,7 +74,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "bg-popover data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 shadow-xl grid max-w-[calc(100%-2rem)] gap-4 rounded-xl p-4 text-sm duration-100 fixed top-1/2 left-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 outline-none",
+          "bg-popover data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 shadow-xl grid max-w-[calc(100%-2rem)] gap-6 rounded-xl p-6 text-sm duration-100 fixed top-1/2 left-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 outline-none",
           DIALOG_SIZE_CLASSES[size],
           className
         )}
@@ -87,7 +87,7 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                className="absolute top-4 right-4"
                 size="icon-sm"
               />
             }
@@ -105,7 +105,7 @@ function DialogHeader({ className, ...props }: Readonly<React.ComponentProps<"di
   return (
     <div
       data-slot="dialog-header"
-      className={cn("gap-2 flex flex-col", className)}
+      className={cn("gap-2 flex flex-col -mx-6 -mt-6 px-6 pt-6 pb-6 border-b", className)}
       {...props}
     />
   )
@@ -125,7 +125,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "bg-muted/50 -mx-4 -mb-4 rounded-b-xl border-t p-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        "bg-muted/50 -mx-6 -mb-6 rounded-b-xl border-t p-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

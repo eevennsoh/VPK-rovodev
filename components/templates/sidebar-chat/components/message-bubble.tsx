@@ -22,7 +22,8 @@ export default function MessageBubble({
 			onSuggestionClick={onSuggestionClick}
 			showFeedbackActions={true}
 			showFollowUpSuggestions={true}
-			showToolsSection={false}
+			showThinkingStatusSection={true}
+			showToolsSection={true}
 			showWidgetSections={enableSmartWidgets}
 			renderWidget={(widget) => {
 				if (!enableSmartWidgets) {

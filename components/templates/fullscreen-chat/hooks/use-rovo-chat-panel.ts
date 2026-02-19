@@ -31,6 +31,7 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		stopStreaming,
 		resetChat,
 		isStreaming,
+		isSubmitPending,
 		queuedPrompts,
 		removeQueuedPrompt,
 	} = useRovoChat();
@@ -137,6 +138,7 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		uiMessages,
 		userName,
 		isStreaming,
+		isSubmitPending,
 		queuedPrompts,
 		removeQueuedPrompt,
 		isListening,

@@ -2,11 +2,24 @@
 
 import { useState, type ReactNode } from "react";
 import Image from "next/image";
-import AppsIcon from "@atlaskit/icon/core/apps";
+import AngleBracketsIcon from "@atlaskit/icon/core/angle-brackets";
 import AudioIcon from "@atlaskit/icon/core/audio";
-import DashboardIcon from "@atlaskit/icon/core/dashboard";
+import BoardIcon from "@atlaskit/icon/core/board";
+import ChartBarIcon from "@atlaskit/icon/core/chart-bar";
+import ChartBubbleIcon from "@atlaskit/icon/core/chart-bubble";
+import ChartMatrixIcon from "@atlaskit/icon/core/chart-matrix";
+import ChartPieIcon from "@atlaskit/icon/core/chart-pie";
+import ChartTrendIcon from "@atlaskit/icon/core/chart-trend";
+import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
+import CrossIcon from "@atlaskit/icon/core/cross";
 import FileIcon from "@atlaskit/icon/core/file";
 import ImageIcon from "@atlaskit/icon/core/image";
+import PageIcon from "@atlaskit/icon/core/page";
+import TableIcon from "@atlaskit/icon/core/table";
+import TextIcon from "@atlaskit/icon/core/text";
+import VideoIcon from "@atlaskit/icon/core/video";
+import WorkItemIcon from "@atlaskit/icon/core/work-item";
+import GenerativeIndicatorIcon from "@atlaskit/icon-lab/core/generative-indicator";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,11 +33,13 @@ import {
 } from "@/components/ui/card";
 import {
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Tile } from "@/components/ui/tile";
 import { AudioPlayerElement } from "@/components/ui-ai/audio-player";
 import { JsonRenderView } from "@/lib/json-render/renderer";
 import {
@@ -32,10 +47,7 @@ import {
 	resolveGenerativeWidgetMetadata,
 	type ParsedGenerativeWidget,
 } from "@/components/templates/shared/lib/generative-widget";
-import {
-	formatContentTypeLabel,
-	resolveGenerativeWidgetLogoSrc,
-} from "@/components/templates/shared/lib/generative-widget-branding";
+import { formatContentTypeLabel } from "@/components/templates/shared/lib/generative-widget-branding";
 import type { GenerativeContentType } from "@/components/templates/shared/lib/generative-widget";
 
 interface GenerativeWidgetCardProps {
@@ -54,47 +66,98 @@ interface GenerativeWidgetCardShellProps {
 interface GenerativeWidgetHeaderData {
 	contentTypeLabel: string;
 	metadata: ReturnType<typeof resolveGenerativeWidgetMetadata>;
-	sourceLabel: string;
-	sourceLogoSrc: string;
 }
 
 function resolveGenerativeWidgetHeaderData(
 	widget: ParsedGenerativeWidget
 ): GenerativeWidgetHeaderData {
 	const metadata = resolveGenerativeWidgetMetadata(widget);
-	const sourceLogoSrc = resolveGenerativeWidgetLogoSrc({
-		sourceLogoSrc: metadata.sourceLogoSrc,
-		sourceName: metadata.sourceName,
-	});
-	const sourceLabel = metadata.sourceName ?? "VPK";
 	const contentTypeLabel = formatContentTypeLabel(metadata.contentType);
 
 	return {
 		contentTypeLabel,
 		metadata,
-		sourceLabel,
-		sourceLogoSrc,
 	};
 }
 
-function renderContentTypeIcon(contentType: GenerativeContentType, label: string): ReactNode {
+function renderContentTypeIcon(contentType: GenerativeContentType): ReactNode {
 	if (contentType === "image") {
-		return <ImageIcon label={label} size="small" />;
+		return <ImageIcon label="" size="small" />;
 	}
 
-	if (contentType === "sound") {
-		return <AudioIcon label={label} size="small" />;
+	if (contentType === "text") {
+		return <TextIcon label="" size="small" />;
+	}
+
+	if (contentType === "chart-bar") {
+		return <ChartBarIcon label="" size="small" />;
+	}
+
+	if (contentType === "chart-line" || contentType === "chart-area") {
+		return <ChartTrendIcon label="" size="small" />;
+	}
+
+	if (contentType === "chart-pie") {
+		return <ChartPieIcon label="" size="small" />;
+	}
+
+	if (contentType === "chart-radar") {
+		return <ChartMatrixIcon label="" size="small" />;
+	}
+
+	if (contentType === "chart-scatter") {
+		return <ChartBubbleIcon label="" size="small" />;
 	}
 
 	if (contentType === "chart") {
-		return <DashboardIcon label={label} size="small" />;
+		return <ChartBarIcon label="" size="small" />;
+	}
+
+	if (contentType === "sound") {
+		return <AudioIcon label="" size="small" />;
+	}
+
+	if (contentType === "video") {
+		return <VideoIcon label="" size="small" />;
+	}
+
+	if (contentType === "work-item") {
+		return <WorkItemIcon label="" size="small" />;
+	}
+
+	if (contentType === "page") {
+		return <PageIcon label="" size="small" />;
+	}
+
+	if (contentType === "board") {
+		return <BoardIcon label="" size="small" />;
+	}
+
+	if (contentType === "table") {
+		return <TableIcon label="" size="small" />;
+	}
+
+	if (contentType === "code") {
+		return <AngleBracketsIcon label="" size="small" />;
 	}
 
 	if (contentType === "ui") {
-		return <AppsIcon label={label} size="small" />;
+		return <FileIcon label="" size="small" />;
 	}
 
-	return <FileIcon label={label} size="small" />;
+	return <GenerativeIndicatorIcon label="" size="small" />;
+}
+
+function renderContentTypeTile(
+	contentType: GenerativeContentType,
+	contentTypeLabel: string,
+	tileSize: "medium" | "large" = "medium"
+): ReactNode {
+	return (
+		<Tile label={contentTypeLabel} size={tileSize} variant="transparent" hasBorder className="text-icon-subtle [&_span]:!size-4 [&_svg]:!size-4">
+			{renderContentTypeIcon(contentType)}
+		</Tile>
+	);
 }
 
 function renderWidgetBody(
@@ -113,12 +176,12 @@ function renderWidgetBody(
 		}
 
 		return (
-		<div
-			className={cn(
-				"overflow-hidden rounded-md bg-surface",
-				previewMode ? "max-h-[65vh] overflow-auto p-4" : "p-3"
-			)}
-		>
+			<div
+				className={cn(
+					"overflow-hidden rounded-md bg-surface",
+					previewMode && "max-h-[65vh] overflow-auto"
+				)}
+			>
 				{content}
 			</div>
 		);
@@ -144,7 +207,7 @@ function renderWidgetBody(
 		}
 
 		return (
-			<div className="rounded-md bg-surface p-3">
+			<div className="rounded-md bg-surface">
 				{content}
 			</div>
 		);
@@ -152,7 +215,7 @@ function renderWidgetBody(
 
 	if (widget.type === "image-preview") {
 		return (
-			<div className="grid gap-2 sm:grid-cols-2">
+			<div className="grid place-items-center gap-2 sm:grid-cols-2">
 				{widget.images.map((image, index) => (
 					<a
 						key={`${image.url}-${index}`}
@@ -160,7 +223,7 @@ function renderWidgetBody(
 						target="_blank"
 						rel="noreferrer"
 						className={cn(
-							"block overflow-hidden",
+							"block overflow-hidden aspect-square w-full",
 							withContainer ? "rounded-md bg-surface" : ""
 						)}
 					>
@@ -170,7 +233,7 @@ function renderWidgetBody(
 							width={960}
 							height={960}
 							unoptimized
-							className="h-auto w-full object-cover"
+							className="size-full object-cover"
 						/>
 					</a>
 				))}
@@ -187,25 +250,14 @@ function GenerativeWidgetCardShell({
 	previewMode = false,
 	onOpenPreview,
 }: Readonly<GenerativeWidgetCardShellProps>): ReactNode {
-	const {
-		contentTypeLabel,
-		metadata,
-		sourceLabel,
-		sourceLogoSrc,
-	} = resolveGenerativeWidgetHeaderData(widget);
+	const [expanded, setExpanded] = useState(true);
+	const { metadata, contentTypeLabel } = resolveGenerativeWidgetHeaderData(widget);
 
 	return (
 		<Card className={cn("w-full gap-0 p-0", className)}>
-			<CardHeader className="border-b px-4 py-3">
+			<CardHeader className={cn("px-4 py-3", expanded && "border-b")}>
 				<div className="flex min-w-0 items-center gap-3">
-					<Image
-						src={sourceLogoSrc}
-						alt={`${sourceLabel} logo`}
-						width={32}
-						height={32}
-						unoptimized
-						className="rounded-md border border-border bg-surface object-contain"
-					/>
+					{renderContentTypeTile(metadata.contentType, contentTypeLabel)}
 					<div className="min-w-0 flex-1">
 						<CardTitle className="truncate text-sm leading-5 font-semibold">
 							{metadata.title}
@@ -215,31 +267,48 @@ function GenerativeWidgetCardShell({
 						</CardDescription>
 					</div>
 				</div>
-				<CardAction className="self-center text-icon-subtle">
-					{renderContentTypeIcon(
-						metadata.contentType,
-						`${contentTypeLabel} content`
-					)}
+				<CardAction className="self-center">
+					<Button
+						variant="ghost"
+						size="icon"
+						className="text-text-subtle"
+						aria-label={expanded ? "Collapse card details" : "Expand card details"}
+						onClick={() => setExpanded((prev) => !prev)}
+					>
+						<span
+							className="transition-transform duration-200 ease-in-out"
+							style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
+						>
+							<ChevronDownIcon label="" size="small" />
+						</span>
+					</Button>
 				</CardAction>
 			</CardHeader>
-			<CardContent className={cn("px-4", previewMode ? "py-4" : "py-3")}>
-				{renderWidgetBody(widget, previewMode)}
-			</CardContent>
-			<CardFooter className="h-16 justify-end !bg-card px-4 py-4">
-				{previewMode ? (
-					<Button variant="outline" className="h-8 min-w-[117px]" disabled>
-						Open preview
-					</Button>
-				) : (
-					<Button
-						variant="outline"
-						className="h-8 min-w-[117px]"
-						onClick={onOpenPreview}
-					>
-						Open preview
-					</Button>
-				)}
-			</CardFooter>
+			<div
+				className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+				style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
+			>
+				<div className="overflow-hidden">
+					<CardContent className={cn("px-4", previewMode ? "py-4" : "py-3")}>
+						{renderWidgetBody(widget, previewMode)}
+					</CardContent>
+					<CardFooter className="h-16 justify-end px-4 py-4">
+						{previewMode ? (
+							<Button variant="outline" className="h-8 min-w-[117px]" disabled>
+								Open preview
+							</Button>
+						) : (
+							<Button
+								variant="outline"
+								className="h-8 min-w-[117px]"
+								onClick={onOpenPreview}
+							>
+								Open preview
+							</Button>
+						)}
+					</CardFooter>
+				</div>
+			</div>
 		</Card>
 	);
 }
@@ -255,7 +324,7 @@ export function GenerativeWidgetCard({
 		return null;
 	}
 
-	const { metadata, sourceLabel, sourceLogoSrc } = resolveGenerativeWidgetHeaderData(parsedWidget);
+	const { metadata, contentTypeLabel } = resolveGenerativeWidgetHeaderData(parsedWidget);
 
 	return (
 		<div className={cn("pb-2", className)}>
@@ -264,28 +333,24 @@ export function GenerativeWidgetCard({
 					widget={parsedWidget}
 					onOpenPreview={() => setPreviewOpen(true)}
 				/>
-				<DialogContent className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-5xl" size="xl">
-					<DialogHeader className="px-4 py-3">
-						<div className="flex min-w-0 items-center gap-3">
-							<Image
-								src={sourceLogoSrc}
-								alt={`${sourceLabel} logo`}
-								width={32}
-								height={32}
-								unoptimized
-								className="rounded-md border border-border bg-surface object-contain"
-							/>
-							<div className="min-w-0 flex-1">
-								<DialogTitle className="truncate text-sm leading-5 font-semibold">
+				<DialogContent className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-5xl" size="xl" showCloseButton={false}>
+					<DialogHeader className="flex-row items-center border-b p-6">
+						<div className="flex min-w-0 flex-1 items-center gap-3">
+							{renderContentTypeTile(metadata.contentType, contentTypeLabel)}
+							<div className="min-w-0 flex-1 space-y-1">
+								<DialogTitle className="truncate">
 									{metadata.title}
 								</DialogTitle>
-								<DialogDescription className="line-clamp-2 text-xs leading-4">
+								<DialogDescription className="line-clamp-2">
 									{metadata.description}
 								</DialogDescription>
 							</div>
 						</div>
+						<DialogClose render={<Button variant="ghost" size="icon-sm" />}>
+							<CrossIcon label="Close" />
+						</DialogClose>
 					</DialogHeader>
-					<div className="p-4">
+					<div className="p-6">
 						{renderWidgetBody(parsedWidget, true, false)}
 					</div>
 				</DialogContent>
