@@ -367,7 +367,7 @@ export function CardDemoGenerativeCard1p() {
 			<CardHeader className={cn("px-4 py-3", expanded && "border-b")}>
 				<div className="flex min-w-0 items-center gap-3">
 					<Tile label="Confluence" size="medium" variant="transparent" isInset={false} hasBorder>
-						<ConfluenceLogo size="medium" />
+						<ConfluenceLogo size="small" />
 					</Tile>
 					<div className="min-w-0 flex-1">
 						<CardTitle className="truncate text-sm leading-5 font-semibold">Confluence</CardTitle>
