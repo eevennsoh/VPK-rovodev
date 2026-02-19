@@ -8,7 +8,7 @@ import {
 } from "@/components/ui-ai/tool";
 import type { ThinkingToolCallSummary } from "@/lib/rovo-ui-messages";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type AssistantThinkingToolsSectionDefaultOpenMode = "details" | "running";
 
@@ -19,7 +19,10 @@ interface AssistantThinkingToolsSectionProps {
 	className?: string;
 }
 
-type ToolOpenState = Record<string, boolean>;
+interface AssistantThinkingToolItemProps {
+	toolCall: ThinkingToolCallSummary;
+	shouldDefaultOpen: boolean;
+}
 
 function hasToolDetails(toolCall: ThinkingToolCallSummary): boolean {
 	return (
@@ -45,48 +48,42 @@ function toToolUiState(
 	return "output-available";
 }
 
+function AssistantThinkingToolItem({
+	toolCall,
+	shouldDefaultOpen,
+}: Readonly<AssistantThinkingToolItemProps>): React.ReactElement {
+	const [isOpen, setIsOpen] = useState(shouldDefaultOpen);
+
+	return (
+		<Tool open={isOpen} onOpenChange={setIsOpen}>
+			<ToolHeader
+				title={toolCall.toolName}
+				state={toToolUiState(toolCall.state)}
+				type="dynamic-tool"
+				toolName={toolCall.toolName}
+			/>
+			<ToolContent>
+				{toolCall.input !== undefined ? (
+					<ToolInput input={toolCall.input} />
+				) : null}
+				<ToolOutput
+					errorText={toolCall.errorText}
+					output={toolCall.output}
+					outputBytes={toolCall.outputBytes}
+					outputTruncated={toolCall.outputTruncated}
+					suppressedRawOutput={toolCall.suppressedRawOutput}
+				/>
+			</ToolContent>
+		</Tool>
+	);
+}
+
 export function AssistantThinkingToolsSection({
 	thinkingToolCalls,
 	idPrefix,
 	defaultOpenMode = "details",
 	className,
 }: Readonly<AssistantThinkingToolsSectionProps>): React.ReactElement {
-	const [openByToolKey, setOpenByToolKey] = useState<ToolOpenState>({});
-
-	useEffect(() => {
-		setOpenByToolKey((previousOpenByToolKey) => {
-			const nextOpenByToolKey: ToolOpenState = {};
-			let hasChanges = false;
-
-			for (const [index, toolCall] of thinkingToolCalls.entries()) {
-				const toolKey = `${idPrefix}-thinking-tool-${toolCall.id}-${index}`;
-				const shouldDefaultOpen =
-					defaultOpenMode === "running"
-						? isToolRunning(toolCall)
-						: hasToolDetails(toolCall);
-				const previousOpen = previousOpenByToolKey[toolKey];
-
-				if (previousOpen === undefined) {
-					nextOpenByToolKey[toolKey] = shouldDefaultOpen;
-					hasChanges = true;
-					continue;
-				}
-
-				nextOpenByToolKey[toolKey] = previousOpen;
-			}
-
-			if (
-				!hasChanges &&
-				Object.keys(previousOpenByToolKey).length ===
-					Object.keys(nextOpenByToolKey).length
-			) {
-				return previousOpenByToolKey;
-			}
-
-			return nextOpenByToolKey;
-		});
-	}, [defaultOpenMode, idPrefix, thinkingToolCalls]);
-
 	return (
 		<div className={cn("space-y-2", className)}>
 			{thinkingToolCalls.map((toolCall, index) => {
@@ -94,41 +91,13 @@ export function AssistantThinkingToolsSection({
 					defaultOpenMode === "running"
 						? isToolRunning(toolCall)
 						: hasToolDetails(toolCall);
-				const toolKey = `${idPrefix}-thinking-tool-${toolCall.id}-${index}`;
-				const isOpen = openByToolKey[toolKey] ?? shouldDefaultOpen;
 
 				return (
-					<Tool
-						key={toolKey}
-						open={isOpen}
-						onOpenChange={(nextOpen) => {
-							setOpenByToolKey((previousOpenByToolKey) => {
-								if (previousOpenByToolKey[toolKey] === nextOpen) {
-									return previousOpenByToolKey;
-								}
-								return {
-									...previousOpenByToolKey,
-									[toolKey]: nextOpen,
-								};
-							});
-						}}
-					>
-						<ToolHeader
-							title={toolCall.toolName}
-							state={toToolUiState(toolCall.state)}
-							type="dynamic-tool"
-							toolName={toolCall.toolName}
-						/>
-						<ToolContent>
-							{toolCall.input !== undefined ? (
-								<ToolInput input={toolCall.input} />
-							) : null}
-							<ToolOutput
-								errorText={toolCall.errorText}
-								output={toolCall.output}
-							/>
-						</ToolContent>
-					</Tool>
+					<AssistantThinkingToolItem
+						key={`${idPrefix}-thinking-tool-${toolCall.id}-${index}`}
+						toolCall={toolCall}
+						shouldDefaultOpen={shouldDefaultOpen}
+					/>
 				);
 			})}
 		</div>

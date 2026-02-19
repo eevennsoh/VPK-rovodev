@@ -317,40 +317,84 @@ export type ToolInputProps = ComponentProps<"div"> & {
   input: ToolPart["input"];
 };
 
-export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn("space-y-2 overflow-hidden", className)} {...props}>
-<h4 className="font-medium text-muted-foreground text-[12px]">
-    Parameters
-    </h4>
-    <div className="rounded-md bg-muted/50">
-      <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
+  const inputPreview = toToolValuePreview(input);
+
+  return (
+    <div className={cn("space-y-2 overflow-hidden", className)} {...props}>
+      <h4 className="font-medium text-muted-foreground text-[12px]">
+        Parameters
+      </h4>
+      <div className="rounded-md bg-muted/50">
+        {inputPreview.truncated ? (
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words p-3 text-[12px] leading-5 text-text">
+            {inputPreview.text}
+          </pre>
+        ) : (
+          <CodeBlock code={inputPreview.text} language="json" />
+        )}
+      </div>
+      {inputPreview.truncated ? (
+        <p className="text-[11px] leading-4 text-text-subtle">
+          Parameters truncated for performance.
+        </p>
+      ) : null}
     </div>
-  </div>
-);
+  );
+};
 
 export type ToolOutputProps = ComponentProps<"div"> & {
   output: ToolPart["output"];
   errorText: ToolPart["errorText"];
+  outputTruncated?: boolean;
+  outputBytes?: number;
+  suppressedRawOutput?: boolean;
 };
 
 export const ToolOutput = ({
   className,
   output,
   errorText,
+  outputTruncated,
+  outputBytes,
+  suppressedRawOutput,
   ...props
 }: ToolOutputProps) => {
   if (!(output || errorText)) {
     return null;
   }
 
+  const outputPreview = toToolValuePreview(output);
+  const errorPreview = errorText
+    ? toToolValuePreview(errorText, { maxChars: 320, maxLines: 6 })
+    : null;
+  const shouldShowTruncationNotice =
+    outputTruncated === true ||
+    suppressedRawOutput === true ||
+    outputPreview.truncated;
+  const formattedOutputBytes =
+    typeof outputBytes === "number" ? formatByteSize(outputBytes) : null;
+
   let Output = <div>{output as ReactNode}</div>;
 
   if (typeof output === "object" && !isValidElement(output)) {
     Output = (
-      <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />
+      outputPreview.truncated ? (
+        <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words p-3 text-[12px] leading-5 text-text">
+          {outputPreview.text}
+        </pre>
+      ) : (
+        <CodeBlock code={outputPreview.text} language="json" />
+      )
     );
   } else if (typeof output === "string") {
-    Output = <CodeBlock code={output} language="json" />;
+    Output = outputPreview.truncated ? (
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words p-3 text-[12px] leading-5 text-text">
+        {outputPreview.text}
+      </pre>
+    ) : (
+      <CodeBlock code={outputPreview.text} language="json" />
+    );
   }
 
   return (
@@ -360,16 +404,24 @@ export const ToolOutput = ({
       </h4>
       {errorText ? (
         <Lozenge variant="danger" size="compact" maxWidth={360}>
-          {errorText}
+          {errorPreview?.text ?? errorText}
         </Lozenge>
       ) : (
-        <div
-          className={cn(
-            "overflow-x-auto rounded-md text-xs [&_table]:w-full bg-muted/50 text-foreground"
-          )}
-        >
-          {Output}
-        </div>
+        <>
+          <div
+            className={cn(
+              "overflow-x-auto rounded-md text-xs [&_table]:w-full bg-muted/50 text-foreground"
+            )}
+          >
+            {Output}
+          </div>
+          {shouldShowTruncationNotice ? (
+            <p className="text-[11px] leading-4 text-text-subtle">
+              Output truncated for performance
+              {formattedOutputBytes ? ` (${formattedOutputBytes} received)` : ""}.
+            </p>
+          ) : null}
+        </>
       )}
     </div>
   );
