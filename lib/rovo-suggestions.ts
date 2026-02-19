@@ -7,8 +7,8 @@
 import type { ComponentType } from "react";
 
 // Icon imports - these will be used by consuming components
-import LightbulbIcon from "@atlaskit/icon/core/lightbulb";
-import BookOpenIcon from "@atlaskit/icon/core/book-with-bookmark";
+import TaskIcon from "@atlaskit/icon/core/task";
+import PageIcon from "@atlaskit/icon/core/page";
 
 export interface RovoSuggestion {
 	id: string;
@@ -24,43 +24,43 @@ export interface RovoSuggestion {
 
 /**
  * Default suggestions shown in the chat greeting
- * Based on Figma design
+ * Showcases RovoDev's tool coverage across Atlassian and external apps
  */
 export const defaultSuggestions: RovoSuggestion[] = [
 	{
-		id: "collect-insights",
-		label: "Collect insights",
-		icon: LightbulbIcon,
+		id: "create-jira-ticket",
+		label: "Create Jira ticket for bug",
+		icon: TaskIcon,
 		type: "skill",
 	},
 	{
-		id: "organize-folder",
-		label: "Organize folder",
-		imageSrc: "/3p/google-drive/16-borderless.svg",
+		id: "summarize-confluence",
+		label: "Summarize Confluence page",
+		icon: PageIcon,
+		type: "skill",
+	},
+	{
+		id: "figma-design-context",
+		label: "Get Figma design context",
+		imageSrc: "/3p/figma/16.svg",
 		type: "prompt",
 	},
 	{
-		id: "send-message",
-		label: "Send message",
+		id: "send-slack-message",
+		label: "Send Slack message",
 		imageSrc: "/3p/slack/16-borderless.svg",
 		type: "prompt",
 	},
 	{
-		id: "conduct-surveys",
-		label: "Conduct follow-up surveys",
-		imageSrc: "/illustration-ai/search/light.svg",
+		id: "list-google-drive",
+		label: "List Google Drive files",
+		imageSrc: "/3p/google-drive/16-borderless.svg",
 		type: "prompt",
 	},
 	{
-		id: "brainstorm-ideas",
-		label: "Brainstorm ideas for project",
-		imageSrc: "/illustration-ai/write/light.svg",
+		id: "list-google-calendar-events",
+		label: "List Google Calendar events",
+		imageSrc: "/3p/google-calendar/16-borderless.svg",
 		type: "prompt",
-	},
-	{
-		id: "discover-more",
-		label: "Discover more prompts and skills",
-		icon: BookOpenIcon,
-		type: "skill",
 	},
 ];
