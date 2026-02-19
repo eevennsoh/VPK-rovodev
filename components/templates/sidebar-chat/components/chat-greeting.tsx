@@ -27,8 +27,8 @@ function SkillListItem({
 	onClick,
 }: Readonly<SkillListItemProps>) {
 	const IconComponent = suggestion.icon;
-	// Use discovery color for "Collect insights" lightbulb, subtlest for others
-	const iconColor = suggestion.id === "collect-insights" ? token("color.icon.discovery") : token("color.icon.subtlest");
+	const isAtlassianAppSuggestion = suggestion.id === "create-jira-ticket" || suggestion.id === "summarize-confluence";
+	const iconColor = isAtlassianAppSuggestion ? token("color.icon.brand") : token("color.icon.subtlest");
 
 	return (
 		<button
