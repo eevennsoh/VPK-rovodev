@@ -1,10 +1,13 @@
 "use client";
 
+import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useRovoChatPanel } from "../hooks/use-rovo-chat-panel";
 import RovoChatHeader from "./rovo-chat-header";
 import RovoChatMessages from "./rovo-chat-messages";
 import RovoChatInput from "./rovo-chat-input";
+import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
+import { QuestionCardShortcutsFooter } from "@/components/templates/shared/components/question-card-shortcuts-footer";
 import styles from "./rovo-chat-panel.module.css";
 import type { Product } from "../types";
 
@@ -41,8 +44,22 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		handleSuggestedQuestionClick,
 		handleFullScreen,
 		hasChatStarted,
+		activeQuestionCard,
+		handleClarificationSubmit,
 		stopStreaming,
 	} = useRovoChatPanel({ product });
+	const activeQuestionCardKey = useMemo(
+		() => (activeQuestionCard ? `${activeQuestionCard.sessionId}-${activeQuestionCard.round}` : null),
+		[activeQuestionCard]
+	);
+	const [dismissedQuestionCardKey, setDismissedQuestionCardKey] = useState<string | null>(null);
+	const shouldShowQuestionCard = !isStreaming && activeQuestionCard !== null && dismissedQuestionCardKey !== activeQuestionCardKey;
+	const dismissQuestionCard = useCallback(() => {
+		if (!activeQuestionCardKey) {
+			return;
+		}
+		setDismissedQuestionCardKey(activeQuestionCardKey);
+	}, [activeQuestionCardKey]);
 
 	const isFloating = variant === "floating";
 	const panelHeight = isFloating
@@ -76,6 +93,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				uiMessages={uiMessages}
 				variant={variant}
 				messageMode="ask"
+				enableSmartWidgets={true}
 				onSuggestedQuestionClick={handleSuggestedQuestionClick}
 				userName={userName ?? undefined}
 				conversationContextRef={conversationContextRef}
@@ -83,27 +101,42 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				isStreaming={isStreaming}
 			/>
 
-			<RovoChatInput
-				prompt={prompt}
-				interimText={interimText}
-				isListening={isListening}
-				isStreaming={isStreaming}
-				onPromptChange={setPrompt}
-				onSubmit={handleSubmit}
-				onToggleDictation={toggleDictation}
-				onStopStreaming={stopStreaming}
-				contextEnabled={contextEnabled}
-				onContextToggle={setContextEnabled}
-				product={product}
-				selectedReasoning={selectedReasoning}
-				onReasoningChange={setSelectedReasoning}
-				webResultsEnabled={webResultsEnabled}
-				onWebResultsChange={setWebResultsEnabled}
-				companyKnowledgeEnabled={companyKnowledgeEnabled}
-				onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
-				queuedPrompts={queuedPrompts}
-				onRemoveQueuedPrompt={removeQueuedPrompt}
-			/>
+			{shouldShowQuestionCard && activeQuestionCard ? (
+				<div className="px-3 pb-1">
+					<ClarificationQuestionCard
+						key={activeQuestionCardKey ?? undefined}
+						questionCard={activeQuestionCard}
+						onSubmit={(answers) => {
+							void handleClarificationSubmit(answers);
+							dismissQuestionCard();
+						}}
+						onDismiss={dismissQuestionCard}
+					/>
+					<QuestionCardShortcutsFooter />
+				</div>
+			) : (
+				<RovoChatInput
+					prompt={prompt}
+					interimText={interimText}
+					isListening={isListening}
+					isStreaming={isStreaming}
+					onPromptChange={setPrompt}
+					onSubmit={handleSubmit}
+					onToggleDictation={toggleDictation}
+					onStopStreaming={stopStreaming}
+					contextEnabled={contextEnabled}
+					onContextToggle={setContextEnabled}
+					product={product}
+					selectedReasoning={selectedReasoning}
+					onReasoningChange={setSelectedReasoning}
+					webResultsEnabled={webResultsEnabled}
+					onWebResultsChange={setWebResultsEnabled}
+					companyKnowledgeEnabled={companyKnowledgeEnabled}
+					onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
+					queuedPrompts={queuedPrompts}
+					onRemoveQueuedPrompt={removeQueuedPrompt}
+				/>
+			)}
 		</div>
 	);
 }

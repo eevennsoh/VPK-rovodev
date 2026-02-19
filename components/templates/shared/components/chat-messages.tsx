@@ -43,6 +43,7 @@ export interface ChatMessagesProps {
 	awaitingIndicatorLabel?: string;
 	showFeedbackActions?: boolean;
 	showFollowUpSuggestions?: boolean;
+	showWidgetSections?: boolean;
 	assistantStreamingRenderMode?: "rich" | "text-first";
 	renderEmptyState?: () => ReactNode;
 	renderLoadingWidget?: (widgetType?: string) => ReactNode;
@@ -123,6 +124,7 @@ export function ChatMessages({
 	awaitingIndicatorLabel = "Waiting for your response",
 	showFeedbackActions,
 	showFollowUpSuggestions,
+	showWidgetSections: showWidgetSectionsProp,
 	assistantStreamingRenderMode = "rich",
 	renderEmptyState,
 	renderLoadingWidget,
@@ -134,6 +136,7 @@ export function ChatMessages({
 		[uiMessages]
 	);
 	const isPureMode = messageMode === "ask";
+	const shouldShowWidgetSections = showWidgetSectionsProp ?? !isPureMode;
 
 	const lastAssistantMessageId = useMemo(() => {
 		for (let i = renderableMessages.length - 1; i >= 0; i--) {
@@ -183,25 +186,27 @@ export function ChatMessages({
 	const lastStreamingSourceMessage =
 		streamingIndicatorSourceMessages[streamingIndicatorSourceMessages.length - 1];
 
-	const isAssistantInThinkingState =
+	const isAssistantAwaitingOutput =
 		isStreaming &&
 		lastStreamingSourceMessage?.role === "assistant" &&
-		getLatestDataPart(lastStreamingSourceMessage, "data-thinking-status") !== null &&
 		getMessageText(lastStreamingSourceMessage) === "";
+	const hasAssistantThinkingStatus =
+		isAssistantAwaitingOutput &&
+		getLatestDataPart(lastStreamingSourceMessage, "data-thinking-status") !== null;
 
 	const shouldShowStreamingIndicator =
 		isStreaming &&
 		streamingIndicatorSourceMessages.length > 0 &&
-		(lastStreamingSourceMessage?.role === "user" || isAssistantInThinkingState) &&
+		(lastStreamingSourceMessage?.role === "user" || isAssistantAwaitingOutput) &&
 		!hasInlineThinkingStatus;
 
-	const thinkingStatusParts = isAssistantInThinkingState
+	const thinkingStatusParts = hasAssistantThinkingStatus
 		? getAllDataParts(lastStreamingSourceMessage, "data-thinking-status")
 		: [];
 	const thinkingStatusPart =
 		thinkingStatusParts[thinkingStatusParts.length - 1] ?? null;
 	const resolvedThinkingLabel = thinkingStatusPart?.data.label ?? thinkingLabel;
-	const resolvedReasoningContent = isAssistantInThinkingState
+	const resolvedReasoningContent = hasAssistantThinkingStatus
 		? thinkingStatusParts
 				.map((part) => part.data.content)
 				.filter(Boolean)
@@ -241,6 +246,9 @@ export function ChatMessages({
 				) : (
 					<MessageTurns
 						isUserMessage={(message) => message.role === "user"}
+						getTurnContainerStyle={(_turn, turnIndex) => ({
+							marginTop: turnIndex > 0 ? "24px" : "0",
+						})}
 						getMessageContainerStyle={(message, messageIndex, turn) => ({
 							display: "flex",
 							justifyContent: message.role === "user" ? "flex-end" : "flex-start",
@@ -266,7 +274,7 @@ export function ChatMessages({
 									onDeleteMessage={onDeleteMessage}
 									showThinkingStatusSection={message.role === "assistant" && message.id === lastAssistantMessageId}
 									showToolsSection={!isPureMode}
-									showWidgetSections={!isPureMode}
+									showWidgetSections={shouldShowWidgetSections}
 									renderLoadingWidget={renderLoadingWidget}
 									renderWidget={renderWidget}
 									onRetryWidget={onRetryWidget}
@@ -277,7 +285,7 @@ export function ChatMessages({
 				{shouldShowStreamingIndicator ? (
 					<div className="flex justify-start">
 						<Message from="assistant" className="max-w-full">
-							<MessageContent className="px-3">
+							<MessageContent className="px-6">
 								<Reasoning
 									key={streamingReasoningKey}
 									className="mb-0"
@@ -307,7 +315,7 @@ export function ChatMessages({
 				{!shouldShowStreamingIndicator && showAwaitingIndicator ? (
 					<div className="flex justify-start">
 						<Message from="assistant" className="max-w-full">
-							<MessageContent className="px-3">
+							<MessageContent className="px-6">
 								<Reasoning className="mb-0" isStreaming>
 									<AdsReasoningTrigger label={awaitingIndicatorLabel} showChevron={false} />
 								</Reasoning>

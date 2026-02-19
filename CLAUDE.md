@@ -538,7 +538,7 @@ Note: `.claude.local.md` should be added to `.gitignore` if used for personal/lo
 - Use functional state updates for toggles (`setX(prev => !prev)`). <!-- added: 2026-02-08 -->
 - Derive render-only values inline; do not sync derived state via effects. <!-- added: 2026-02-08 -->
 - **RovoDev-only mode**: `pnpm run dev` starts RovoDev Serve automatically alongside the backend and frontend. All chat endpoints return 503 if RovoDev Serve is unavailable. There is no AI Gateway fallback. <!-- added: 2026-02-17 -->
-- If the chat gives unexpected answers or stale context, the RovoDev session may be corrupted — restart with `pnpm run dev` for a fresh session. The `autorestore` setting in your personal rovodev config can leak sessions across workspaces; VPK starts without `--restore` to avoid this. <!-- added: 2026-02-16 -->
+- RovoDev configuration (billing site, MCP permissions) is persisted across restarts within a workspace via the `--restore` flag. If the chat gives unexpected answers or stale context, the RovoDev session may be corrupted — restart `pnpm run rovodev` for a fresh session. <!-- updated: 2026-02-19 -->
 - No directories are excluded from TypeScript type-checking (only `node_modules`). All errors are visible and trackable. <!-- added: 2026-02-15 -->
 - Always `await stop()` before calling `sendMessage()` in AI SDK `useChat` flows — `stop`, `sendMessage`, `regenerate`, and `resumeStream` share mutable internal state and must not be fire-and-forgotten in sequence. <!-- added: 2026-02-12 -->
 - CSS `gap` doesn't transition away when a flex child collapses to `w-0`. Replace parent `gap-*` with transitioning `mr-*`/`ml-*` on the collapsible element (e.g., `mr-3` → `mr-0` alongside `w-0 opacity-0`). <!-- added: 2026-02-12 -->
@@ -640,7 +640,7 @@ Optional environment variables:
 
 | Skill        | Command             | Type     | Purpose                                               |
 | ------------ | ------------------- | -------- | ----------------------------------------------------- |
-| Setup        | `/vpk-setup`        | Workflow | Initial setup: credentials, `.env.local`, dev servers |
+| Setup        | `/vpk-setup`        | Workflow | Interactive setup: asks mode (Both/RovoDev/AI Gateway), credentials, dev servers |
 | Deploy       | `/vpk-deploy`       | Workflow | Deploy to Atlassian Micros                            |
 | Design       | `/vpk-design`       | Workflow | Figma to VPK implementation with validation           |
 | Tidy         | `/vpk-tidy`         | Utility  | Refactor React components for reusability             |

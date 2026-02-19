@@ -95,7 +95,10 @@ export function getLatestUserMessageId(
 export function isRenderableRovoUIMessage(
 	message: RovoUIMessage
 ): message is RovoRenderableUIMessage {
-	return message.role === "user" || message.role === "assistant";
+	return (
+		(message.role === "user" || message.role === "assistant") &&
+		message.metadata?.visibility !== "hidden"
+	);
 }
 
 export function isMessageVisibleInTranscript(

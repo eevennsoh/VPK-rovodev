@@ -4,7 +4,7 @@ import { Message, MessageContent } from "@/components/ui-ai/message";
 export default function ConversationDemo() {
 	return (
 		<Conversation className="w-full">
-			<ConversationContent className="max-h-32">
+			<ConversationContent className="max-h-32 px-8 py-4">
 				<Message from="user">
 					<MessageContent>Hello</MessageContent>
 				</Message>

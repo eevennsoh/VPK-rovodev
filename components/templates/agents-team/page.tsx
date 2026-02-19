@@ -100,8 +100,8 @@ export default function AgentsTeamView() {
 	const {
 		prompt,
 		setPrompt,
-		isAgentTeamMode,
-		toggleAgentTeamMode,
+		isPlanMode,
+		togglePlanMode,
 		isChatMode,
 		isStreaming,
 		stopStreaming,
@@ -327,10 +327,10 @@ export default function AgentsTeamView() {
 	);
 
 	const handleCreateAgentTeam = useCallback(() => {
-		if (!isAgentTeamMode) {
-			toggleAgentTeamMode();
+		if (!isPlanMode) {
+			togglePlanMode();
 		}
-	}, [isAgentTeamMode, toggleAgentTeamMode]);
+	}, [isPlanMode, togglePlanMode]);
 
 	const handleRetryPlanWidget = useCallback(() => {
 		const retryPrompt = latestUserPrompt.trim();
@@ -486,7 +486,7 @@ export default function AgentsTeamView() {
 								) : (
 									<AgentsTeamChatView
 										prompt={prompt}
-										isAgentTeamMode={isAgentTeamMode}
+										isPlanMode={isPlanMode}
 										isStreaming={isStreaming}
 										isWidgetLoading={isWidgetLoading}
 										loadingWidgetType={loadingWidgetType}
@@ -498,7 +498,7 @@ export default function AgentsTeamView() {
 										onPromptChange={setPrompt}
 										onSubmit={handleSubmit}
 										onStop={stopStreaming}
-										onAgentTeamModeToggle={toggleAgentTeamMode}
+										onPlanModeToggle={togglePlanMode}
 										queuedPrompts={queuedPrompts}
 										onRemoveQueuedPrompt={removeQueuedPrompt}
 										onClarificationSubmit={handleClarificationSubmit}
@@ -513,12 +513,12 @@ export default function AgentsTeamView() {
 						<AgentsTeamInitialView
 							prompt={prompt}
 							isStreaming={isStreaming}
-							isAgentTeamMode={isAgentTeamMode}
+							isPlanMode={isPlanMode}
 							queuedPrompts={queuedPrompts}
 							onPromptChange={setPrompt}
 							onSubmit={handleSubmit}
 							onStop={stopStreaming}
-							onAgentTeamModeToggle={toggleAgentTeamMode}
+							onPlanModeToggle={togglePlanMode}
 							onRemoveQueuedPrompt={removeQueuedPrompt}
 						/>
 				)}

@@ -383,12 +383,83 @@ export const ReasoningTrigger = memo(
 export type ReasoningContentProps = ComponentProps<
 	typeof CollapsibleContent
 > & {
-	children: string;
+	/**
+	 * When a string is provided, ReasoningContent can auto-detect and render a timeline.
+	 * For richer UIs (tools, tasks, etc.), pass React children.
+	 */
+	children: ReactNode;
 	timelineMode?: "auto" | "always" | "never";
 	maxVisibleTimelineItems?: number;
 };
 
 const streamdownPlugins = { cjk, code, math, mermaid };
+
+export type ReasoningTextProps = {
+	text: string;
+	timelineMode: "auto" | "always" | "never";
+	maxVisibleTimelineItems: number;
+};
+
+export function ReasoningText({
+	text,
+	timelineMode,
+	maxVisibleTimelineItems,
+}: ReasoningTextProps): ReactNode {
+	const { setTimelineEntryCount } = useReasoning();
+	const shouldReduceMotion = useReducedMotion();
+
+	const timelineEntries = useMemo(() => parseTimelineEntries(text), [text]);
+	const shouldRenderTimeline =
+		timelineMode === "always" ||
+		(timelineMode === "auto" && timelineEntries.length > 0);
+	const visibleTimelineEntries = shouldRenderTimeline
+		? timelineEntries.slice(-maxVisibleTimelineItems)
+		: [];
+
+	useEffect(() => {
+		setTimelineEntryCount(shouldRenderTimeline ? timelineEntries.length : 0);
+
+		return () => {
+			setTimelineEntryCount(0);
+		};
+	}, [setTimelineEntryCount, shouldRenderTimeline, timelineEntries.length]);
+
+	if (shouldRenderTimeline) {
+		return (
+			<div className="relative pl-6">
+				<div
+					aria-hidden
+					className="absolute bottom-0 left-2.5 top-0 w-px bg-border"
+				/>
+				<div className="space-y-1">
+					<AnimatePresence initial={false}>
+						{visibleTimelineEntries.map((entry) => (
+							<motion.p
+								key={entry.id}
+								animate={
+									shouldReduceMotion ? undefined : { opacity: 1, y: 0 }
+								}
+								className="m-0 text-left text-sm leading-7 text-text-subtle"
+								exit={
+									shouldReduceMotion ? undefined : { opacity: 0, y: 6 }
+								}
+								initial={
+									shouldReduceMotion ? false : { opacity: 0, y: -6 }
+								}
+								layout={!shouldReduceMotion}
+								transition={{ duration: 0.2, ease: "easeOut" }}
+							>
+								{entry.label}
+							</motion.p>
+						))}
+					</AnimatePresence>
+				</div>
+			</div>
+		);
+	}
+
+	return <Streamdown plugins={streamdownPlugins}>{text}</Streamdown>;
+}
 
 export const ReasoningContent = memo(
 	({
@@ -398,29 +469,12 @@ export const ReasoningContent = memo(
 		maxVisibleTimelineItems,
 		...props
 	}: ReasoningContentProps) => {
-		const {
-			maxVisibleTimelineItems: contextMaxVisibleTimelineItems,
-			setTimelineEntryCount,
-		} = useReasoning();
-		const shouldReduceMotion = useReducedMotion();
+		const { maxVisibleTimelineItems: contextMaxVisibleTimelineItems } =
+			useReasoning();
 
-		const timelineEntries = useMemo(() => parseTimelineEntries(children), [children]);
-		const shouldRenderTimeline =
-			timelineMode === "always" ||
-			(timelineMode === "auto" && timelineEntries.length > 0);
+		const textChildren = typeof children === "string" ? children : null;
 		const resolvedMaxVisibleTimelineItems =
 			maxVisibleTimelineItems ?? contextMaxVisibleTimelineItems;
-		const visibleTimelineEntries = shouldRenderTimeline
-			? timelineEntries.slice(-resolvedMaxVisibleTimelineItems)
-			: [];
-
-		useEffect(() => {
-			setTimelineEntryCount(shouldRenderTimeline ? timelineEntries.length : 0);
-
-			return () => {
-				setTimelineEntryCount(0);
-			};
-		}, [setTimelineEntryCount, shouldRenderTimeline, timelineEntries.length]);
 
 		return (
 			<CollapsibleContent
@@ -431,38 +485,14 @@ export const ReasoningContent = memo(
 				)}
 				{...props}
 			>
-				{shouldRenderTimeline ? (
-					<div className="relative pl-6">
-						<div
-							aria-hidden
-							className="absolute bottom-0 left-2.5 top-0 w-px bg-border"
-						/>
-						<div className="space-y-1">
-							<AnimatePresence initial={false}>
-								{visibleTimelineEntries.map((entry) => (
-									<motion.p
-										key={entry.id}
-										animate={
-											shouldReduceMotion ? undefined : { opacity: 1, y: 0 }
-										}
-										className="m-0 text-left text-sm leading-7 text-text-subtle"
-										exit={
-											shouldReduceMotion ? undefined : { opacity: 0, y: 6 }
-										}
-										initial={
-											shouldReduceMotion ? false : { opacity: 0, y: -6 }
-										}
-										layout={!shouldReduceMotion}
-										transition={{ duration: 0.2, ease: "easeOut" }}
-									>
-										{entry.label}
-									</motion.p>
-								))}
-							</AnimatePresence>
-						</div>
-					</div>
+				{textChildren ? (
+					<ReasoningText
+						maxVisibleTimelineItems={resolvedMaxVisibleTimelineItems}
+						text={textChildren}
+						timelineMode={timelineMode}
+					/>
 				) : (
-					<Streamdown plugins={streamdownPlugins}>{children}</Streamdown>
+					<>{children}</>
 				)}
 			</CollapsibleContent>
 		);
@@ -483,6 +513,23 @@ const defaultCompletedLabel = (duration?: number) => {
 	}
 	return `Thought for ${duration} seconds`;
 };
+
+export type ReasoningSectionProps = ComponentProps<"div"> & {
+	title?: ReactNode;
+};
+
+export const ReasoningSection = memo(
+	({ className, title, children, ...props }: ReasoningSectionProps) => (
+		<div className={cn("space-y-2", className)} {...props}>
+			{title ? (
+				<h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+					{title}
+				</h4>
+			) : null}
+			{children}
+		</div>
+	)
+);
 
 export const AdsReasoningTrigger = memo(
 	({
@@ -570,4 +617,5 @@ export const AdsReasoningTrigger = memo(
 Reasoning.displayName = "Reasoning";
 ReasoningTrigger.displayName = "ReasoningTrigger";
 ReasoningContent.displayName = "ReasoningContent";
+ReasoningSection.displayName = "ReasoningSection";
 AdsReasoningTrigger.displayName = "AdsReasoningTrigger";

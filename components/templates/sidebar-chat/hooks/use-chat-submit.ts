@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useRovoChat } from "@/app/contexts";
 import type { QueuedPromptItem } from "@/app/contexts";
+import type { SendPromptOptions } from "@/app/contexts";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 
 interface UseChatSubmitReturn {
@@ -17,7 +18,13 @@ interface UseChatSubmitReturn {
 	removeQueuedPrompt: (id: string) => void;
 }
 
-export function useChatSubmit(): UseChatSubmitReturn {
+interface UseChatSubmitOptions {
+	defaultPromptOptions?: SendPromptOptions;
+}
+
+export function useChatSubmit({
+	defaultPromptOptions,
+}: Readonly<UseChatSubmitOptions> = {}): UseChatSubmitReturn {
 	const [prompt, setPrompt] = useState("");
 	const isSubmittingRef = useRef(false);
 	const {
@@ -40,12 +47,12 @@ export function useChatSubmit(): UseChatSubmitReturn {
 			setPrompt("");
 
 			try {
-				await sendPrompt(promptText, {});
+				await sendPrompt(promptText, defaultPromptOptions);
 			} finally {
 				isSubmittingRef.current = false;
 			}
 		},
-		[sendPrompt]
+		[defaultPromptOptions, sendPrompt]
 	);
 
 	const handleSubmit = useCallback(async () => {

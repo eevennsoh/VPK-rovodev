@@ -33,8 +33,8 @@ sleep 1
 
 # Force kill zombie processes on default ports if requested
 if [ "$FORCE_KILL" = true ]; then
-    echo "   🔪 Force killing processes on ports 3000-3019 and 8080-8099..."
-    for port in $(seq 3000 3019) $(seq 8080 8099); do
+    echo "   🔪 Force killing processes on ports 3000-3019 and 8000-8099..."
+    for port in $(seq 3000 3019) $(seq 8000 8099); do
         lsof -ti:$port 2>/dev/null | xargs kill -9 2>/dev/null || true
     done
     sleep 1
@@ -66,58 +66,54 @@ if [ -f .next/dev/lock ]; then
     fi
 fi
 
-echo "✅ Environment ready (port auto-discovery enabled: 3000-3019, 8080-8099)"
+echo "✅ Environment ready (port auto-discovery enabled: 3000-3019, 8000-8099)"
 
-# Start Express backend
-echo "🖥️  Starting Express backend..."
+# Start full stack via the rovodev script (RovoDev Serve + backend + frontend)
+echo "🤖 Starting RovoDev Serve + backend + frontend..."
 if [ "$NO_WAIT" = true ]; then
     # For AI/automated execution - use nohup to detach
-    nohup pnpm run dev:backend > /dev/null 2>&1 &
+    nohup pnpm run rovodev > /dev/null 2>&1 &
 else
-    pnpm run dev:backend &
+    pnpm run rovodev &
 fi
-BACKEND_PID=$!
-echo "   Backend PID: $BACKEND_PID"
+STACK_PID=$!
+echo "   Stack PID: $STACK_PID"
 
-# Wait for backend to start and write its port file
-echo "   Waiting for backend to initialize..."
-for i in $(seq 1 10); do
-    if [ -f .dev-backend-port ]; then
+echo "   Waiting for port files to initialize..."
+for i in $(seq 1 20); do
+    if [ -f .dev-backend-port ] && [ -f .dev-frontend-port ] && [ -f .dev-rovodev-port ]; then
         break
     fi
     sleep 0.5
 done
 
-# Read backend port
+ROVODEV_PORT=8000
 BACKEND_PORT=8080
-if [ -f .dev-backend-port ]; then
-    BACKEND_PORT=$(cat .dev-backend-port | tr -d '[:space:]')
-    if [ "$BACKEND_PORT" != "8080" ]; then
-        echo "   ℹ️  Port 8080 was in use, backend using port $BACKEND_PORT"
-    fi
+FRONTEND_PORT=3000
+
+if [ -f .dev-rovodev-port ]; then
+    ROVODEV_PORT=$(cat .dev-rovodev-port | tr -d '[:space:]')
 fi
 
-# Start frontend
-echo "🎨 Starting Next.js frontend..."
-if [ "$NO_WAIT" = true ]; then
-    # For AI/automated execution - use nohup to detach
-    nohup pnpm run dev:frontend > /dev/null 2>&1 &
-else
-    pnpm run dev:frontend &
+if [ -f .dev-backend-port ]; then
+    BACKEND_PORT=$(cat .dev-backend-port | tr -d '[:space:]')
 fi
-FRONTEND_PID=$!
-echo "   Frontend PID: $FRONTEND_PID"
+
+if [ -f .dev-frontend-port ]; then
+    FRONTEND_PORT=$(cat .dev-frontend-port | tr -d '[:space:]')
+fi
 
 echo ""
 echo "🎉 All services started!"
+echo "   - RovoDev Serve: http://localhost:${ROVODEV_PORT}"
 echo "   - Express Backend: http://localhost:${BACKEND_PORT}"
-echo "   - Frontend: http://localhost:3000 (or next available port 3001-3019)"
+echo "   - Frontend: http://localhost:${FRONTEND_PORT}"
 echo ""
 echo "💡 Port auto-discovery: If default ports are in use, servers automatically find available ports."
 echo "💡 To stop all services: ./.cursor/skills/vpk-setup/scripts/stop-dev.sh"
 
 # Save PIDs for cleanup script
-echo "$BACKEND_PID $FRONTEND_PID" > .dev-pids
+echo "$STACK_PID" > .dev-pids
 
 if [ "$NO_WAIT" = true ]; then
     echo ""

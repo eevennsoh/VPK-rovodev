@@ -5,6 +5,58 @@ const {
 	validateSpec,
 } = require("@json-render/core");
 
+const ROOT_STACK_PADDING_UNITS = 0;
+
+function clampRootStackPadding(spec) {
+	if (!spec || typeof spec !== "object") {
+		return spec;
+	}
+
+	const rootKey =
+		typeof spec.root === "string" && spec.root.trim().length > 0
+			? spec.root
+			: null;
+	if (!rootKey) {
+		return spec;
+	}
+
+	const rootElement = spec.elements?.[rootKey];
+	if (!rootElement || typeof rootElement !== "object" || Array.isArray(rootElement)) {
+		return spec;
+	}
+
+	if (rootElement.type !== "Stack") {
+		return spec;
+	}
+
+	const rawPadding = rootElement?.props?.padding;
+	if (typeof rawPadding !== "number" || !Number.isFinite(rawPadding)) {
+		return spec;
+	}
+
+	const normalizedPadding = Math.max(
+		0,
+		Math.min(Math.round(rawPadding), ROOT_STACK_PADDING_UNITS),
+	);
+	if (normalizedPadding === rawPadding) {
+		return spec;
+	}
+
+	return {
+		...spec,
+		elements: {
+			...spec.elements,
+			[rootKey]: {
+				...rootElement,
+				props: {
+					...(rootElement.props || {}),
+					padding: normalizedPadding,
+				},
+			},
+		},
+	};
+}
+
 function sanitizeSpec(spec) {
 	const safeSpec = {
 		root: typeof spec?.root === "string" ? spec.root : "",
@@ -24,7 +76,7 @@ function sanitizeSpec(spec) {
 		safeSpec.state = spec.state;
 	}
 
-	return safeSpec;
+	return clampRootStackPadding(safeSpec);
 }
 
 function isRenderableSpec(spec, validation) {

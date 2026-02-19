@@ -199,6 +199,7 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 	const [visitedLastQuestion, setVisitedLastQuestion] = useState(false);
 
 	const totalQuestions = questions.length;
+	const hasMultipleQuestions = totalQuestions > 1;
 	const safeQuestionIndex = Math.min(Math.max(0, currentQuestionIndex), totalQuestions - 1);
 	const currentQuestion = questions[safeQuestionIndex];
 	const canGoToPreviousQuestion = safeQuestionIndex > 0;
@@ -451,29 +452,33 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 			</div>
 
 			<footer className="flex h-16 items-center justify-between border-t border-border p-4">
-				<div className="flex items-center gap-2">
-					<button
-						type="button"
-						aria-label="Previous question"
-						disabled={!canGoToPreviousQuestion || isSubmitting}
-						onClick={goToPreviousQuestion}
-						tabIndex={-1}
-						className="inline-flex size-5 items-center justify-center rounded text-icon-subtle hover:bg-bg-neutral-subtle-hovered disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						<ChevronLeftIcon label="Previous question" size="small" />
-					</button>
-					<ProgressIndicator steps={totalQuestions} currentStep={safeQuestionIndex} size="md" />
-					<button
-						type="button"
-						aria-label="Next question"
-						disabled={!canGoToNextQuestion || isSubmitting}
-						onClick={goToNextQuestion}
-						tabIndex={-1}
-						className="inline-flex size-5 items-center justify-center rounded text-icon-subtle hover:bg-bg-neutral-subtle-hovered disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						<ChevronRightIcon label="Next question" size="small" />
-					</button>
-				</div>
+				{hasMultipleQuestions ? (
+					<div className="flex items-center gap-2">
+						<button
+							type="button"
+							aria-label="Previous question"
+							disabled={!canGoToPreviousQuestion || isSubmitting}
+							onClick={goToPreviousQuestion}
+							tabIndex={-1}
+							className="inline-flex size-5 items-center justify-center rounded text-icon-subtle hover:bg-bg-neutral-subtle-hovered disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							<ChevronLeftIcon label="Previous question" size="small" />
+						</button>
+						<ProgressIndicator steps={totalQuestions} currentStep={safeQuestionIndex} size="md" />
+						<button
+							type="button"
+							aria-label="Next question"
+							disabled={!canGoToNextQuestion || isSubmitting}
+							onClick={goToNextQuestion}
+							tabIndex={-1}
+							className="inline-flex size-5 items-center justify-center rounded text-icon-subtle hover:bg-bg-neutral-subtle-hovered disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							<ChevronRightIcon label="Next question" size="small" />
+						</button>
+					</div>
+				) : (
+					<div aria-hidden />
+				)}
 
 				{showSubmitButton ? (
 					<Button disabled={isSubmitting} onClick={() => onSubmit(answers)} tabIndex={-1}>

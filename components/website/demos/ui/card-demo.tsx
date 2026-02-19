@@ -1,4 +1,7 @@
 import { CaptionsIcon, PlusIcon } from "lucide-react";
+import Image from "next/image";
+import { useId, useState } from "react";
+import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -358,6 +361,61 @@ export function CardDemoWithImage() {
 					Button
 				</Button>
 			</CardFooter>
+		</Card>
+	);
+}
+
+export function CardDemoAppPreview() {
+	const [isExpanded, setIsExpanded] = useState(true);
+	const detailsId = useId();
+
+	return (
+			<Card className={`mx-auto w-full max-w-[380px] gap-0 p-0 transition-[height] duration-200 ${isExpanded ? "h-[458px]" : "h-16"}`}>
+				<CardHeader className={`h-16 ${isExpanded ? "border-b" : ""} px-4 py-3`}>
+				<div className="flex items-center gap-3">
+					<Image
+						src="/3p/google-calendar/32.svg"
+						alt="Google Calendar logo"
+						width={32}
+						height={32}
+					/>
+					<div className="flex flex-col">
+						<CardTitle className="text-sm leading-5 font-bold">
+							Schedule meeting
+						</CardTitle>
+						<CardDescription className="text-xs leading-4">
+							Extra description
+						</CardDescription>
+					</div>
+				</div>
+				<CardAction className="self-center">
+					<Button
+						variant="ghost"
+						size="icon"
+						className="text-text-subtle aria-expanded:border-transparent aria-expanded:bg-transparent aria-expanded:text-text-subtle"
+						aria-controls={detailsId}
+						aria-expanded={isExpanded}
+						aria-label={isExpanded ? "Collapse card details" : "Expand card details"}
+						onClick={() => setIsExpanded((previous) => !previous)}
+					>
+						<span className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : "rotate-0"}`}>
+							<ChevronDownIcon label="" size="small" />
+						</span>
+					</Button>
+				</CardAction>
+			</CardHeader>
+			{isExpanded ? (
+				<>
+					<CardContent id={detailsId} className="px-4 py-4">
+						<div className="h-[298px] w-full bg-neutral-300" />
+					</CardContent>
+						<CardFooter className="h-16 justify-end !bg-card px-4 py-4">
+							<Button variant="outline" className="h-8 min-w-[117px]">
+								Open preview
+							</Button>
+						</CardFooter>
+				</>
+			) : null}
 		</Card>
 	);
 }

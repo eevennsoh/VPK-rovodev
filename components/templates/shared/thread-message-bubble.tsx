@@ -18,6 +18,8 @@ import {
 	AdsReasoningTrigger,
 	Reasoning,
 	ReasoningContent,
+	ReasoningSection,
+	ReasoningText,
 } from "@/components/ui-ai/reasoning";
 import {
 	Message as UiMessage,
@@ -74,7 +76,7 @@ export function ThreadMessageBubble({
 	const rawMessageText = getMessageText(message);
 
 	if (message.role === "user") {
-		return <UserMessageBubble surface={surface} messageText={rawMessageText} onDelete={onDeleteMessage ? () => onDeleteMessage(message.id) : undefined} />;
+		return <UserMessageBubble messageText={rawMessageText} onDelete={onDeleteMessage ? () => onDeleteMessage(message.id) : undefined} />;
 	}
 
 	const widgetLoadingPart = getLatestDataPart(message, "data-widget-loading");
@@ -174,9 +176,9 @@ export function ThreadMessageBubble({
 				? renderLoadingWidget?.(widgetType)
 				: null}
 			{renderedWidget}
-			{shouldShowWidgetError && widgetErrorPart ? (
-				<div className="px-3 pb-2">
-					<div className="rounded-lg border border-border-danger bg-bg-danger p-3">
+		{shouldShowWidgetError && widgetErrorPart ? (
+			<div className={cn(surface === "fullscreen" ? "px-6" : "", "pb-2")}>
+				<div className="rounded-lg border border-border-danger bg-bg-danger p-3">
 						<p className="text-sm leading-5 text-text">
 							{widgetErrorPart.data.message}
 						</p>
@@ -208,16 +210,41 @@ export function ThreadMessageBubble({
 					.map((part) => part.data.content)
 					.filter(Boolean)
 					.join("\n\n");
-				const hasContent = Boolean(accumulatedContent);
+				const hasThinkingText = Boolean(accumulatedContent);
+				const hasTools = toolParts.length > 0;
+				const hasDetails = hasThinkingText || hasTools;
 				return (
-					<div className="px-3 pt-2">
-						<Reasoning className="mb-0" defaultOpen={hasContent} isStreaming={isStreaming}>
+					<div className="px-6 pt-2">
+						<Reasoning className="mb-0" defaultOpen={hasDetails} isStreaming={isStreaming}>
 							<AdsReasoningTrigger
 								label={thinkingStatusPart.data.label}
-								showChevron={hasContent}
+								showChevron={hasDetails}
 							/>
-							{accumulatedContent ? (
-								<ReasoningContent>{accumulatedContent}</ReasoningContent>
+							{hasDetails ? (
+								<ReasoningContent>
+									<div className="space-y-4">
+										{hasThinkingText ? (
+											<ReasoningSection title="Thinking">
+												<ReasoningText
+													maxVisibleTimelineItems={6}
+													text={accumulatedContent}
+													timelineMode="auto"
+												/>
+											</ReasoningSection>
+										) : null}
+										{hasTools ? (
+											<ReasoningSection title="Tools">
+												<div className="-mx-6">
+													<AssistantToolsSection
+														messageId={message.id}
+														toolParts={toolParts}
+														defaultOpenMode="running"
+													/>
+												</div>
+											</ReasoningSection>
+										) : null}
+									</div>
+								</ReasoningContent>
 							) : null}
 						</Reasoning>
 					</div>
@@ -248,7 +275,7 @@ export function ThreadMessageBubble({
 				<AssistantFeedbackActions messageText={messageText} />
 			) : null}
 
-			{shouldShowToolsSection && toolParts.length > 0 ? (
+			{shouldShowToolsSection && toolParts.length > 0 && !showThinkingStatus ? (
 				<AssistantToolsSection messageId={message.id} toolParts={toolParts} />
 			) : null}
 

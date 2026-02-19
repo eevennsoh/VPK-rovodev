@@ -7,37 +7,37 @@ import PromptGallery from "@/components/blocks/prompt-gallery/page";
 import { Footer } from "@/components/ui/footer";
 import { token } from "@/lib/tokens";
 import { useTheme } from "@/components/utils/theme-wrapper";
-import { getAgentTeamModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
+import { getPlanModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
 import AgentsTeamComposer from "./agents-team-composer";
 
 interface AgentsTeamInitialViewProps {
 	prompt: string;
 	isStreaming: boolean;
-	isAgentTeamMode: boolean;
+	isPlanMode: boolean;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
 	onStop: () => void;
-	onAgentTeamModeToggle: () => void;
+	onPlanModeToggle: () => void;
 	onRemoveQueuedPrompt: (id: string) => void;
 }
 
 export default function AgentsTeamInitialView({
 	prompt,
 	isStreaming,
-	isAgentTeamMode,
+	isPlanMode,
 	queuedPrompts,
 	onPromptChange,
 	onSubmit,
 	onStop,
-	onAgentTeamModeToggle,
+	onPlanModeToggle,
 	onRemoveQueuedPrompt,
 }: Readonly<AgentsTeamInitialViewProps>) {
 	const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
 	const [galleryExpanded, setGalleryExpanded] = useState(false);
 	const composerContainerRef = useRef<HTMLDivElement>(null);
 	const { actualTheme } = useTheme();
-	const modeCopy = getAgentTeamModeCopy(isAgentTeamMode);
+	const modeCopy = getPlanModeCopy(isPlanMode);
 	const illustrationSrc = actualTheme === "dark"
 		? modeCopy.illustration.dark
 		: modeCopy.illustration.light;
@@ -79,8 +79,8 @@ export default function AgentsTeamInitialView({
 						prompt={prompt}
 						placeholder={previewPrompt ?? modeCopy.placeholder}
 						isStreaming={isStreaming}
-						isAgentTeamMode={isAgentTeamMode}
-						onAgentTeamModeToggle={onAgentTeamModeToggle}
+						isPlanMode={isPlanMode}
+						onPlanModeToggle={onPlanModeToggle}
 						queuedPrompts={queuedPrompts}
 						onPromptChange={onPromptChange}
 						onSubmit={onSubmit}

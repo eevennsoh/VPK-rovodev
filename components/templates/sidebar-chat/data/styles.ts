@@ -10,8 +10,8 @@ export const chatStyles = {
 		justifyContent: "flex-start",
 		color: token("color.text.subtlest"),
 		font: token("font.body"),
-		marginLeft: token("space.150"),
-		marginRight: token("space.150"),
+		marginLeft: token("space.300"),
+		marginRight: token("space.300"),
 	},
 	chatPanel: {
 		width: "100%",
@@ -33,18 +33,27 @@ export const chatStyles = {
 	},
 	messagesContainer: {
 		padding: token("space.150"),
+		paddingTop: token("space.150"),
+		paddingLeft: token("space.150"),
+		paddingRight: token("space.150"),
 		paddingBottom: token("space.400"), // 32px gap from ChatComposer
 		display: "flex",
 		flexDirection: "column" as const,
-		gap: token("space.300"),
 		flex: 1,
 		justifyContent: "flex-end",
+	},
+	thinkingContainer: {
+		paddingLeft: token("space.150"),
+		paddingRight: token("space.150"),
+		marginTop: token("space.300"),
 	},
 	emptyState: {
 		display: "flex",
 		flexDirection: "column" as const,
 		alignItems: "center",
 		width: "100%",
+		paddingLeft: token("space.150"),
+		paddingRight: token("space.150"),
 	},
 } as const;
 

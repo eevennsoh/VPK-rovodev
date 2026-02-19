@@ -8,6 +8,9 @@
 
 const fs = require('fs');
 const { execSync } = require('child_process');
+const DEFAULT_GOOGLE_GATEWAY_URL =
+	'https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publishers/google/v1/chat/completions';
+const DEFAULT_ROVODEV_SITE_URL = 'https://hello.atlassian.net';
 
 function getEnvValueFromText(envText, key) {
 	if (!envText || typeof envText !== 'string') {
@@ -21,6 +24,14 @@ function getEnvValueFromText(envText, key) {
 	}
 
 	return match[1].trim();
+}
+
+function isGoogleGatewayUrl(url) {
+	if (!url || typeof url !== 'string') {
+		return false;
+	}
+
+	return /\/v1\/google\//.test(url.trim());
 }
 
 // Get use case ID from args (REQUIRED)
@@ -58,7 +69,6 @@ const config = JSON.parse(fs.readFileSync('.asap-config', 'utf8'));
 const escaped = config.privateKey.replace(/\n/g, '\\n');
 const existingEnvText = fs.existsSync('.env.local') ? fs.readFileSync('.env.local', 'utf8') : '';
 const preservedGoogleUrl = getEnvValueFromText(existingEnvText, 'AI_GATEWAY_URL_GOOGLE');
-const preservedFallbackFlag = getEnvValueFromText(existingEnvText, 'AUTO_FALLBACK_TO_AI_GATEWAY');
 const preservedRovodevPoolSize = getEnvValueFromText(existingEnvText, 'ROVODEV_POOL_SIZE');
 const preservedOpenaiModel = getEnvValueFromText(existingEnvText, 'OPENAI_MODEL');
 const preservedGoogleImageModel = getEnvValueFromText(existingEnvText, 'GOOGLE_IMAGE_MODEL');
@@ -67,6 +77,14 @@ const preservedDebug = getEnvValueFromText(existingEnvText, 'DEBUG');
 const preservedPort = getEnvValueFromText(existingEnvText, 'PORT');
 const preservedBackendUrl = getEnvValueFromText(existingEnvText, 'BACKEND_URL');
 const preservedPublicApiUrl = getEnvValueFromText(existingEnvText, 'NEXT_PUBLIC_API_URL');
+const preservedRovodevSiteUrl = getEnvValueFromText(existingEnvText, 'ROVODEV_SITE_URL');
+const resolvedGoogleGatewayUrl = isGoogleGatewayUrl(preservedGoogleUrl)
+	? preservedGoogleUrl
+	: DEFAULT_GOOGLE_GATEWAY_URL;
+const resolvedRovodevSiteUrl =
+	typeof preservedRovodevSiteUrl === 'string' && preservedRovodevSiteUrl.trim().length > 0
+		? preservedRovodevSiteUrl.trim()
+		: DEFAULT_ROVODEV_SITE_URL;
 
 const envContent = `# AI Gateway Configuration
 # Default: Claude via Bedrock (to switch to OpenAI, see guide-model-switch.md)
@@ -78,9 +96,9 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/mode
 ${preservedOpenaiModel ? `OPENAI_MODEL=${preservedOpenaiModel}` : '# OPENAI_MODEL=gpt-5.2-2025-12-11'}
 
 # Google/Gemini endpoint (for provider: "google" chat/image requests and Google TTS route derivation)
-${preservedGoogleUrl ? `AI_GATEWAY_URL_GOOGLE=${preservedGoogleUrl}` : '# AI_GATEWAY_URL_GOOGLE=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publishers/google/v1/chat/completions'}
-${preservedGoogleImageModel ? `GOOGLE_IMAGE_MODEL=${preservedGoogleImageModel}` : '# GOOGLE_IMAGE_MODEL=gemini-3-pro-image-preview'}
-${preservedGoogleTtsModel ? `GOOGLE_TTS_MODEL=${preservedGoogleTtsModel}` : '# GOOGLE_TTS_MODEL=tts-latest'}
+AI_GATEWAY_URL_GOOGLE=${resolvedGoogleGatewayUrl}
+${preservedGoogleImageModel ? `GOOGLE_IMAGE_MODEL=${preservedGoogleImageModel}` : 'GOOGLE_IMAGE_MODEL=gemini-3-pro-image-preview'}
+${preservedGoogleTtsModel ? `GOOGLE_TTS_MODEL=${preservedGoogleTtsModel}` : 'GOOGLE_TTS_MODEL=tts-latest'}
 
 AI_GATEWAY_USE_CASE_ID=${useCaseId}
 AI_GATEWAY_CLOUD_ID=local-testing
@@ -91,7 +109,11 @@ ASAP_PRIVATE_KEY="${escaped}"
 ASAP_KID=${config.kid}
 ASAP_ISSUER=${config.issuer}
 
-# Auto-fallback to AI Gateway when RovoDev Serve is unavailable${preservedFallbackFlag ? `\nAUTO_FALLBACK_TO_AI_GATEWAY=${preservedFallbackFlag}` : '\n# AUTO_FALLBACK_TO_AI_GATEWAY=true'}
+# Auto-fallback to AI Gateway when RovoDev Serve is unavailable
+AUTO_FALLBACK_TO_AI_GATEWAY=true
+
+# Default billing site for rovodev serve (override as needed)
+ROVODEV_SITE_URL=${resolvedRovodevSiteUrl}
 
 # RovoDev Serve pool size (number of concurrent RovoDev instances for agents team, default: 6)${preservedRovodevPoolSize ? `\nROVODEV_POOL_SIZE=${preservedRovodevPoolSize}` : '\n# ROVODEV_POOL_SIZE=6'}
 
@@ -104,7 +126,11 @@ fs.writeFileSync('.env.local', envContent);
 console.log('✅ Created .env.local with AI Gateway configuration (Claude/Bedrock default)');
 console.log(`   AI_GATEWAY_USE_CASE_ID: ${useCaseId}`);
 console.log(`   AI_GATEWAY_USER_ID: ${email}`);
+console.log('   AUTO_FALLBACK_TO_AI_GATEWAY: enabled');
+console.log(`   ROVODEV_SITE_URL: ${resolvedRovodevSiteUrl}`);
+console.log('   Google image + voice endpoints: enabled');
+if (preservedGoogleUrl && !isGoogleGatewayUrl(preservedGoogleUrl)) {
+	console.warn('⚠️  Existing AI_GATEWAY_URL_GOOGLE was not a Google endpoint and was reset to default.');
+}
 console.log('');
-console.log('💡 To enable AI Gateway fallback, uncomment AUTO_FALLBACK_TO_AI_GATEWAY=true in .env.local');
 console.log('💡 To switch default model, see: .cursor/skills/vpk-setup/references/guide-model-switch.md');
-console.log('💡 To enable Google image + voice routing, uncomment AI_GATEWAY_URL_GOOGLE in .env.local');

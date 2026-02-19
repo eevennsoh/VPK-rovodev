@@ -34,6 +34,16 @@ interface MessageTurnsProps<MESSAGE extends ThreadMessage> {
 	isUserMessage: (message: MESSAGE) => boolean;
 	latestTurnClassName?: string;
 	latestTurnDataAttribute?: `data-${string}`;
+	getTurnContainerClassName?: (
+		turn: ReadonlyArray<MESSAGE>,
+		turnIndex: number,
+		turns: ReadonlyArray<ReadonlyArray<MESSAGE>>
+	) => string | undefined;
+	getTurnContainerStyle?: (
+		turn: ReadonlyArray<MESSAGE>,
+		turnIndex: number,
+		turns: ReadonlyArray<ReadonlyArray<MESSAGE>>
+	) => CSSProperties | undefined;
 	getMessageContainerClassName?: (
 		message: MESSAGE,
 		messageIndex: number,
@@ -56,6 +66,8 @@ export function MessageTurns<MESSAGE extends ThreadMessage>({
 	isUserMessage,
 	latestTurnClassName,
 	latestTurnDataAttribute,
+	getTurnContainerClassName,
+	getTurnContainerStyle,
 	getMessageContainerClassName,
 	getMessageContainerStyle,
 	renderMessage,
@@ -77,7 +89,11 @@ export function MessageTurns<MESSAGE extends ThreadMessage>({
 				return (
 					<div
 						key={`turn-${turnIndex}-${turn[0]?.id ?? "empty"}`}
-						className={cn(isLatestTurn ? latestTurnClassName : undefined)}
+						className={cn(
+							isLatestTurn ? latestTurnClassName : undefined,
+							getTurnContainerClassName?.(turn, turnIndex, turns)
+						)}
+						style={getTurnContainerStyle?.(turn, turnIndex, turns)}
 						{...latestTurnProps}
 					>
 						{turn.map((message, messageIndex) => (

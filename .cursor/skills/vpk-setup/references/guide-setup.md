@@ -19,7 +19,8 @@ Complete setup guide for local development with ASAP authentication to Atlassian
 ```
 Browser → Next.js Server (port 3000) with API proxy routes
         → Express Backend (port 8080)
-        → AI Gateway
+        → RovoDev Serve (primary chat)
+        → AI Gateway (fallback + image/voice generation)
 ```
 
 **Production (Micros Deployment):**
@@ -35,27 +36,27 @@ The same code works in both environments! Next.js API routes (`/api/chat-sdk`, `
 ### Option 1: Automated Startup
 
 ```bash
-./scripts/start-dev.sh
+./.cursor/skills/vpk-setup/scripts/start-dev.sh
 ```
 
-This starts both Express backend (:8080) and Next.js frontend (:3000).
+This starts RovoDev Serve (:8000), Express backend (:8080), and Next.js frontend (:3000).
 
-**For AI/automated execution:** Use `./scripts/start-dev.sh --no-wait` to prevent the script from blocking.
+**For AI/automated execution:** Use `./.cursor/skills/vpk-setup/scripts/start-dev.sh --no-wait` to prevent the script from blocking.
 
-**To stop:** `./scripts/stop-dev.sh`
+**To stop:** `./.cursor/skills/vpk-setup/scripts/stop-dev.sh`
 
 ### Option 2: Manual 2-Terminal Setup
 
-**Terminal 1 - Backend:**
+**Terminal 1 - RovoDev Serve:**
 
 ```bash
-pnpm run dev:backend
+pnpm run dev:rovodev
 ```
 
-**Terminal 2 - Frontend:**
+**Terminal 2 - Backend + Frontend:**
 
 ```bash
-pnpm run dev:frontend
+pnpm run dev
 ```
 
 ### Verify It Works
@@ -82,14 +83,14 @@ pkill -f 'next dev'
 **"Unable to acquire lock at .next/dev/lock":** Another Next.js dev server is already running for this repo.
 
 ```bash
-./scripts/stop-dev.sh
+./.cursor/skills/vpk-setup/scripts/stop-dev.sh
 rm -f .next/dev/lock
-./scripts/start-dev.sh
+./.cursor/skills/vpk-setup/scripts/start-dev.sh
 ```
 
 **Frontend 500 with "Can't resolve '@/components/providers'":** Ensure the file is named `components/providers.tsx` (lowercase) and matches the import casing.
 
-**No available port found (3000-3019 or 8080-8099):** Another process is using the dev port range. Stop other dev servers and retry.
+**No available port found (3000-3019 or 8000-8099):** Another process is using the dev port range. Stop other dev servers and retry.
 
 **No AI response:** Check `.env.local` has ASAP credentials properly set (ASAP_KID, ASAP_ISSUER, ASAP_PRIVATE_KEY)
 
@@ -230,6 +231,14 @@ AI_GATEWAY_URL_GOOGLE=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/googl
 
 Add this alongside `AI_GATEWAY_URL` to enable Google routing for features that request `provider: "google"` (image generation) and for voice synthesis route derivation (`/api/sound-generation` -> Google synth endpoint) without changing the default chat model. See `guide-model-switch.md` for details.
 
+**Default RovoDev billing site (recommended):**
+
+```
+ROVODEV_SITE_URL=https://hello.atlassian.net
+```
+
+`scripts/dev-rovodev.js` passes this value as `--site-url` to `rovodev serve`. Override this value when you need a different billing site.
+
 **Optional — TTS model verification (`tts-latest`):**
 
 ```bash
@@ -317,26 +326,26 @@ Need help? Ask in #help-ai-gateway on Slack
 **Option 1 - Automated (Recommended):**
 
 ```bash
-./scripts/start-dev.sh
+./.cursor/skills/vpk-setup/scripts/start-dev.sh
 ```
 
 **Option 2 - Manual:**
 
 ```bash
 # Terminal 1
-pnpm run dev:backend
+pnpm run dev:rovodev
 
 # Terminal 2
-pnpm run dev:frontend
+pnpm run dev
 ```
 
 **Option 3 - Concurrent:**
 
 ```bash
-pnpm run dev
+pnpm run rovodev
 ```
 
-**Important:** Only run one dev command at a time. Running `pnpm run dev` while `start-dev.sh` (or another `pnpm run dev`) is active will trigger the `.next/dev/lock` error.
+**Important:** Only run one stack command at a time. Running `pnpm run rovodev` while `start-dev.sh` (or another `pnpm run rovodev`) is active will trigger lock/port conflicts.
 
 ### Verify Everything Works
 

@@ -33,7 +33,16 @@ function MultiportChatPanel({
 			</header>
 			<div className="flex justify-center">
 				<RovoChatProvider>
-					<ChatPanel onClose={() => {}} />
+					<ChatPanel
+						onClose={() => {}}
+						enableSmartWidgets={true}
+						sendPromptOptions={{
+							smartGeneration: {
+								enabled: true,
+								surface: "multiports",
+							},
+						}}
+					/>
 				</RovoChatProvider>
 			</div>
 		</section>

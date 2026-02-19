@@ -22,7 +22,7 @@ export default function MenuItemButton({
 		<button
 			type="button"
 			className={cn(
-				"flex w-full cursor-default items-center gap-2 rounded-md px-1.5 py-1 text-sm text-left outline-hidden select-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				"flex w-full cursor-default items-center gap-3 rounded-md px-3 py-3 text-sm text-left outline-hidden select-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
 				className,
 			)}
 			{...props}

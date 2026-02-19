@@ -1,7 +1,7 @@
 "use client";
 
 import ReasoningSection from "./reasoning-section";
-import { SourcesSection, SettingsSection } from "./sources-settings-sections";
+import { SourcesSection } from "./sources-settings-sections";
 
 interface CustomizeMenuProps {
 	selectedReasoning: string;
@@ -36,7 +36,6 @@ export default function CustomizeMenu({
 				onCompanyKnowledgeChange={onCompanyKnowledgeChange}
 				onClose={onClose}
 			/>
-			<SettingsSection onClose={onClose} />
 		</>
 	);
 }

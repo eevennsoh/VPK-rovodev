@@ -169,7 +169,7 @@ export function PromptInputDemoChatComposer() {
 									>
 										<CustomizeIcon label="" />
 									</PopoverTrigger>
-									<PopoverContent side="top" align="start" sideOffset={8} className="w-[330px] p-2">
+									<PopoverContent side="top" align="start" sideOffset={8} className="w-auto p-2">
 										<CustomizeMenu
 											selectedReasoning={selectedReasoning}
 											onReasoningChange={setSelectedReasoning}

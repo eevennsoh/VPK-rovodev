@@ -32,9 +32,16 @@ export interface SendPromptOptions {
 	messageMetadata?: RovoMessageMetadata;
 	clarification?: unknown;
 	approval?: unknown;
-	agentTeamMode?: boolean;
-	agentTeamRequestId?: string;
+	planMode?: boolean;
+	planRequestId?: string;
 	creationMode?: "skill" | "agent";
+	smartGeneration?: {
+		enabled?: boolean;
+		surface?: string;
+		containerWidthPx?: number;
+		viewportWidthPx?: number;
+		widthClass?: "compact" | "regular" | "wide";
+	};
 }
 
 export interface QueuedPromptItem {
@@ -45,6 +52,9 @@ export interface QueuedPromptItem {
 }
 
 type RovoUIMessagePart = RovoUIMessage["parts"][number];
+const INLINE_DATA_PLACEHOLDER = "[inline data omitted]";
+const CHAT_REQUEST_MAX_BYTES = 4 * 1024 * 1024;
+const CHAT_REQUEST_MIN_MESSAGES = 8;
 
 function isValidRovoUiMessagePart(part: unknown): part is RovoUIMessagePart {
 	return (
@@ -52,6 +62,53 @@ function isValidRovoUiMessagePart(part: unknown): part is RovoUIMessagePart {
 		part !== null &&
 		typeof (part as { type?: unknown }).type === "string"
 	);
+}
+
+function isDataUrl(value: string): boolean {
+	return /^data:[^,]+,/i.test(value);
+}
+
+function sanitizeValueForTransport(value: unknown): unknown {
+	if (typeof value === "string") {
+		return isDataUrl(value) ? INLINE_DATA_PLACEHOLDER : value;
+	}
+
+	if (Array.isArray(value)) {
+		let hasChanged = false;
+		const next = value.map((item) => {
+			const sanitized = sanitizeValueForTransport(item);
+			if (sanitized !== item) {
+				hasChanged = true;
+			}
+			return sanitized;
+		});
+		return hasChanged ? next : value;
+	}
+
+	if (!value || typeof value !== "object") {
+		return value;
+	}
+
+	let hasChanged = false;
+	const record = value as Record<string, unknown>;
+	const nextRecord: Record<string, unknown> = {};
+	for (const [key, item] of Object.entries(record)) {
+		const sanitized = sanitizeValueForTransport(item);
+		nextRecord[key] = sanitized;
+		if (sanitized !== item) {
+			hasChanged = true;
+		}
+	}
+
+	return hasChanged ? nextRecord : value;
+}
+
+function sanitizeMessagePartForTransport(part: RovoUIMessagePart): RovoUIMessagePart | null {
+	if (part.type === "file" && isDataUrl(part.url)) {
+		return null;
+	}
+
+	return sanitizeValueForTransport(part) as RovoUIMessagePart;
 }
 
 function sanitizeRovoUiMessages(
@@ -75,12 +132,108 @@ function sanitizeRovoUiMessages(
 	return hasChanged ? nextMessages : (messages as RovoUIMessage[]);
 }
 
+function sanitizeMessagesForTransport(
+	messages: ReadonlyArray<RovoUIMessage>
+): RovoUIMessage[] {
+	let hasChanged = false;
+
+	const nextMessages = messages.map((message) => {
+		const nextParts: RovoUIMessagePart[] = [];
+		let messageChanged = false;
+		const messageParts = Array.isArray(message.parts) ? message.parts : [];
+
+		for (const part of messageParts) {
+			const sanitizedPart = sanitizeMessagePartForTransport(part);
+			if (!sanitizedPart) {
+				hasChanged = true;
+				messageChanged = true;
+				continue;
+			}
+			if (sanitizedPart !== part) {
+				hasChanged = true;
+				messageChanged = true;
+			}
+			nextParts.push(sanitizedPart);
+		}
+
+		if (!messageChanged) {
+			return message;
+		}
+
+		return { ...message, parts: nextParts };
+	});
+
+	return hasChanged ? nextMessages : (messages as RovoUIMessage[]);
+}
+
+function estimateChatRequestBytes(
+	messages: ReadonlyArray<RovoUIMessage>,
+	body: Record<string, unknown>
+): number {
+	try {
+		const json = JSON.stringify({
+			...body,
+			messages,
+		});
+		return new TextEncoder().encode(json).byteLength;
+	} catch {
+		return Number.POSITIVE_INFINITY;
+	}
+}
+
+function trimMessagesForRequestSize(
+	messages: ReadonlyArray<RovoUIMessage>,
+	body: Record<string, unknown>
+): { messages: RovoUIMessage[]; trimmed: boolean } {
+	if (messages.length <= CHAT_REQUEST_MIN_MESSAGES) {
+		return {
+			messages: [...messages],
+			trimmed: false,
+		};
+	}
+
+	const nextMessages = [...messages];
+	let trimmed = false;
+	while (
+		nextMessages.length > CHAT_REQUEST_MIN_MESSAGES &&
+		estimateChatRequestBytes(nextMessages, body) > CHAT_REQUEST_MAX_BYTES
+	) {
+		nextMessages.shift();
+		trimmed = true;
+	}
+
+	return {
+		messages: nextMessages,
+		trimmed,
+	};
+}
+
 function isInvalidPartStateError(error: unknown): boolean {
 	return (
 		error instanceof TypeError &&
 		typeof error.message === "string" &&
 		error.message.includes("reading 'state'")
 	);
+}
+
+function isPayloadTooLargeError(rawMessage?: string): boolean {
+	const extractedMessage = extractErrorMessageFromValue(rawMessage);
+	if (!extractedMessage) {
+		return false;
+	}
+
+	const normalized = extractedMessage.toLowerCase();
+	return (
+		normalized.includes("payloadtoolargeerror") ||
+		normalized.includes("payload too large") ||
+		normalized.includes("entity too large") ||
+		normalized.includes("request entity too large") ||
+		normalized.includes("request payload too large")
+	);
+}
+
+function getPayloadTooLargeUserMessage(): string {
+	return "I couldn't process that request because the chat payload is too large (usually from inline image/file history). I trimmed oversized history data, so you can continue chatting.";
 }
 
 interface RovoChatContextType {
@@ -238,6 +391,25 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 		() =>
 			new DefaultChatTransport<RovoUIMessage>({
 				api: API_ENDPOINTS.CHAT_SDK,
+				prepareSendMessagesRequest: ({ messages, body }) => {
+					const normalizedMessages = sanitizeRovoUiMessages(messages);
+					const sanitizedMessages = sanitizeMessagesForTransport(normalizedMessages);
+					const sanitizedBody = sanitizeValueForTransport(
+						(body ?? {}) as Record<string, unknown>
+					) as Record<string, unknown>;
+					const { messages: trimmedMessages, trimmed } = trimMessagesForRequestSize(
+						sanitizedMessages,
+						sanitizedBody
+					);
+
+					return {
+						body: {
+							...sanitizedBody,
+							messages: trimmedMessages,
+							payloadTrimmed: trimmed,
+						},
+					};
+				},
 			}),
 		[]
 	);
@@ -296,9 +468,12 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 										body: {
 											contextDescription: saved.options?.contextDescription,
 											userName: saved.options?.userName,
-											agentTeamMode: saved.options?.agentTeamMode,
-											agentTeamRequestId: saved.options?.agentTeamRequestId,
+											clarification: saved.options?.clarification,
+											approval: saved.options?.approval,
+											planMode: saved.options?.planMode,
+											planRequestId: saved.options?.planRequestId,
 											creationMode: saved.options?.creationMode,
+											smartGeneration: saved.options?.smartGeneration,
 											hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 										},
 									}
@@ -319,9 +494,12 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 										body: {
 											contextDescription: saved.options?.contextDescription,
 											userName: saved.options?.userName,
-											agentTeamMode: saved.options?.agentTeamMode,
-											agentTeamRequestId: saved.options?.agentTeamRequestId,
+											clarification: saved.options?.clarification,
+											approval: saved.options?.approval,
+											planMode: saved.options?.planMode,
+											planRequestId: saved.options?.planRequestId,
 											creationMode: saved.options?.creationMode,
+											smartGeneration: saved.options?.smartGeneration,
 											hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 										},
 									}
@@ -352,10 +530,29 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 			}
 
 			clearRetryCountdownInterval();
+			const userFacingErrorMessage = toUserFacingChatErrorMessage(error.message);
+			if (
+				isPayloadTooLargeError(error.message) ||
+				isPayloadTooLargeError(userFacingErrorMessage)
+			) {
+				setMessages((prev) =>
+					sanitizeMessagesForTransport(sanitizeRovoUiMessages(prev))
+				);
+				setSubmissionErrorMessage(
+					createAssistantTextMessage(
+						errorMessageId,
+						getPayloadTooLargeUserMessage()
+					)
+				);
+				shouldFinalizeActivePromptRef.current = true;
+				queueTick();
+				return;
+			}
+
 			setSubmissionErrorMessage(
 				createAssistantTextMessage(
 					errorMessageId,
-					toUserFacingChatErrorMessage(error.message)
+					userFacingErrorMessage
 				)
 			);
 			shouldFinalizeActivePromptRef.current = true;
@@ -418,7 +615,6 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 			};
 			retryCountRef.current = 0;
 			setSubmissionErrorMessage(null);
-			clearSuggestedQuestions();
 
 			if (isStreamingRef.current) {
 				await stop();
@@ -433,9 +629,12 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 						body: {
 							contextDescription: promptItem.options?.contextDescription,
 							userName: promptItem.options?.userName,
-							agentTeamMode: promptItem.options?.agentTeamMode,
-							agentTeamRequestId: promptItem.options?.agentTeamRequestId,
+							clarification: promptItem.options?.clarification,
+							approval: promptItem.options?.approval,
+							planMode: promptItem.options?.planMode,
+							planRequestId: promptItem.options?.planRequestId,
 							creationMode: promptItem.options?.creationMode,
+							smartGeneration: promptItem.options?.smartGeneration,
 							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 						},
 					}
@@ -456,16 +655,19 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 						body: {
 							contextDescription: promptItem.options?.contextDescription,
 							userName: promptItem.options?.userName,
-							agentTeamMode: promptItem.options?.agentTeamMode,
-							agentTeamRequestId: promptItem.options?.agentTeamRequestId,
+							clarification: promptItem.options?.clarification,
+							approval: promptItem.options?.approval,
+							planMode: promptItem.options?.planMode,
+							planRequestId: promptItem.options?.planRequestId,
 							creationMode: promptItem.options?.creationMode,
+							smartGeneration: promptItem.options?.smartGeneration,
 							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
 						},
 					}
 				);
 			}
 		},
-		[clearSuggestedQuestions, sendMessage, setMessages, stop]
+		[sendMessage, setMessages, stop]
 	);
 
 	const finalizeActivePrompt = useCallback(() => {

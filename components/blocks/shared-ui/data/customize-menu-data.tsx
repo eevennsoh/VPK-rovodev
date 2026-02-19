@@ -1,5 +1,5 @@
 import type React from "react";
-import AddIcon from "@atlaskit/icon/core/add";
+import CheckMarkIcon from "@atlaskit/icon/core/check-mark";
 import AppsIcon from "@atlaskit/icon/core/apps";
 import GlobeIcon from "@atlaskit/icon/core/globe";
 import OfficeBuildingIcon from "@atlaskit/icon/core/office-building";
@@ -13,7 +13,6 @@ interface ReasoningOption {
 	label: string;
 	description: string;
 	icon: React.ReactElement;
-	showCheckAfter?: boolean;
 }
 
 export const REASONING_OPTIONS: ReasoningOption[] = [
@@ -34,7 +33,6 @@ export const REASONING_OPTIONS: ReasoningOption[] = [
 		label: "Deep research",
 		description: "Synthesize insights and create reports",
 		icon: <TelescopeIcon label="Deep research" />,
-		showCheckAfter: true,
 	},
 ];
 
@@ -59,4 +57,4 @@ export const SOURCE_TOGGLES: SourceToggle[] = [
 
 export const FILTER_BY_APPS_ICON = <AppsIcon label="Filter by apps" />;
 export const SETTINGS_ICON = <SettingsIcon label="Settings" />;
-export const SELECTED_CHECK_ICON = <AddIcon label="Selected" />;
+export const SELECTED_CHECK_ICON = <CheckMarkIcon label="Selected" />;

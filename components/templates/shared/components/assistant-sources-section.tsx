@@ -21,7 +21,7 @@ export function AssistantSourcesSection({
 	sources,
 }: Readonly<AssistantSourcesSectionProps>): React.ReactElement {
 	return (
-		<Sources className="px-3 pt-2">
+		<Sources className="px-6 pt-2">
 			<SourcesTrigger count={sources.length} />
 			<SourcesContent>
 				{sources.map((sourcePart, index) => (

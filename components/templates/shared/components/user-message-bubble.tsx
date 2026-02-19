@@ -3,13 +3,11 @@ import { Button } from "@/components/ui/button";
 import DeleteIcon from "@atlaskit/icon/core/delete";
 
 interface UserMessageBubbleProps {
-	surface: "sidebar" | "fullscreen";
 	messageText: string;
 	onDelete?: () => void;
 }
 
 export function UserMessageBubble({
-	surface,
 	messageText,
 	onDelete,
 }: Readonly<UserMessageBubbleProps>): React.ReactElement {
@@ -28,10 +26,8 @@ export function UserMessageBubble({
 					</Button>
 				</span>
 			) : null}
-			<UiMessage from="user" className={surface === "sidebar" ? "pl-6" : undefined}>
-				<MessageContent
-					className={surface === "fullscreen" ? "group-[.is-user]:px-4 group-[.is-user]:py-3" : undefined}
-				>
+			<UiMessage from="user">
+				<MessageContent>
 					{messageText}
 				</MessageContent>
 			</UiMessage>

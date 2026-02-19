@@ -4,9 +4,22 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { getRovodevBasePort } = require("./lib/worktree-ports");
 
+try {
+	// Allow ROVODEV_SITE_URL overrides from .env.local for local dev flows.
+	require("dotenv").config({ path: path.join(process.cwd(), ".env.local") });
+} catch {
+	// ignore dotenv loading failures
+}
+
 const basePort = getRovodevBasePort();
 const maxTries = Number.parseInt(process.env.PORT_SEARCH_MAX ?? "20", 10);
 const poolSize = Math.max(1, Number.parseInt(process.env.ROVODEV_POOL_SIZE ?? "6", 10));
+const defaultBillingSiteUrl = "https://hello.atlassian.net";
+const configuredBillingSiteUrl =
+	typeof process.env.ROVODEV_SITE_URL === "string" &&
+	process.env.ROVODEV_SITE_URL.trim().length > 0
+		? process.env.ROVODEV_SITE_URL.trim()
+		: defaultBillingSiteUrl;
 const portFile = path.join(process.cwd(), ".dev-rovodev-port");
 const portsFile = path.join(process.cwd(), ".dev-rovodev-ports");
 
@@ -276,6 +289,10 @@ const run = async () => {
 	writePortFiles(ports);
 
 	const { bin: rovodevBin, servePrefix } = resolveRovodevBin();
+	console.log(
+		`[rovodev] Billing site URL: ${configuredBillingSiteUrl}` +
+			` (override with ROVODEV_SITE_URL)`
+	);
 
 	// Spawn one child per port
 	const children = [];
@@ -286,9 +303,20 @@ const run = async () => {
 		// without needing to coordinate Bearer tokens. This is safe because
 		// rovodev serve only listens on 127.0.0.1.
 
-		// Start rovodev serve without --restore so we get fresh sessions
-		// and avoid leaking sessions from other workspaces.
-		const spawnArgs = [...servePrefix, "serve", "--disable-session-token", String(port)];
+		// Use --restore to persist billing site, MCP permissions, and other
+		// config across restarts within this workspace.
+		// Use --respect-configured-permissions to honor the global ~/.rovodev/config.yml
+		// so you don't need to re-approve MCP servers on every restart.
+		const spawnArgs = [
+			...servePrefix,
+			"serve",
+			"--restore",
+			"--disable-session-token",
+			"--respect-configured-permissions",
+			"--site-url",
+			configuredBillingSiteUrl,
+			String(port),
+		];
 		console.log(`[rovodev] Starting: ${rovodevBin} ${spawnArgs.join(" ")}`);
 		const child = spawn(rovodevBin, spawnArgs, {
 			stdio: "inherit",
