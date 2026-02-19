@@ -4,6 +4,8 @@ const assert = require("node:assert/strict");
 const {
 	extractPlanRenderableText,
 	removeActionItemsSection,
+	sanitizeMarkdownArtifactMarkers,
+	suppressToolJsonTrace,
 } = require("./message-text-utils.ts");
 
 test("removes action items list but preserves surrounding text", () => {
@@ -108,4 +110,62 @@ Action items
 	assert.equal(output.text, "");
 	assert.equal(output.summary, "");
 	assert.equal(output.mermaid, "");
+});
+
+test("suppresses raw tool json and preserves summary narrative", () => {
+	const input = `I'll help you list your Google Calendar events.
+{
+  "calendarId": "esoh@atlassian.com",
+  "events": [
+    {
+      "id": "event-1",
+      "summary": "Home",
+      "start": { "date": "2026-02-20" },
+      "end": { "date": "2026-02-21" }
+    }
+  ],
+  "htmlLink": "https://calendar.google.com/calendar/event?id=abc123",
+  "status": "confirmed"
+}
+
+Great! I successfully retrieved your Google Calendar events.
+Here is a summary of your next 7 days.`;
+
+	const output = suppressToolJsonTrace(input);
+	assert.equal(
+		output.text,
+		`I'll help you list your Google Calendar events.
+
+Great! I successfully retrieved your Google Calendar events.
+Here is a summary of your next 7 days.`
+	);
+	assert.equal(output.replaced, true);
+});
+
+test("does not suppress normal non-json assistant text", () => {
+	const input = `Here are your next 7 days:
+- Friday: Home (all-day)
+- Saturday: Team sync (10:00 AM)`;
+
+	const output = suppressToolJsonTrace(input);
+	assert.equal(output.text, input);
+	assert.equal(output.replaced, false);
+});
+
+test("removes markdown artifact markers from assistant text", () => {
+	const input = `I'm using text streaming fallback because I couldn't confirm tool context. (markdown:incomplete-link)`;
+	const output = sanitizeMarkdownArtifactMarkers(input);
+	assert.equal(
+		output,
+		"I'm using text streaming fallback because I couldn't confirm tool context."
+	);
+});
+
+test("keeps normal markdown content while removing artifact markers", () => {
+	const input = `See [calendar](https://calendar.google.com) for details. (markdown:incomplete-link)`;
+	const output = sanitizeMarkdownArtifactMarkers(input);
+	assert.equal(
+		output,
+		"See [calendar](https://calendar.google.com) for details."
+	);
 });

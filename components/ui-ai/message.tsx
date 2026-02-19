@@ -1,7 +1,12 @@
 "use client";
 
 import type { UIMessage } from "ai";
-import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
+import type {
+  ComponentProps,
+  HTMLAttributes,
+  ReactElement,
+  ReactNode,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +26,10 @@ import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import {
+  Children,
+  Fragment,
   createContext,
+  isValidElement,
   memo,
   useCallback,
   useContext,
@@ -29,7 +37,15 @@ import {
   useMemo,
   useState,
 } from "react";
+import type { LinkSafetyConfig } from "streamdown";
 import { Streamdown } from "streamdown";
+
+import { renderLinkSafetyModal } from "@/components/ui-ai/link-safety-dialog";
+
+const linkSafetyConfig: LinkSafetyConfig = {
+	enabled: true,
+	renderModal: renderLinkSafetyModal,
+};
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
@@ -339,6 +355,92 @@ const safeCodePlugin: typeof baseCodePlugin = {
 
 const streamdownPlugins = { cjk, code: safeCodePlugin, math, mermaid };
 
+const inlineStreamTags = new Set([
+	"a",
+	"abbr",
+	"acronym",
+	"b",
+	"bdi",
+	"bdo",
+	"br",
+	"cite",
+	"code",
+	"data",
+	"del",
+	"em",
+	"i",
+	"kbd",
+	"mark",
+	"q",
+	"rp",
+	"rt",
+	"ruby",
+	"s",
+	"samp",
+	"small",
+	"span",
+	"strong",
+	"sub",
+	"sup",
+	"time",
+	"u",
+	"var",
+	"img",
+]);
+
+const hasBlockMarkdownContent = (children: ReactNode): boolean => {
+	return Children.toArray(children).some((child) => {
+		if (
+			child === null ||
+			child === undefined ||
+			typeof child === "boolean" ||
+			typeof child === "string" ||
+			typeof child === "number"
+		) {
+			return false;
+		}
+
+		if (!isValidElement(child)) {
+			return false;
+		}
+
+		const element = child as ReactElement<{ children?: ReactNode }>;
+
+		if (element.type === Fragment) {
+			return hasBlockMarkdownContent(element.props.children);
+		}
+
+		if (typeof element.type === "string") {
+			return !inlineStreamTags.has(element.type);
+		}
+
+		return true;
+	});
+};
+
+type MarkdownParagraphProps = ComponentProps<"p"> & { node?: unknown };
+
+const MarkdownParagraph = ({
+	children,
+	className,
+	...props
+}: MarkdownParagraphProps) => {
+	const { node, ...htmlProps } = props;
+	void node;
+
+	const blockContent = hasBlockMarkdownContent(children);
+
+	const Element = blockContent ? "div" : "p";
+
+	return (
+		<Element className={className} {...htmlProps}>
+			{children}
+		</Element>
+	);
+};
+
+const streamdownComponents = { p: MarkdownParagraph };
+
 export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
@@ -352,10 +454,14 @@ export const MessageResponse = memo(
         className
       )}
       plugins={streamdownPlugins}
+      components={streamdownComponents}
+      linkSafety={linkSafetyConfig}
       {...props}
     />
   ),
-  (prevProps, nextProps) => prevProps.children === nextProps.children
+  (prevProps, nextProps) =>
+    prevProps.children === nextProps.children &&
+    prevProps.isAnimating === nextProps.isAnimating
 );
 
 MessageResponse.displayName = "MessageResponse";

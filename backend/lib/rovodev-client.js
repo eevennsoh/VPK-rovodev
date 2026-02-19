@@ -78,6 +78,149 @@ function getToolCallInput(part) {
 	return parseToolInputValue(part.args);
 }
 
+function getToolCallIdFromPayload(payload) {
+	if (!payload || typeof payload !== "object") {
+		return "";
+	}
+
+	return (
+		payload.tool_call_id ||
+		payload.toolCallId ||
+		payload.call_id ||
+		payload.callId ||
+		""
+	);
+}
+
+function getToolNameFromPayload(payload) {
+	if (!payload || typeof payload !== "object") {
+		return "";
+	}
+
+	return (
+		payload.tool_name ||
+		payload.toolName ||
+		payload.name ||
+		""
+	);
+}
+
+function resolveToolResultOutput(payload) {
+	if (!payload || typeof payload !== "object") {
+		return "";
+	}
+
+	if (payload.content !== undefined && payload.content !== null) {
+		return payload.content;
+	}
+	if (payload.output !== undefined && payload.output !== null) {
+		return payload.output;
+	}
+	if (payload.result !== undefined && payload.result !== null) {
+		return payload.result;
+	}
+	if (payload.value !== undefined && payload.value !== null) {
+		return payload.value;
+	}
+	if (payload.data !== undefined && payload.data !== null) {
+		return payload.data;
+	}
+	if (payload.error !== undefined && payload.error !== null) {
+		return payload.error;
+	}
+
+	return "";
+}
+
+function parseStructuredToolResultOutput(outputValue) {
+	if (!outputValue) {
+		return null;
+	}
+
+	if (typeof outputValue === "object" && !Array.isArray(outputValue)) {
+		return outputValue;
+	}
+
+	if (typeof outputValue !== "string") {
+		return null;
+	}
+
+	const trimmedValue = outputValue.trim();
+	if (!trimmedValue || (trimmedValue[0] !== "{" && trimmedValue[0] !== "[")) {
+		return null;
+	}
+
+	try {
+		const parsedValue = JSON.parse(trimmedValue);
+		return parsedValue && typeof parsedValue === "object" ? parsedValue : null;
+	} catch {
+		return null;
+	}
+}
+
+function resolveToolResultIsError(payload, outputPreview, rawOutput) {
+	const status =
+		typeof payload?.status === "string" ? payload.status.trim().toLowerCase() : "";
+	const hasExplicitError =
+		payload?.is_error === true ||
+		payload?.isError === true ||
+		payload?.success === false ||
+		status === "error" ||
+		status === "failed" ||
+		status === "failure";
+	if (hasExplicitError) {
+		return true;
+	}
+
+	const hasExplicitSuccess =
+		payload?.success === true ||
+		status === "ok" ||
+		status === "success" ||
+		status === "completed" ||
+		status === "complete" ||
+		status === "done";
+	if (hasExplicitSuccess) {
+		return false;
+	}
+
+	if (payload?.error !== undefined && payload?.error !== null) {
+		return true;
+	}
+
+	const structuredOutput = parseStructuredToolResultOutput(rawOutput);
+	if (structuredOutput && typeof structuredOutput === "object") {
+		const nestedStatus =
+			typeof structuredOutput.status === "string"
+				? structuredOutput.status.trim().toLowerCase()
+				: "";
+		if (
+			structuredOutput.error !== undefined ||
+			structuredOutput.is_error === true ||
+			structuredOutput.isError === true ||
+			structuredOutput.success === false ||
+			structuredOutput.ok === false ||
+			nestedStatus === "error" ||
+			nestedStatus === "failed" ||
+			nestedStatus === "failure" ||
+			(Array.isArray(structuredOutput.errors) && structuredOutput.errors.length > 0)
+		) {
+			return true;
+		}
+
+		const httpStatus =
+			typeof structuredOutput.httpStatus === "number"
+				? structuredOutput.httpStatus
+				: typeof structuredOutput.statusCode === "number"
+					? structuredOutput.statusCode
+					: null;
+		if (typeof httpStatus === "number" && httpStatus >= 400) {
+			return true;
+		}
+	}
+
+	return /\b(error|errors|failed|failure|exception)\b/i.test(outputPreview);
+}
+
 /**
  * Extract structured content from an SSE event, handling the Rovo Dev event format.
  *
@@ -137,13 +280,17 @@ function extractChunkFromEvent(eventName, parsed) {
 		return null;
 	}
 
-	if (eventName === "retry-prompt" || eventName === "tool-return") {
-		const rawContent = parsed?.content ?? "";
+	if (
+		eventName === "retry-prompt" ||
+		eventName === "tool-return" ||
+		eventName === "tool_result"
+	) {
+		const rawContent = resolveToolResultOutput(parsed);
 		const preview = toPreview(rawContent);
 		const content = preview.text;
-		const toolName = parsed?.tool_name || "";
-		const toolCallId = parsed?.tool_call_id || "";
-		const isError = content.toLowerCase().includes("error");
+		const toolName = getToolNameFromPayload(parsed);
+		const toolCallId = getToolCallIdFromPayload(parsed);
+		const isError = resolveToolResultIsError(parsed, content, rawContent);
 		return {
 			type: isError ? "tool_error" : "tool_result",
 			text: content,
@@ -155,7 +302,7 @@ function extractChunkFromEvent(eventName, parsed) {
 		};
 	}
 
-	if (eventName === "tool_use" || eventName === "tool_result") {
+	if (eventName === "tool_use") {
 		return null;
 	}
 

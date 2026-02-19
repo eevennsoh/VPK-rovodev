@@ -45,7 +45,7 @@ export const chatStyles = {
 	thinkingContainer: {
 		paddingLeft: token("space.150"),
 		paddingRight: token("space.150"),
-		marginTop: token("space.150"),
+		marginTop: token("space.300"),
 	},
 	emptyState: {
 		display: "flex",

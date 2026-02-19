@@ -46,3 +46,59 @@ test("extractChunkFromEvent marks error payloads as tool_error", () => {
 	assert.equal(chunk.outputPreview, "Error: Google Calendar API quota exceeded");
 	assert.equal(chunk.outputTruncated, false);
 });
+
+test("extractChunkFromEvent parses tool_result success payload variants", () => {
+	const chunk = extractChunkFromEvent("tool_result", {
+		status: "success",
+		output: {
+			events: [
+				{ id: "event-1", summary: "Standup" },
+			],
+		},
+		toolName: "google_calendar",
+		callId: "call-3",
+	});
+
+	assert.ok(chunk);
+	assert.equal(chunk.type, "tool_result");
+	assert.equal(chunk.toolName, "google_calendar");
+	assert.equal(chunk.toolCallId, "call-3");
+	assert.equal(typeof chunk.outputPreview, "string");
+});
+
+test("extractChunkFromEvent parses tool_result error payload variants", () => {
+	const chunk = extractChunkFromEvent("tool_result", {
+		status: "failed",
+		error: "Permission denied for calendar",
+		tool_name: "google_calendar",
+		call_id: "call-4",
+	});
+
+	assert.ok(chunk);
+	assert.equal(chunk.type, "tool_error");
+	assert.equal(chunk.toolName, "google_calendar");
+	assert.equal(chunk.toolCallId, "call-4");
+	assert.match(chunk.outputPreview, /Permission denied/i);
+});
+
+test("extractChunkFromEvent treats structured error JSON output as tool_error", () => {
+	const chunk = extractChunkFromEvent("tool_result", {
+		output: JSON.stringify({
+			httpStatus: 400,
+			errors: [
+				{
+					type: "MCP_TOOL_CONFIGURATION_INVALID_INPUT",
+					message: "restricted_action",
+				},
+			],
+		}),
+		tool_name: "mcp__integrations__invoke_tool",
+		tool_call_id: "call-5",
+	});
+
+	assert.ok(chunk);
+	assert.equal(chunk.type, "tool_error");
+	assert.equal(chunk.toolName, "mcp__integrations__invoke_tool");
+	assert.equal(chunk.toolCallId, "call-5");
+	assert.match(chunk.outputPreview, /restricted_action/i);
+});

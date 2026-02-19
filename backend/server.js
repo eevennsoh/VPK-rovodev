@@ -30,6 +30,19 @@ const { getGenuiSystemPrompt } = require("./lib/genui-system-prompt");
 const { analyzeGeneratedText, pickBestSpec } = require("./lib/genui-spec-utils");
 const { classifySmartGenerationIntent } = require("./lib/smart-generation-intent");
 const {
+	resolveToolFirstPolicy,
+	TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY,
+	createToolFirstExecutionState,
+	recordToolFirstAttempt,
+	recordToolThinkingEvent,
+	hasRelevantToolSuccess,
+	getToolFirstRetryDelayMs,
+	buildToolFirstRetryInstruction,
+	buildToolContextForGenui,
+	buildToolFirstTextFallback,
+	stripToolFirstFailureNarrative,
+} = require("./lib/tool-first-genui-policy");
+const {
 	buildClassifierPrompt: buildSmartClarificationClassifierPrompt,
 	parseClassifierOutput: parseSmartClarificationClassifierOutput,
 	shouldGateSmartClarification,
@@ -62,6 +75,7 @@ const {
 	MAX_INLINE_ASSISTANT_JSON_CHARS,
 	ASSISTANT_JSON_SUPPRESSION_TEXT,
 	toPreview,
+	isLikelyLargeJsonDump,
 	sanitizeAssistantNarrative,
 } = require("./lib/tool-output-sanitizer");
 
@@ -617,6 +631,7 @@ const SMART_WIDGET_TYPE_IMAGE = "image-preview";
 const SMART_VOICE_INPUT_MAX_CHARS = 4000;
 const CLASSIFIER_JSON_ALLOWED_KEYS = new Set(["intent", "confidence", "reason"]);
 const CLASSIFIER_JSON_BUFFER_MAX_CHARS = 320;
+const MAX_ASSISTANT_TEXT_WITH_TOOL_CALLS_CHARS = 1400;
 const SMART_IMAGE_REQUEST_PATTERN =
 	/\b(generate|create|draw|make|design|render|show)\b[\s\S]{0,80}\b(image|photo|picture|illustration|icon|logo|wallpaper|art)\b|\b(image|photo|picture|illustration|icon|logo)\b[\s\S]{0,80}\b(generate|create|draw|make|design|render|show)\b/i;
 const SMART_UI_REQUEST_PATTERN =
@@ -2794,6 +2809,16 @@ app.post("/api/chat-sdk", async (req, res) => {
 			return res.status(400).json({ error: "A user message is required" });
 		}
 
+		const toolFirstPolicy = resolveToolFirstPolicy({
+			prompt: latestUserMessage,
+		});
+		if (toolFirstPolicy.matched) {
+			console.info("[TOOL-FIRST] Matched tool-first domains", {
+				domains: toolFirstPolicy.domains,
+				domainLabels: toolFirstPolicy.domainLabels,
+			});
+		}
+
 		if (
 			shouldGatePlanningQuestionCard({
 				messages,
@@ -2842,10 +2867,16 @@ app.post("/api/chat-sdk", async (req, res) => {
 				: `Plan approval: ${serialized}`;
 		}
 
+		const effectiveContextDescription = toolFirstPolicy.matched
+			? enrichedContextDescription
+				? `${enrichedContextDescription}\n\n${toolFirstPolicy.instruction}`
+				: toolFirstPolicy.instruction
+			: enrichedContextDescription;
+
 		const userMessageText = buildUserMessage(
 			latestUserMessage,
 			conversationHistory,
-			enrichedContextDescription
+			effectiveContextDescription
 		);
 
 		const smartGeneration = normalizeSmartGenerationOptions(rawSmartGeneration);
@@ -2868,7 +2899,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 			});
 		}
 		let smartIntentResult = null;
-		if (smartGenerationActive) {
+		if (smartGenerationActive && !toolFirstPolicy.matched) {
 			const heuristicIntent = inferSmartIntentFromPrompt(latestUserMessage);
 			if (heuristicIntent !== "normal") {
 				smartIntentResult = {
@@ -2907,6 +2938,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 		if (
 			smartGenerationActive &&
+			!toolFirstPolicy.matched &&
 			smartIntentResult &&
 			smartIntentResult.intent === "normal" &&
 			shouldPreferGenuiWhenPossible(latestUserMessage)
@@ -2929,7 +2961,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 			});
 		}
 
-		if (smartGenerationActive) {
+		if (smartGenerationActive && !toolFirstPolicy.matched) {
 			const smartClarificationClassifierPrompt =
 				smartIntentResult && smartIntentResult.intent !== "normal"
 					? buildSmartClarificationClassifierPrompt({
@@ -3000,6 +3032,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 		if (
 			smartGenerationActive &&
+			!toolFirstPolicy.matched &&
 			smartIntentResult &&
 			smartIntentResult.intent !== "normal"
 		) {
@@ -3272,7 +3305,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 			return;
 		}
 
-		if (provider === "google") {
+		if (provider === "google" && !toolFirstPolicy.matched) {
 			const googleImageConfig = resolveGoogleImageGatewayConfig({
 				envVars: getEnvVars(),
 				requestedModel: rawModel,
@@ -3472,28 +3505,79 @@ app.post("/api/chat-sdk", async (req, res) => {
 				let latestPlanPayload = null;
 				let hasEmittedQuestionCard = false;
 				let hasEmittedPlanWidget = false;
-				let hasSeenPlanWidgetSignal = false;
-				let hasEmittedPlanLoadingState = false;
-				let latestProgressivePlanFingerprint = null;
-				let hasExplicitPlanPayload = false;
-				const emittedQuestionCardToolCalls = new Set();
-				let pendingQuestionCardLoadingWidgetId = null;
-				let hasSuppressedLargeAssistantJson = false;
+					let hasSeenPlanWidgetSignal = false;
+					let hasEmittedPlanLoadingState = false;
+					let latestProgressivePlanFingerprint = null;
+					let hasExplicitPlanPayload = false;
+					const emittedQuestionCardToolCalls = new Set();
+					let pendingQuestionCardLoadingWidgetId = null;
+					let hasSuppressedLargeAssistantJson = false;
+					let hasObservedToolExecution = false;
+					const toolFirstExecutionState = createToolFirstExecutionState(
+						toolFirstPolicy
+					);
+					const toolFirstSoftRetryEnabled =
+						toolFirstPolicy.matched &&
+						toolFirstPolicy?.enforcement?.mode ===
+							TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY;
+					const shouldDeferToolFirstText = toolFirstSoftRetryEnabled;
+					let deferredToolFirstText = "";
 
-				let bufferedAssistantText = "";
+					let bufferedAssistantText = "";
+					const removeToolFirstFailureNarrative = () => {
+						if (!toolFirstPolicy.matched) {
+							return;
+						}
 
-				const emitTextDeltaRaw = (delta) => {
-					if (!delta) {
-						return;
-					}
+						const sanitizedAssistant = stripToolFirstFailureNarrative(assistantText);
+						if (sanitizedAssistant.replaced) {
+							assistantText = sanitizedAssistant.text;
+						}
 
-					if (!textStarted) {
-						writer.write({ type: "text-start", id: textId });
-						textStarted = true;
-					}
+						if (deferredToolFirstText.length > 0) {
+							const sanitizedDeferred =
+								stripToolFirstFailureNarrative(deferredToolFirstText);
+							if (sanitizedDeferred.replaced) {
+								deferredToolFirstText = sanitizedDeferred.text;
+							}
+						}
+					};
 
-					writer.write({ type: "text-delta", id: textId, delta });
-				};
+					const flushDeferredToolFirstText = () => {
+						if (!shouldDeferToolFirstText || deferredToolFirstText.length === 0) {
+							return;
+						}
+
+						if (!textStarted) {
+							writer.write({ type: "text-start", id: textId });
+							textStarted = true;
+						}
+
+						writer.write({
+							type: "text-delta",
+							id: textId,
+							delta: deferredToolFirstText,
+						});
+						deferredToolFirstText = "";
+					};
+
+					const emitTextDeltaRaw = (delta) => {
+						if (!delta) {
+							return;
+						}
+
+						if (shouldDeferToolFirstText) {
+							deferredToolFirstText += delta;
+							return;
+						}
+
+						if (!textStarted) {
+							writer.write({ type: "text-start", id: textId });
+							textStarted = true;
+						}
+
+						writer.write({ type: "text-delta", id: textId, delta });
+					};
 
 				const flushBufferedAssistantText = ({ force = false } = {}) => {
 					if (!bufferedAssistantText) {
@@ -3545,6 +3629,75 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 
 					const nextAssistantText = assistantText + delta;
+					if (
+						hasObservedToolExecution &&
+						nextAssistantText.length > MAX_ASSISTANT_TEXT_WITH_TOOL_CALLS_CHARS
+					) {
+						hasSuppressedLargeAssistantJson = true;
+						const suppressionNotice = `\n\n${ASSISTANT_JSON_SUPPRESSION_TEXT}`;
+						assistantText += suppressionNotice;
+						bufferedAssistantText += suppressionNotice;
+						flushBufferedAssistantText({ force: true });
+						return;
+					}
+					// When a tool has been executed, check with a much lower
+					// threshold so that the LLM echoing raw tool-result JSON
+					// is caught early — before hundreds of chars are streamed.
+					// We check both the full text (via sanitizeAssistantNarrative
+					// with a low threshold) and the substring starting at the
+					// first JSON-like character, since the JSON often follows a
+					// short natural-language preamble like "Here are your events."
+					if (hasObservedToolExecution && nextAssistantText.length >= 300) {
+						let earlyJsonDetected = false;
+
+						// Fast path: check if assistant text contains a JSON
+						// blob after a natural-language prefix
+						const jsonObjectIdx = nextAssistantText.indexOf("{");
+						if (jsonObjectIdx > -1) {
+							const jsonPortion = nextAssistantText.slice(jsonObjectIdx);
+							if (jsonPortion.length >= 200 && isLikelyLargeJsonDump(jsonPortion, { minChars: 200 })) {
+								earlyJsonDetected = true;
+							}
+						}
+
+						// Also try the full-text sanitizer with a lower threshold
+						if (!earlyJsonDetected) {
+							const earlyNarrativeSuppression = sanitizeAssistantNarrative(
+								nextAssistantText,
+								{
+									maxChars: 400,
+									replacement: ASSISTANT_JSON_SUPPRESSION_TEXT,
+								}
+							);
+							if (earlyNarrativeSuppression.replaced) {
+								earlyJsonDetected = true;
+							}
+						}
+
+						if (earlyJsonDetected) {
+							hasSuppressedLargeAssistantJson = true;
+							if (textStarted) {
+								// We already emitted some text — just append
+								// the suppression notice for the remaining part
+								const suppressionNotice = `\n\n${ASSISTANT_JSON_SUPPRESSION_TEXT}`;
+								assistantText += suppressionNotice;
+								bufferedAssistantText += suppressionNotice;
+							} else {
+								// Nothing emitted yet — emit any natural-language
+								// prefix before the JSON, plus the suppression notice
+								const prefix = jsonObjectIdx > -1
+									? nextAssistantText.slice(0, jsonObjectIdx).trim()
+									: "";
+								const sanitizedOutput = prefix
+									? `${prefix}\n\n${ASSISTANT_JSON_SUPPRESSION_TEXT}`
+									: ASSISTANT_JSON_SUPPRESSION_TEXT;
+								assistantText = sanitizedOutput;
+								bufferedAssistantText = sanitizedOutput;
+							}
+							flushBufferedAssistantText({ force: true });
+							return;
+						}
+					}
 					const narrativeSuppression = sanitizeAssistantNarrative(
 						nextAssistantText,
 						{
@@ -3581,13 +3734,62 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 				};
 
-				const sanitizeThinkingLabel = (value) => {
-					if (typeof value !== "string") {
-						return "";
-					}
+					const emitForcedTextDelta = (delta) => {
+						if (typeof delta !== "string" || delta.length === 0) {
+							return;
+						}
 
-					return value.replace(/(?:\s*(?:\.{3}|…))+$/u, "").trim();
-				};
+						assistantText += delta;
+						bufferedAssistantText += delta;
+						flushBufferedAssistantText({ force: true });
+					};
+
+					const resetAssistantTextForRetryAttempt = () => {
+						textBuffer = "";
+						assistantText = "";
+						bufferedAssistantText = "";
+						hasSuppressedLargeAssistantJson = false;
+						if (shouldDeferToolFirstText) {
+							deferredToolFirstText = "";
+						}
+					};
+
+					const waitForRetryDelay = async (delayMs) =>
+						new Promise((resolve) => {
+							if (
+								typeof delayMs !== "number" ||
+								delayMs <= 0 ||
+								abortController.signal.aborted
+							) {
+								resolve();
+								return;
+							}
+							let settled = false;
+							const onAbort = () => {
+								clearTimeout(timer);
+								finish();
+							};
+							const finish = () => {
+								if (settled) {
+									return;
+								}
+								settled = true;
+								abortController.signal.removeEventListener("abort", onAbort);
+								resolve();
+							};
+							const timer = setTimeout(finish, delayMs);
+							abortController.signal.addEventListener("abort", onAbort, {
+								once: true,
+							});
+						});
+
+					const sanitizeThinkingLabel = (value) => {
+						if (typeof value !== "string") {
+							return "";
+						}
+
+						return value.replace(/(?:\s*(?:\.{3}|…))+$/u, "").trim();
+					};
 
 				const normalizeThinkingPhase = (value) => {
 					if (value === "start" || value === "result" || value === "error") {
@@ -3605,6 +3807,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 					if (!phase) {
 						return null;
 					}
+					hasObservedToolExecution = true;
 
 					const toolName = getNonEmptyString(value.toolName) ?? "Tool";
 					const eventId =
@@ -4196,126 +4399,206 @@ app.post("/api/chat-sdk", async (req, res) => {
 					maybeEmitProgressivePlanUpdate();
 				};
 
-				// RovoDev Serve: route through the local agent loop
-				console.log("[CHAT-SDK] Routing through RovoDev Serve");
-				writer.write({
-					type: "data-thinking-status",
-					data: { label: "Thinking" },
-				});
-				let retryOccurred = false;
-				let rovoDevFellBackToGateway = false;
-				try {
-					await streamViaRovoDev({
-						message: userMessageText,
-						onTextDelta: handleStreamTextDelta,
-						onToolCallStart: emitRequestUserInputQuestionCard,
-						signal: abortController.signal,
-						onThinkingStatus: (statusUpdate) => {
-							if (!statusUpdate || typeof statusUpdate !== "object") {
-								return;
-							}
-
-							const label = sanitizeThinkingLabel(statusUpdate.label);
-							if (!label) {
-								return;
-							}
-
-							const rawContent =
-								typeof statusUpdate.content === "string"
-									? statusUpdate.content.trim()
-									: "";
-
-							writer.write({
-								type: "data-thinking-status",
-								data: {
-									label,
-									content: rawContent.length > 0 ? rawContent : undefined,
-								},
-							});
-						},
-						onThinkingEvent: (thinkingEvent) => {
-							const sanitizedEvent = sanitizeThinkingEvent(thinkingEvent);
-							if (!sanitizedEvent) {
-								return;
-							}
-
-							writer.write({
-								type: "data-thinking-event",
-								id: sanitizedEvent.eventId,
-								data: sanitizedEvent,
-							});
-						},
-						onRetry: (() => {
-							let retryEmitted = false;
-							return () => {
-								retryOccurred = true;
-								if (retryEmitted) return;
-								retryEmitted = true;
-								const retryStatusId = `thinking-retry-${Date.now()}`;
-								writer.write({
-									type: "data-thinking-status",
-									id: retryStatusId,
-									data: {
-										label: "Retrying — previous chat still in progress",
-									},
-								});
-							};
-						})(),
-					});
-				} catch (rovoDevStreamError) {
-					const canFallbackToGateway =
-						rovoDevStreamError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT" &&
-						isAIGatewayFallbackEnabled() &&
-						hasGatewayUrlConfigured();
-
-					if (!canFallbackToGateway) {
-						if (rovoDevStreamError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT") {
-							handleStreamTextDelta(
-								`\n\n⚠️ RovoDev is still finishing the previous response. Please try again.`
-							);
-						} else {
-							throw rovoDevStreamError;
-						}
-					} else {
-						console.warn(
-							"[CHAT-SDK] RovoDev 409 timeout — falling back to AI Gateway for this request"
-						);
-						writer.write({
-							type: "data-thinking-status",
-							data: { label: "Switching to AI Gateway" },
-						});
-						rovoDevFellBackToGateway = true;
-					await streamTextViaAIGateway({
-						prompt: userMessageText,
-						maxOutputTokens: 2000,
-						temperature: 1,
-						provider: typeof provider === "string" ? provider : undefined,
-						model: typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : undefined,
-						onTextDelta: handleStreamTextDelta,
-						onFile: ({ mediaType, base64 }) => {
-							if (typeof base64 !== "string" || base64.length === 0) {
-									return;
-								}
-								const resolvedMediaType =
-									typeof mediaType === "string" && mediaType.trim()
-										? mediaType
-										: "image/png";
-								writer.write({
-									type: "file",
-									mediaType: resolvedMediaType,
-									url: `data:${resolvedMediaType};base64,${base64}`,
-								});
-							},
-						});
-					}
-				}
-
-				if (retryOccurred && !rovoDevFellBackToGateway) {
+					// RovoDev Serve: route through the local agent loop
+					console.log("[CHAT-SDK] Routing through RovoDev Serve");
 					writer.write({
 						type: "data-thinking-status",
-						data: { label: "Reconnected" },
+						data: { label: "Thinking" },
 					});
-				}
+					let retryOccurred = false;
+					let rovoDevFellBackToGateway = false;
+					const toolFirstRetryLimit = toolFirstSoftRetryEnabled
+						? Math.max(toolFirstPolicy?.enforcement?.maxRelevantRetries ?? 0, 0)
+						: 0;
+					const totalToolFirstAttempts = toolFirstRetryLimit + 1;
+					let currentToolFirstAttempt = 1;
+					let activeAttemptMessage = userMessageText;
+					let shouldContinueToolFirstRetry = true;
+
+					while (shouldContinueToolFirstRetry) {
+						recordToolFirstAttempt(toolFirstExecutionState, {
+							isRetry: currentToolFirstAttempt > 1,
+						});
+
+						try {
+							await streamViaRovoDev({
+								message: activeAttemptMessage,
+								onTextDelta: handleStreamTextDelta,
+								onToolCallStart: emitRequestUserInputQuestionCard,
+								signal: abortController.signal,
+								onThinkingStatus: (statusUpdate) => {
+									if (!statusUpdate || typeof statusUpdate !== "object") {
+										return;
+									}
+
+									const label = sanitizeThinkingLabel(statusUpdate.label);
+									if (!label) {
+										return;
+									}
+
+									const rawContent =
+										typeof statusUpdate.content === "string"
+											? statusUpdate.content.trim()
+											: "";
+
+									writer.write({
+										type: "data-thinking-status",
+										data: {
+											label,
+											content: rawContent.length > 0 ? rawContent : undefined,
+										},
+									});
+								},
+								onThinkingEvent: (thinkingEvent) => {
+									const sanitizedEvent = sanitizeThinkingEvent(thinkingEvent);
+									if (!sanitizedEvent) {
+										return;
+									}
+									recordToolThinkingEvent(
+										toolFirstExecutionState,
+										sanitizedEvent
+									);
+
+									writer.write({
+										type: "data-thinking-event",
+										id: sanitizedEvent.eventId,
+										data: sanitizedEvent,
+									});
+								},
+								onRetry: (() => {
+									let retryEmitted = false;
+									return () => {
+										retryOccurred = true;
+										if (retryEmitted) return;
+										retryEmitted = true;
+										const retryStatusId = `thinking-retry-${Date.now()}`;
+										writer.write({
+											type: "data-thinking-status",
+											id: retryStatusId,
+											data: {
+												label: "Retrying — previous chat still in progress",
+											},
+										});
+									};
+								})(),
+							});
+						} catch (rovoDevStreamError) {
+							const canFallbackToGateway =
+								rovoDevStreamError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT" &&
+								isAIGatewayFallbackEnabled() &&
+								hasGatewayUrlConfigured();
+
+							if (!canFallbackToGateway) {
+								if (rovoDevStreamError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT") {
+									handleStreamTextDelta(
+										`\n\n⚠️ RovoDev is still finishing the previous response. Please try again.`
+									);
+								} else {
+									throw rovoDevStreamError;
+								}
+							} else {
+								console.warn(
+									"[CHAT-SDK] RovoDev 409 timeout — falling back to AI Gateway for this request"
+								);
+								writer.write({
+									type: "data-thinking-status",
+									data: { label: "Switching to AI Gateway" },
+								});
+								rovoDevFellBackToGateway = true;
+								await streamTextViaAIGateway({
+									prompt: userMessageText,
+									maxOutputTokens: 2000,
+									temperature: 1,
+									provider: typeof provider === "string" ? provider : undefined,
+									model:
+										typeof rawModel === "string" && rawModel.trim()
+											? rawModel.trim()
+											: undefined,
+									onTextDelta: handleStreamTextDelta,
+									onFile: ({ mediaType, base64 }) => {
+										if (typeof base64 !== "string" || base64.length === 0) {
+											return;
+										}
+										const resolvedMediaType =
+											typeof mediaType === "string" && mediaType.trim()
+												? mediaType
+												: "image/png";
+										writer.write({
+											type: "file",
+											mediaType: resolvedMediaType,
+											url: `data:${resolvedMediaType};base64,${base64}`,
+										});
+									},
+								});
+							}
+						}
+
+						const hasToolFirstSuccess = hasRelevantToolSuccess(
+							toolFirstExecutionState
+						);
+						const canRetryToolFirst =
+							toolFirstSoftRetryEnabled &&
+							!rovoDevFellBackToGateway &&
+							!abortController.signal.aborted &&
+							!hasToolFirstSuccess &&
+							currentToolFirstAttempt < totalToolFirstAttempts;
+						if (!canRetryToolFirst) {
+							shouldContinueToolFirstRetry = false;
+							continue;
+						}
+
+						const retryNumber = currentToolFirstAttempt;
+						const nextAttempt = currentToolFirstAttempt + 1;
+						const retriesRemaining = Math.max(
+							totalToolFirstAttempts - nextAttempt,
+							0
+						);
+						const retryDelayMs = getToolFirstRetryDelayMs({
+							policy: toolFirstPolicy,
+							retryIndex: retryNumber - 1,
+						});
+
+						console.info("[TOOL-FIRST] Retrying tool-grounded response", {
+							domains: toolFirstPolicy.domains,
+							attempt: nextAttempt,
+							maxAttempts: totalToolFirstAttempts,
+							retryDelayMs,
+							relevantToolStarts: toolFirstExecutionState.relevantToolStarts,
+							relevantToolResults: toolFirstExecutionState.relevantToolResults,
+							relevantToolErrors: toolFirstExecutionState.relevantToolErrors,
+						});
+						writer.write({
+							type: "data-thinking-status",
+							data: {
+								label: `Retrying integration tools (${nextAttempt}/${totalToolFirstAttempts})`,
+							},
+						});
+						resetAssistantTextForRetryAttempt();
+
+						if (retryDelayMs > 0) {
+							await waitForRetryDelay(retryDelayMs);
+						}
+						if (abortController.signal.aborted) {
+							shouldContinueToolFirstRetry = false;
+							continue;
+						}
+
+						activeAttemptMessage = `${userMessageText}\n\n${buildToolFirstRetryInstruction(
+							{
+								policy: toolFirstPolicy,
+								attemptNumber: nextAttempt,
+								remainingRetries: retriesRemaining,
+							}
+						)}`;
+						currentToolFirstAttempt = nextAttempt;
+					}
+
+					if (retryOccurred && !rovoDevFellBackToGateway) {
+						writer.write({
+							type: "data-thinking-status",
+							data: { label: "Reconnected" },
+						});
+					}
 
 				processTextBuffer(true);
 				maybeEmitProgressivePlanUpdate();
@@ -4464,9 +4747,126 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 				}
 
-				if (textStarted) {
-					writer.write({ type: "text-end", id: textId });
-				}
+					if (toolFirstPolicy.matched) {
+						if (hasRelevantToolSuccess(toolFirstExecutionState)) {
+							removeToolFirstFailureNarrative();
+							const toolFirstSummaryPrefix =
+								assistantText.trim().length > 0 ? "\n\n" : "";
+							const toolFirstGenuiWidgetId = `widget-tool-first-genui-${Date.now()}`;
+							writer.write({
+								type: "data-widget-loading",
+								id: toolFirstGenuiWidgetId,
+								data: {
+									type: SMART_WIDGET_TYPE_GENUI,
+									loading: true,
+								},
+							});
+
+							try {
+								const roleMessages = mapUiMessagesToRoleContent(messages);
+								const toolContextForGenui = buildToolContextForGenui({
+									policy: toolFirstPolicy,
+									execution: toolFirstExecutionState,
+									assistantText,
+								});
+								const roleMessagesForGenui = Array.isArray(roleMessages)
+									? [...roleMessages]
+									: [];
+								if (toolContextForGenui) {
+									roleMessagesForGenui.push({
+										role: "assistant",
+										content: toolContextForGenui,
+									});
+								}
+
+								const genuiResult = await generateSmartGenuiResult({
+									roleMessages: roleMessagesForGenui,
+									provider: typeof provider === "string" ? provider : undefined,
+									layoutContext: smartLayoutContext,
+								});
+
+								if (genuiResult.spec) {
+									const narrativeSummary = getNonEmptyString(
+										genuiResult.narrative
+									);
+									const conciseSummary = narrativeSummary
+										? narrativeSummary.length > 320
+											? `${narrativeSummary.slice(0, 319)}…`
+											: narrativeSummary
+										: "Generated a visual summary from tool context below.";
+
+									writer.write({
+										type: "data-widget-data",
+										id: toolFirstGenuiWidgetId,
+										data: {
+											type: SMART_WIDGET_TYPE_GENUI,
+											payload: {
+												spec: genuiResult.spec,
+												summary: conciseSummary,
+												source: "tool-first-genui",
+											},
+										},
+									});
+
+									emitForcedTextDelta(
+										`${toolFirstSummaryPrefix}${conciseSummary}`
+									);
+								} else {
+									emitForcedTextDelta(
+										`${toolFirstSummaryPrefix}I continued in text-only mode because I couldn't produce a renderable visual summary from the tool output.`
+									);
+								}
+							} catch (toolFirstGenuiError) {
+								console.error(
+									"[TOOL-FIRST] Post-tool GenUI generation failed:",
+									toolFirstGenuiError
+								);
+								emitForcedTextDelta(
+									`${toolFirstSummaryPrefix}I continued in text-only mode because visual summary generation failed after tool execution.`
+								);
+							} finally {
+								writer.write({
+									type: "data-widget-loading",
+									id: toolFirstGenuiWidgetId,
+									data: {
+										type: SMART_WIDGET_TYPE_GENUI,
+										loading: false,
+									},
+								});
+							}
+						} else {
+							removeToolFirstFailureNarrative();
+							const warningText = buildToolFirstTextFallback({
+								policy: toolFirstPolicy,
+								execution: toolFirstExecutionState,
+								rovoDevFallback: rovoDevFellBackToGateway,
+							});
+							const toolFirstWarningPrefix =
+								assistantText.trim().length > 0 ? "\n\n" : "";
+							emitForcedTextDelta(`${toolFirstWarningPrefix}${warningText}`);
+						}
+
+						console.info("[TOOL-FIRST] Execution summary", {
+							domains: toolFirstPolicy.domains,
+							domainLabels: toolFirstPolicy.domainLabels,
+							attempts: toolFirstExecutionState.attempts,
+							retriesUsed: toolFirstExecutionState.retriesUsed,
+							relevantToolStarts: toolFirstExecutionState.relevantToolStarts,
+							relevantToolResults: toolFirstExecutionState.relevantToolResults,
+							relevantToolErrors: toolFirstExecutionState.relevantToolErrors,
+							hadRelevantToolStart: toolFirstExecutionState.hadRelevantToolStart,
+							lastRelevantToolName: toolFirstExecutionState.lastRelevantToolName,
+							lastRelevantErrorCategory:
+								toolFirstExecutionState.lastRelevantErrorCategory,
+							fallbackUsed: !hasRelevantToolSuccess(toolFirstExecutionState),
+						});
+					}
+
+					flushDeferredToolFirstText();
+
+					if (textStarted) {
+						writer.write({ type: "text-end", id: textId });
+					}
 
 				if (pendingQuestionCardLoadingWidgetId) {
 					writer.write({

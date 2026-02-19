@@ -16,7 +16,6 @@ import {
 	getAllDataParts,
 	getLatestDataPart,
 	getMessageText,
-	isMessageTextStreaming,
 	getThinkingToolCallSummaries,
 } from "@/lib/rovo-ui-messages";
 import {
@@ -26,12 +25,13 @@ import {
 	type ClarificationAnswers,
 } from "@/components/templates/shared/lib/question-card-widget";
 import type { RovoSuggestion } from "@/lib/rovo-suggestions";
-import { Message, MessageContent } from "@/components/ui-ai/message";
+import { Message } from "@/components/ui-ai/message";
 import {
 	AdsReasoningTrigger,
 	Reasoning,
 	ReasoningContent,
 	ReasoningSection,
+	ReasoningText,
 } from "@/components/ui-ai/reasoning";
 import { AssistantThinkingToolsSection } from "@/components/templates/shared/components/assistant-thinking-tools-section";
 import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
@@ -232,19 +232,7 @@ export default function ChatPanel({
 			? getLatestDataPart(lastMessage, "data-thinking-status")
 			: null;
 	const hasAssistantThinkingStatus = latestThinkingStatusPart !== null;
-	const hasInlineThinkingStatus =
-		hasAssistantThinkingStatus && lastMessage
-			? (() => {
-					const messageText = getMessageText(lastMessage);
-					const messageIsStreaming = isMessageTextStreaming(lastMessage);
-					const isRetryThinkingStatus =
-						latestThinkingStatusPart.data.label?.includes("Retrying") ?? false;
-					return (
-						(!messageIsStreaming || Boolean(messageText)) &&
-						!(isRetryThinkingStatus && !messageIsStreaming)
-					);
-				})()
-			: false;
+	const hasInlineThinkingStatus = false;
 
 	const shouldShowThinking =
 		isRequestInFlight &&
@@ -275,8 +263,7 @@ export default function ChatPanel({
 	const hasReasoningContent = trimmedReasoningContent.length > 0;
 	const hasThinkingToolCalls = thinkingToolCalls.length > 0;
 	const hasThinkingDetails = hasReasoningContent || hasThinkingToolCalls;
-	const reasoningContentVersion = thinkingStatusParts.length + thinkingToolCalls.length;
-	const streamingReasoningKey = `${lastMessage?.id ?? "stream"}:${reasoningContentVersion}`;
+	const streamingReasoningKey = lastMessage?.id ?? "stream";
 	const handleFollowUpSuggestionClick = useCallback(
 		(question: string) => {
 			void submitPrompt(question);
@@ -299,11 +286,6 @@ export default function ChatPanel({
 			? chatStyles.messagesContainer.paddingBottom
 			: chatStyles.messagesContainer.padding,
 	};
-	const thinkingContainerStyle = {
-		...chatStyles.thinkingContainer,
-		marginTop: isAssistantAwaitingOutput || (isSubmitPending && !hasMessages) ? "0" : chatStyles.thinkingContainer.marginTop,
-	};
-
 	return (
 		<div ref={panelRef} style={chatStyles.chatPanel}>
 			<div>
@@ -352,46 +334,51 @@ export default function ChatPanel({
 									message={message}
 									onSuggestionClick={handleFollowUpSuggestionClick}
 									enableSmartWidgets={enableSmartWidgets}
+									showThinkingStatusSection={
+										message.role === "assistant" &&
+										message.id === lastMessage?.id
+									}
 								/>
 							)}
 						/>
 					)}
 					{shouldShowThinking ? (
-						<div style={thinkingContainerStyle}>
+						<div style={chatStyles.thinkingContainer}>
 							<Message from="assistant" className="max-w-full">
-								<MessageContent>
-									<Reasoning
-										key={streamingReasoningKey}
-										className="mb-0"
-										isStreaming={isRequestInFlight}
-										defaultOpen={hasThinkingDetails}
-									>
-										<AdsReasoningTrigger
-											label={resolvedThinkingLabel}
-											showChevron={hasThinkingDetails}
-										/>
-										{hasThinkingDetails ? (
-											<ReasoningContent>
-												<div className="space-y-4">
-													{hasReasoningContent ? (
-														<ReasoningSection title="Thinking">
-															{trimmedReasoningContent}
-														</ReasoningSection>
-													) : null}
-													{hasThinkingToolCalls ? (
-														<ReasoningSection title="Tools">
-															<AssistantThinkingToolsSection
-																defaultOpenMode="running"
-																idPrefix={lastMessage?.id ?? "stream"}
-																thinkingToolCalls={thinkingToolCalls}
-															/>
-														</ReasoningSection>
-													) : null}
-												</div>
-											</ReasoningContent>
-										) : null}
-									</Reasoning>
-								</MessageContent>
+								<Reasoning
+									key={streamingReasoningKey}
+									className="mb-0"
+									isStreaming={isRequestInFlight}
+								>
+									<AdsReasoningTrigger
+										label={resolvedThinkingLabel}
+										showChevron={hasThinkingDetails}
+									/>
+									{hasThinkingDetails ? (
+										<ReasoningContent>
+											<div className="space-y-4">
+												{hasReasoningContent ? (
+													<ReasoningSection title="Thinking">
+														<ReasoningText
+															maxVisibleTimelineItems={6}
+															text={trimmedReasoningContent}
+															timelineMode="auto"
+														/>
+													</ReasoningSection>
+												) : null}
+												{hasThinkingToolCalls ? (
+													<ReasoningSection title="Tools">
+														<AssistantThinkingToolsSection
+															defaultOpenMode="running"
+															idPrefix={lastMessage?.id ?? "stream"}
+															thinkingToolCalls={thinkingToolCalls}
+														/>
+													</ReasoningSection>
+												) : null}
+											</div>
+										</ReasoningContent>
+									) : null}
+								</Reasoning>
 							</Message>
 						</div>
 					) : null}

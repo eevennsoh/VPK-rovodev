@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
 	getAllDataParts,
 	hasCreatePlanSkillSignal,
@@ -11,6 +10,7 @@ import {
 	getMessageSources,
 	getMessageText,
 	getThinkingToolCallSummaries,
+	getToolFirstWarning,
 	getMessageToolParts,
 	isMessageTextStreaming,
 	type RovoRenderableUIMessage,
@@ -32,6 +32,8 @@ import {
 	removeActionItemsSection,
 	removeLeadingSingleCharacterFragment,
 	removeTrailingSingleCharacterLine,
+	sanitizeMarkdownArtifactMarkers,
+	suppressToolJsonTrace,
 } from "./lib/message-text-utils";
 import { UserMessageBubble } from "./components/user-message-bubble";
 import { AssistantFeedbackActions } from "./components/assistant-feedback-actions";
@@ -57,7 +59,6 @@ interface ThreadMessageBubbleProps {
 		widget: { type: string; data: unknown },
 		message: RovoRenderableUIMessage
 	) => ReactNode;
-	onRetryWidget?: (widgetType: string) => void;
 }
 
 export function ThreadMessageBubble({
@@ -73,7 +74,6 @@ export function ThreadMessageBubble({
 	showWidgetSections,
 	renderLoadingWidget,
 	renderWidget,
-	onRetryWidget,
 }: Readonly<ThreadMessageBubbleProps>): ReactNode {
 	const rawMessageText = getMessageText(message);
 
@@ -104,7 +104,7 @@ export function ThreadMessageBubble({
 		widgetType === "plan" && isCreatePlanSkillFlow
 			? extractPlanRenderableText(normalizedWidgetText, { maxSummaryLines: 2 })
 			: null;
-	const messageText =
+	const baseMessageText =
 		widgetType === "question-card"
 			? removeTrailingSingleCharacterLine(normalizedWidgetText)
 			: widgetType === "plan"
@@ -115,8 +115,19 @@ export function ThreadMessageBubble({
 	const suggestedQuestions = suggestedQuestionsPart?.data.questions ?? [];
 	const reasoning = getMessageReasoning(message);
 	const sources = getMessageSources(message);
+	const toolFirstWarning = getToolFirstWarning(message);
 	const toolParts = getMessageToolParts(message);
 	const thinkingToolCalls = getThinkingToolCallSummaries(message);
+	const hasToolExecutionEvidence =
+		Boolean(thinkingStatusPart) ||
+		toolParts.length > 0 ||
+		thinkingToolCalls.length > 0;
+	const messageTextBeforeMarkdownSanitization = hasToolExecutionEvidence
+		? suppressToolJsonTrace(baseMessageText).text
+		: baseMessageText;
+	const messageText = sanitizeMarkdownArtifactMarkers(
+		messageTextBeforeMarkdownSanitization
+	);
 	const thinkingToolCallsForStatus = toolParts.length > 0 ? [] : thinkingToolCalls;
 	const shouldShowToolsSection = showToolsSection ?? true;
 	const shouldShowWidgetSections = showWidgetSections ?? true;
@@ -132,14 +143,11 @@ export function ThreadMessageBubble({
 		isCreatePlanSkillFlow &&
 		assistantStreamingRenderMode !== "text-first";
 	const isRetryThinkingStatus = thinkingStatusPart?.data.label?.includes("Retrying") ?? false;
-	const showThinkingStatus = showThinkingStatusSection && Boolean(thinkingStatusPart) && (!isStreaming || Boolean(messageText)) && !(isRetryThinkingStatus && !isStreaming);
-	const shouldShowWidgetError =
-		shouldShowWidgetSections && Boolean(widgetErrorPart) && !isWidgetLoading;
+	const showThinkingStatus = showThinkingStatusSection && Boolean(thinkingStatusPart) && Boolean(rawMessageText) && !(isRetryThinkingStatus && !isStreaming);
 	const renderedWidget =
 		shouldShowWidgetSections &&
 		widgetDataPart &&
 		!isWidgetLoading &&
-		!shouldShowWidgetError &&
 		(widgetType !== "plan" || !isStreaming)
 			? renderWidget?.(
 					{
@@ -150,25 +158,27 @@ export function ThreadMessageBubble({
 				)
 			: null;
 	const shouldRenderPlanWidgetFirst = widgetType === "plan";
-	const hasRenderedWidget = Boolean(renderedWidget) || shouldShowWidgetError;
+	const hasRenderedWidget = Boolean(renderedWidget);
 	const shouldSuppressTextForWidget =
 		shouldSuppressStreamingText ||
 		(widgetType === "plan" &&
 			isCreatePlanSkillFlow &&
-			(isWidgetLoading || shouldShowWidgetError)) ||
+			isWidgetLoading) ||
 		(shouldShowWidgetSections && widgetType === "question-card" && !isStreaming);
 	const shouldRenderMessageText = Boolean(messageText) && !shouldSuppressTextForWidget;
 	const showFeedback = shouldShowFeedbackActions && !isStreaming && shouldRenderMessageText && !hasRenderedWidget;
 	const showSuggestions = shouldShowFollowUpSuggestions && !isStreaming && suggestedQuestions.length > 0 && !hasRenderedWidget;
+	const hasToolFirstWarning =
+		Boolean(toolFirstWarning?.message) && !isStreaming;
 	const hasRenderableContent = shouldRenderMessageText ||
 		showFeedback ||
 		Boolean(reasoning) ||
 		showThinkingStatus ||
+		hasToolFirstWarning ||
 		(shouldShowToolsSection && toolParts.length > 0) ||
 		sources.length > 0 ||
 		showSuggestions ||
 		(shouldShowWidgetSections && isWidgetLoading && Boolean(renderLoadingWidget)) ||
-		shouldShowWidgetError ||
 		Boolean(renderedWidget);
 	if (!hasRenderableContent) {
 		return null;
@@ -180,26 +190,6 @@ export function ThreadMessageBubble({
 				? renderLoadingWidget?.(widgetType)
 				: null}
 			{renderedWidget}
-		{shouldShowWidgetError && widgetErrorPart ? (
-			<div className={cn(surface === "fullscreen" ? "px-6" : "", "pb-2")}>
-				<div className="rounded-lg border border-border-danger bg-bg-danger p-3">
-						<p className="text-sm leading-5 text-text">
-							{widgetErrorPart.data.message}
-						</p>
-						{widgetErrorPart.data.canRetry && onRetryWidget ? (
-							<div className="mt-3">
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() => onRetryWidget(widgetType ?? "widget")}
-								>
-									Retry
-								</Button>
-							</div>
-						) : null}
-					</div>
-				</div>
-			) : null}
 		</>
 	);
 
@@ -220,7 +210,7 @@ export function ThreadMessageBubble({
 				const hasTools = hasToolParts || hasThinkingToolCalls;
 				const hasDetails = hasThinkingText || hasTools;
 				return (
-					<div className="pt-2">
+					<div className={reasoning ? "pt-2" : undefined}>
 						<Reasoning className="mb-0" defaultOpen={hasDetails} isStreaming={isStreaming}>
 							<AdsReasoningTrigger
 								label={thinkingStatusPart.data.label}
@@ -293,6 +283,19 @@ export function ThreadMessageBubble({
 
 			{shouldShowToolsSection && toolParts.length > 0 && !showThinkingStatus ? (
 				<AssistantToolsSection messageId={message.id} toolParts={toolParts} />
+			) : null}
+
+			{hasToolFirstWarning && toolFirstWarning ? (
+				<div className="pt-2">
+					<div className="rounded-lg border border-border bg-bg-neutral px-3 py-2">
+						<p className="text-xs leading-5 font-medium text-text">
+							Integration warning
+						</p>
+						<p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-text-subtle">
+							{toolFirstWarning.message}
+						</p>
+					</div>
+				</div>
 			) : null}
 
 			{sources.length > 0 ? (

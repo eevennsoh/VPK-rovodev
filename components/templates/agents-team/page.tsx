@@ -333,15 +333,6 @@ export default function AgentsTeamView() {
 		}
 	}, [isPlanMode, togglePlanMode]);
 
-	const handleRetryPlanWidget = useCallback(() => {
-		const retryPrompt = latestUserPrompt.trim();
-		if (!retryPrompt) {
-			return;
-		}
-
-		void handleSuggestedQuestionClick(retryPrompt);
-	}, [handleSuggestedQuestionClick, latestUserPrompt]);
-
 	const handleSelectRun = useCallback(
 		(selectedRunId: string) => {
 			router.push(`/agents-team/runs/${selectedRunId}`);
@@ -506,7 +497,6 @@ export default function AgentsTeamView() {
 										onClarificationSubmit={handleClarificationSubmit}
 										onApprovalSubmit={handleApprovalSubmit}
 										onSuggestedQuestionClick={handleSuggestedQuestionClick}
-										onRetryPlanWidget={handleRetryPlanWidget}
 									/>
 								)}
 							</div>

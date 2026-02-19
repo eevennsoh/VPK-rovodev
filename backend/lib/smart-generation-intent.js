@@ -11,6 +11,7 @@ Classify the latest user request into exactly one intent:
 
 Rules:
 - Prefer genui when the request can reasonably be represented as a simple dynamic UI (charts, tables, dashboards, forms, timelines, lists, or structured summaries).
+- Choose normal when the request requires fetching, querying, or accessing real data from external services or tools (e.g., Google Calendar events, Jira issues, Confluence pages, Slack messages, Google Drive files, email). These requests need tool access that genui does not provide.
 - Choose normal when plain text clearly serves better (greetings, short conversational exchanges, opinion-only discussion, or simple direct Q&A with no structure).
 - If the user asks for both kinds of output, choose both.
 - Ignore previous assistant capabilities; classify only user intent.

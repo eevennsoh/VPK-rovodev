@@ -1,6 +1,8 @@
 const MERMAID_BLOCK_REGEX = /```mermaid\b[\s\S]*?```/gi;
 const MERMAID_EDGE_REGEX =
 	/\b[A-Za-z0-9_-]+\s*(?:-->|==>|-.->)\s*(?:\|[^|\n]+\|\s*)?[A-Za-z0-9_-]+\b/;
+const TOOL_TRACE_SUPPRESSION_TEXT =
+	"Tool results were moved to the Thinking section. Open Tools for details.";
 
 function createMermaidBlockRegex(): RegExp {
 	return new RegExp(MERMAID_BLOCK_REGEX.source, MERMAID_BLOCK_REGEX.flags);
@@ -90,6 +92,161 @@ export function removeLeadingSingleCharacterFragment(value: string): string {
 		)
 		.join("\n")
 		.trim();
+}
+
+export function sanitizeMarkdownArtifactMarkers(value: string): string {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return "";
+	}
+
+	return trimmed
+		.replace(/\s*\(markdown:[^)]+\)/giu, "")
+		.replace(/[ \t]+\n/g, "\n")
+		.trim();
+}
+
+function countMatches(value: string, regex: RegExp): number {
+	const matches = value.match(regex);
+	return Array.isArray(matches) ? matches.length : 0;
+}
+
+function getLikelyJsonDumpStartIndex(value: string): number {
+	const objectIndex = value.search(/\{\s*(?:\r?\n\s*)?"[^"\n]{1,80}"\s*:/);
+	const arrayIndex = value.search(/\[\s*\{\s*(?:\r?\n\s*)?"[^"\n]{1,80}"\s*:/);
+
+	if (objectIndex === -1) {
+		return arrayIndex;
+	}
+
+	if (arrayIndex === -1) {
+		return objectIndex;
+	}
+
+	return Math.min(objectIndex, arrayIndex);
+}
+
+function isInsideCodeFence(value: string, index: number): boolean {
+	const prefix = value.slice(0, Math.max(0, index));
+	const fenceCount = countMatches(prefix, /```/g);
+	return fenceCount % 2 === 1;
+}
+
+function isLikelyToolJsonDump(value: string): boolean {
+	const keyPairCount = countMatches(value, /"[^"\n]{1,80}"\s*:/g);
+	const braceCount = countMatches(value, /[{}\[\]]/g);
+	const newlineCount = countMatches(value, /\r?\n/g);
+
+	return (
+		keyPairCount >= 6 &&
+		(value.length >= 240 || newlineCount >= 4 || braceCount >= 18)
+	);
+}
+
+function findJsonContainerEndIndex(value: string, startIndex: number): number {
+	if (startIndex < 0 || startIndex >= value.length) {
+		return -1;
+	}
+
+	const firstCharacter = value[startIndex];
+	if (firstCharacter !== "{" && firstCharacter !== "[") {
+		return -1;
+	}
+
+	let depth = 0;
+	let inString = false;
+	let isEscaped = false;
+
+	for (let index = startIndex; index < value.length; index += 1) {
+		const character = value[index];
+
+		if (inString) {
+			if (isEscaped) {
+				isEscaped = false;
+				continue;
+			}
+
+			if (character === "\\") {
+				isEscaped = true;
+				continue;
+			}
+
+			if (character === "\"") {
+				inString = false;
+			}
+			continue;
+		}
+
+		if (character === "\"") {
+			inString = true;
+			continue;
+		}
+
+		if (character === "{" || character === "[") {
+			depth += 1;
+			continue;
+		}
+
+		if (character === "}" || character === "]") {
+			depth -= 1;
+			if (depth === 0) {
+				return index;
+			}
+		}
+	}
+
+	return -1;
+}
+
+function cleanSuppressedJsonSuffix(value: string): string {
+	return value.replace(/^[\s,;:"]+/, "").trim();
+}
+
+interface SuppressToolJsonTraceOptions {
+	replacement?: string;
+}
+
+export function suppressToolJsonTrace(
+	value: string,
+	options: SuppressToolJsonTraceOptions = {}
+): { text: string; replaced: boolean } {
+	const replacement = options.replacement ?? TOOL_TRACE_SUPPRESSION_TEXT;
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return { text: "", replaced: false };
+	}
+
+	if (trimmed.includes(replacement)) {
+		return { text: trimmed, replaced: false };
+	}
+
+	const jsonStartIndex = getLikelyJsonDumpStartIndex(trimmed);
+	if (jsonStartIndex === -1 || isInsideCodeFence(trimmed, jsonStartIndex)) {
+		return { text: trimmed, replaced: false };
+	}
+
+	const jsonEndIndex = findJsonContainerEndIndex(trimmed, jsonStartIndex);
+	if (jsonEndIndex === -1) {
+		return { text: trimmed, replaced: false };
+	}
+
+	const jsonSegment = trimmed.slice(jsonStartIndex, jsonEndIndex + 1);
+	if (!isLikelyToolJsonDump(jsonSegment)) {
+		return { text: trimmed, replaced: false };
+	}
+
+	const prefix = trimmed.slice(0, jsonStartIndex).trimEnd();
+	const rawSuffix = trimmed.slice(jsonEndIndex + 1);
+	const suffix = cleanSuppressedJsonSuffix(rawSuffix);
+	const nextText = [prefix, suffix || replacement]
+		.filter(Boolean)
+		.join("\n\n")
+		.trim();
+
+	return {
+		text: nextText.length > 0 ? nextText : replacement,
+		replaced: true,
+	};
 }
 
 function isLikelySectionHeading(line: string): boolean {

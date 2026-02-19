@@ -17,18 +17,41 @@ import ClockIcon from "@atlaskit/icon/core/clock";
 import CrossCircleIcon from "@atlaskit/icon/core/cross-circle";
 import StatusInformationIcon from "@atlaskit/icon/core/status-information";
 import ToolsIcon from "@atlaskit/icon/core/tools";
-import { isValidElement } from "react";
+import { isValidElement, useState } from "react";
 
 import { CodeBlock } from "./code-block";
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
-export const Tool = ({ className, ...props }: ToolProps) => (
-  <Collapsible
-    className={cn("group not-prose mb-4 w-full rounded-md border", className)}
-    {...props}
-  />
-);
+export const Tool = ({
+  className,
+  defaultOpen,
+  onOpenChange,
+  open,
+  ...props
+}: ToolProps) => {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen ?? false);
+  const resolvedOpen = open ?? uncontrolledOpen;
+
+  const handleOpenChange: NonNullable<ToolProps["onOpenChange"]> = (
+    nextOpen,
+    eventDetails
+  ) => {
+    if (open === undefined) {
+      setUncontrolledOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen, eventDetails);
+  };
+
+  return (
+    <Collapsible
+      className={cn("group not-prose mb-4 w-full rounded-md border", className)}
+      onOpenChange={handleOpenChange}
+      open={resolvedOpen}
+      {...props}
+    />
+  );
+};
 
 export type ToolPart = ToolUIPart | DynamicToolUIPart;
 
@@ -259,7 +282,7 @@ const statusVariants: Record<ToolPart["state"], ComponentProps<typeof Lozenge>["
 };
 
 export const getStatusBadge = (status: ToolPart["state"]) => (
-  <Lozenge variant={statusVariants[status]} icon={statusIcons[status]}>
+  <Lozenge variant={statusVariants[status]} icon={statusIcons[status]} maxWidth={110}>
     {statusLabels[status]}
   </Lozenge>
 );
@@ -278,7 +301,7 @@ export const ToolHeader = ({
   return (
     <CollapsibleTrigger
       className={cn(
-        "flex w-full items-center justify-between gap-4 p-3",
+        "flex w-full items-center justify-between gap-4 overflow-hidden p-3",
         className
       )}
       {...props}
@@ -289,7 +312,7 @@ export const ToolHeader = ({
           label="Tool"
           className="size-4 shrink-0 text-muted-foreground"
         />
-        <span className="truncate font-medium text-sm">{title ?? derivedName}</span>
+        <span className="truncate font-medium text-sm" title={title ?? derivedName}>{title ?? derivedName}</span>
         {getStatusBadge(state)}
       </div>
       <Icon
@@ -403,7 +426,7 @@ export const ToolOutput = ({
         {errorText ? "Error" : "Result"}
       </h4>
       {errorText ? (
-        <Lozenge variant="danger" size="compact" maxWidth={360}>
+        <Lozenge variant="danger" size="compact" className="max-w-full shrink">
           {errorPreview?.text ?? errorText}
         </Lozenge>
       ) : (

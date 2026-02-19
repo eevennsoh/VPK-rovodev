@@ -61,7 +61,6 @@ interface AgentsTeamChatViewProps {
 	onClarificationSubmit: (answers: ClarificationAnswers) => void;
 	onApprovalSubmit: (selection: PlanApprovalSelection) => void;
 	onSuggestedQuestionClick: (question: string) => Promise<void> | void;
-	onRetryPlanWidget?: () => void;
 }
 
 export default function AgentsTeamChatView({
@@ -85,7 +84,6 @@ export default function AgentsTeamChatView({
 	onClarificationSubmit,
 	onApprovalSubmit,
 	onSuggestedQuestionClick,
-	onRetryPlanWidget,
 }: Readonly<AgentsTeamChatViewProps>) {
 	const { conversationContextRef, scrollSpacerRef } = useScrollAnchoring({
 		uiMessages,
@@ -150,11 +148,6 @@ export default function AgentsTeamChatView({
 						awaitingIndicatorLabel={
 							isWidgetLoading ? widgetLoadingLabel : gatedShouldShowQuestionCard ? "Waiting for your answers" : gatedShouldShowApprovalCard ? "Waiting for your approval" : "Processing your request"
 						}
-						onRetryWidget={(widgetType) => {
-							if (widgetType === "plan") {
-								onRetryPlanWidget?.();
-							}
-						}}
 						renderWidget={(widget, message) => {
 							if (widget.type !== "plan") {
 								return (

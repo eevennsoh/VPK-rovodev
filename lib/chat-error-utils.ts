@@ -2,6 +2,8 @@ const RATE_LIMIT_PATTERN =
 	/429|rate[- ]?limit|too many requests|throttl/i;
 const CHAT_IN_PROGRESS_PATTERN =
 	/status\s*409|chat(?: already)? in progress|chat-turn wait timed out|ROVODEV_CHAT_IN_PROGRESS_TIMEOUT/i;
+const PROMPT_TOO_LONG_PATTERN =
+	/prompt is too long|tokens?\s*>\s*\d+\s*maximum|conversation has become too long/i;
 
 export const RATE_LIMIT_MAX_RETRIES = 2;
 export const RATE_LIMIT_RETRY_DELAY_MS = 10_000;
@@ -60,4 +62,16 @@ export function getChatInProgressUserMessage(retryAttempt: number): string {
 	}
 
 	return "The previous chat is still finishing. Please wait a moment and try again.";
+}
+
+export function isPromptTooLongError(rawMessage: string | undefined): boolean {
+	if (!rawMessage) {
+		return false;
+	}
+
+	return PROMPT_TOO_LONG_PATTERN.test(rawMessage);
+}
+
+export function getPromptTooLongUserMessage(): string {
+	return "This conversation has become too long for the model to process. Please start a new chat session to continue.";
 }

@@ -70,6 +70,19 @@ function isChatInProgressError(err) {
 }
 
 /**
+ * Check whether an error indicates the prompt exceeded the model's context window.
+ * @param {Error} err
+ * @returns {boolean}
+ */
+function isPromptTooLongError(err) {
+	if (!err || typeof err.message !== "string") {
+		return false;
+	}
+	const msg = err.message;
+	return /prompt is too long/i.test(msg) || /tokens?\s*>\s*\d+\s*maximum/i.test(msg);
+}
+
+/**
  * Wait for a given number of milliseconds.
  * @param {number} ms
  * @param {AbortSignal} [signal] - Optional signal to cancel the sleep early
@@ -270,6 +283,61 @@ function normalizeToolName(toolName) {
 	return normalized.length > 0 ? normalized : null;
 }
 
+function getToolNameKey(toolName) {
+	const normalizedToolName = normalizeToolName(toolName);
+	if (!normalizedToolName) {
+		return null;
+	}
+
+	return normalizedToolName.toLowerCase().replace(/[\s:/.+-]+/g, "_");
+}
+
+function isGenericIntegrationWrapperToolName(toolName) {
+	const key = getToolNameKey(toolName);
+	if (!key) {
+		return false;
+	}
+
+	if (key === "mcp_invoke_tool" || key === "mcp__integrations__invoke_tool") {
+		return true;
+	}
+
+	if (!key.startsWith("mcp")) {
+		return false;
+	}
+
+	return key.endsWith("__invoke_tool") || key.endsWith("_invoke_tool");
+}
+
+function resolveToolNameForToolEvent({
+	reportedToolName,
+	rememberedToolName,
+} = {}) {
+	const normalizedReportedToolName = normalizeToolName(reportedToolName);
+	const normalizedRememberedToolName = normalizeToolName(rememberedToolName);
+
+	if (normalizedRememberedToolName && normalizedReportedToolName) {
+		const reportedIsWrapper =
+			isGenericIntegrationWrapperToolName(normalizedReportedToolName);
+		const rememberedIsWrapper =
+			isGenericIntegrationWrapperToolName(normalizedRememberedToolName);
+
+		if (reportedIsWrapper && !rememberedIsWrapper) {
+			return normalizedRememberedToolName;
+		}
+		if (!reportedIsWrapper && rememberedIsWrapper) {
+			return normalizedReportedToolName;
+		}
+
+		// If both names are similarly specific (or both wrapper-like), keep the
+		// call-id scoped tool name so nested integration names survive wrapper
+		// tool_result envelopes.
+		return normalizedRememberedToolName;
+	}
+
+	return normalizedRememberedToolName ?? normalizedReportedToolName;
+}
+
 function buildThinkingStatusFromToolEvent(toolName, phase) {
 	const resolvedToolName = normalizeToolName(toolName);
 	const toolLabel = resolvedToolName ?? "a tool";
@@ -453,8 +521,10 @@ async function streamViaRovoDev({
 							const rememberedToolName = chunk.toolCallId
 								? toolNameByCallId.get(chunk.toolCallId) ?? null
 								: null;
-							const resolvedToolName =
-								normalizeToolName(chunk.toolName) ?? rememberedToolName;
+							const resolvedToolName = resolveToolNameForToolEvent({
+								reportedToolName: chunk.toolName,
+								rememberedToolName,
+							});
 							const outputPreview =
 								typeof chunk.outputPreview === "string"
 									? chunk.outputPreview
@@ -507,7 +577,13 @@ async function streamViaRovoDev({
 							return;
 						}
 						console.error("[streamViaRovoDev] Error:", err.message);
-						onTextDelta(`\n\n⚠️ RovoDev error: ${err.message}`);
+						if (isPromptTooLongError(err)) {
+							onTextDelta(
+								`\n\nThis conversation has become too long for the model to process. Please start a new chat session to continue.`
+							);
+						} else {
+							onTextDelta(`\n\n⚠️ RovoDev error: ${err.message}`);
+						}
 						resolve();
 					},
 				}, port);
@@ -672,6 +748,8 @@ module.exports = {
 	streamViaRovoDev,
 	generateTextViaRovoDev,
 	isChatInProgressError,
+	isGenericIntegrationWrapperToolName,
+	resolveToolNameForToolEvent,
 	initPool,
 	WAIT_FOR_TURN_TIMEOUT_MS,
 };

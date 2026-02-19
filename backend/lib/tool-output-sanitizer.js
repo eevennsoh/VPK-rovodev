@@ -231,6 +231,7 @@ module.exports = {
 	MAX_INLINE_ASSISTANT_JSON_CHARS,
 	ASSISTANT_JSON_SUPPRESSION_TEXT,
 	toPreview,
+	isLikelyLargeJsonDump,
 	sanitizeAssistantNarrative,
 	stripLargeJsonFromNarrative,
 };

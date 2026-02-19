@@ -53,6 +53,15 @@ function AssistantThinkingToolItem({
 	shouldDefaultOpen,
 }: Readonly<AssistantThinkingToolItemProps>): React.ReactElement {
 	const [isOpen, setIsOpen] = useState(shouldDefaultOpen);
+	const [prevShouldDefaultOpen, setPrevShouldDefaultOpen] =
+		useState(shouldDefaultOpen);
+
+	if (prevShouldDefaultOpen !== shouldDefaultOpen) {
+		setPrevShouldDefaultOpen(shouldDefaultOpen);
+		if (prevShouldDefaultOpen && !shouldDefaultOpen) {
+			setIsOpen(false);
+		}
+	}
 
 	return (
 		<Tool open={isOpen} onOpenChange={setIsOpen}>

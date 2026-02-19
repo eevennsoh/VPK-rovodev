@@ -324,7 +324,7 @@ export const ReasoningTrigger = memo(
 						{shouldShowCompletedState ? (
 							<>
 								<ReasoningStatusIcon isCompleted />
-								<span>{completedStateLabel}</span>
+								<span className="min-w-0 truncate">{completedStateLabel}</span>
 							</>
 						) : (
 							<>
@@ -345,11 +345,11 @@ export const ReasoningTrigger = memo(
 									unoptimized
 									width={20}
 								/>
-								<span className="inline-flex items-baseline">
-									<Shimmer duration={1} as="span">
+								<span className="flex min-w-0 items-baseline">
+									<Shimmer duration={1} as="span" className="min-w-0 truncate">
 										{label}
 									</Shimmer>
-									<span className="inline-flex items-baseline" aria-hidden="true">
+									<span className="shrink-0 inline-flex items-baseline" aria-hidden="true">
 										{DOT_COLORS.map((color, i) => (
 											<span
 												key={i}
@@ -369,7 +369,7 @@ export const ReasoningTrigger = memo(
 						)}
 						<ChevronDownIcon
 							className={cn(
-								"size-4 transition-transform",
+								"size-4 shrink-0 transition-transform",
 								isOpen ? "rotate-180" : "rotate-0"
 							)}
 						/>
@@ -439,7 +439,7 @@ export function ReasoningText({
 								animate={
 									shouldReduceMotion ? undefined : { opacity: 1, y: 0 }
 								}
-								className="m-0 text-left text-sm leading-7 text-text-subtle"
+								className="m-0 truncate text-left text-sm leading-7 text-text-subtle"
 								exit={
 									shouldReduceMotion ? undefined : { opacity: 0, y: 6 }
 								}
@@ -558,7 +558,7 @@ export const AdsReasoningTrigger = memo(
 				{shouldShowCompletedState ? (
 					<>
 						<ReasoningStatusIcon isCompleted />
-						<span>{completedStateLabel}</span>
+						<span className="min-w-0 truncate">{completedStateLabel}</span>
 					</>
 				) : (
 					<>
@@ -579,11 +579,11 @@ export const AdsReasoningTrigger = memo(
 							unoptimized
 							width={20}
 						/>
-						<span className="inline-flex items-baseline">
-							<Shimmer duration={1} as="span">
+						<span className="flex min-w-0 items-baseline">
+							<Shimmer duration={1} as="span" className="min-w-0 truncate">
 								{label}
 							</Shimmer>
-							<span className="inline-flex items-baseline" aria-hidden="true">
+							<span className="shrink-0 inline-flex items-baseline" aria-hidden="true">
 								{DOT_COLORS.map((color, i) => (
 									<span
 										key={i}
@@ -604,7 +604,7 @@ export const AdsReasoningTrigger = memo(
 				{showChevron ? (
 					<ChevronDownIcon
 						className={cn(
-							"size-4 transition-transform",
+							"size-4 shrink-0 transition-transform",
 							isOpen ? "rotate-180" : "rotate-0"
 						)}
 					/>

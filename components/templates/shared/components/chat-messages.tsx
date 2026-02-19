@@ -13,7 +13,6 @@ import {
 	getLatestDataPart,
 	getMessageText,
 	getThinkingToolCallSummaries,
-	isMessageTextStreaming,
 	type RovoUIMessage,
 	type RovoRenderableUIMessage,
 } from "@/lib/rovo-ui-messages";
@@ -23,6 +22,7 @@ import {
 	Reasoning,
 	ReasoningContent,
 	ReasoningSection,
+	ReasoningText,
 } from "@/components/ui-ai/reasoning";
 import { AssistantThinkingToolsSection } from "./assistant-thinking-tools-section";
 import styles from "./chat-messages.module.css";
@@ -55,7 +55,6 @@ export interface ChatMessagesProps {
 		widget: { type: string; data: unknown },
 		message: RovoRenderableUIMessage
 	) => ReactNode;
-	onRetryWidget?: (widgetType: string) => void;
 }
 
 /**
@@ -134,7 +133,6 @@ export function ChatMessages({
 	renderEmptyState,
 	renderLoadingWidget,
 	renderWidget,
-	onRetryWidget,
 }: Readonly<ChatMessagesProps>): ReactNode {
 	const renderableMessages = useMemo(
 		() => uiMessages.filter(isRenderableRovoUIMessage),
@@ -151,37 +149,7 @@ export function ChatMessages({
 		}
 		return null;
 	}, [renderableMessages]);
-	const latestAssistantMessage = useMemo(() => {
-		for (let i = renderableMessages.length - 1; i >= 0; i--) {
-			if (renderableMessages[i].role === "assistant") {
-				return renderableMessages[i];
-			}
-		}
-		return null;
-	}, [renderableMessages]);
-	const hasInlineThinkingStatus = useMemo(() => {
-		if (!latestAssistantMessage) {
-			return false;
-		}
-
-		const thinkingStatusPart = getLatestDataPart(
-			latestAssistantMessage,
-			"data-thinking-status"
-		);
-		if (!thinkingStatusPart) {
-			return false;
-		}
-
-		const messageText = getMessageText(latestAssistantMessage);
-		const messageIsStreaming = isMessageTextStreaming(latestAssistantMessage);
-		const isRetryThinkingStatus =
-			thinkingStatusPart.data.label?.includes("Retrying") ?? false;
-
-		return (
-			(!messageIsStreaming || Boolean(messageText)) &&
-			!(isRetryThinkingStatus && !messageIsStreaming)
-		);
-	}, [latestAssistantMessage]);
+	const hasInlineThinkingStatus = false;
 
 	const streamingIndicatorSourceMessages = useMemo(
 		() =>
@@ -230,11 +198,7 @@ export function ChatMessages({
 	const hasThinkingToolCalls = thinkingToolCalls.length > 0;
 	const hasStreamingReasoningDetails =
 		hasResolvedReasoningContent || hasThinkingToolCalls;
-	const reasoningContentVersion =
-		thinkingStatusParts.length + thinkingToolCalls.length;
-	const streamingReasoningKey = shouldUseExpandedReasoning
-		? `${lastStreamingSourceMessage?.id ?? "stream"}:${reasoningContentVersion}`
-		: `${lastStreamingSourceMessage?.id ?? "stream"}:${resolvedThinkingLabel}`;
+	const streamingReasoningKey = lastStreamingSourceMessage?.id ?? "stream";
 
 	const handleTargetScrollTop = useCallback(
 		(defaultTargetTop: number, { scrollElement }: { scrollElement: HTMLElement }) =>
@@ -270,6 +234,11 @@ export function ChatMessages({
 							paddingLeft: message.role === "user" ? "24px" : "0",
 							marginTop:
 								message.role === "assistant" &&
+								!(
+									isAssistantAwaitingOutput &&
+									!hasAssistantThinkingStatus &&
+									lastStreamingSourceMessage?.id === message.id
+								) &&
 								messageIndex > 0 &&
 								turn[messageIndex - 1]?.role === "user"
 									? "24px"
@@ -292,59 +261,56 @@ export function ChatMessages({
 								showWidgetSections={shouldShowWidgetSections}
 								renderLoadingWidget={renderLoadingWidget}
 								renderWidget={renderWidget}
-								onRetryWidget={onRetryWidget}
 							/>
 						)}
 					/>
 				)}
 				{shouldShowStreamingIndicator ? (
-					<div className="flex justify-start">
+					<div className="mt-6 flex justify-start">
 						<Message from="assistant" className="max-w-full">
-							<MessageContent className="px-6">
-								<Reasoning
-									key={streamingReasoningKey}
-									className="mb-0"
-									isStreaming={shouldShowStreamingIndicator}
-									defaultOpen={
+							<Reasoning
+								key={streamingReasoningKey}
+								className="mb-0"
+								isStreaming={shouldShowStreamingIndicator}
+							>
+								<AdsReasoningTrigger
+									label={resolvedThinkingLabel}
+									showChevron={
 										shouldUseExpandedReasoning &&
 										hasStreamingReasoningDetails
 									}
-								>
-									<AdsReasoningTrigger
-										label={resolvedThinkingLabel}
-										showChevron={
-											shouldUseExpandedReasoning &&
-											hasStreamingReasoningDetails
-										}
-									/>
-									{shouldUseExpandedReasoning &&
-									hasStreamingReasoningDetails ? (
-										<ReasoningContent>
-											<div className="space-y-4">
-												{hasResolvedReasoningContent ? (
-													<ReasoningSection title="Thinking">
-														{trimmedReasoningContent}
-													</ReasoningSection>
-												) : null}
-												{hasThinkingToolCalls ? (
-													<ReasoningSection title="Tools">
-														<AssistantThinkingToolsSection
-															defaultOpenMode="running"
-															idPrefix={lastStreamingSourceMessage?.id ?? "stream"}
-															thinkingToolCalls={thinkingToolCalls}
-														/>
-													</ReasoningSection>
-												) : null}
-											</div>
-										</ReasoningContent>
-									) : null}
-								</Reasoning>
-							</MessageContent>
+								/>
+								{shouldUseExpandedReasoning &&
+								hasStreamingReasoningDetails ? (
+									<ReasoningContent>
+										<div className="space-y-4">
+											{hasResolvedReasoningContent ? (
+												<ReasoningSection title="Thinking">
+													<ReasoningText
+														maxVisibleTimelineItems={6}
+														text={trimmedReasoningContent}
+														timelineMode="auto"
+													/>
+												</ReasoningSection>
+											) : null}
+											{hasThinkingToolCalls ? (
+												<ReasoningSection title="Tools">
+													<AssistantThinkingToolsSection
+														defaultOpenMode="running"
+														idPrefix={lastStreamingSourceMessage?.id ?? "stream"}
+														thinkingToolCalls={thinkingToolCalls}
+													/>
+												</ReasoningSection>
+											) : null}
+										</div>
+									</ReasoningContent>
+								) : null}
+							</Reasoning>
 						</Message>
 					</div>
 				) : null}
 				{!shouldShowStreamingIndicator && showAwaitingIndicator ? (
-					<div className="flex justify-start">
+					<div className="mt-6 flex justify-start">
 						<Message from="assistant" className="max-w-full">
 							<MessageContent className="px-6">
 								<Reasoning className="mb-0" isStreaming>

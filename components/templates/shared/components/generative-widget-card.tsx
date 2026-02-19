@@ -163,7 +163,8 @@ function renderContentTypeTile(
 function renderWidgetBody(
 	widget: ParsedGenerativeWidget,
 	previewMode: boolean,
-	withContainer = true
+	withContainer = true,
+	onImageClick?: () => void
 ): ReactNode {
 	if (widget.type === "genui-preview") {
 		const content = <JsonRenderView spec={widget.spec} />;
@@ -217,13 +218,12 @@ function renderWidgetBody(
 		return (
 			<div className="grid place-items-center gap-2 sm:grid-cols-2">
 				{widget.images.map((image, index) => (
-					<a
+					<button
 						key={`${image.url}-${index}`}
-						href={image.url}
-						target="_blank"
-						rel="noreferrer"
+						type="button"
+						onClick={onImageClick}
 						className={cn(
-							"block overflow-hidden aspect-square w-full",
+							"block overflow-hidden aspect-square w-full cursor-pointer",
 							withContainer ? "rounded-md bg-surface" : ""
 						)}
 					>
@@ -235,7 +235,7 @@ function renderWidgetBody(
 							unoptimized
 							className="size-full object-cover"
 						/>
-					</a>
+					</button>
 				))}
 			</div>
 		);
@@ -290,7 +290,7 @@ function GenerativeWidgetCardShell({
 			>
 				<div className="overflow-hidden">
 					<CardContent className={cn("px-4", previewMode ? "py-4" : "py-3")}>
-						{renderWidgetBody(widget, previewMode)}
+						{renderWidgetBody(widget, previewMode, true, onOpenPreview)}
 					</CardContent>
 					<CardFooter className="h-16 justify-end px-4 py-4">
 						{previewMode ? (
@@ -333,8 +333,8 @@ export function GenerativeWidgetCard({
 					widget={parsedWidget}
 					onOpenPreview={() => setPreviewOpen(true)}
 				/>
-				<DialogContent className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-5xl" size="xl" showCloseButton={false}>
-					<DialogHeader className="flex-row items-center border-b p-6">
+				<DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-5xl" size="xl" showCloseButton={false}>
+					<DialogHeader className="mx-0 mt-0 flex-row items-center border-b p-6">
 						<div className="flex min-w-0 flex-1 items-center gap-3">
 							{renderContentTypeTile(metadata.contentType, contentTypeLabel)}
 							<div className="min-w-0 flex-1 space-y-1">
@@ -350,8 +350,8 @@ export function GenerativeWidgetCard({
 							<CrossIcon label="Close" />
 						</DialogClose>
 					</DialogHeader>
-					<div className="p-6">
-						{renderWidgetBody(parsedWidget, true, false)}
+					<div className="max-h-[65vh] overflow-y-auto p-6">
+						{renderWidgetBody(parsedWidget, false, false)}
 					</div>
 				</DialogContent>
 			</Dialog>

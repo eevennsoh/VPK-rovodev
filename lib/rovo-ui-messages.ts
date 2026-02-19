@@ -55,6 +55,19 @@ export interface ThinkingToolCallSummary {
 	timestamp?: string;
 }
 
+export interface ToolFirstWarningData {
+	message: string;
+	domains: string[];
+	attempts: number;
+	retriesUsed: number;
+	hadRelevantToolStart: boolean;
+	relevantToolErrors: number;
+	lastRelevantToolName?: string | null;
+	lastRelevantErrorCategory?: string | null;
+	lastRelevantError?: string | null;
+	rovoDevFallback: boolean;
+}
+
 export type RovoDataParts = {
 	"widget-loading": {
 		type?: string;
@@ -77,6 +90,7 @@ export type RovoDataParts = {
 		content?: string;
 	};
 	"thinking-event": ThinkingEventUpdate;
+	"tool-first-warning": ToolFirstWarningData;
 	"agent-execution": AgentExecutionUpdate;
 };
 
@@ -240,6 +254,12 @@ export function getThinkingEvents(
 	message: Pick<RovoUIMessage, "parts">
 ): ThinkingEventUpdate[] {
 	return getAllDataParts(message, "data-thinking-event").map((part) => part.data);
+}
+
+export function getToolFirstWarning(
+	message: RovoUIMessage
+): ToolFirstWarningData | null {
+	return getLatestDataPart(message, "data-tool-first-warning")?.data ?? null;
 }
 
 export function getThinkingToolCallSummaries(

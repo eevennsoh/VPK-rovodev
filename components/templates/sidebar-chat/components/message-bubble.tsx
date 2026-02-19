@@ -8,12 +8,14 @@ interface MessageBubbleProps {
 	message: RovoRenderableUIMessage;
 	onSuggestionClick?: (question: string) => void;
 	enableSmartWidgets?: boolean;
+	showThinkingStatusSection?: boolean;
 }
 
 export default function MessageBubble({
 	message,
 	onSuggestionClick,
 	enableSmartWidgets = false,
+	showThinkingStatusSection = true,
 }: Readonly<MessageBubbleProps>): React.ReactElement {
 	return (
 		<ThreadMessageBubble
@@ -22,7 +24,7 @@ export default function MessageBubble({
 			onSuggestionClick={onSuggestionClick}
 			showFeedbackActions={true}
 			showFollowUpSuggestions={true}
-			showThinkingStatusSection={true}
+			showThinkingStatusSection={showThinkingStatusSection}
 			showToolsSection={true}
 			showWidgetSections={enableSmartWidgets}
 			renderWidget={(widget) => {

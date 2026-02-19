@@ -2,7 +2,7 @@
 
 import NextImage from "next/image";
 import dynamic from "next/dynamic";
-import { Fragment, Suspense, lazy, useState } from "react";
+import { Children, Fragment, Suspense, lazy, useState } from "react";
 import { defineRegistry, useBoundProp } from "@json-render/react";
 import { getByPath, setByPath } from "@json-render/core";
 import { catalog } from "./catalog";
@@ -239,11 +239,19 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		// ── Layout ──────────────────────────────────────
 		Stack: ({ props, children }) => {
 			const { direction = "vertical", gap = "md", align, justify, padding, className } = props;
+			const childCount = Children.count(children);
+			const shouldCollapseHorizontalLayout = direction === "horizontal" && childCount > 2;
+			const directionClass =
+				direction === "horizontal"
+					? shouldCollapseHorizontalLayout
+						? "flex-col @[560px]/stack:flex-row"
+						: "flex-row"
+					: "flex-col";
 			return (
 				<div
 					className={cn(
-						"flex",
-						direction === "horizontal" ? "flex-row" : "flex-col",
+						"@container/stack flex",
+						directionClass,
 						GAP_CLASSES[gap ?? "md"],
 						align === "center" && "items-center",
 						align === "start" && "items-start",
