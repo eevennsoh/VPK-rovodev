@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback, useRef, useState } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 
 import ChatHeader from "./components/chat-header";
 import ChatGreeting from "./components/chat-greeting";
@@ -48,9 +48,6 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 		scrollSpacerRef,
 		getLatestTurnTargetTop,
 	} = useScrollAnchor({ uiMessages });
-	const headerRef = useRef<HTMLDivElement>(null);
-	const composerRef = useRef<HTMLDivElement>(null);
-	const [emptyStateOffset, setEmptyStateOffset] = useState(0);
 
 	useEffect(() => {
 		return () => abort();
@@ -73,54 +70,6 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 		[submitPrompt]
 	);
 
-	useEffect(() => {
-		if (hasMessages) {
-			return;
-		}
-
-		const headerElement = headerRef.current;
-		const composerElement = composerRef.current;
-		if (!headerElement || !composerElement) {
-			return;
-		}
-
-		const measureOffset = () => {
-			const headerHeight = headerElement.getBoundingClientRect().height;
-			const composerHeight = composerElement.getBoundingClientRect().height;
-			const nextOffset = Math.max(0, Math.min(48, (composerHeight - headerHeight) / 2));
-
-			setEmptyStateOffset((previousOffset) =>
-				Math.abs(previousOffset - nextOffset) < 1 ? previousOffset : nextOffset
-			);
-		};
-
-		const measureOffsetNextFrame = () => {
-			window.requestAnimationFrame(measureOffset);
-		};
-
-		measureOffsetNextFrame();
-		const resizeObserver = new ResizeObserver(measureOffset);
-		resizeObserver.observe(headerElement);
-		resizeObserver.observe(composerElement);
-		window.addEventListener("resize", measureOffsetNextFrame);
-
-		return () => {
-			resizeObserver.disconnect();
-			window.removeEventListener("resize", measureOffsetNextFrame);
-		};
-	}, [hasMessages]);
-
-	const emptyStateStyle = useMemo(
-		() => ({
-			...chatStyles.emptyState,
-			transform:
-				!hasMessages && emptyStateOffset > 0
-					? `translateY(${Math.round(emptyStateOffset)}px)`
-					: undefined,
-		}),
-		[emptyStateOffset, hasMessages]
-	);
-
 	const messagesContainerStyle = {
 		...chatStyles.messagesContainer,
 		justifyContent: hasMessages ? "flex-start" : "center",
@@ -133,7 +82,7 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 
 	return (
 		<div style={chatStyles.chatPanel}>
-			<div ref={headerRef}>
+			<div>
 				<ChatHeader onClose={onClose} onNewChat={resetChat} />
 			</div>
 
@@ -145,7 +94,7 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 			>
 				<ConversationContent className="gap-0 p-0" style={messagesContainerStyle}>
 					{messages.length === 0 ? (
-						<div style={emptyStateStyle}>
+						<div style={chatStyles.emptyState}>
 							<ChatGreeting onSuggestionClick={handleGreetingSuggestionClick} />
 						</div>
 					) : (
@@ -185,7 +134,7 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 				</ConversationContent>
 			</Conversation>
 
-			<div ref={composerRef}>
+			<div>
 				<ChatComposer
 					prompt={prompt}
 					isStreaming={isStreaming}
