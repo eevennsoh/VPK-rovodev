@@ -570,7 +570,7 @@ function buildSuccessOutput({
 /**
  * Handler for POST /api/genui-chat.
  *
- * Accepts `{ messages: [{ role, content }], strictSpec?, allowWebLookup? }`
+ * Accepts `{ messages: [{ role, content }], strictSpec?, allowWebLookup?, layoutContext? }`
  * and returns mixed text + json-render patch output.
  */
 async function genuiChatHandler(req, res, options = {}) {
@@ -579,6 +579,7 @@ async function genuiChatHandler(req, res, options = {}) {
 			messages: rawMessages,
 			strictSpec,
 			allowWebLookup,
+			layoutContext = null,
 			streamResponse = true,
 		} = req.body || {};
 		const rovoDevAvailable =
@@ -608,6 +609,7 @@ async function genuiChatHandler(req, res, options = {}) {
 		const useStrictSpec = strictSpec !== false;
 		const basePrompt = getGenuiSystemPrompt({
 			strict: useStrictSpec,
+			layoutContext,
 		});
 
 		res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -710,6 +712,7 @@ async function genuiChatHandler(req, res, options = {}) {
 				: "";
 			const strictRetryPrompt = `${getGenuiSystemPrompt({
 				strict: true,
+				layoutContext,
 			})}\n\n${STRICT_RETRY_INSTRUCTION}${retryDiagnostics}`;
 			const retryText = await generateAssistantText({
 				systemPrompt: strictRetryPrompt,
@@ -741,6 +744,7 @@ async function genuiChatHandler(req, res, options = {}) {
 				const webRetryPrompt = `${getGenuiSystemPrompt({
 					strict: true,
 					webContext,
+					layoutContext,
 				})}\n\n${STRICT_RETRY_INSTRUCTION}`;
 				const webRetryText = await generateAssistantText({
 					systemPrompt: webRetryPrompt,

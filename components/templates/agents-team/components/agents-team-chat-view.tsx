@@ -30,7 +30,8 @@ import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
-import { getAgentTeamModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
+import { getPlanModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
+import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
 import AgentsTeamComposer from "./agents-team-composer";
 import { useScrollToBottom } from "../hooks/use-scroll-to-bottom";
 import { useDismissibleCards } from "../hooks/use-dismissible-cards";
@@ -41,7 +42,7 @@ const OVERLAY_CARD_BOTTOM_PADDING = "520px";
 
 interface AgentsTeamChatViewProps {
 	prompt: string;
-	isAgentTeamMode: boolean;
+	isPlanMode: boolean;
 	isStreaming: boolean;
 	isWidgetLoading: boolean;
 	loadingWidgetType: string | null;
@@ -53,7 +54,7 @@ interface AgentsTeamChatViewProps {
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
 	onStop: () => void;
-	onAgentTeamModeToggle: () => void;
+	onPlanModeToggle: () => void;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	onRemoveQueuedPrompt: (id: string) => void;
 	onClarificationSubmit: (answers: ClarificationAnswers) => void;
@@ -64,7 +65,7 @@ interface AgentsTeamChatViewProps {
 
 export default function AgentsTeamChatView({
 	prompt,
-	isAgentTeamMode,
+	isPlanMode,
 	isStreaming,
 	isWidgetLoading,
 	loadingWidgetType,
@@ -76,7 +77,7 @@ export default function AgentsTeamChatView({
 	onPromptChange,
 	onSubmit,
 	onStop,
-	onAgentTeamModeToggle,
+	onPlanModeToggle,
 	queuedPrompts,
 	onRemoveQueuedPrompt,
 	onClarificationSubmit,
@@ -151,7 +152,14 @@ export default function AgentsTeamChatView({
 							}
 						}}
 						renderWidget={(widget, message) => {
-							if (widget.type !== "plan") return null;
+							if (widget.type !== "plan") {
+								return (
+									<GenerativeWidgetCard
+										widgetType={widget.type}
+										widgetData={widget.data}
+									/>
+								);
+							}
 
 							const parsedPlanWidget = parsePlanWidgetPayload(widget.data);
 							const latestWidgetLoadingPart = getLatestDataPart(message, "data-widget-loading");
@@ -213,8 +221,8 @@ export default function AgentsTeamChatView({
 						onPromptChange={onPromptChange}
 						onSubmit={onSubmit}
 						onStop={onStop}
-						isAgentTeamMode={isAgentTeamMode}
-						onAgentTeamModeToggle={onAgentTeamModeToggle}
+						isPlanMode={isPlanMode}
+						onPlanModeToggle={onPlanModeToggle}
 						queuedPrompts={queuedPrompts}
 						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
 					/>
@@ -258,8 +266,8 @@ interface BottomOverlayContentProps {
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
 	onStop: () => void;
-	isAgentTeamMode: boolean;
-	onAgentTeamModeToggle: () => void;
+	isPlanMode: boolean;
+	onPlanModeToggle: () => void;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	onRemoveQueuedPrompt: (id: string) => void;
 }
@@ -280,12 +288,12 @@ function BottomOverlayContent({
 	onPromptChange,
 	onSubmit,
 	onStop,
-	isAgentTeamMode,
-	onAgentTeamModeToggle,
+	isPlanMode,
+	onPlanModeToggle,
 	queuedPrompts,
 	onRemoveQueuedPrompt,
 }: Readonly<BottomOverlayContentProps>) {
-	const modeCopy = getAgentTeamModeCopy(isAgentTeamMode);
+	const modeCopy = getPlanModeCopy(isPlanMode);
 
 	if (shouldShowQuestionCard && activeQuestionCard && activeQuestionCardKey) {
 		return (
@@ -324,8 +332,8 @@ function BottomOverlayContent({
 			prompt={prompt}
 			placeholder={modeCopy.placeholder}
 			isStreaming={isStreaming}
-			isAgentTeamMode={isAgentTeamMode}
-			onAgentTeamModeToggle={onAgentTeamModeToggle}
+			isPlanMode={isPlanMode}
+			onPlanModeToggle={onPlanModeToggle}
 			queuedPrompts={queuedPrompts}
 			onPromptChange={onPromptChange}
 			onSubmit={onSubmit}

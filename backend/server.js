@@ -26,6 +26,19 @@ const {
 	WAIT_FOR_TURN_TIMEOUT_MS,
 } = require("./lib/rovodev-gateway");
 const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
+const { getGenuiSystemPrompt } = require("./lib/genui-system-prompt");
+const { analyzeGeneratedText, pickBestSpec } = require("./lib/genui-spec-utils");
+const { classifySmartGenerationIntent } = require("./lib/smart-generation-intent");
+const {
+	buildClassifierPrompt: buildSmartClarificationClassifierPrompt,
+	parseClassifierOutput: parseSmartClarificationClassifierOutput,
+	shouldGateSmartClarification,
+} = require("./lib/smart-clarification-gate");
+const {
+	resolveGoogleImageGatewayConfig,
+	toImageWidgetErrorMessage,
+	isUnsupportedModalitiesError,
+} = require("./lib/image-generation-routing");
 const { healthCheck: rovoDevHealthCheck, cancelChat: rovoDevCancelChat } = require("./lib/rovodev-client");
 const { createRovoDevPool } = require("./lib/rovodev-pool");
 const {
@@ -43,7 +56,7 @@ const {
 } = require("./lib/plan-widget-fallback");
 const { detectPlanningIntent } = require("./lib/planning-intent");
 const {
-	shouldGateAgentTeamPlanningQuestionCard,
+	shouldGatePlanningQuestionCard,
 } = require("./lib/planning-question-gate");
 
 console.log("[STARTUP] Dependencies loaded");
@@ -425,7 +438,20 @@ async function streamTextViaAIGateway({
 }
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use((error, _req, res, next) => {
+	if (error?.type === "entity.too.large" || error?.status === 413) {
+		return res.status(413).json({
+			error: "Request payload is too large.",
+			reason: "payload_too_large",
+			details:
+				"The request included more data than this endpoint can process, often from inline image/file data in chat history. You can continue chatting after starting a new thread or trimming history.",
+		});
+	}
+
+	return next(error);
+});
 
 console.log("[STARTUP] Middleware configured");
 
@@ -559,6 +585,256 @@ function mapUiMessagesToConversation(messages) {
 	};
 }
 
+const GENUI_META_PREFIX = "[genui-meta]";
+const SMART_ROUTE_TARGET_SURFACES = new Set([
+	"multiports",
+	"sidebar",
+	"fullscreen",
+]);
+const SMART_INTENT_TIMEOUT_MS = 1500;
+const SMART_WIDGET_TYPE_GENUI = "genui-preview";
+const SMART_WIDGET_TYPE_AUDIO = "audio-preview";
+const SMART_WIDGET_TYPE_IMAGE = "image-preview";
+const SMART_VOICE_INPUT_MAX_CHARS = 4000;
+const CLASSIFIER_JSON_ALLOWED_KEYS = new Set(["intent", "confidence", "reason"]);
+const CLASSIFIER_JSON_BUFFER_MAX_CHARS = 320;
+const SMART_IMAGE_REQUEST_PATTERN =
+	/\b(generate|create|draw|make|design|render|show)\b[\s\S]{0,80}\b(image|photo|picture|illustration|icon|logo|wallpaper|art)\b|\b(image|photo|picture|illustration|icon|logo)\b[\s\S]{0,80}\b(generate|create|draw|make|design|render|show)\b/i;
+const SMART_UI_REQUEST_PATTERN =
+	/\b(ui|interface|layout|component|page|dashboard|mockup|wireframe|widget|json\s*spec|json-render|chart|charts|graph|graphs|plot|plots|table|tables|kanban|board|timeline|roadmap|form|visuali[sz]e|infographic)\b/i;
+const SMART_AUDIO_REQUEST_PATTERN =
+	/\b(audio|voice|speech|tts|text[-\s]?to[-\s]?speech|narrate|read aloud)\b/i;
+const SMART_TEXT_FIRST_PATTERN =
+	/\b(hi|hello|hey|thanks|thank you|how are you|who are you|what can you do|tell me a joke)\b/i;
+const SMART_ACTION_REQUEST_PATTERN =
+	/\b(build|create|generate|make|design|draft|plan|organize|summari[sz]e|compare|show|visuali[sz]e)\b/i;
+const SMART_WIDTH_CLASS_VALUES = new Set(["compact", "regular", "wide"]);
+
+function getSmartWidthClass(value) {
+	const normalizedValue = getNonEmptyString(value);
+	if (!normalizedValue) {
+		return null;
+	}
+
+	const lowerValue = normalizedValue.toLowerCase();
+	return SMART_WIDTH_CLASS_VALUES.has(lowerValue) ? lowerValue : null;
+}
+
+function inferSmartWidthClass({ containerWidthPx, viewportWidthPx, surface }) {
+	const widthSource = containerWidthPx ?? viewportWidthPx;
+	if (typeof widthSource === "number") {
+		if (widthSource <= 520) {
+			return "compact";
+		}
+		if (widthSource <= 900) {
+			return "regular";
+		}
+		return "wide";
+	}
+
+	if (surface === "sidebar" || surface === "multiports") {
+		return "compact";
+	}
+	if (surface === "fullscreen") {
+		return "wide";
+	}
+
+	return null;
+}
+
+function normalizeSmartGenerationOptions(value) {
+	if (!value || typeof value !== "object") {
+		return {
+			enabled: false,
+			surface: null,
+			containerWidthPx: null,
+			viewportWidthPx: null,
+			widthClass: null,
+		};
+	}
+
+	const enabled = value.enabled === true;
+	const surface = getNonEmptyString(value.surface);
+	const containerWidthPx = getPositiveInteger(value.containerWidthPx);
+	const viewportWidthPx = getPositiveInteger(value.viewportWidthPx);
+	const explicitWidthClass = getSmartWidthClass(value.widthClass);
+	const inferredWidthClass = inferSmartWidthClass({
+		containerWidthPx,
+		viewportWidthPx,
+		surface,
+	});
+
+	return {
+		enabled,
+		surface,
+		containerWidthPx: containerWidthPx ?? null,
+		viewportWidthPx: viewportWidthPx ?? null,
+		widthClass: explicitWidthClass ?? inferredWidthClass,
+	};
+}
+
+function isSmartGenerationEnabled(value) {
+	const normalized = normalizeSmartGenerationOptions(value);
+	return (
+		normalized.enabled &&
+		typeof normalized.surface === "string" &&
+		SMART_ROUTE_TARGET_SURFACES.has(normalized.surface)
+	);
+}
+
+function inferSmartIntentFromPrompt(prompt) {
+	const text = getNonEmptyString(prompt);
+	if (!text) {
+		return "normal";
+	}
+
+	const wantsImage = SMART_IMAGE_REQUEST_PATTERN.test(text);
+	if (wantsImage) {
+		return "image";
+	}
+
+	const wantsUi = SMART_UI_REQUEST_PATTERN.test(text);
+	const wantsAudio = SMART_AUDIO_REQUEST_PATTERN.test(text);
+	if (wantsUi && wantsAudio) {
+		return "both";
+	}
+	if (wantsUi) {
+		return "genui";
+	}
+	if (wantsAudio) {
+		return "audio";
+	}
+
+	return "normal";
+}
+
+function shouldPreferGenuiWhenPossible(prompt) {
+	const text = getNonEmptyString(prompt);
+	if (!text) {
+		return false;
+	}
+
+	if (SMART_UI_REQUEST_PATTERN.test(text)) {
+		return true;
+	}
+
+	if (SMART_TEXT_FIRST_PATTERN.test(text)) {
+		return false;
+	}
+
+	return SMART_ACTION_REQUEST_PATTERN.test(text);
+}
+
+function mapUiMessagesToRoleContent(messages) {
+	if (!Array.isArray(messages)) {
+		return [];
+	}
+
+	return messages
+		.map((message) => {
+			if (!message || (message.role !== "assistant" && message.role !== "user")) {
+				return null;
+			}
+
+			const content = extractTextFromUiParts(message.parts);
+			if (!content) {
+				return null;
+			}
+
+			return {
+				role: message.role === "assistant" ? "assistant" : "user",
+				content,
+			};
+		})
+		.filter(Boolean);
+}
+
+function parseGenuiMetaAndBody(rawText) {
+	if (typeof rawText !== "string" || rawText.length === 0) {
+		return { meta: null, body: "" };
+	}
+
+	const lines = rawText.split("\n");
+	const firstLine = lines[0]?.trim() ?? "";
+	if (!firstLine.startsWith(GENUI_META_PREFIX)) {
+		return { meta: null, body: rawText };
+	}
+
+	const maybeJson = firstLine.slice(GENUI_META_PREFIX.length).trim();
+	try {
+		return {
+			meta: JSON.parse(maybeJson),
+			body: lines.slice(1).join("\n").trimStart(),
+		};
+	} catch {
+		return { meta: null, body: rawText };
+	}
+}
+
+function stripSpecBlocks(value) {
+	if (typeof value !== "string" || value.length === 0) {
+		return "";
+	}
+
+	return value
+		.replace(/```spec[\s\S]*?```/gi, "")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+}
+
+function toSpeechInputText(value) {
+	const text = getNonEmptyString(value);
+	if (!text) {
+		return null;
+	}
+
+	if (text.length <= SMART_VOICE_INPUT_MAX_CHARS) {
+		return text;
+	}
+
+	return `${text.slice(0, SMART_VOICE_INPUT_MAX_CHARS - 1)}…`;
+}
+
+function buildAudioDataUrl(audioBytes, contentType) {
+	const mimeType = getNonEmptyString(contentType) || "audio/mpeg";
+	const base64 = Buffer.from(audioBytes).toString("base64");
+	return `data:${mimeType};base64,${base64}`;
+}
+
+async function generateSmartGenuiResult({
+	roleMessages,
+	provider,
+	gatewayUrl,
+	layoutContext,
+}) {
+	const systemPrompt = getGenuiSystemPrompt({
+		strict: true,
+		layoutContext,
+	});
+	const conversationPrompt = roleMessages
+		.map((message) => `[${message.role === "assistant" ? "Assistant" : "User"}]\n${message.content}`)
+		.join("\n\n");
+
+	const rawText = await generateTextViaGateway({
+		system: systemPrompt,
+		prompt: conversationPrompt,
+		maxOutputTokens: 3500,
+		temperature: 0.3,
+		provider,
+		gatewayUrl,
+	});
+
+	const { meta, body } = parseGenuiMetaAndBody(rawText);
+	const analysis = analyzeGeneratedText(body);
+	const bestSpec = pickBestSpec(analysis);
+	return {
+		rawText,
+		meta,
+		spec: bestSpec,
+		narrative: stripSpecBlocks(body),
+	};
+}
+
 function getLatestVisibleUserMessage(messages) {
 	if (!Array.isArray(messages)) {
 		return null;
@@ -609,8 +885,8 @@ function getLatestUserMessageSource(messages) {
 	return null;
 }
 
-function buildPlanningQuestionCardSessionId(agentTeamRequestId) {
-	const rawRequestId = getNonEmptyString(agentTeamRequestId);
+function buildPlanningQuestionCardSessionId(planRequestId) {
+	const rawRequestId = getNonEmptyString(planRequestId);
 	if (!rawRequestId) {
 		return createClarificationSessionId();
 	}
@@ -624,6 +900,24 @@ function buildPlanningQuestionCardSessionId(agentTeamRequestId) {
 	}
 
 	return `agent-team-${normalizedRequestId}`;
+}
+
+function buildSmartClarificationSessionId({ planRequestId, surface }) {
+	const normalizedSurface = typeof surface === "string" ? surface.trim().toLowerCase() : "";
+	const safeSurface = normalizedSurface ? normalizedSurface : "smart";
+
+	const rawRequestId = getNonEmptyString(planRequestId);
+	if (rawRequestId) {
+		const normalizedRequestId = rawRequestId
+			.replace(/[^A-Za-z0-9_-]+/g, "-")
+			.replace(/-+/g, "-")
+			.replace(/^-|-$/g, "");
+		if (normalizedRequestId) {
+			return `smart-${safeSurface}-${normalizedRequestId}`;
+		}
+	}
+
+	return `smart-${safeSurface}-${createClarificationSessionId()}`;
 }
 
 const agentsTeamConfigManager = createConfigManager();
@@ -835,6 +1129,82 @@ function safeJsonParse(rawValue) {
 	} catch {
 		return null;
 	}
+}
+
+function extractClassifierJsonCandidate(rawText) {
+	const text = getNonEmptyString(rawText);
+	if (!text) {
+		return null;
+	}
+
+	const fencedMatch = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+	if (fencedMatch && fencedMatch[1]) {
+		return fencedMatch[1].trim();
+	}
+
+	if (text.startsWith("{") && text.endsWith("}")) {
+		return text;
+	}
+
+	return null;
+}
+
+function parseClassifierIntentPayload(rawText) {
+	const jsonCandidate = extractClassifierJsonCandidate(rawText);
+	if (!jsonCandidate) {
+		return null;
+	}
+
+	const parsed = safeJsonParse(jsonCandidate);
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return null;
+	}
+
+	const keys = Object.keys(parsed);
+	if (!keys.includes("intent")) {
+		return null;
+	}
+	if (!keys.every((key) => CLASSIFIER_JSON_ALLOWED_KEYS.has(key))) {
+		return null;
+	}
+
+	const intent = getNonEmptyString(parsed.intent)?.toLowerCase();
+	if (!intent || !["normal", "genui", "audio", "image", "both"].includes(intent)) {
+		return null;
+	}
+
+	if (Object.prototype.hasOwnProperty.call(parsed, "confidence")) {
+		if (typeof parsed.confidence !== "number" || !Number.isFinite(parsed.confidence)) {
+			return null;
+		}
+		if (parsed.confidence < 0 || parsed.confidence > 1) {
+			return null;
+		}
+	}
+
+	if (Object.prototype.hasOwnProperty.call(parsed, "reason")) {
+		if (getNonEmptyString(parsed.reason) === null) {
+			return null;
+		}
+	}
+
+	return {
+		intent,
+		confidence:
+			typeof parsed.confidence === "number" && Number.isFinite(parsed.confidence)
+				? parsed.confidence
+				: null,
+		reason: getNonEmptyString(parsed.reason),
+	};
+}
+
+function isClassifierIntentLeakCandidate(value) {
+	if (typeof value !== "string") {
+		return false;
+	}
+
+	const trimmed = value.trimStart();
+	return trimmed.startsWith("{") || trimmed.startsWith("```");
 }
 
 function createHttpError(status, message) {
@@ -2364,13 +2734,16 @@ app.post("/api/chat-sdk", async (req, res) => {
 			contextDescription: rawContextDescription,
 			provider,
 			model: rawModel,
-			agentTeamMode: rawAgentTeamMode,
-			agentTeamRequestId,
+			clarification: rawClarification,
+			approval: rawApproval,
+			planMode: rawPlanMode,
+			planRequestId,
 			creationMode,
+			smartGeneration: rawSmartGeneration,
 			hasQueuedPrompts: rawHasQueuedPrompts,
 		} = req.body || {};
 		const hasQueuedPrompts = Boolean(rawHasQueuedPrompts);
-		const agentTeamMode = Boolean(rawAgentTeamMode);
+		const planMode = Boolean(rawPlanMode);
 
 		// If creationMode is set, load the instruction file and prepend to contextDescription
 		let contextDescription = rawContextDescription;
@@ -2391,6 +2764,8 @@ app.post("/api/chat-sdk", async (req, res) => {
 		const latestUserMessageSource = getLatestUserMessageSource(messages);
 		const isPostClarificationTurn =
 			latestUserMessageSource === "clarification-submit";
+		const clarificationSubmission = normalizeClarificationSubmission(rawClarification);
+		const approvalSubmission = normalizeApprovalSubmission(rawApproval);
 		const {
 			message: latestUserMessage,
 			conversationHistory,
@@ -2401,9 +2776,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 		}
 
 		if (
-			shouldGateAgentTeamPlanningQuestionCard({
+			shouldGatePlanningQuestionCard({
 				messages,
-				agentTeamMode,
+				planMode,
 				latestVisibleUserMessage,
 				latestUserMessageSource,
 				planningGateSkipSources: PLANNING_GATE_SKIP_SOURCES,
@@ -2418,7 +2793,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 				submission: null,
 				round: 1,
 				maxRounds: 1,
-				sessionId: buildPlanningQuestionCardSessionId(agentTeamRequestId),
+				sessionId: buildPlanningQuestionCardSessionId(planRequestId),
 			});
 
 			if (questionCardPayload) {
@@ -2431,35 +2806,193 @@ app.post("/api/chat-sdk", async (req, res) => {
 			}
 		}
 
+		let enrichedContextDescription = contextDescription;
+		if (clarificationSubmission) {
+			const serialized = JSON.stringify(clarificationSubmission.answers);
+			enrichedContextDescription = enrichedContextDescription
+				? `${enrichedContextDescription}\n\nClarification answers: ${serialized}`
+				: `Clarification answers: ${serialized}`;
+		}
+		if (approvalSubmission) {
+			const serialized = JSON.stringify({
+				decision: approvalSubmission.decision,
+				customInstruction: approvalSubmission.customInstruction,
+			});
+			enrichedContextDescription = enrichedContextDescription
+				? `${enrichedContextDescription}\n\nPlan approval: ${serialized}`
+				: `Plan approval: ${serialized}`;
+		}
+
 		const userMessageText = buildUserMessage(
 			latestUserMessage,
 			conversationHistory,
-			contextDescription
+			enrichedContextDescription
 		);
 
-		if (provider === "google") {
-			const ENV_VARS = getEnvVars();
-			const rawGatewayUrl = ENV_VARS.AI_GATEWAY_URL_GOOGLE || ENV_VARS.AI_GATEWAY_URL;
-			if (!rawGatewayUrl) {
-				return res.status(500).json({
-					error: "AI Gateway URL is not configured",
-					details: "Set AI_GATEWAY_URL_GOOGLE (preferred) or AI_GATEWAY_URL in .env.local.",
+		const smartGeneration = normalizeSmartGenerationOptions(rawSmartGeneration);
+		const smartLayoutContext = {
+			surface: smartGeneration.surface,
+			containerWidthPx: smartGeneration.containerWidthPx,
+			viewportWidthPx: smartGeneration.viewportWidthPx,
+			widthClass: smartGeneration.widthClass,
+		};
+		const smartGenerationActive = isSmartGenerationEnabled(smartGeneration);
+		if (smartGeneration.enabled || smartGeneration.surface) {
+			console.info("[SMART-GENERATION] Route gating", {
+				enabled: smartGeneration.enabled,
+				surface: smartGeneration.surface,
+				active: smartGenerationActive,
+				containerWidthPx: smartGeneration.containerWidthPx,
+				viewportWidthPx: smartGeneration.viewportWidthPx,
+				widthClass: smartGeneration.widthClass,
+				allowedSurfaces: Array.from(SMART_ROUTE_TARGET_SURFACES),
+			});
+		}
+		let smartIntentResult = null;
+		if (smartGenerationActive) {
+			const heuristicIntent = inferSmartIntentFromPrompt(latestUserMessage);
+			if (heuristicIntent !== "normal") {
+				smartIntentResult = {
+					intent: heuristicIntent,
+					confidence: 1,
+					reason: "heuristic",
+					rawOutput: null,
+					error: null,
+					timedOut: false,
+				};
+			} else {
+				const classificationStartMs = Date.now();
+				smartIntentResult = await classifySmartGenerationIntent({
+					latestUserMessage,
+					conversationHistory,
+					timeoutMs: SMART_INTENT_TIMEOUT_MS,
+					classify: ({ system, prompt }) =>
+						generateTextViaGateway({
+							system,
+							prompt,
+							maxOutputTokens: 120,
+							temperature: 0,
+							provider: typeof provider === "string" ? provider : undefined,
+						}),
+				});
+				console.info("[SMART-GENERATION] Intent classification", {
+					intent: smartIntentResult.intent,
+					confidence: smartIntentResult.confidence,
+					reason: smartIntentResult.reason,
+					latencyMs: Date.now() - classificationStartMs,
+					timedOut: smartIntentResult.timedOut,
+					error: smartIntentResult.error,
 				});
 			}
+		}
 
-			const resolvedGatewayUrl = resolveGatewayUrl(rawGatewayUrl) || rawGatewayUrl;
-			const endpointType = detectEndpointType(resolvedGatewayUrl);
-			if (endpointType !== "google") {
-				return res.status(400).json({
-					error: "Provider routing mismatch",
-					details: 'Requests with provider "google" require a Google endpoint in AI_GATEWAY_URL_GOOGLE.',
+		if (
+			smartGenerationActive &&
+			smartIntentResult &&
+			smartIntentResult.intent === "normal" &&
+			shouldPreferGenuiWhenPossible(latestUserMessage)
+		) {
+			const previousReason = getNonEmptyString(smartIntentResult.reason);
+			smartIntentResult = {
+				...smartIntentResult,
+				intent: "genui",
+				confidence:
+					typeof smartIntentResult.confidence === "number"
+						? smartIntentResult.confidence
+						: 0.51,
+				reason: previousReason
+					? `${previousReason}+auto-genui`
+					: "auto-genui",
+			};
+			console.info("[SMART-GENERATION] Auto-upgraded intent to genui", {
+				reason: smartIntentResult.reason,
+				confidence: smartIntentResult.confidence,
+			});
+		}
+
+		if (smartGenerationActive) {
+			const smartClarificationClassifierPrompt =
+				smartIntentResult && smartIntentResult.intent !== "normal"
+					? buildSmartClarificationClassifierPrompt({
+						latestUserMessage,
+						conversationHistory,
+						smartIntentHint: smartIntentResult.intent,
+						layoutContext: smartLayoutContext,
+					})
+					: buildSmartClarificationClassifierPrompt({
+						latestUserMessage,
+						conversationHistory,
+						smartIntentHint: "normal",
+						layoutContext: smartLayoutContext,
+					});
+
+			let smartClarificationDecision = null;
+			try {
+				const classifierText = await generateTextViaGateway({
+					system: "You output strict JSON indicating if clarification is needed.",
+					prompt: smartClarificationClassifierPrompt,
+					maxOutputTokens: 120,
+					temperature: 0,
+					provider: typeof provider === "string" ? provider : undefined,
 				});
+				smartClarificationDecision = parseSmartClarificationClassifierOutput(
+					classifierText
+				);
+			} catch (error) {
+				console.warn(
+					"[SMART-CLARIFICATION] Classifier failed; continuing without smart gate",
+					error instanceof Error ? error.message : error
+				);
 			}
 
+			const shouldGateClarification = shouldGateSmartClarification({
+				latestUserMessage,
+				latestUserMessageSource,
+				smartGenerationActive,
+				smartIntentResult,
+				classifierResult: smartClarificationDecision,
+			});
+
+			if (shouldGateClarification) {
+				const questionCardPayload = await generateClarificationQuestionCard({
+					latestUserMessage: latestVisibleUserMessage?.text || latestUserMessage,
+					conversationHistory,
+					previousQuestionCard: null,
+					submission: null,
+					round: 1,
+					maxRounds: 1,
+					sessionId: buildSmartClarificationSessionId({
+						planRequestId,
+						surface: smartGeneration.surface,
+					}),
+				});
+
+				if (questionCardPayload) {
+					streamQuestionCardWidget({
+						res,
+						payload: questionCardPayload,
+						introText:
+							"A couple quick questions so I can generate the right output.",
+					});
+					return;
+				}
+			}
+		}
+
+		if (
+			smartGenerationActive &&
+			smartIntentResult &&
+			smartIntentResult.intent !== "normal"
+		) {
+			const roleMessages = mapUiMessagesToRoleContent(messages);
 			const stream = createUIMessageStream({
 				execute: async ({ writer }) => {
 					const textId = `text-${Date.now()}`;
+					const imageWidgetId = `widget-image-${Date.now()}`;
+					const genuiWidgetId = `widget-genui-${Date.now()}`;
+					const audioWidgetId = `widget-audio-${Date.now()}`;
 					let textStarted = false;
+					let generatedNarrative = null;
 
 					const emitTextDelta = (delta) => {
 						if (typeof delta !== "string" || delta.length === 0) {
@@ -2474,30 +3007,329 @@ app.post("/api/chat-sdk", async (req, res) => {
 						writer.write({ type: "text-delta", id: textId, delta });
 					};
 
-				await streamGoogleGatewayManualSse({
-					gatewayUrl: resolvedGatewayUrl,
-					envVars: ENV_VARS,
-					model: typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : ENV_VARS.GOOGLE_IMAGE_MODEL,
-					prompt: userMessageText,
-						maxOutputTokens: 2000,
-						temperature: 1,
-						onTextDelta: emitTextDelta,
-						onFile: ({ mediaType, base64 }) => {
-							if (typeof base64 !== "string" || base64.length === 0) {
-								return;
+					const emitWidgetLoading = (id, type, loading) => {
+						writer.write({
+							type: "data-widget-loading",
+							id,
+							data: { type, loading },
+						});
+					};
+
+					const emitWidgetData = (id, type, payload) => {
+						writer.write({
+							type: "data-widget-data",
+							id,
+							data: { type, payload },
+						});
+					};
+
+					const emitWidgetError = (id, type, message) => {
+						writer.write({
+							type: "data-widget-error",
+							id,
+							data: {
+								type,
+								message,
+								canRetry: true,
+							},
+						});
+					};
+
+					if (smartIntentResult.intent === "image") {
+						emitWidgetLoading(imageWidgetId, SMART_WIDGET_TYPE_IMAGE, true);
+						const generatedImages = [];
+						let attemptedImageGeneration = false;
+						const imageGatewayConfig = resolveGoogleImageGatewayConfig({
+							envVars: getEnvVars(),
+							requestedModel: rawModel,
+							resolveGatewayUrl,
+							detectEndpointType,
+						});
+						try {
+							if (!imageGatewayConfig.ok) {
+								emitWidgetError(
+									imageWidgetId,
+									SMART_WIDGET_TYPE_IMAGE,
+									toImageWidgetErrorMessage(imageGatewayConfig)
+										|| "I couldn't generate an image because Google image routing is not configured."
+								);
+							} else {
+								attemptedImageGeneration = true;
+								const streamGoogleImage = async (withModalities) => {
+									await streamGoogleGatewayManualSse({
+										gatewayUrl: imageGatewayConfig.gatewayUrl,
+										envVars: imageGatewayConfig.envVars,
+										model: imageGatewayConfig.model,
+										prompt: userMessageText,
+										maxOutputTokens: 1800,
+										temperature: 1,
+										responseModalities: withModalities ? ["image"] : undefined,
+										onFile: ({ mediaType, base64 }) => {
+											if (typeof base64 !== "string" || base64.length === 0) {
+												return;
+											}
+											const resolvedMediaType =
+												typeof mediaType === "string" && mediaType.trim()
+													? mediaType
+													: "image/png";
+											if (!resolvedMediaType.startsWith("image/")) {
+												return;
+											}
+
+											generatedImages.push({
+												url: `data:${resolvedMediaType};base64,${base64}`,
+												mimeType: resolvedMediaType,
+											});
+											emitWidgetData(imageWidgetId, SMART_WIDGET_TYPE_IMAGE, {
+												images: [...generatedImages],
+												prompt: latestUserMessage,
+												source: "chat-sdk-google-image",
+											});
+										},
+									});
+								};
+
+								try {
+									await streamGoogleImage(true);
+								} catch (modalitiesError) {
+									if (!isUnsupportedModalitiesError(modalitiesError)) {
+										throw modalitiesError;
+									}
+									console.warn(
+										"[SMART-GENERATION] Google endpoint rejected modalities payload; retrying image request without modalities."
+									);
+									await streamGoogleImage(false);
+								}
 							}
 
-							const resolvedMediaType =
-								typeof mediaType === "string" && mediaType.trim()
-									? mediaType
-									: "image/png";
-							writer.write({
-								type: "file",
-								mediaType: resolvedMediaType,
-								url: `data:${resolvedMediaType};base64,${base64}`,
+							if (attemptedImageGeneration && generatedImages.length === 0) {
+								emitWidgetError(
+									imageWidgetId,
+									SMART_WIDGET_TYPE_IMAGE,
+									"I couldn't generate an image for this request. The model returned no image data."
+								);
+							}
+						} catch (imageError) {
+							console.error("[SMART-GENERATION] Image generation failed:", imageError);
+							const errorMessage =
+								imageError instanceof Error &&
+								typeof imageError.message === "string" &&
+								imageError.message.trim().length > 0
+									? imageError.message.trim()
+									: "I couldn't generate an image right now. Check AI_GATEWAY_URL_GOOGLE and GOOGLE_IMAGE_MODEL, then retry.";
+							emitWidgetError(
+								imageWidgetId,
+								SMART_WIDGET_TYPE_IMAGE,
+								errorMessage
+							);
+						} finally {
+							emitWidgetLoading(imageWidgetId, SMART_WIDGET_TYPE_IMAGE, false);
+						}
+					}
+
+					if (
+						smartIntentResult.intent === "genui" ||
+						smartIntentResult.intent === "both"
+					) {
+						emitWidgetLoading(genuiWidgetId, SMART_WIDGET_TYPE_GENUI, true);
+						try {
+							const genuiResult = await generateSmartGenuiResult({
+								roleMessages,
+								provider: typeof provider === "string" ? provider : undefined,
+								layoutContext: smartLayoutContext,
 							});
-						},
-					});
+							const summaryText = getNonEmptyString(genuiResult.narrative);
+							if (summaryText) {
+								generatedNarrative = summaryText;
+								emitTextDelta(summaryText);
+							}
+
+							if (genuiResult.spec) {
+								emitWidgetData(genuiWidgetId, SMART_WIDGET_TYPE_GENUI, {
+									spec: genuiResult.spec,
+									summary:
+										summaryText && summaryText.length > 280
+											? `${summaryText.slice(0, 279)}…`
+											: summaryText || "Generated UI preview",
+									source: "genui-chat",
+								});
+							} else {
+								emitWidgetError(
+									genuiWidgetId,
+									SMART_WIDGET_TYPE_GENUI,
+									"I couldn't produce a renderable UI preview for this request."
+								);
+								if (!summaryText) {
+									emitTextDelta(
+										"I couldn't produce a renderable UI preview for this request."
+									);
+								}
+							}
+						} catch (genuiError) {
+							console.error("[SMART-GENERATION] UI generation failed:", genuiError);
+							emitWidgetError(
+								genuiWidgetId,
+								SMART_WIDGET_TYPE_GENUI,
+								"I couldn't generate a UI preview right now."
+							);
+							emitTextDelta("I couldn't generate a UI preview right now.");
+						} finally {
+							emitWidgetLoading(genuiWidgetId, SMART_WIDGET_TYPE_GENUI, false);
+						}
+					}
+
+					if (
+						smartIntentResult.intent === "audio" ||
+						smartIntentResult.intent === "both"
+					) {
+						emitWidgetLoading(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, true);
+						try {
+							let voiceInput = null;
+							const directUserInput = toSpeechInputText(latestUserMessage);
+							if (smartIntentResult.intent === "audio") {
+								voiceInput = directUserInput;
+							} else if (smartIntentResult.intent === "both") {
+								voiceInput = toSpeechInputText(generatedNarrative) || directUserInput;
+							}
+
+							if (!voiceInput) {
+								throw new Error("No text available for audio synthesis");
+							}
+
+							const synthesisResult = await synthesizeSound({
+								input: voiceInput,
+								provider: "google",
+								model: "tts-latest",
+								responseFormat: "mp3",
+							});
+
+							emitWidgetData(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, {
+								audioUrl: buildAudioDataUrl(
+									synthesisResult.audioBytes,
+									synthesisResult.contentType
+								),
+								mimeType: synthesisResult.contentType,
+								transcript: voiceInput,
+								source: "sound-generation",
+							});
+
+							if (smartIntentResult.intent === "audio") {
+								emitTextDelta(voiceInput);
+							}
+						} catch (audioError) {
+							console.error("[SMART-GENERATION] Audio generation failed:", audioError);
+							emitWidgetError(
+								audioWidgetId,
+								SMART_WIDGET_TYPE_AUDIO,
+								"I couldn't generate voice output right now."
+							);
+							emitTextDelta("I couldn't generate voice output right now.");
+						} finally {
+							emitWidgetLoading(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, false);
+						}
+					}
+
+					const shouldEmitDefaultNarrative = smartIntentResult.intent !== "image";
+					if (shouldEmitDefaultNarrative && !textStarted) {
+						emitTextDelta("Completed smart generation request.");
+					}
+
+					if (textStarted) {
+						writer.write({ type: "text-end", id: textId });
+					}
+				},
+				onError: (error) => {
+					if (error instanceof Error) {
+						return error.message;
+					}
+					return "Failed to stream smart generation response";
+				},
+			});
+
+			pipeUIMessageStreamToResponse({
+				response: res,
+				stream,
+			});
+			return;
+		}
+
+		if (provider === "google") {
+			const googleImageConfig = resolveGoogleImageGatewayConfig({
+				envVars: getEnvVars(),
+				requestedModel: rawModel,
+				resolveGatewayUrl,
+				detectEndpointType,
+			});
+			if (!googleImageConfig.ok) {
+				return res.status(googleImageConfig.statusCode).json({
+					error: googleImageConfig.error,
+					details: googleImageConfig.details,
+				});
+			}
+
+			const stream = createUIMessageStream({
+				execute: async ({ writer }) => {
+					const textId = `text-${Date.now()}`;
+					let textStarted = false;
+					const prefersImageModalities =
+						inferSmartIntentFromPrompt(latestUserMessage) === "image";
+
+					const emitTextDelta = (delta) => {
+						if (typeof delta !== "string" || delta.length === 0) {
+							return;
+						}
+
+						if (!textStarted) {
+							writer.write({ type: "text-start", id: textId });
+							textStarted = true;
+						}
+
+						writer.write({ type: "text-delta", id: textId, delta });
+					};
+
+					const streamGoogleTextOrImage = async (withModalities) => {
+						await streamGoogleGatewayManualSse({
+							gatewayUrl: googleImageConfig.gatewayUrl,
+							envVars: googleImageConfig.envVars,
+							model: googleImageConfig.model,
+							prompt: userMessageText,
+							maxOutputTokens: 2000,
+							temperature: 1,
+							responseModalities:
+								withModalities && prefersImageModalities ? ["image"] : undefined,
+							onTextDelta: emitTextDelta,
+							onFile: ({ mediaType, base64 }) => {
+								if (typeof base64 !== "string" || base64.length === 0) {
+									return;
+								}
+
+								const resolvedMediaType =
+									typeof mediaType === "string" && mediaType.trim()
+										? mediaType
+										: "image/png";
+								writer.write({
+									type: "file",
+									mediaType: resolvedMediaType,
+									url: `data:${resolvedMediaType};base64,${base64}`,
+								});
+							},
+						});
+					};
+
+					try {
+						await streamGoogleTextOrImage(true);
+					} catch (modalitiesError) {
+						if (
+							!prefersImageModalities
+							|| !isUnsupportedModalitiesError(modalitiesError)
+						) {
+							throw modalitiesError;
+						}
+						console.warn(
+							"[CHAT-SDK] Google endpoint rejected modalities payload; retrying without modalities."
+						);
+						await streamGoogleTextOrImage(false);
+					}
 
 					if (textStarted) {
 						writer.write({ type: "text-end", id: textId });
@@ -2628,7 +3460,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 				const emittedQuestionCardToolCalls = new Set();
 				let pendingQuestionCardLoadingWidgetId = null;
 
-				const emitTextDelta = (delta) => {
+				let bufferedAssistantText = "";
+
+				const emitTextDeltaRaw = (delta) => {
 					if (!delta) {
 						return;
 					}
@@ -2639,7 +3473,71 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 
 					writer.write({ type: "text-delta", id: textId, delta });
+				};
+
+				const flushBufferedAssistantText = ({ force = false } = {}) => {
+					if (!bufferedAssistantText) {
+						return;
+					}
+
+					if (!force && isClassifierIntentLeakCandidate(bufferedAssistantText)) {
+						if (bufferedAssistantText.length <= CLASSIFIER_JSON_BUFFER_MAX_CHARS) {
+							return;
+						}
+
+						const parsedClassifierPayload = parseClassifierIntentPayload(
+							bufferedAssistantText
+						);
+						if (parsedClassifierPayload) {
+							return;
+						}
+					}
+
+					const chunk = bufferedAssistantText;
+					bufferedAssistantText = "";
+					emitTextDeltaRaw(chunk);
+				};
+
+				const finalizeBufferedAssistantText = () => {
+					if (!bufferedAssistantText) {
+						return null;
+					}
+
+					const parsedClassifierPayload = parseClassifierIntentPayload(
+						bufferedAssistantText
+					);
+					if (parsedClassifierPayload) {
+						bufferedAssistantText = "";
+						return parsedClassifierPayload;
+					}
+
+					flushBufferedAssistantText({ force: true });
+					return null;
+				};
+
+				const emitTextDelta = (delta) => {
+					if (!delta) {
+						return;
+					}
+
 					assistantText += delta;
+					bufferedAssistantText += delta;
+
+					if (!isClassifierIntentLeakCandidate(bufferedAssistantText)) {
+						flushBufferedAssistantText({ force: true });
+						return;
+					}
+
+					if (bufferedAssistantText.length <= CLASSIFIER_JSON_BUFFER_MAX_CHARS) {
+						return;
+					}
+
+					const parsedClassifierPayload = parseClassifierIntentPayload(
+						bufferedAssistantText
+					);
+					if (!parsedClassifierPayload) {
+						flushBufferedAssistantText({ force: true });
+					}
 				};
 
 				const sanitizeThinkingLabel = (value) => {
@@ -3167,6 +4065,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 				// RovoDev Serve: route through the local agent loop
 				console.log("[CHAT-SDK] Routing through RovoDev Serve");
+				writer.write({
+					type: "data-thinking-status",
+					data: { label: "Thinking" },
+				});
 				let retryOccurred = false;
 				let rovoDevFellBackToGateway = false;
 				try {
@@ -3273,6 +4175,47 @@ app.post("/api/chat-sdk", async (req, res) => {
 				processTextBuffer(true);
 				maybeEmitProgressivePlanUpdate();
 
+				const leakedClassifierPayload = finalizeBufferedAssistantText();
+				if (leakedClassifierPayload) {
+					console.warn("[CHAT-SDK] Suppressed classifier-style JSON response", {
+						intent: leakedClassifierPayload.intent,
+						confidence: leakedClassifierPayload.confidence,
+						reason: leakedClassifierPayload.reason,
+					});
+					let repairedResponseText = null;
+
+					try {
+						const retryText = await generateTextViaGateway({
+							system:
+								"You are a helpful assistant. Respond directly to the user request in normal prose. Never output router JSON metadata such as {\"intent\":...}.",
+							prompt: userMessageText,
+							maxOutputTokens: 1200,
+							temperature: 0.6,
+							provider: typeof provider === "string" ? provider : undefined,
+						});
+						const normalizedRetryText = getNonEmptyString(retryText);
+						if (
+							normalizedRetryText &&
+							!parseClassifierIntentPayload(normalizedRetryText)
+						) {
+							repairedResponseText = normalizedRetryText;
+						}
+					} catch (retryError) {
+						console.error(
+							"[CHAT-SDK] Failed to recover from classifier-style JSON leak:",
+							retryError
+						);
+					}
+
+					if (!repairedResponseText) {
+						repairedResponseText =
+							"I had an internal routing issue while generating that response. Please try again and I will answer directly.";
+					}
+
+					assistantText = repairedResponseText;
+					emitTextDeltaRaw(repairedResponseText);
+				}
+
 				// Skip post-stream work if the client disconnected
 				if (abortController.signal.aborted) {
 					if (textStarted) {
@@ -3284,7 +4227,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 				if (!hasEmittedQuestionCard && !hasEmittedPlanWidget) {
 					const fallbackQuestionCardPayload =
 						extractQuestionCardPayloadFromAssistantText(assistantText, {
-							sessionId: buildPlanningQuestionCardSessionId(agentTeamRequestId),
+							sessionId: buildPlanningQuestionCardSessionId(planRequestId),
 							round: 1,
 							maxRounds: CLARIFICATION_MAX_ROUNDS,
 							title: "Help me clarify what you need",

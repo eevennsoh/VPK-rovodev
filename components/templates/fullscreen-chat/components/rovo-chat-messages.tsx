@@ -3,6 +3,7 @@
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 import { ChatMessages } from "@/components/templates/shared/components/chat-messages";
+import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
 import ChatEmptyState from "./chat-empty-state";
 import type { PanelVariant } from "../types";
 
@@ -18,6 +19,7 @@ interface RovoChatMessagesProps {
 	hideScrollbar?: boolean;
 	isStreaming?: boolean;
 	messageMode?: "plan" | "ask";
+	enableSmartWidgets?: boolean;
 }
 
 export default function RovoChatMessages({
@@ -32,6 +34,7 @@ export default function RovoChatMessages({
 	hideScrollbar = true,
 	isStreaming = false,
 	messageMode = "ask",
+	enableSmartWidgets = false,
 }: Readonly<RovoChatMessagesProps>) {
 	return (
 		<ChatMessages
@@ -44,10 +47,23 @@ export default function RovoChatMessages({
 			hideScrollbar={hideScrollbar}
 			isStreaming={isStreaming}
 			messageMode={messageMode}
+			showWidgetSections={enableSmartWidgets}
 			streamingIndicatorVariant="reasoning-expanded"
 			renderEmptyState={() => (
 				<ChatEmptyState variant={variant} userName={userName} />
 			)}
+			renderWidget={(widget) => {
+				if (!enableSmartWidgets) {
+					return null;
+				}
+
+				return (
+					<GenerativeWidgetCard
+						widgetType={widget.type}
+						widgetData={widget.data}
+					/>
+				);
+			}}
 		/>
 	);
 }

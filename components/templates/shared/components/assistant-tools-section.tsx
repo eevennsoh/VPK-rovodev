@@ -10,9 +10,12 @@ import {
 	ToolOutput,
 } from "@/components/ui-ai/tool";
 
+type AssistantToolsSectionDefaultOpenMode = "details" | "running";
+
 interface AssistantToolsSectionProps {
 	messageId: string;
 	toolParts: RovoToolPart[];
+	defaultOpenMode?: AssistantToolsSectionDefaultOpenMode;
 }
 
 function hasToolDetails(toolPart: RovoToolPart): boolean {
@@ -27,17 +30,32 @@ function hasToolDetails(toolPart: RovoToolPart): boolean {
 	return Boolean(toolPart.errorText);
 }
 
+function isToolRunning(toolPart: RovoToolPart): boolean {
+	return (
+		toolPart.state === "approval-requested" ||
+		toolPart.state === "input-streaming" ||
+		toolPart.state === "input-available"
+	);
+}
+
 export function AssistantToolsSection({
 	messageId,
 	toolParts,
+	defaultOpenMode = "details",
 }: Readonly<AssistantToolsSectionProps>): React.ReactElement {
 	return (
-		<div className="space-y-2 px-3 pt-2">
-			{toolParts.map((toolPart, index) => (
-				<Tool
-					key={`${messageId}-tool-${toolPart.toolCallId}-${index}`}
-					defaultOpen={hasToolDetails(toolPart)}
-				>
+		<div className="space-y-2 px-6 pt-2">
+			{toolParts.map((toolPart, index) => {
+				const shouldDefaultOpen =
+					defaultOpenMode === "running"
+						? isToolRunning(toolPart)
+						: hasToolDetails(toolPart);
+
+				return (
+					<Tool
+						key={`${messageId}-tool-${toolPart.toolCallId}-${index}`}
+						defaultOpen={shouldDefaultOpen}
+					>
 					{toolPart.type === "dynamic-tool" ? (
 						<ToolHeader
 							title={getToolPartName(toolPart)}
@@ -59,8 +77,10 @@ export function AssistantToolsSection({
 							output={toolPart.output}
 						/>
 					</ToolContent>
-				</Tool>
-			))}
+					</Tool>
+				);
+			})}
 		</div>
 	);
+
 }

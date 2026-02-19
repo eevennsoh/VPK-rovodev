@@ -17,7 +17,7 @@ export function AssistantFeedbackActions({
 	const iconColor = token("color.icon.subtlest");
 
 	return (
-		<MessageActions className="pl-3">
+		<MessageActions>
 			<MessageAction tooltip="Like">
 				<ThumbsUpIcon label="" color={iconColor} size="small" />
 			</MessageAction>

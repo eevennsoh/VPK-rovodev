@@ -1506,6 +1506,14 @@ import { Controls } from "@/components/ui-ai/controls";
 		],
 	},
 
+	conversation: {
+		description:
+			"A scrollable message container with stick-to-bottom behavior, scroll-to-bottom button, empty state, and conversation download. Built on use-stick-to-bottom for automatic scroll tracking.",
+		demoLayout: {
+			previewContentWidth: "full",
+		},
+	},
+
 	edge: {
 		description:
 			"Custom edge renderers for React Flow canvases. Provides Animated (bezier path with a flowing dot indicator) and Temporary (dashed stroke) edge variants for AI workflow visualization.",

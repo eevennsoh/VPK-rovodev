@@ -35,12 +35,12 @@ interface AgentsTeamComposerProps {
 	prompt: string;
 	placeholder: string;
 	isStreaming: boolean;
-	isAgentTeamMode: boolean;
+	isPlanMode: boolean;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => Promise<void> | void;
 	onStop: () => void;
-	onAgentTeamModeToggle: () => void;
+	onPlanModeToggle: () => void;
 	onRemoveQueuedPrompt: (id: string) => void;
 	expandedPlaceholder?: boolean;
 	autoFocus?: boolean;
@@ -50,12 +50,12 @@ export default function AgentsTeamComposer({
 	prompt,
 	placeholder,
 	isStreaming,
-	isAgentTeamMode,
+	isPlanMode,
 	queuedPrompts,
 	onPromptChange,
 	onSubmit,
 	onStop,
-	onAgentTeamModeToggle,
+	onPlanModeToggle,
 	onRemoveQueuedPrompt,
 	expandedPlaceholder = false,
 	autoFocus = true,
@@ -137,7 +137,7 @@ export default function AgentsTeamComposer({
 
 					<PromptInputFooter className="mt-3 justify-between px-0 pb-0">
 						<PromptInputTools>
-							<Button type="button" size="sm" variant="outline" aria-label="Agent team mode" aria-pressed={isAgentTeamMode} onClick={onAgentTeamModeToggle}>
+							<Button type="button" size="sm" variant="outline" aria-label="Plan mode" aria-pressed={isPlanMode} onClick={onPlanModeToggle}>
 								<AgentIcon label="" size="small" />
 								Agent team
 							</Button>

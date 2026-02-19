@@ -232,6 +232,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 	blockComponent("data-table", "Data Table"),
 	blockComponent("generative", "Generative UI"),
 	blockComponent("ide", "IDE"),
+	blockComponent("kanban-sprint", "Kanban Sprint"),
 	{ name: "Login 01", slug: "login-01", importPath: "@/components/blocks/login/login-01", category: "blocks", detail: BLOCK_DETAILS["login-01"] },
 	{ name: "Login 02", slug: "login-02", importPath: "@/components/blocks/login/login-02", category: "blocks", detail: BLOCK_DETAILS["login-02"] },
 	{ name: "Login 03", slug: "login-03", importPath: "@/components/blocks/login/login-03", category: "blocks", detail: BLOCK_DETAILS["login-03"] },
@@ -267,6 +268,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 	{ name: "Signup 05", slug: "signup-05", importPath: "@/components/blocks/signup/signup-05", category: "blocks", detail: BLOCK_DETAILS["signup-05"] },
 	blockComponent("top-navigation", "Top Navigation"),
 	blockComponent("work-item-widget", "Work Item Widget"),
+	blockComponent("work-item-detail", "Work Item Detail"),
 	blockComponent("workflow", "Workflow"),
 ] as const;
 

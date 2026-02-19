@@ -13,7 +13,7 @@ export function AssistantReasoningSection({
 }: Readonly<AssistantReasoningSectionProps>): React.ReactElement {
 	return (
 		<Reasoning
-			className="px-3 pt-2"
+			className="px-6 pt-2"
 			defaultOpen={false}
 			isStreaming={reasoning.isStreaming}
 		>

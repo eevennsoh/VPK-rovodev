@@ -38,7 +38,7 @@ export default function LoadingWidget({ widgetType }: Readonly<LoadingWidgetProp
 	}, [widgetType]);
 
 	return (
-		<div className="mx-3 flex items-center justify-start rounded-lg bg-bg-neutral-subtle p-2 text-sm text-text-subtlest">
+		<div className="mx-6 flex items-center justify-start rounded-lg bg-bg-neutral-subtle p-2 text-sm text-text-subtlest">
 			{getWidgetMessage(widgetType, step)}
 		</div>
 	);

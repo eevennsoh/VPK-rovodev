@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRovoChat } from "@/app/contexts";
 import { useSpeechRecognition } from "./use-speech-recognition";
 import { useUrlParams } from "./use-url-params";
+import {
+	buildClarificationSummaryPrompt,
+	createClarificationSubmission,
+	getLatestQuestionCardPayload,
+	type ClarificationAnswers,
+} from "@/components/templates/shared/lib/question-card-widget";
 
 export function useRovoViewChat() {
 	const [prompt, setPrompt] = useState("");
@@ -27,6 +33,49 @@ export function useRovoViewChat() {
 	const { name: userName } = useUrlParams();
 	const hasProcessedPendingPrompt = useRef(false);
 
+	const buildSendOptions = useCallback(
+		() => ({
+			userName: userName || undefined,
+			smartGeneration: {
+				enabled: true,
+				surface: "fullscreen" as const,
+			},
+		}),
+		[userName]
+	);
+
+	const activeQuestionCard = useMemo(
+		() => getLatestQuestionCardPayload(uiMessages),
+		[uiMessages]
+	);
+
+	const handleClarificationSubmit = useCallback(
+		async (answers: ClarificationAnswers) => {
+			if (!activeQuestionCard) {
+				return;
+			}
+
+			const clarificationSubmission = createClarificationSubmission(
+				activeQuestionCard,
+				answers
+			);
+			const clarificationPrompt = buildClarificationSummaryPrompt(
+				activeQuestionCard,
+				answers
+			);
+
+			await sendPrompt(clarificationPrompt, {
+				...buildSendOptions(),
+				messageMetadata: {
+					source: "clarification-submit",
+					visibility: "hidden",
+				},
+				clarification: clarificationSubmission,
+			});
+		},
+		[activeQuestionCard, buildSendOptions, sendPrompt]
+	);
+
 	const { isListening, interimText, toggleDictation } = useSpeechRecognition({
 		onFinalTranscript: (transcript) => setPrompt((prev) => prev + transcript),
 	});
@@ -47,10 +96,8 @@ export function useRovoViewChat() {
 		const currentPrompt = prompt;
 		setPrompt("");
 
-		await sendPrompt(currentPrompt, {
-			userName: userName || undefined,
-		});
-	}, [prompt, isChatMode, userName, sendPrompt]);
+		await sendPrompt(currentPrompt, buildSendOptions());
+	}, [prompt, isChatMode, sendPrompt, buildSendOptions]);
 
 	const handleSuggestedQuestionClick = useCallback(
 		async (question: string) => {
@@ -60,12 +107,9 @@ export function useRovoViewChat() {
 				setIsChatMode(true);
 			}
 
-			await sendPrompt(question, {
-				userName: userName || undefined,
-				
-			});
+			await sendPrompt(question, buildSendOptions());
 		},
-		[isChatMode, userName, sendPrompt]
+		[isChatMode, sendPrompt, buildSendOptions]
 	);
 
 	const handleBackToStart = useCallback(() => {
@@ -87,15 +131,12 @@ export function useRovoViewChat() {
 				const promptToSubmit = pendingPrompt;
 				setPendingPrompt(null);
 
-				await sendPrompt(promptToSubmit, {
-					userName: userName || undefined,
-					
-				});
+				await sendPrompt(promptToSubmit, buildSendOptions());
 			};
 
 			submitPendingPrompt();
 		}
-	}, [pendingPrompt, userName, setPendingPrompt, sendPrompt]);
+	}, [pendingPrompt, setPendingPrompt, sendPrompt, buildSendOptions]);
 
 	return {
 		prompt,
@@ -116,10 +157,12 @@ export function useRovoViewChat() {
 		setCompanyKnowledgeEnabled,
 		queuedPrompts,
 		removeQueuedPrompt,
+		activeQuestionCard,
 		handleSubmit,
 		handleSuggestedQuestionClick,
 		handleBackToStart,
 		isStreaming,
+		handleClarificationSubmit,
 		stopStreaming,
 	};
 }

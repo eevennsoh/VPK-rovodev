@@ -31,12 +31,17 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **Why:** Demos were invented from component capabilities rather than referencing the ADS docs page structure. The ADS examples page organizes demos by concept/primitive, not by individual feature toggles.
 - **Rule:** When enriching a VPK component with ADS parity, fetch or review the ADS documentation examples page for that component and mirror its example structure (titles, grouping, content patterns). Demo names and content should match ADS examples, not be invented from the component API surface.
 
-### 2026-02-17 - Agent-team clarification gate must not depend on intent regex
-- **What happened:** In agent-team mode, a planning request phrased as “help me coordinate on a team event” produced inline text questions instead of the question-card widget.
-- **Why:** The backend clarification gate required `detectPlanningIntent(...)` to return true. The regex missed valid planning phrasing without explicit “plan/steps/roadmap” keywords.
-- **Rule:** In agent-team mode, treat the first planning cycle as clarification-first by default: gate to question-card unless the message is a hidden follow-up source (`clarification-submit`, `plan-approval-submit`, `agent-team-plan-retry`) or a completed plan widget already exists. Intent regex should be secondary for non-agent-team flows only.
+### 2026-02-17 - Plan mode clarification gate must not depend on intent regex (updated 2026-02-19)
+- **What happened:** Originally, plan mode gated every first message with a question card — even casual greetings like "hey there". The flag was called `agentTeamMode`, implying it was surface-specific.
+- **Why:** The gate returned `!hasCompletedPlan` unconditionally when the flag was true, with no check for conversational messages. The naming tied it to the agents-team template instead of treating it as a generic capability.
+- **Rule:** The flag is now `planMode` — a generic opt-in any chat surface can use. In plan mode, gate to question-card unless: (a) the message is conversational (greeting, small talk, acknowledgement), (b) a hidden follow-up source (`clarification-submit`, `plan-approval-submit`, `agent-team-plan-retry`), or (c) a completed plan widget already exists. Intent regex is secondary for non-plan-mode flows only. Don't embed plan-mode logic inside individual templates — all gating lives in the shared backend `shouldGatePlanningQuestionCard`.
 
 ### 2026-02-17 - Post-clarification plan card fallback must handle phase-formatted plans
 - **What happened:** After answering a question-card, the assistant returned a valid phase-based plan in text (e.g., “Phase 1/2/3” with numbered tasks), but no plan card rendered.
 - **Why:** The fallback parser only accepted `Action items`/`Tasks` headings. Phase-formatted plans bypassed widget emission and stayed as plain text.
 - **Rule:** When the latest user source is `clarification-submit`, run a permissive structured-plan parser fallback (phase/numbered tasks) if strict plan parsing fails. Keep strict parsing as default for non-clarification turns to avoid false positives.
+
+### 2026-02-19 - Ask about RovoDev credits and MCP server permissions once, then save to config
+- **What happened:** I asked about RovoDev credit billing and MCP server permissions on every fresh session, even though you'd already decided on these in a previous session.
+- **Why:** Without a persistent config file, I had no way to remember your answers across session boundaries.
+- **Rule:** These questions should be asked **once** when they arise, but the answers should be saved to a config file (`.claude.local.md` in the workspace root) so they're never asked again. The config should record: (1) RovoDev credit billing approval/decision, (2) MCP server permissions explicitly approved. Before asking these questions, always check if `.claude.local.md` exists and has answers.

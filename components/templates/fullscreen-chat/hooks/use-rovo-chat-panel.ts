@@ -7,6 +7,12 @@ import { useSpeechRecognition } from "./use-speech-recognition";
 import { useUrlParams } from "./use-url-params";
 import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scroll-anchoring";
 import type { PanelVariant, Product } from "../types";
+import {
+	buildClarificationSummaryPrompt,
+	createClarificationSubmission,
+	getLatestQuestionCardPayload,
+	type ClarificationAnswers,
+} from "@/components/templates/shared/lib/question-card-widget";
 
 interface UseRovoChatPanelOptions {
 	product: Product;
@@ -57,6 +63,10 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		return {
 			contextDescription,
 			userName: userName || undefined,
+			smartGeneration: {
+				enabled: true,
+				surface: "fullscreen" as const,
+			},
 		};
 	}, [contextEnabled, product, userName]);
 
@@ -81,6 +91,38 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		resetChat();
 		router.push("/fullscreen-chat");
 	}, [resetChat, router]);
+
+	const activeQuestionCard = useMemo(
+		() => getLatestQuestionCardPayload(uiMessages),
+		[uiMessages]
+	);
+
+	const handleClarificationSubmit = useCallback(
+		async (answers: ClarificationAnswers) => {
+			if (!activeQuestionCard) {
+				return;
+			}
+
+			const clarificationSubmission = createClarificationSubmission(
+				activeQuestionCard,
+				answers
+			);
+			const clarificationPrompt = buildClarificationSummaryPrompt(
+				activeQuestionCard,
+				answers
+			);
+
+			await sendPrompt(clarificationPrompt, {
+				...buildSendOptions(),
+				messageMetadata: {
+					source: "clarification-submit",
+					visibility: "hidden",
+				},
+				clarification: clarificationSubmission,
+			});
+		},
+		[activeQuestionCard, buildSendOptions, sendPrompt]
+	);
 
 	const hasChatStarted = useMemo(
 		() => uiMessages.some((message) => message.role === "assistant" || message.role === "user"),
@@ -114,6 +156,8 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		handleSuggestedQuestionClick,
 		handleFullScreen,
 		hasChatStarted,
+		activeQuestionCard,
+		handleClarificationSubmit,
 		stopStreaming,
 	};
 }

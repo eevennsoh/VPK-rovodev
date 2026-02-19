@@ -14,15 +14,16 @@ produces: [.env.local, .asap-config]
 
 # VPK Setup - Initial Repository Setup
 
-**Goal:** Get the prototype running locally. RovoDev Serve is the default AI mode — no credentials needed. AI Gateway is optional for fallback when RovoDev is unavailable.
+**Goal:** Get the prototype running locally with the default required runtime: RovoDev Serve as primary chat backend plus AI Gateway fallback (including Google gateway vars for image and voice generation).
 
 ## Quick Workflow
 
 1. **Preflight cleanup** → If `node_modules` exists, clean Next.js cache (see below)
 2. **Install dependencies** → `pnpm install` (skip if `node_modules` already exists)
-3. **Start servers** → `pnpm run rovodev` (starts RovoDev Serve + backend + frontend)
-4. **Verify** → http://localhost:3000 (or the port shown in terminal output)
-5. **[Optional] Configure AI Gateway fallback** → Only needed if you want chat to work when RovoDev is unavailable
+3. **Collect AI Gateway credentials** → Ask for use case ID and Atlassian email
+4. **Configure AI Gateway** → Generate ASAP keys and create `.env.local` with fallback + Google endpoint values
+5. **Start servers** → `pnpm run rovodev` (starts RovoDev Serve + backend + frontend)
+6. **Verify** → http://localhost:3000 (or the port shown in terminal output)
 
 ## Preflight Cleanup (when node_modules exists)
 
@@ -55,19 +56,16 @@ fi
 # Install dependencies (skip if node_modules exists)
 [ ! -d "node_modules" ] && pnpm install
 
-# Start everything: RovoDev Serve + backend + frontend (recommended)
+# Start everything: RovoDev Serve + backend + frontend
 pnpm run rovodev
-
-# Alternative: start backend + frontend only (requires rovodev already running separately)
-pnpm run dev
 
 # Verify backend health
 curl http://localhost:8080/api/health
 ```
 
-## Runtime Modes
+## Runtime Topology
 
-### Default: RovoDev Mode
+### Always-On Default
 
 `pnpm run rovodev` starts all three processes in one terminal:
 
@@ -75,22 +73,12 @@ curl http://localhost:8080/api/health
 rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
 ```
 
-No `.env.local` or credentials required for basic chat functionality. RovoDev Serve handles all AI interactions.
+RovoDev Serve handles primary chat. AI Gateway fallback is always enabled, and Google endpoint variables are always configured for `provider: "google"` image and TTS routes.
+RovoDev billing defaults to `https://hello.atlassian.net` and can be overridden via `ROVODEV_SITE_URL`.
 
-### Optional: AI Gateway Fallback
+## AI Gateway Credential Setup
 
-Set `AUTO_FALLBACK_TO_AI_GATEWAY=true` in `.env.local` to automatically route LLM calls to AI Gateway when RovoDev Serve is unavailable. Requires AI Gateway credentials (see below).
-
-```bash
-# .env.local
-AUTO_FALLBACK_TO_AI_GATEWAY=true
-```
-
-Chat endpoints return 503 if RovoDev Serve is unavailable and fallback is not configured.
-
-## Optional: AI Gateway Fallback Setup
-
-Only needed if you want `AUTO_FALLBACK_TO_AI_GATEWAY=true` to work.
+Required for the default setup path.
 
 ### Step 0: Gather User Information
 
@@ -106,7 +94,7 @@ Only needed if you want `AUTO_FALLBACK_TO_AI_GATEWAY=true` to work.
 - Can request one from #help-ai-gateway channel if they don't have it
 - Needed for: `.env.local` (`AI_GATEWAY_USE_CASE_ID`), ASAP key generation
 
-### AI Gateway Setup Commands
+### AI Gateway Credential Commands
 
 ```bash
 # Generate ASAP credentials (CRITICAL: generate timestamp ONCE!)
@@ -125,7 +113,7 @@ node ./.cursor/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID
 # node ./.cursor/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID your-email@atlassian.com
 ```
 
-### What `.env.local` Looks Like (AI Gateway Mode)
+### What `.env.local` Looks Like (Default Mode)
 
 ```bash
 # AI Gateway Configuration
@@ -145,6 +133,9 @@ ASAP_ISSUER=your-use-case-id
 # Enable AI Gateway fallback when RovoDev is unavailable
 AUTO_FALLBACK_TO_AI_GATEWAY=true
 
+# Default billing site for rovodev serve (override if needed)
+ROVODEV_SITE_URL=https://hello.atlassian.net
+
 # RovoDev pool size (agents-team parallel runs, default: 6)
 # ROVODEV_POOL_SIZE=6
 ```
@@ -153,20 +144,21 @@ AUTO_FALLBACK_TO_AI_GATEWAY=true
 
 | Variable | Required | Purpose |
 | -------- | -------- | ------- |
-| `AUTO_FALLBACK_TO_AI_GATEWAY` | Optional | Set `true` to route to AI Gateway when RovoDev is unavailable |
+| `AUTO_FALLBACK_TO_AI_GATEWAY` | Yes | Must be `true` to route to AI Gateway when RovoDev is unavailable |
+| `ROVODEV_SITE_URL` | Yes | Billing site URL for `rovodev serve` (default: `https://hello.atlassian.net`) |
 | `ROVODEV_POOL_SIZE` | Optional | Concurrent RovoDev instances for agents team (default: 6) |
 | `ROVODEV_PORT` | Optional | Explicit RovoDev Serve port override (normally auto-managed via `.dev-rovodev-port`) |
-| `AI_GATEWAY_URL` | AI Gateway only | Default model endpoint (Bedrock/OpenAI/Google) |
-| `AI_GATEWAY_URL_GOOGLE` | AI Gateway only | Google endpoint for `provider: "google"` requests + TTS route |
-| `AI_GATEWAY_USE_CASE_ID` | AI Gateway only | Your AI Gateway use case ID |
-| `AI_GATEWAY_CLOUD_ID` | AI Gateway only | Cloud ID (use `local-testing` for local dev) |
-| `AI_GATEWAY_USER_ID` | AI Gateway only | Your Atlassian email |
-| `OPENAI_MODEL` | AI Gateway only | GPT model ID (default: `gpt-5.2-2025-12-11`) |
-| `GOOGLE_IMAGE_MODEL` | AI Gateway only | Gemini image model (default: `gemini-3-pro-image-preview`) |
-| `GOOGLE_TTS_MODEL` | AI Gateway only | TTS model (default: `tts-latest`) |
-| `ASAP_PRIVATE_KEY` | AI Gateway only | RSA private key (quoted, `\n` escaped) |
-| `ASAP_KID` | AI Gateway only | Key ID from ASAP config |
-| `ASAP_ISSUER` | AI Gateway only | Issuer from ASAP config |
+| `AI_GATEWAY_URL` | Yes | Default model endpoint (Bedrock/OpenAI/Google) |
+| `AI_GATEWAY_URL_GOOGLE` | Yes | Google endpoint for `provider: "google"` requests + TTS route |
+| `AI_GATEWAY_USE_CASE_ID` | Yes | Your AI Gateway use case ID |
+| `AI_GATEWAY_CLOUD_ID` | Yes | Cloud ID (use `local-testing` for local dev) |
+| `AI_GATEWAY_USER_ID` | Yes | Your Atlassian email |
+| `OPENAI_MODEL` | Optional | GPT model ID (default: `gpt-5.2-2025-12-11`) |
+| `GOOGLE_IMAGE_MODEL` | Yes | Gemini image model (default: `gemini-3-pro-image-preview`) |
+| `GOOGLE_TTS_MODEL` | Yes | TTS model (default: `tts-latest`) |
+| `ASAP_PRIVATE_KEY` | Yes | RSA private key (quoted, `\n` escaped) |
+| `ASAP_KID` | Yes | Key ID from ASAP config |
+| `ASAP_ISSUER` | Yes | Issuer from ASAP config |
 | `CONFLUENCE_BASE_URL` | Optional | Confluence base URL for run-summary sharing (e.g. `https://your-site.atlassian.net/wiki`) |
 | `CONFLUENCE_USER_EMAIL` | Optional | Atlassian email for Confluence API auth |
 | `CONFLUENCE_API_TOKEN` | Optional | Confluence API token (from Atlassian account settings) |
@@ -195,37 +187,33 @@ For full model switching details, see [references/guide-model-switch.md](referen
 
 ## Setup Checklist
 
-### RovoDev Mode (Default)
-
 - [ ] Node.js 18+ installed
 - [ ] **Preflight cleanup** (if `node_modules` exists: remove `.next/dev/lock` and `.next/`)
 - [ ] Dependencies installed (skip if `node_modules` already exists)
-- [ ] Dev servers started with `pnpm run rovodev`
-- [ ] Health check passes at http://localhost:8080/api/health
-- [ ] Chat responds at http://localhost:3000
-
-### AI Gateway Fallback (Optional)
-
 - [ ] **User info collected** (email, use case ID)
 - [ ] Atlas CLI installed, YubiKey enrolled
 - [ ] **ASAP credentials generated (timestamp generated ONCE)**
 - [ ] `.env.local` created via `create-env-local.js`
-- [ ] `AUTO_FALLBACK_TO_AI_GATEWAY=true` set in `.env.local`
-- [ ] Health check shows AI Gateway env vars "SET"
+- [ ] `AUTO_FALLBACK_TO_AI_GATEWAY=true` enabled in `.env.local`
+- [ ] `ROVODEV_SITE_URL` is set (default: `https://hello.atlassian.net`)
+- [ ] Google endpoints enabled in `.env.local`
+- [ ] Dev servers started with `pnpm run rovodev`
+- [ ] Health check passes at http://localhost:8080/api/health
+- [ ] Chat responds at http://localhost:3000
 
 ## Quick Troubleshooting
 
 | Issue | Quick Fix |
 | ----- | --------- |
-| Chat returns 503 | RovoDev Serve not running — use `pnpm run rovodev` (not `pnpm run dev`) |
+| Chat returns 503 | RovoDev Serve not running — use `pnpm run rovodev` to start all processes |
 | Auth errors during ASAP save | `atlas upgrade` |
 | "EADDRINUSE" error | Servers auto-find available ports (3001+/8081+). If still failing, run with `--force-kill`: `./.cursor/skills/vpk-setup/scripts/start-dev.sh --force-kill` |
 | Next.js lock error | Remove stale lock: `rm -f .next/dev/lock` then restart |
 | Turbopack cache corrupted | Clear cache: `rm -rf .next` then restart |
-| Zombie processes blocking ports | Force kill: `lsof -ti:3000,8080 \| xargs kill -9` |
+| Zombie processes blocking ports | Force kill: `lsof -ti:3000,8000,8080 \| xargs kill -9` |
 | Frontend 500 (providers) | Ensure `components/providers.tsx` matches import casing |
 | "ASAP_PRIVATE_KEY: MISSING" | Check .env.local format - private key must be quoted and escaped |
-| No AI response (RovoDev) | Verify `pnpm run rovodev` is running, not `pnpm run dev` |
+| No AI response (RovoDev) | Verify `pnpm run rovodev` is running and RovoDev Serve started successfully |
 | No AI response (AI Gateway) | Verify health check passes and `AUTO_FALLBACK_TO_AI_GATEWAY=true` is set |
 | **Mismatched ASAP KID** | **You generated timestamp twice! Regenerate with single timestamp** |
 | "Model Id [X] not found" | Model not whitelisted. Run `atlas ml aigateway usecase view --id YOUR-USE-CASE-ID -e stg-west` |
@@ -238,6 +226,7 @@ For full model switching details, see [references/guide-model-switch.md](referen
 VPK dev servers automatically find available ports if defaults are in use:
 
 - **Frontend**: Tries ports 3000+ (configurable via `PORT` env var)
+- **RovoDev Serve**: Tries ports 8000+ (worktree-aware)
 - **Backend**: Tries ports 8080+ (configurable via `BACKEND_PORT` env var)
 
 **Worktree-aware:** Each git worktree gets a deterministic port range based on its name, preventing conflicts when running multiple worktrees simultaneously.
@@ -246,7 +235,7 @@ VPK dev servers automatically find available ports if defaults are in use:
 pnpm ports  # Show port assignments for all worktrees
 ```
 
-The actual ports are written to `.dev-frontend-port` and `.dev-backend-port` at runtime. Playwright/agent-browser tools automatically read these files via a PreToolUse hook.
+The actual ports are written to `.dev-rovodev-port`, `.dev-frontend-port`, and `.dev-backend-port` at runtime. Playwright/agent-browser tools automatically read these files via a PreToolUse hook.
 
 ## Next Steps
 
@@ -268,7 +257,7 @@ If you cloned VPK to start a new prototype, consider these additional steps:
 
 **Recommended workflow:**
 
-1. `/vpk-setup` — Start dev servers (RovoDev mode, no credentials needed)
+1. `/vpk-setup` — Configure credentials and start dev servers
 2. `/vpk-share --create my-project` — Create your own repo (optional but recommended)
 3. Develop your prototype
 4. `/vpk-sync --push` — Share improvements back to VPK
@@ -277,4 +266,4 @@ If you cloned VPK to start a new prototype, consider these additional steps:
 ## References
 
 - [Setup Guide](references/guide-setup.md) - Detailed setup documentation
-- [Model Switching Guide](references/guide-model-switch.md) - Switch between Claude, GPT, Gemini (AI Gateway fallback mode)
+- [Model Switching Guide](references/guide-model-switch.md) - Switch between Claude, GPT, Gemini (AI Gateway-enabled mode)

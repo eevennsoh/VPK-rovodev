@@ -173,8 +173,8 @@ function createAgentTeamRequestId(): string {
 interface UseAgentsTeamChatReturn {
 	prompt: string;
 	setPrompt: (value: string) => void;
-	isAgentTeamMode: boolean;
-	toggleAgentTeamMode: () => void;
+	isPlanMode: boolean;
+	togglePlanMode: () => void;
 	isChatMode: boolean;
 	isStreaming: boolean;
 	stopStreaming: () => Promise<void>;
@@ -201,7 +201,7 @@ interface UseAgentsTeamChatReturn {
 
 export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	const [prompt, setPrompt] = useState("");
-	const [isAgentTeamMode, setIsAgentTeamMode] = useState(false);
+	const [isPlanMode, setIsPlanMode] = useState(false);
 	const [agentTeamPlanningSession, setAgentTeamPlanningSession] =
 		useState<AgentTeamPlanningSession | null>(null);
 	const [isChatMode, setIsChatMode] = useState(false);
@@ -619,8 +619,8 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		return () => clearTimeout(titleDelay);
 	}, [isStreaming, pendingTitleChatId, resolveChatTitle, resolveFallbackTitle]);
 
-	const setAgentTeamModeEnabled = useCallback((enabled: boolean) => {
-		setIsAgentTeamMode(enabled);
+	const setPlanModeEnabled = useCallback((enabled: boolean) => {
+		setIsPlanMode(enabled);
 		if (!enabled) {
 			setAgentTeamPlanningSession(null);
 		}
@@ -634,7 +634,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 			const activeCreationMode = creationModeRef.current;
 
-			if (isAgentTeamMode) {
+			if (isPlanMode) {
 				const requestId = createAgentTeamRequestId();
 				setAgentTeamPlanningSession({
 					requestId,
@@ -645,8 +645,8 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 				await sendPrompt(nextPrompt, {
 					contextDescription: AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
-					agentTeamMode: true,
-					agentTeamRequestId: requestId,
+					planMode: true,
+					planRequestId: requestId,
 					creationMode: activeCreationMode ?? undefined,
 				});
 				if (activeCreationMode) {
@@ -662,7 +662,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				clearCreationMode();
 			}
 		},
-		[isAgentTeamMode, sendPrompt, clearCreationMode]
+		[isPlanMode, sendPrompt, clearCreationMode]
 	);
 
 	useEffect(() => {
@@ -701,7 +701,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 		if (hasGeneratedPlan) {
 			queueMicrotask(() => {
-				setAgentTeamModeEnabled(false);
+				setPlanModeEnabled(false);
 			});
 			return;
 		}
@@ -712,7 +712,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 		if (agentTeamPlanningSession.retryUsed) {
 			queueMicrotask(() => {
-				setAgentTeamModeEnabled(false);
+				setPlanModeEnabled(false);
 			});
 			return;
 		}
@@ -735,8 +735,8 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 		void sendPrompt(AGENT_TEAM_MODE_PLAN_RETRY_PROMPT, {
 			contextDescription: AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION,
-			agentTeamMode: true,
-			agentTeamRequestId: retryRequestId,
+			planMode: true,
+			planRequestId: retryRequestId,
 			messageMetadata: {
 				visibility: "hidden",
 				source: "agent-team-plan-retry",
@@ -746,7 +746,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		agentTeamPlanningSession,
 		isStreaming,
 		sendPrompt,
-		setAgentTeamModeEnabled,
+		setPlanModeEnabled,
 		uiMessages,
 	]);
 
@@ -757,11 +757,11 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			}
 
 			await sendPrompt(promptText, {
-				contextDescription: isAgentTeamMode
+				contextDescription: isPlanMode
 					? AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION
 					: undefined,
-				agentTeamMode: isAgentTeamMode || undefined,
-				agentTeamRequestId: agentTeamPlanningSession?.requestId,
+				planMode: isPlanMode || undefined,
+				planRequestId: agentTeamPlanningSession?.requestId,
 				clarification,
 				messageMetadata: {
 					visibility: "hidden",
@@ -769,7 +769,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				},
 			});
 		},
-		[agentTeamPlanningSession?.requestId, isAgentTeamMode, sendPrompt]
+		[agentTeamPlanningSession?.requestId, isPlanMode, sendPrompt]
 	);
 	const submitPlanApproval = useCallback(
 		async (approval: PlanApprovalSubmission) => {
@@ -810,7 +810,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			return;
 		}
 
-		if (isAgentTeamMode && agentTeamPlanningSession !== null) {
+		if (isPlanMode && agentTeamPlanningSession !== null) {
 			return;
 		}
 
@@ -825,7 +825,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		await sendAgentsPrompt(currentPrompt);
 	}, [
 		prompt,
-		isAgentTeamMode,
+		isPlanMode,
 		agentTeamPlanningSession,
 		isChatMode,
 		sendAgentsPrompt,
@@ -838,7 +838,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				return;
 			}
 
-			if (isAgentTeamMode && agentTeamPlanningSession !== null) {
+			if (isPlanMode && agentTeamPlanningSession !== null) {
 				return;
 			}
 
@@ -850,7 +850,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			await sendAgentsPrompt(question);
 		},
 		[
-			isAgentTeamMode,
+			isPlanMode,
 			agentTeamPlanningSession,
 			isChatMode,
 			sendAgentsPrompt,
@@ -991,15 +991,15 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		[clearPendingTitleState, snapshotThreadMessages, transitionChatState]
 	);
 
-	const toggleAgentTeamMode = useCallback(() => {
-		setAgentTeamModeEnabled(!isAgentTeamMode);
-	}, [isAgentTeamMode, setAgentTeamModeEnabled]);
+	const togglePlanMode = useCallback(() => {
+		setPlanModeEnabled(!isPlanMode);
+	}, [isPlanMode, setPlanModeEnabled]);
 
 	return {
 		prompt,
 		setPrompt,
-		isAgentTeamMode,
-		toggleAgentTeamMode,
+		isPlanMode,
+		togglePlanMode,
 		isChatMode,
 		isStreaming,
 		stopStreaming,

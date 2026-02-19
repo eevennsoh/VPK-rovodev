@@ -15,7 +15,16 @@ export default function SidebarChatPage() {
 				padding: "0 16px",
 			}}
 		>
-			<ChatPanel onClose={() => {}} />
+			<ChatPanel
+				onClose={() => {}}
+				enableSmartWidgets={true}
+				sendPromptOptions={{
+					smartGeneration: {
+						enabled: true,
+						surface: "sidebar",
+					},
+				}}
+			/>
 		</div>
 	);
 }

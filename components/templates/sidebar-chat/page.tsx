@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useRef, useState } from "react";
 
 import ChatHeader from "./components/chat-header";
 import ChatGreeting from "./components/chat-greeting";
@@ -11,22 +11,131 @@ import {
 	Conversation,
 	ConversationContent,
 } from "@/components/ui-ai/conversation";
-import { isRenderableRovoUIMessage } from "@/lib/rovo-ui-messages";
+import {
+	isRenderableRovoUIMessage,
+	getAllDataParts,
+	getLatestDataPart,
+	getMessageText,
+} from "@/lib/rovo-ui-messages";
+import {
+	buildClarificationSummaryPrompt,
+	createClarificationSubmission,
+	getLatestQuestionCardPayload,
+	type ClarificationAnswers,
+} from "@/components/templates/shared/lib/question-card-widget";
 import type { RovoSuggestion } from "@/lib/rovo-suggestions";
 import { Message, MessageContent } from "@/components/ui-ai/message";
-import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
+import { AdsReasoningTrigger, Reasoning, ReasoningContent } from "@/components/ui-ai/reasoning";
+import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
+import { QuestionCardShortcutsFooter } from "@/components/templates/shared/components/question-card-shortcuts-footer";
 import { chatStyles } from "./data/styles";
 import { useRovoChat } from "@/app/contexts";
+import type { SendPromptOptions } from "@/app/contexts";
 import { useChatSubmit } from "./hooks/use-chat-submit";
 import { useScrollAnchor } from "./hooks/use-scroll-anchor";
 import styles from "./chat.module.css";
 
 interface ChatPanelProps {
 	onClose: () => void;
+	sendPromptOptions?: SendPromptOptions;
+	enableSmartWidgets?: boolean;
 }
 
-export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.ReactElement {
-	const { resetChat } = useRovoChat();
+const COMPACT_CHAT_WIDTH_MAX = 520;
+const REGULAR_CHAT_WIDTH_MAX = 900;
+
+type SmartWidthClass = "compact" | "regular" | "wide";
+
+function getSmartWidthClass(widthPx: number): SmartWidthClass {
+	if (widthPx <= COMPACT_CHAT_WIDTH_MAX) {
+		return "compact";
+	}
+
+	if (widthPx <= REGULAR_CHAT_WIDTH_MAX) {
+		return "regular";
+	}
+
+	return "wide";
+}
+
+export default function ChatPanel({
+	onClose,
+	sendPromptOptions,
+	enableSmartWidgets = false,
+}: Readonly<ChatPanelProps>): React.ReactElement {
+	const { resetChat, uiMessages: rawUiMessages, sendPrompt } = useRovoChat();
+	const panelRef = useRef<HTMLDivElement | null>(null);
+	const [containerWidthPx, setContainerWidthPx] = useState<number | null>(null);
+	const [viewportWidthPx, setViewportWidthPx] = useState<number | null>(null);
+
+	useEffect(() => {
+		const updateViewportWidth = () => {
+			if (typeof window === "undefined") {
+				return;
+			}
+
+			const width = Math.max(1, Math.round(window.innerWidth));
+			setViewportWidthPx((prev) => (prev === width ? prev : width));
+		};
+
+		updateViewportWidth();
+		window.addEventListener("resize", updateViewportWidth);
+		return () => {
+			window.removeEventListener("resize", updateViewportWidth);
+		};
+	}, []);
+
+	useEffect(() => {
+		const panelElement = panelRef.current;
+		if (!panelElement) {
+			return;
+		}
+
+		const updateContainerWidth = (widthValue: number) => {
+			const width = Math.max(1, Math.round(widthValue));
+			setContainerWidthPx((prev) => (prev === width ? prev : width));
+		};
+
+		updateContainerWidth(panelElement.getBoundingClientRect().width);
+
+		if (typeof ResizeObserver !== "function") {
+			return;
+		}
+
+		const observer = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (!entry) {
+				return;
+			}
+
+			updateContainerWidth(entry.contentRect.width);
+		});
+
+		observer.observe(panelElement);
+		return () => {
+			observer.disconnect();
+		};
+	}, []);
+
+	const resolvedSendPromptOptions = useMemo(() => {
+		if (!sendPromptOptions || !sendPromptOptions.smartGeneration) {
+			return sendPromptOptions;
+		}
+
+		const widthSource = containerWidthPx ?? viewportWidthPx;
+		const widthClass = widthSource ? getSmartWidthClass(widthSource) : undefined;
+
+		return {
+			...sendPromptOptions,
+			smartGeneration: {
+				...sendPromptOptions.smartGeneration,
+				containerWidthPx: containerWidthPx ?? undefined,
+				viewportWidthPx: viewportWidthPx ?? undefined,
+				widthClass,
+			},
+		};
+	}, [containerWidthPx, sendPromptOptions, viewportWidthPx]);
+
 	const {
 		prompt,
 		setPrompt,
@@ -37,7 +146,54 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 		isStreaming,
 		queuedPrompts,
 		removeQueuedPrompt,
-	} = useChatSubmit();
+	} = useChatSubmit({
+		defaultPromptOptions: resolvedSendPromptOptions,
+	});
+
+	const activeQuestionCard = useMemo(
+		() => getLatestQuestionCardPayload(rawUiMessages),
+		[rawUiMessages]
+	);
+	const activeQuestionCardKey = useMemo(
+		() => (activeQuestionCard ? `${activeQuestionCard.sessionId}-${activeQuestionCard.round}` : null),
+		[activeQuestionCard]
+	);
+	const [dismissedQuestionCardKey, setDismissedQuestionCardKey] = useState<string | null>(null);
+	const shouldShowQuestionCard = !isStreaming && activeQuestionCard !== null && dismissedQuestionCardKey !== activeQuestionCardKey;
+	const dismissQuestionCard = useCallback(() => {
+		if (!activeQuestionCardKey) {
+			return;
+		}
+		setDismissedQuestionCardKey(activeQuestionCardKey);
+	}, [activeQuestionCardKey]);
+
+	const handleClarificationSubmit = useCallback(
+		(answers: ClarificationAnswers) => {
+			if (!activeQuestionCard) {
+				return;
+			}
+
+			const clarificationSubmission = createClarificationSubmission(
+				activeQuestionCard,
+				answers
+			);
+			const clarificationPrompt = buildClarificationSummaryPrompt(
+				activeQuestionCard,
+				answers
+			);
+
+			void sendPrompt(clarificationPrompt, {
+				...resolvedSendPromptOptions,
+				messageMetadata: {
+					...(resolvedSendPromptOptions?.messageMetadata ?? {}),
+					source: "clarification-submit",
+					visibility: "hidden",
+				},
+				clarification: clarificationSubmission,
+			});
+		},
+		[activeQuestionCard, resolvedSendPromptOptions, sendPrompt]
+	);
 	const messages = useMemo(
 		() => uiMessages.filter(isRenderableRovoUIMessage),
 		[uiMessages]
@@ -55,8 +211,37 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 
 	const hasMessages = messages.length > 0;
 	const lastMessage = messages[messages.length - 1];
+
+	const isAssistantAwaitingOutput =
+		isStreaming &&
+		hasMessages &&
+		lastMessage?.role === "assistant" &&
+		getMessageText(lastMessage) === "";
+	const hasAssistantThinkingStatus =
+		isAssistantAwaitingOutput &&
+		getLatestDataPart(lastMessage, "data-thinking-status") !== null;
+
 	const shouldShowThinking =
-		isStreaming && hasMessages && lastMessage?.role === "user";
+		isStreaming &&
+		hasMessages &&
+		(lastMessage?.role === "user" || isAssistantAwaitingOutput);
+
+	const thinkingStatusParts = hasAssistantThinkingStatus
+		? getAllDataParts(lastMessage, "data-thinking-status")
+		: [];
+	const thinkingStatusPart =
+		thinkingStatusParts[thinkingStatusParts.length - 1] ?? null;
+	const resolvedThinkingLabel = thinkingStatusPart?.data.label ?? "Thinking";
+	const resolvedReasoningContent = hasAssistantThinkingStatus
+		? thinkingStatusParts
+				.map((part) => part.data.content)
+				.filter(Boolean)
+				.join("\n\n")
+		: "";
+	const trimmedReasoningContent = resolvedReasoningContent.trim();
+	const hasReasoningContent = trimmedReasoningContent.length > 0;
+	const reasoningContentVersion = thinkingStatusParts.length;
+		const streamingReasoningKey = `${lastMessage?.id ?? "stream"}:${reasoningContentVersion}`;
 	const handleFollowUpSuggestionClick = useCallback(
 		(question: string) => {
 			void submitPrompt(question);
@@ -81,7 +266,7 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 	};
 
 	return (
-		<div style={chatStyles.chatPanel}>
+		<div ref={panelRef} style={chatStyles.chatPanel}>
 			<div>
 				<ChatHeader onClose={onClose} onNewChat={resetChat} />
 			</div>
@@ -98,36 +283,64 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 							<ChatGreeting onSuggestionClick={handleGreetingSuggestionClick} />
 						</div>
 					) : (
-						<MessageTurns
-							isUserMessage={(message) => message.role === "user"}
-							getMessageContainerStyle={(message, messageIndex, turn) => ({
+					<MessageTurns
+						isUserMessage={(message) => message.role === "user"}
+						getTurnContainerStyle={(_turn, turnIndex) => ({
+							marginTop: turnIndex > 0 ? "24px" : "0",
+						})}
+						getMessageContainerStyle={(message, messageIndex, turn) => {
+							const isHiddenAssistantPlaceholder =
+								isAssistantAwaitingOutput &&
+								lastMessage?.id === message.id;
+
+							return {
+								paddingLeft: message.role === "assistant" ? "12px" : "0",
+								paddingRight: message.role === "assistant" ? "12px" : "0",
 								marginTop:
 									message.role === "assistant" &&
+									!isHiddenAssistantPlaceholder &&
 									messageIndex > 0 &&
 									turn[messageIndex - 1]?.role === "user"
 										? "24px"
 										: "0",
-							})}
+							};
+						}}
 							latestTurnClassName={styles.latestTurn}
 							latestTurnDataAttribute="data-chat-latest-turn"
 							messages={messages}
-							renderMessage={(message) => (
-								<MessageBubble
-									message={message}
-									onSuggestionClick={handleFollowUpSuggestionClick}
-								/>
-							)}
+								renderMessage={(message) => (
+									<MessageBubble
+										message={message}
+										onSuggestionClick={handleFollowUpSuggestionClick}
+										enableSmartWidgets={enableSmartWidgets}
+									/>
+								)}
 						/>
 					)}
-					{shouldShowThinking ? (
+				{shouldShowThinking ? (
+					<div style={chatStyles.thinkingContainer}>
 						<Message from="assistant" className="max-w-full">
-							<MessageContent className="px-3">
-								<Reasoning className="mb-0" isStreaming>
-									<AdsReasoningTrigger label="Thinking" showChevron={false} />
+							<MessageContent>
+								<Reasoning
+									key={streamingReasoningKey}
+									className="mb-0"
+									isStreaming={shouldShowThinking}
+									defaultOpen={hasReasoningContent}
+								>
+									<AdsReasoningTrigger
+										label={resolvedThinkingLabel}
+										showChevron={hasReasoningContent}
+									/>
+									{hasReasoningContent ? (
+										<ReasoningContent>
+											{trimmedReasoningContent}
+										</ReasoningContent>
+									) : null}
 								</Reasoning>
 							</MessageContent>
 						</Message>
-					) : null}
+					</div>
+				) : null}
 					{hasMessages ? (
 						<div ref={scrollSpacerRef} aria-hidden style={{ height: 0, flexShrink: 0 }} />
 					) : null}
@@ -135,15 +348,32 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 			</Conversation>
 
 			<div>
-				<ChatComposer
-					prompt={prompt}
-					isStreaming={isStreaming}
-					queuedPrompts={queuedPrompts}
-					onPromptChange={setPrompt}
-					onSubmit={handleSubmit}
-					onStop={abort}
-					onRemoveQueuedPrompt={removeQueuedPrompt}
-				/>
+				{shouldShowQuestionCard && activeQuestionCard ? (
+					<>
+						<div className="px-3">
+							<ClarificationQuestionCard
+								key={activeQuestionCardKey ?? undefined}
+								questionCard={activeQuestionCard}
+								onSubmit={(answers) => {
+									handleClarificationSubmit(answers);
+									dismissQuestionCard();
+								}}
+								onDismiss={dismissQuestionCard}
+							/>
+						</div>
+						<QuestionCardShortcutsFooter />
+					</>
+				) : (
+					<ChatComposer
+						prompt={prompt}
+						isStreaming={isStreaming}
+						queuedPrompts={queuedPrompts}
+						onPromptChange={setPrompt}
+						onSubmit={handleSubmit}
+						onStop={abort}
+						onRemoveQueuedPrompt={removeQueuedPrompt}
+					/>
+				)}
 			</div>
 		</div>
 	);

@@ -65,9 +65,50 @@ function hasVisibleUserMessage(value) {
 	);
 }
 
-function shouldGateAgentTeamPlanningQuestionCard({
+/**
+ * Returns true when the entire trimmed message is a conversational greeting,
+ * small-talk, or acknowledgement — i.e. something that should never trigger
+ * the planning question-card gate even when plan mode is on.
+ *
+ * Only matches when the **whole** message fits. "hey can you build a plan"
+ * will NOT match because there is additional task-oriented content.
+ */
+const CONVERSATIONAL_MESSAGE_PATTERN = new RegExp(
+	"^(?:" +
+		// Greetings
+		"h(?:i|ey(?:\\s+there)?|ello|owdy|iya)" +
+		"|yo+|sup" +
+		"|good\\s+(?:morning|afternoon|evening|day)" +
+		"|what(?:'s|\\s+is)\\s+up" +
+		"|how(?:'s\\s+it\\s+going|\\s+are\\s+you)" +
+		// Acknowledgements
+		"|thanks?(?:\\s+you)?" +
+		"|ok(?:ay)?" +
+		"|sure|got\\s+it|cool|nice|great|awesome|sounds\\s+good" +
+		"|no\\s+(?:worries|problem)" +
+		// Bot questions
+		"|who\\s+are\\s+you" +
+		"|what\\s+(?:can\\s+you\\s+do|are\\s+you)" +
+	")(?:[!?.,\\s]*)$",
+	"i"
+);
+
+function isConversationalMessage(text) {
+	if (typeof text !== "string") {
+		return false;
+	}
+
+	const trimmed = text.trim();
+	if (!trimmed) {
+		return false;
+	}
+
+	return CONVERSATIONAL_MESSAGE_PATTERN.test(trimmed);
+}
+
+function shouldGatePlanningQuestionCard({
 	messages,
-	agentTeamMode,
+	planMode,
 	latestVisibleUserMessage,
 	latestUserMessageSource,
 	planningGateSkipSources,
@@ -96,7 +137,10 @@ function shouldGateAgentTeamPlanningQuestionCard({
 		parsePlanPayload,
 	});
 
-	if (agentTeamMode) {
+	if (planMode) {
+		if (isConversationalMessage(latestVisibleUserMessage.text)) {
+			return false;
+		}
 		return !hasCompletedPlan;
 	}
 
@@ -113,5 +157,6 @@ function shouldGateAgentTeamPlanningQuestionCard({
 
 module.exports = {
 	hasCompletedPlanWidgetInMessages,
-	shouldGateAgentTeamPlanningQuestionCard,
+	isConversationalMessage,
+	shouldGatePlanningQuestionCard,
 };

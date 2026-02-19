@@ -28,6 +28,6 @@ const PLAN_MODE_COPY: AgentTeamModeCopy = {
 	illustrationAlt: "Plan mode illustration",
 };
 
-export function getAgentTeamModeCopy(isAgentTeamMode: boolean): AgentTeamModeCopy {
-	return isAgentTeamMode ? PLAN_MODE_COPY : ASK_MODE_COPY;
+export function getPlanModeCopy(isPlanMode: boolean): AgentTeamModeCopy {
+	return isPlanMode ? PLAN_MODE_COPY : ASK_MODE_COPY;
 }

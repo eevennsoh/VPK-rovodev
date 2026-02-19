@@ -193,6 +193,9 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 	"work-item-widget": {
 		description: "Embeddable ADS work-items widget with status rows and insert actions.",
 	},
+	"work-item-detail": {
+		description: "Comprehensive work item detail view with description, comments, linked items, and activity history.",
+	},
 	"question-card": {
 		description: "ADS-style question card with ranked options, pagination controls, and a disabled submit state.",
 	},
@@ -204,6 +207,9 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 	},
 	ide: {
 		description: "IDE-style coding agent with file tree, code editor, terminal, and AI chat panel with tool calls.",
+	},
+	"kanban-sprint": {
+		description: "Sprint planning kanban board with drag-and-drop task cards, status columns, sprint metrics, and story point tracking.",
 	},
 	generative: {
 		description: "v0-style generative UI with prompt input, artifact container, and preview/code toggle.",

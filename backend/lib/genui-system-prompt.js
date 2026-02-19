@@ -23,6 +23,9 @@ const VPK_CUSTOM_RULES = [
 	// Chart placement
 	"Charts (BarChart, LineChart, PieChart, AreaChart, RadarChart) are leaf components — place directly as children of Stack or Grid, NOT inside Card children.",
 
+	// Outer spacing control
+	"Avoid outer padding on the root container. Root Stack padding must be null or 0. Use internal Card/section spacing instead of global page padding.",
+
 	// 3D filtering
 	"Only use 3D components (Scene3D, Group3D, Box, Sphere, Cylinder, Cone, Torus, Plane, Ring, AmbientLight, PointLight, DirectionalLight, Stars, Label3D) when the user explicitly asks for 3D scenes, models, or visualizations.",
 
@@ -100,13 +103,84 @@ const COMPANION_EXAMPLES = [
 {"op":"add","path":"/elements/sep2","value":{"type":"Separator","props":{}}}
 {"op":"add","path":"/elements/inline1","value":{"type":"Alert","props":{"title":"PR #387 approved","description":"Ready to merge into main branch.","variant":"success"}}}
 {"op":"add","path":"/elements/empty","value":{"type":"EmptyState","props":{"title":"All caught up","description":"No more notifications to show."}}}
-\`\`\``,
+	\`\`\``,
 ];
+
+const LAYOUT_WIDTH_CLASSES = new Set(["compact", "regular", "wide"]);
+
+function toPositiveInteger(value) {
+	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+		return Math.round(value);
+	}
+
+	if (typeof value === "string" && value.trim().length > 0) {
+		const parsed = Number.parseFloat(value.trim());
+		if (Number.isFinite(parsed) && parsed > 0) {
+			return Math.round(parsed);
+		}
+	}
+
+	return null;
+}
+
+function inferLayoutWidthClass({ containerWidthPx, viewportWidthPx, surface }) {
+	const widthSource = containerWidthPx ?? viewportWidthPx;
+	if (typeof widthSource === "number") {
+		if (widthSource <= 520) {
+			return "compact";
+		}
+		if (widthSource <= 900) {
+			return "regular";
+		}
+		return "wide";
+	}
+
+	if (surface === "sidebar" || surface === "multiports") {
+		return "compact";
+	}
+	if (surface === "fullscreen") {
+		return "wide";
+	}
+
+	return null;
+}
+
+function normalizeLayoutContext(value) {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+
+	const rawSurface = typeof value.surface === "string" ? value.surface.trim().toLowerCase() : "";
+	const surface = rawSurface.length > 0 ? rawSurface : null;
+	const containerWidthPx = toPositiveInteger(value.containerWidthPx);
+	const viewportWidthPx = toPositiveInteger(value.viewportWidthPx);
+	const rawWidthClass = typeof value.widthClass === "string" ? value.widthClass.trim().toLowerCase() : "";
+	const explicitWidthClass = LAYOUT_WIDTH_CLASSES.has(rawWidthClass) ? rawWidthClass : null;
+	const widthClass =
+		explicitWidthClass ??
+		inferLayoutWidthClass({
+			containerWidthPx,
+			viewportWidthPx,
+			surface,
+		});
+
+	if (!surface && !containerWidthPx && !viewportWidthPx && !widthClass) {
+		return null;
+	}
+
+	return {
+		surface,
+		containerWidthPx,
+		viewportWidthPx,
+		widthClass,
+	};
+}
 
 function getGenuiSystemPrompt(options = {}) {
 	const {
 		strict = false,
 		webContext = "",
+		layoutContext = null,
 	} = options;
 
 	// Start with the catalog-generated base prompt (includes all components,
@@ -130,6 +204,41 @@ function getGenuiSystemPrompt(options = {}) {
 	for (const example of COMPANION_EXAMPLES) {
 		sections.push("");
 		sections.push(example);
+	}
+
+	const normalizedLayoutContext = normalizeLayoutContext(layoutContext);
+	if (normalizedLayoutContext) {
+		sections.push("");
+		sections.push("RUNTIME LAYOUT CONTEXT:");
+		if (normalizedLayoutContext.surface) {
+			sections.push(`- Surface: ${normalizedLayoutContext.surface}`);
+		}
+		if (normalizedLayoutContext.containerWidthPx) {
+			sections.push(`- Container width: ${normalizedLayoutContext.containerWidthPx}px`);
+		}
+		if (normalizedLayoutContext.viewportWidthPx) {
+			sections.push(`- Viewport width: ${normalizedLayoutContext.viewportWidthPx}px`);
+		}
+		if (normalizedLayoutContext.widthClass) {
+			sections.push(`- Width class: ${normalizedLayoutContext.widthClass}`);
+		}
+		sections.push("- Apply responsive layout decisions using this runtime context.");
+
+		if (normalizedLayoutContext.widthClass === "compact") {
+			sections.push("- Treat this as a narrow container.");
+			sections.push("- For multiple charts, stack them vertically and avoid side-by-side chart rows.");
+			sections.push("- For chart sections, use Stack direction \"vertical\".");
+			sections.push("- For grids containing charts, use columns \"1\".");
+			sections.push("- Keep chart heights compact (roughly 180-240).");
+			sections.push("- Avoid outer/root container padding in compact layouts.");
+		} else if (normalizedLayoutContext.widthClass === "regular") {
+			sections.push("- Treat this as a medium-width container.");
+			sections.push("- For chart sections, prefer vertical stacking; at most two charts in one row.");
+			sections.push("- For grids containing charts, use columns \"1\" or \"2\" only.");
+		} else if (normalizedLayoutContext.widthClass === "wide") {
+			sections.push("- This container can support multi-column layouts when useful.");
+			sections.push("- Prioritize readability: avoid more than two chart widgets per row unless explicitly requested.");
+		}
 	}
 
 	// Strict output section for retries

@@ -349,7 +349,19 @@ async function streamBedrockGatewayManualSse({ gatewayUrl, envVars, system, prom
 	return { text: fullText };
 }
 
-async function streamGoogleGatewayManualSse({ gatewayUrl, envVars, model, messages, system, prompt, maxOutputTokens, temperature, onTextDelta, onFile }) {
+async function streamGoogleGatewayManualSse({
+	gatewayUrl,
+	envVars,
+	model,
+	messages,
+	system,
+	prompt,
+	maxOutputTokens,
+	temperature,
+	responseModalities,
+	onTextDelta,
+	onFile,
+}) {
 	const token = await getAuthToken();
 
 	const resolvedMessages = [];
@@ -373,6 +385,15 @@ async function streamGoogleGatewayManualSse({ gatewayUrl, envVars, model, messag
 	}
 	if (typeof temperature === "number") {
 		payload.temperature = temperature;
+	}
+	if (Array.isArray(responseModalities)) {
+		const normalizedModalities = responseModalities
+			.filter((value) => typeof value === "string")
+			.map((value) => value.trim())
+			.filter(Boolean);
+		if (normalizedModalities.length > 0) {
+			payload.modalities = normalizedModalities;
+		}
 	}
 
 	const response = await fetch(gatewayUrl, {

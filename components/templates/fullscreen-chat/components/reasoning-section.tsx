@@ -20,7 +20,7 @@ export default function ReasoningSection({
 }: Readonly<ReasoningSectionProps>) {
 	return (
 		<div style={{ marginBottom: token("space.200") }}>
-			<div style={{ padding: `${token("space.050")} ${token("space.200")} 0` }}>
+			<div style={{ padding: `${token("space.100")} ${token("space.200")} 0` }}>
 				<Heading size="xxsmall" color="color.text">Reasoning</Heading>
 			</div>
 			<div
@@ -34,11 +34,18 @@ export default function ReasoningSection({
 					const IconComponent = option.icon;
 					const isSelected = selectedReasoning === option.id;
 					return (
-						<div key={option.id} style={{ paddingTop: token("space.100"), paddingBottom: token("space.100") }}>
+						<div
+							key={option.id}
+							style={{
+								backgroundColor: isSelected ? token("color.background.selected") : "transparent",
+							}}
+						>
 							<MenuItemButton
 								elemBefore={
 									<IconCircle variant={isSelected ? "selected" : "neutral"}>
-										<IconComponent label={option.label} />
+										<span className={isSelected ? "text-icon-selected" : ""}>
+											<IconComponent label={option.label} />
+										</span>
 									</IconCircle>
 								}
 								elemAfter={option.id === "deep-research" && isSelected ? <AddIcon label="Selected" /> : null}

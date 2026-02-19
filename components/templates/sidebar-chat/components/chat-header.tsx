@@ -11,7 +11,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import AddIcon from "@atlaskit/icon/core/add";
 import AppIcon from "@atlaskit/icon/core/app";
 import BugIcon from "@atlaskit/icon/core/bug";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
@@ -22,7 +21,6 @@ import FeedbackIcon from "@atlaskit/icon/core/feedback";
 import MenuIcon from "@atlaskit/icon/core/menu";
 import QuestionCircleIcon from "@atlaskit/icon/core/question-circle";
 import ShowMoreHorizontalIcon from "@atlaskit/icon/core/show-more-horizontal";
-import SkillIcon from "@atlaskit/icon/core/ai-agent";
 import SmartLinkEmbedIcon from "@atlaskit/icon/core/smart-link-embed";
 
 interface ChatHeaderProps {
@@ -68,61 +66,47 @@ export default function ChatHeader({ onClose, onNewChat }: Readonly<ChatHeaderPr
 					<Button aria-label="Switch view" size="icon" variant="ghost" onClick={noop}>
 						<SmartLinkEmbedIcon label="" />
 					</Button>
-					<div style={{ position: "relative", overflow: "visible" }}>
-						<DropdownMenu open={isMoreMenuOpen} onOpenChange={setIsMoreMenuOpen}>
-							<DropdownMenuTrigger
-								aria-label="More"
-								className={`inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 rounded-md size-8 ${isMoreMenuOpen ? "bg-secondary text-secondary-foreground hover:bg-secondary/80" : "hover:bg-accent hover:text-accent-foreground"}`}
-							>
-								<ShowMoreHorizontalIcon label="" />
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" sideOffset={4}>
-								<DropdownMenuGroup>
-									<DropdownMenuItem onSelect={() => setIsMoreMenuOpen(false)}>
-										<EditIcon label="" />
-										Rename
-									</DropdownMenuItem>
-									<DropdownMenuItem onSelect={() => setIsMoreMenuOpen(false)}>
-										<DeleteIcon label="" />
-										Delete
-									</DropdownMenuItem>
-								</DropdownMenuGroup>
-								<DropdownMenuSeparator />
-								<DropdownMenuGroup>
-									<DropdownMenuItem onSelect={() => setIsMoreMenuOpen(false)}>
-										<AppIcon label="" />
-										Chrome extension
-									</DropdownMenuItem>
-								</DropdownMenuGroup>
-								<DropdownMenuSeparator />
-								<DropdownMenuGroup>
-									<DropdownMenuItem onSelect={() => setIsMoreMenuOpen(false)}>
-										<FeedbackIcon label="" />
-										Feedback
-									</DropdownMenuItem>
-									<DropdownMenuItem onSelect={() => setIsMoreMenuOpen(false)}>
-										<BugIcon label="" />
-										Debug
-									</DropdownMenuItem>
-									<DropdownMenuItem onSelect={() => setIsMoreMenuOpen(false)}>
-										<QuestionCircleIcon label="" />
-										Get help
-									</DropdownMenuItem>
-								</DropdownMenuGroup>
-								<DropdownMenuSeparator />
-								<DropdownMenuGroup>
-									<DropdownMenuItem onSelect={() => setIsMoreMenuOpen(false)}>
-										<AddIcon label="" />
-										Create skill
-									</DropdownMenuItem>
-									<DropdownMenuItem onSelect={() => setIsMoreMenuOpen(false)}>
-										<SkillIcon label="" />
-										View all skills
-									</DropdownMenuItem>
-								</DropdownMenuGroup>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</div>
+					<DropdownMenu open={isMoreMenuOpen} onOpenChange={setIsMoreMenuOpen}>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									aria-label="More"
+									size="icon"
+									variant={isMoreMenuOpen ? "secondary" : "ghost"}
+								/>
+							}
+						>
+							<ShowMoreHorizontalIcon label="" />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" sideOffset={4}>
+							<DropdownMenuGroup>
+								<DropdownMenuItem elemBefore={<EditIcon label="" />}>
+									Rename
+								</DropdownMenuItem>
+								<DropdownMenuItem elemBefore={<DeleteIcon label="" />}>
+									Delete
+								</DropdownMenuItem>
+							</DropdownMenuGroup>
+							<DropdownMenuSeparator />
+							<DropdownMenuGroup>
+								<DropdownMenuItem elemBefore={<AppIcon label="" />}>
+									Chrome extension
+								</DropdownMenuItem>
+							</DropdownMenuGroup>
+							<DropdownMenuSeparator />
+							<DropdownMenuGroup>
+								<DropdownMenuItem elemBefore={<FeedbackIcon label="" />}>
+									Feedback
+								</DropdownMenuItem>
+								<DropdownMenuItem elemBefore={<BugIcon label="" />}>
+									Debug
+								</DropdownMenuItem>
+								<DropdownMenuItem elemBefore={<QuestionCircleIcon label="" />}>
+									Get help
+								</DropdownMenuItem>
+							</DropdownMenuGroup>
+						</DropdownMenuContent>
+					</DropdownMenu>
 					<Button aria-label="Close" size="icon" variant="ghost" onClick={onClose ?? noop}>
 						<CrossIcon label="" />
 					</Button>
