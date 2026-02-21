@@ -16,7 +16,7 @@ export function AnimatedRovoShape({
   
   // We specify transition for our sequenced loader-like inner animation
   const commonTransition = {
-    duration: 2.0,
+    duration: 1.5,
     repeat: Infinity,
     ease: "easeInOut",
   };
@@ -50,31 +50,18 @@ export function AnimatedRovoShape({
         </clipPath>
       </defs>
 
-      {/* Render the full base silhouette in yellow so when color bands slide, they reveal the base */}
-      <g fill="#FCA700">
-        <path d={path1} />
-        <path d={path2} />
-        <path d={path3} />
-        <path d={path4} />
-        <path d={path5} />
-        <path d={path6} />
-      </g>
-
       {/* The animated moving bands, tightly clipped so the logo boundary is uncompromised */}
       <g clipPath={`url(#${maskId})`}>
-        {/* Blue band */}
-        <motion.path
-          fillRule="evenodd"
-          clipRule="evenodd"
-          d={path3}
-          fill="#1868DB"
-          animate={{
-            x: [0, 8, 0], // Slide further right to reveal yellow
-            y: [0, -6, 0], // Slide up
-          }}
-          transition={{ ...commonTransition, delay: 0.2 }}
-        />
-        
+        {/* Render a full base silhouette in yellow inside the mask as the background */}
+        <g fill="#FCA700">
+          <path d={path1} />
+          <path d={path2} />
+          <path d={path3} />
+          <path d={path4} />
+          <path d={path5} />
+          <path d={path6} />
+        </g>
+
         {/* Purple band */}
         <motion.path
           fillRule="evenodd"
@@ -82,10 +69,23 @@ export function AnimatedRovoShape({
           d={path5}
           fill="#AF59E1"
           animate={{
-            x: [0, -6, 0], // Slide further left to reveal yellow
-            y: [0, 8, 0], // Slide down
+            x: [0.5, -2, 0.5], // Slide left
+            y: [-0.5, -1, -0.5], // Slide slight up
           }}
-          transition={{ ...commonTransition, delay: 0.4 }}
+          transition={{ ...commonTransition, delay: 0.1 }}
+        />
+
+        {/* Blue band */}
+        <motion.path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d={path3}
+          fill="#1868DB"
+          animate={{
+            x: [-0.5, 2, -0.5], // Slide right
+            y: [0.5, 1, 0.5], // Slide down
+          }}
+          transition={{ ...commonTransition, delay: 0.1 }}
         />
         
         {/* Green band */}
@@ -95,10 +95,10 @@ export function AnimatedRovoShape({
           d={path6}
           fill="#6A9A23"
           animate={{
-            x: [0, -8, 0], // Slide further left to reveal yellow
-            y: [0, -4, 0], // Slide up
+            x: [-0.5, -1.5, -0.5], // Slide left
+            y: [0.5, 2, 0.5], // Slide down
           }}
-          transition={{ ...commonTransition, delay: 0.6 }}
+          transition={{ ...commonTransition, delay: 0.1 }}
         />
       </g>
     </motion.svg>
