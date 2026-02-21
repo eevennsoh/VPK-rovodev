@@ -16,7 +16,7 @@ export function AnimatedRovoShape({
   
   // We specify transition for our sequenced loader-like inner animation
   const commonTransition = {
-    duration: 1.5,
+    duration: 2.0,
     repeat: Infinity,
     ease: "easeInOut",
   };
@@ -69,8 +69,8 @@ export function AnimatedRovoShape({
           d={path3}
           fill="#1868DB"
           animate={{
-            x: [0, 5, 0], // Slide right
-            y: [0, -4, 0], // Slide up
+            x: [0, 8, 0], // Slide further right to reveal yellow
+            y: [0, -6, 0], // Slide up
           }}
           transition={{ ...commonTransition, delay: 0.2 }}
         />
@@ -82,8 +82,8 @@ export function AnimatedRovoShape({
           d={path5}
           fill="#AF59E1"
           animate={{
-            x: [0, -3, 0], // Slide left
-            y: [0, 5, 0], // Slide down
+            x: [0, -6, 0], // Slide further left to reveal yellow
+            y: [0, 8, 0], // Slide down
           }}
           transition={{ ...commonTransition, delay: 0.4 }}
         />
@@ -95,8 +95,8 @@ export function AnimatedRovoShape({
           d={path6}
           fill="#6A9A23"
           animate={{
-            x: [0, -5, 0], // Slide left
-            y: [0, -2, 0], // Slide slightly up
+            x: [0, -8, 0], // Slide further left to reveal yellow
+            y: [0, -4, 0], // Slide up
           }}
           transition={{ ...commonTransition, delay: 0.6 }}
         />
