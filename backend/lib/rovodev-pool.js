@@ -125,6 +125,16 @@ function createRovoDevPool(ports, options = {}) {
 					makeAvailable();
 				}
 			},
+			releaseAsUnhealthy: () => {
+				if (released) {
+					return;
+				}
+				released = true;
+				entry.status = "unhealthy";
+				entry.acquiredAt = null;
+				// Don't notify waiters — port is not available.
+				// The periodic health check will recover it.
+			},
 		};
 	}
 
@@ -336,11 +346,15 @@ function createRovoDevPool(ports, options = {}) {
 			}
 		}
 
-		// Check if there are ANY non-excluded entries in the pool.
-		// If not, fall back to unrestricted acquire (better to share a port
-		// than to deadlock).
-		const hasNonExcluded = entries.some((_, i) => !excluded.has(i));
-		if (!hasNonExcluded) {
+		// Fall back to unrestricted acquire if no non-excluded port can
+		// become available — either because none exist or because they are
+		// all unhealthy. Waiting for an unhealthy port is futile (the
+		// process may be dead); using a pinned port that has already
+		// completed its chat stream is better than blocking indefinitely.
+		const hasUsableNonExcluded = entries.some(
+			(e, i) => !excluded.has(i) && e.status !== "unhealthy"
+		);
+		if (!hasUsableNonExcluded) {
 			return acquire({ timeoutMs, signal });
 		}
 

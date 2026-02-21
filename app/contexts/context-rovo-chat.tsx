@@ -387,8 +387,8 @@ export function RovoChatProvider({
 	const isCancellingRef = useRef(false);
 	const cancelStreamPromiseRef = useRef<Promise<void> | null>(null);
 	const isSubmitPendingRef = useRef(false);
-	const hasActivePromptStreamedRef = useRef(false);
 	const shouldFinalizeActivePromptRef = useRef(false);
+	const hasTurnCompleteSignalRef = useRef(false);
 	const maybeFinalizeAndProcessRef = useRef<() => void>(() => {});
 	const processNextPromptRef = useRef<() => Promise<void>>(async () => {});
 
@@ -722,13 +722,47 @@ export function RovoChatProvider({
 
 	useEffect(() => {
 		isStreamingRef.current = isStreaming;
-		if (isStreaming && activePromptRef.current) {
-			hasActivePromptStreamedRef.current = true;
-		}
 		if (!isStreaming) {
 			queueTick();
 		}
 	}, [isStreaming, queueTick]);
+
+	// Watch for the data-turn-complete sentinel on the last assistant message.
+	// This fires when the backend has finished all post-stream work (suggestions,
+	// orchestrator log, etc.) and signals it is safe to advance the queue.
+	// Only accept a sentinel whose timestamp is >= the active prompt's createdAt
+	// to avoid picking up a stale signal from the previous turn.
+	useEffect(() => {
+		if (!activePromptRef.current || hasTurnCompleteSignalRef.current) {
+			return;
+		}
+
+		const activeCreatedAt = activePromptRef.current.createdAt;
+
+		for (let i = rawUiMessages.length - 1; i >= 0; i--) {
+			const msg = rawUiMessages[i];
+			if (msg.role !== "assistant") {
+				continue;
+			}
+
+			const turnCompletePart = msg.parts.find(
+				(part) => part.type === "data-turn-complete"
+			);
+			if (!turnCompletePart) {
+				break;
+			}
+
+			const partData = turnCompletePart as {
+				data?: { timestamp?: string };
+			};
+			const ts = partData.data?.timestamp;
+			if (ts && new Date(ts).getTime() >= activeCreatedAt) {
+				hasTurnCompleteSignalRef.current = true;
+				queueTick();
+			}
+			break;
+		}
+	}, [rawUiMessages, queueTick]);
 
 	const uiMessages = useMemo(() => {
 		if (!submissionErrorMessage) {
@@ -811,8 +845,8 @@ export function RovoChatProvider({
 
 		activePromptRef.current = null;
 		setActivePrompt(null);
-		hasActivePromptStreamedRef.current = false;
 		shouldFinalizeActivePromptRef.current = false;
+		hasTurnCompleteSignalRef.current = false;
 		retryCountRef.current = 0;
 		lastPromptRef.current = null;
 	}, []);
@@ -822,7 +856,7 @@ export function RovoChatProvider({
 
 		if (hasActivePrompt) {
 			const canFinalizeFromStreamEnd =
-				hasActivePromptStreamedRef.current && !isStreamingRef.current;
+				hasTurnCompleteSignalRef.current && !isStreamingRef.current;
 			const canFinalizeFromError =
 				shouldFinalizeActivePromptRef.current && !isStreamingRef.current;
 
@@ -867,8 +901,8 @@ export function RovoChatProvider({
 		setQueuedPrompts((prev) => prev.slice(1));
 		activePromptRef.current = nextPrompt;
 		setActivePrompt(nextPrompt);
-		hasActivePromptStreamedRef.current = false;
 		shouldFinalizeActivePromptRef.current = false;
+		hasTurnCompleteSignalRef.current = false;
 
 		isDispatchingPromptRef.current = true;
 		try {
@@ -1018,8 +1052,8 @@ export function RovoChatProvider({
 		lastPromptRef.current = null;
 		queuedPromptsRef.current = [];
 		activePromptRef.current = null;
-		hasActivePromptStreamedRef.current = false;
 		shouldFinalizeActivePromptRef.current = false;
+		hasTurnCompleteSignalRef.current = false;
 		isDispatchingPromptRef.current = false;
 		setQueuedPrompts([]);
 		setActivePrompt(null);
@@ -1051,8 +1085,8 @@ export function RovoChatProvider({
 			lastPromptRef.current = null;
 			queuedPromptsRef.current = [];
 			activePromptRef.current = null;
-			hasActivePromptStreamedRef.current = false;
 			shouldFinalizeActivePromptRef.current = false;
+			hasTurnCompleteSignalRef.current = false;
 			isDispatchingPromptRef.current = false;
 			setQueuedPrompts([]);
 			setActivePrompt(null);

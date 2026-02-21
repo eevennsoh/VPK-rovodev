@@ -756,8 +756,8 @@ function sendMessageSync(message, options = {}) {
 /**
  * Cancel an ongoing chat operation.
  */
-async function cancelChat(port) {
-	await request("POST", "/v3/cancel", undefined, 10000, port);
+async function cancelChat(port, { timeoutMs = 10000 } = {}) {
+	await request("POST", "/v3/cancel", undefined, timeoutMs, port);
 }
 
 /**
