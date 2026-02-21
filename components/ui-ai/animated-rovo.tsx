@@ -30,8 +30,11 @@ export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
       rotate: isSpin ? (Math.random() > 0.5 ? 360 : -360) : (Math.random() - 0.5) * 60,
       scale: 0.8 + Math.random() * 0.4, // Random scale between 0.8 and 1.2
       transition: {
-        duration: 0.25 + Math.random() * 0.4, // Rapid duration between 0.25s and 0.65s
-        ease: "easeInOut",
+        type: "spring",
+        stiffness: 80 + Math.random() * 80, // Random stiffness for a bit of variation (80-160)
+        damping: 10 + Math.random() * 10, // Moderate damping for bouncy but settled stops (10-20)
+        mass: 0.8 + Math.random() * 0.4, // Small mass changes
+        restDelta: 0.001,
       },
     };
   };
