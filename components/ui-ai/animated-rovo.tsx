@@ -20,7 +20,7 @@ export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
 
   // Generate either slow continuous rotation or rapid spins
   const generateSpin = (currentRotation: number) => {
-    const isRapidSpin = Math.random() > 0.85; // 15% chance to do a rapid spin
+    const isRapidSpin = Math.random() > 0.65; // Increased to 35% chance to do a rapid spin
 
     let nextRotation;
     let duration;
@@ -35,7 +35,7 @@ export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
     } else {
       // Normal slow continuous forward rotation
       nextRotation = currentRotation + (90 + Math.random() * 90); // 90 to 180 degrees further
-      duration = 2 + Math.random() * 1.5; // Slow: 2s to 3.5s
+      duration = 1.0 + Math.random() * 1.5; // Made slower spins faster: 1.0s to 2.5s
       ease = "linear" as const;
     }
 
