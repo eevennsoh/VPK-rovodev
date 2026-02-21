@@ -2000,6 +2000,24 @@ function normalizeClarificationSubmission(value) {
 	};
 }
 
+const {
+	adaptClarificationAnswers: _adaptClarificationAnswersCore,
+} = require("./lib/ask-user-questions-adapter");
+
+// Module-level store for request-user-input question metadata.
+// Populated during streaming, consumed during answer serialization.
+/** @type {Map<string, Array<{id: string, label: string}>>} */
+const _requestUserInputQuestionMetaStore = new Map();
+
+/**
+ * Adapts clarification answers for the ask_user_questions tool contract.
+ * Wraps the core adapter with the module-level metadata store lookup.
+ */
+function adaptClarificationAnswersForToolContract(sessionId, answers) {
+	const questionMeta = _requestUserInputQuestionMetaStore.get(sessionId) || null;
+	return _adaptClarificationAnswersCore(sessionId, answers, questionMeta);
+}
+
 function normalizePlanTasks(value) {
 	if (!Array.isArray(value)) {
 		return [];
@@ -2855,7 +2873,12 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 		let enrichedContextDescription = contextDescription;
 		if (clarificationSubmission) {
-			const serialized = JSON.stringify(clarificationSubmission.answers);
+			const serialized = JSON.stringify(
+				adaptClarificationAnswersForToolContract(
+					clarificationSubmission.sessionId,
+					clarificationSubmission.answers
+				)
+			);
 			enrichedContextDescription = enrichedContextDescription
 				? `${enrichedContextDescription}\n\nClarification answers: ${serialized}`
 				: `Clarification answers: ${serialized}`;
@@ -3576,6 +3599,8 @@ app.post("/api/chat-sdk", async (req, res) => {
 					let latestProgressivePlanFingerprint = null;
 					let hasExplicitPlanPayload = false;
 					const emittedQuestionCardToolCalls = new Set();
+					/** @type {Map<string, Array<{id: string, label: string}>>} */
+					const requestUserInputQuestionMeta = new Map();
 					let pendingQuestionCardLoadingWidgetId = null;
 					let hasSuppressedLargeAssistantJson = false;
 					let hasObservedToolExecution = false;
@@ -4103,6 +4128,15 @@ app.post("/api/chat-sdk", async (req, res) => {
 					);
 					if (!payload) {
 						return;
+					}
+
+					// Store question ID → label mapping for answer format adaptation
+					if (payload.sessionId && Array.isArray(payload.questions)) {
+						const meta = payload.questions
+							.filter((q) => q && typeof q.id === "string" && typeof q.label === "string")
+							.map((q) => ({ id: q.id, label: q.label }));
+						requestUserInputQuestionMeta.set(payload.sessionId, meta);
+						_requestUserInputQuestionMetaStore.set(payload.sessionId, meta);
 					}
 
 					const resolvedDedupeKey =
