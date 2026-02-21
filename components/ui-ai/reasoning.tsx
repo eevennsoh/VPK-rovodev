@@ -8,6 +8,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Lozenge } from "@/components/ui/lozenge";
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import { cjk } from "@streamdown/cjk";
@@ -30,10 +31,18 @@ import {
 } from "react";
 import { Streamdown } from "streamdown";
 
+import { AnimatedDots } from "./animated-dots";
+import { AnimatedRovo } from "./animated-rovo";
 import { Shimmer } from "./shimmer";
 
 interface ReasoningContextValue {
 	isStreaming: boolean;
+	streamingWave: boolean;
+	animatedDots: boolean;
+	animatedRovo: boolean;
+	streamingWaveGradientColor?: string | readonly string[];
+	streamingWaveDuration?: number;
+	streamingWaveSpread?: number;
 	isOpen: boolean;
 	setIsOpen: (open: boolean) => void;
 	duration: number | undefined;
@@ -53,6 +62,12 @@ export const useReasoning = () => {
 
 export type ReasoningProps = ComponentProps<typeof Collapsible> & {
 	isStreaming?: boolean;
+	streamingWave?: boolean;
+	animatedDots?: boolean;
+	animatedRovo?: boolean;
+	streamingWaveGradientColor?: string | readonly string[];
+	streamingWaveDuration?: number;
+	streamingWaveSpread?: number;
 	open?: boolean;
 	defaultOpen?: boolean;
 	onOpenChange?: (open: boolean) => void;
@@ -67,10 +82,18 @@ const MS_IN_S = 1000;
 const DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS = 5;
 const TIMELINE_STATUS_LINE_REGEX =
 	/^(?:used|using|invoking|completed|running|calling|tool call failed|failed)\b/i;
+const TIMELINE_TOOL_ACTION_LINE_REGEX =
+	/^(used|using|invoking|completed|running|calling)\s+(.+)$/i;
+const TIMELINE_TOOL_FAILURE_LINE_REGEX = /^(tool call failed|failed):\s*(.+)$/i;
 
 interface TimelineEntry {
 	id: string;
 	label: string;
+}
+
+interface TimelineToolLabelParts {
+	prefix: string;
+	toolName: string;
 }
 
 function parseTimelineEntries(value: string): TimelineEntry[] {
@@ -95,13 +118,38 @@ function parseTimelineEntries(value: string): TimelineEntry[] {
 	}));
 }
 
+function parseTimelineToolLabel(label: string): TimelineToolLabelParts | null {
+	const normalizedLabel = label.trim();
+	const failureMatch = normalizedLabel.match(TIMELINE_TOOL_FAILURE_LINE_REGEX);
+	if (failureMatch?.[1] && failureMatch[2]) {
+		const prefix = failureMatch[1].trim();
+		const toolName = failureMatch[2].trim();
+		if (toolName.length === 0) {
+			return null;
+		}
+		return { prefix, toolName };
+	}
+
+	const actionMatch = normalizedLabel.match(TIMELINE_TOOL_ACTION_LINE_REGEX);
+	if (actionMatch?.[1] && actionMatch[2]) {
+		const prefix = actionMatch[1].trim();
+		const toolName = actionMatch[2].trim();
+		if (toolName.length === 0) {
+			return null;
+		}
+		return { prefix, toolName };
+	}
+
+	return null;
+}
+
 function ReasoningStatusIcon({
 	isCompleted = false,
 }: Readonly<{ isCompleted?: boolean }>): ReactNode {
 	return (
 		<span className="inline-flex size-5 items-center justify-center">
 			<RovoIconGlyph
-				color={isCompleted ? token("color.icon.subtle") : token("color.icon")}
+				color={isCompleted ? token("color.icon.subtlest") : token("color.icon")}
 				label=""
 				size="small"
 			/>
@@ -110,12 +158,18 @@ function ReasoningStatusIcon({
 }
 
 export const Reasoning = memo(
-	({
+		({
 		className,
 		isStreaming = false,
-		open,
-		defaultOpen,
-		onOpenChange,
+		streamingWave = false,
+		animatedDots = true,
+		animatedRovo = false,
+		streamingWaveGradientColor,
+			streamingWaveDuration,
+			streamingWaveSpread,
+			open,
+			defaultOpen,
+			onOpenChange,
 		duration: durationProp,
 		autoCollapseAtCount = DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS,
 		collapseDelayMs = AUTO_CLOSE_DELAY,
@@ -236,22 +290,34 @@ export const Reasoning = memo(
 
 		const contextValue = useMemo(
 			() => ({
+				animatedDots,
+				animatedRovo,
 				duration,
 				isOpen,
 				isStreaming,
 				maxVisibleTimelineItems,
-				setIsOpen,
-				setTimelineEntryCount: handleTimelineEntryCountChange,
-			}),
-			[
+					setIsOpen,
+					setTimelineEntryCount: handleTimelineEntryCountChange,
+					streamingWave,
+					streamingWaveDuration,
+					streamingWaveGradientColor,
+					streamingWaveSpread,
+				}),
+				[
+					animatedDots,
+					animatedRovo,
 				duration,
 				handleTimelineEntryCountChange,
 				isOpen,
 				isStreaming,
 				maxVisibleTimelineItems,
-				setIsOpen,
-			]
-		);
+					setIsOpen,
+					streamingWave,
+					streamingWaveDuration,
+					streamingWaveGradientColor,
+					streamingWaveSpread,
+				]
+			);
 
 		return (
 			<ReasoningContext value={contextValue}>
@@ -268,7 +334,6 @@ export const Reasoning = memo(
 	}
 );
 
-const DOT_COLORS = ["#1868db", "#bf63f3", "#fca700"] as const;
 const COMPLETED_STATUS_PREFIXES = ["used", "completed"] as const;
 
 /** Strip trailing dots/ellipsis from a label since animated dots are appended separately. */
@@ -283,6 +348,55 @@ const isCompletedStatusLabel = (label: ReactNode) => {
 		normalizedLabel === prefix || normalizedLabel.startsWith(`${prefix} `)
 	);
 };
+
+function StreamingReasoningLabel({
+	label,
+	streamingWave,
+	animatedDots,
+	animatedRovo,
+	streamingWaveGradientColor,
+	streamingWaveDuration,
+	streamingWaveSpread,
+}: Readonly<{
+	label: string;
+	streamingWave: boolean;
+	animatedDots: boolean;
+	animatedRovo: boolean;
+	streamingWaveGradientColor?: string | readonly string[];
+	streamingWaveDuration?: number;
+	streamingWaveSpread?: number;
+}>): ReactNode {
+	const renderedLabel = animatedDots ? stripTrailingDots(label) : label;
+
+	return (
+		<>
+			{animatedRovo ? (
+				<AnimatedRovo.Root size={16} />
+			) : (
+				<Image
+					alt=""
+					height={20}
+					src="/loading/rovo-logo.gif"
+					unoptimized
+					width={20}
+				/>
+			)}
+			<span className="flex min-w-0 items-baseline">
+				<Shimmer
+					baseGradientColor={streamingWaveGradientColor}
+					as="span"
+					className="min-w-0 truncate"
+					duration={streamingWaveDuration ?? 1}
+					spread={streamingWaveSpread}
+					wave={streamingWave}
+				>
+					{renderedLabel}
+				</Shimmer>
+				{animatedDots ? <AnimatedDots /> : null}
+			</span>
+		</>
+	);
+}
 
 export type ReasoningTriggerProps = ComponentProps<
 	typeof CollapsibleTrigger
@@ -306,7 +420,17 @@ export const ReasoningTrigger = memo(
 		completedLabel = defaultReasoningCompletedLabel,
 		...props
 	}: Readonly<ReasoningTriggerProps>) => {
-		const { isStreaming, isOpen, duration } = useReasoning();
+		const {
+			isStreaming,
+			isOpen,
+			duration,
+			streamingWave,
+			animatedDots,
+			animatedRovo,
+			streamingWaveGradientColor,
+			streamingWaveDuration,
+			streamingWaveSpread,
+		} = useReasoning();
 		const isComplete = !isStreaming && duration !== undefined && duration > 0;
 		const hasCompletedStatusLabel = isCompletedStatusLabel(label);
 		const shouldShowCompletedState = isComplete || hasCompletedStatusLabel;
@@ -330,49 +454,19 @@ export const ReasoningTrigger = memo(
 								<span className="min-w-0 truncate">{completedStateLabel}</span>
 							</>
 						) : (
-							<>
-								<style
-									dangerouslySetInnerHTML={{
-										__html: `
-											@keyframes dot-reveal {
-												0%, 20% { opacity: 0; }
-												40%, 100% { opacity: 1; }
-											}
-										`,
-									}}
-								/>
-								<Image
-									alt=""
-									height={20}
-									src="/loading/rovo-logo.gif"
-									unoptimized
-									width={20}
-								/>
-								<span className="flex min-w-0 items-baseline">
-									<Shimmer duration={1} as="span" className="min-w-0 truncate">
-										{stripTrailingDots(label)}
-									</Shimmer>
-									<span className="shrink-0 inline-flex items-baseline" aria-hidden="true">
-										{DOT_COLORS.map((color, i) => (
-											<span
-												key={i}
-												className="text-sm leading-none"
-												style={{
-													animation: "dot-reveal 1.2s ease-in-out infinite",
-													animationDelay: `${i * 0.2}s`,
-													color,
-												}}
-											>
-												.
-											</span>
-										))}
-									</span>
-								</span>
-							</>
+							<StreamingReasoningLabel
+								label={label}
+								streamingWave={streamingWave}
+								animatedDots={animatedDots}
+								animatedRovo={animatedRovo}
+								streamingWaveGradientColor={streamingWaveGradientColor}
+								streamingWaveDuration={streamingWaveDuration}
+								streamingWaveSpread={streamingWaveSpread}
+							/>
 						)}
 						<ChevronDownIcon
 							className={cn(
-								"size-4 shrink-0 transition-transform",
+								"size-4 shrink-0 text-icon-subtlest transition-transform",
 								isOpen ? "rotate-180" : "rotate-0"
 							)}
 						/>
@@ -436,25 +530,41 @@ export function ReasoningText({
 				/>
 				<div className="space-y-1">
 					<AnimatePresence initial={false}>
-						{visibleTimelineEntries.map((entry) => (
-							<motion.p
-								key={entry.id}
-								animate={
-									shouldReduceMotion ? undefined : { opacity: 1, y: 0 }
-								}
-								className="m-0 truncate text-left text-sm leading-7 text-text-subtle"
-								exit={
-									shouldReduceMotion ? undefined : { opacity: 0, y: 6 }
-								}
-								initial={
-									shouldReduceMotion ? false : { opacity: 0, y: -6 }
-								}
-								layout={!shouldReduceMotion}
-								transition={{ duration: 0.2, ease: "easeOut" }}
-							>
-								{entry.label}
-							</motion.p>
-						))}
+						{visibleTimelineEntries.map((entry) => {
+							const toolLabel = parseTimelineToolLabel(entry.label);
+							return (
+								<motion.div
+									key={entry.id}
+									animate={
+										shouldReduceMotion ? undefined : { opacity: 1, y: 0 }
+									}
+									className="m-0 text-left text-sm leading-7 text-text-subtle"
+									exit={
+										shouldReduceMotion ? undefined : { opacity: 0, y: 6 }
+									}
+									initial={
+										shouldReduceMotion ? false : { opacity: 0, y: -6 }
+									}
+									layout={!shouldReduceMotion}
+									transition={{ duration: 0.2, ease: "easeOut" }}
+								>
+									{toolLabel ? (
+										<span className="flex min-w-0 items-center gap-2">
+											<span className="truncate">{toolLabel.prefix}</span>
+											<Lozenge
+												className="max-w-full shrink align-middle"
+												title={toolLabel.toolName}
+												variant="neutral"
+											>
+												{toolLabel.toolName}
+											</Lozenge>
+										</span>
+									) : (
+										entry.label
+									)}
+								</motion.div>
+							);
+						})}
 					</AnimatePresence>
 				</div>
 			</div>
@@ -542,7 +652,17 @@ export const AdsReasoningTrigger = memo(
 		showChevron = true,
 		...props
 	}: Readonly<AdsReasoningTriggerProps>) => {
-		const { isStreaming, isOpen, duration } = useReasoning();
+		const {
+			isStreaming,
+			isOpen,
+			duration,
+			streamingWave,
+			animatedDots,
+			animatedRovo,
+			streamingWaveGradientColor,
+			streamingWaveDuration,
+			streamingWaveSpread,
+		} = useReasoning();
 		const isComplete = !isStreaming && duration !== undefined && duration > 0;
 		const hasCompletedStatusLabel = isCompletedStatusLabel(label);
 		const shouldShowCompletedState = isComplete || hasCompletedStatusLabel;
@@ -564,50 +684,20 @@ export const AdsReasoningTrigger = memo(
 						<span className="min-w-0 truncate">{completedStateLabel}</span>
 					</>
 				) : (
-					<>
-						<style
-							dangerouslySetInnerHTML={{
-								__html: `
-									@keyframes dot-reveal {
-										0%, 20% { opacity: 0; }
-										40%, 100% { opacity: 1; }
-									}
-								`,
-							}}
-						/>
-						<Image
-							alt=""
-							height={20}
-							src="/loading/rovo-logo.gif"
-							unoptimized
-							width={20}
-						/>
-						<span className="flex min-w-0 items-baseline">
-							<Shimmer duration={1} as="span" className="min-w-0 truncate">
-								{stripTrailingDots(label)}
-							</Shimmer>
-							<span className="shrink-0 inline-flex items-baseline" aria-hidden="true">
-								{DOT_COLORS.map((color, i) => (
-									<span
-										key={i}
-										className="text-sm leading-none"
-										style={{
-											animation: "dot-reveal 1.2s ease-in-out infinite",
-											animationDelay: `${i * 0.2}s`,
-											color,
-										}}
-									>
-										.
-									</span>
-								))}
-							</span>
-						</span>
-					</>
+					<StreamingReasoningLabel
+						label={label}
+						streamingWave={streamingWave}
+						animatedDots={animatedDots}
+						animatedRovo={animatedRovo}
+						streamingWaveGradientColor={streamingWaveGradientColor}
+						streamingWaveDuration={streamingWaveDuration}
+						streamingWaveSpread={streamingWaveSpread}
+					/>
 				)}
 				{showChevron ? (
 					<ChevronDownIcon
 						className={cn(
-							"size-4 shrink-0 transition-transform",
+							"size-4 shrink-0 text-icon-subtlest transition-transform",
 							isOpen ? "rotate-180" : "rotate-0"
 						)}
 					/>

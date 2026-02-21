@@ -924,6 +924,7 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"animated-dots-demo-custom-colors": dynamic(() => import("./demos/ui-ai/animated-dots-demo").then((mod) => ({ default: mod.AnimatedDotsDemoCustomColors })), { ssr: false }),
 	"animated-dots-demo-timing": dynamic(() => import("./demos/ui-ai/animated-dots-demo").then((mod) => ({ default: mod.AnimatedDotsDemoTiming })), { ssr: false }),
 	"animated-dots-demo-sizes": dynamic(() => import("./demos/ui-ai/animated-dots-demo").then((mod) => ({ default: mod.AnimatedDotsDemoSizes })), { ssr: false }),
+	"animated-rovo-demo": dynamic(() => import("./demos/ui-ai/animated-rovo-demo"), { ssr: false }),
 	"attachments-demo-grid": dynamic(() => import("./demos/ui-ai/attachments-demo").then((mod) => ({ default: mod.AttachmentsDemoGrid })), { ssr: false }),
 	"attachments-demo-inline": dynamic(() => import("./demos/ui-ai/attachments-demo").then((mod) => ({ default: mod.AttachmentsDemoInline })), { ssr: false }),
 	"attachments-demo-list": dynamic(() => import("./demos/ui-ai/attachments-demo").then((mod) => ({ default: mod.AttachmentsDemoList })), { ssr: false }),

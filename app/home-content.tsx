@@ -26,7 +26,7 @@ const ADS_BLOCK_SLUGS = new Set([
 	"approval-card",
 ]);
 const blockAdsResolver = (slug: string) => ADS_BLOCK_SLUGS.has(slug) ? "Atlassian Design System" : undefined;
-const ADS_AI_SLUGS = new Set(["code-block", "message", "plan", "prompt-input", "queue"]);
+const ADS_AI_SLUGS = new Set(["code-block", "message", "plan", "prompt-input", "queue", "reasoning"]);
 
 const staticPages = [{ name: "Home", href: "/" }];
 

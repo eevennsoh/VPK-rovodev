@@ -122,6 +122,73 @@ export const UI_AI_DETAILS: Record<string, ComponentDetail> = {
 		],
 	},
 
+	"animated-dots": {
+		description:
+			"Animated colored dots with staggered opacity reveal, used as a loading or thinking indicator alongside text labels.",
+		usage: `import { AnimatedDots } from "@/components/ui-ai/animated-dots";
+
+<span className="inline-flex items-baseline gap-0.5 text-sm">
+  Thinking
+  <AnimatedDots />
+</span>`,
+		props: [
+			{
+				name: "colors",
+				type: "readonly string[]",
+				default: '["#1868db", "#bf63f3", "#fca700"]',
+				description: "Array of CSS color values for each dot.",
+			},
+			{
+				name: "duration",
+				type: "number",
+				default: "1.2",
+				description: "Animation cycle duration in seconds.",
+			},
+			{
+				name: "staggerDelay",
+				type: "number",
+				default: "0.2",
+				description: "Delay between each dot's animation start in seconds.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the wrapper span.",
+			},
+		],
+		examples: [
+			{ title: "Custom colors", description: "Dots with alternative color palettes.", demoSlug: "animated-dots-demo-custom-colors" },
+			{ title: "Timing", description: "Fast, default, and slow animation speeds.", demoSlug: "animated-dots-demo-timing" },
+			{ title: "Sizes", description: "Dots at various text sizes from xs to lg.", demoSlug: "animated-dots-demo-sizes" },
+		],
+	},
+
+	"animated-rovo": {
+		description:
+			"An animated Rovo logo that combines floating, bouncing, dancing, and occasional spinning. Uses Motion for keyframe animation with configurable size and optional className.",
+		usage: `import { AnimatedRovo } from "@/components/ui-ai/animated-rovo";
+
+<AnimatedRovo.Root size={32} />
+<AnimatedRovo.Root size={64} className="mr-4" />
+<AnimatedRovo.Shape size={48} spring={{ type: "spring", duration: 1.5, bounce: 0.3 }} />`,
+		props: [
+			{
+				name: "size",
+				type: "number",
+				default: "32",
+				description: "Width and height of the logo in pixels.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional CSS classes applied to the wrapper.",
+			},
+		],
+		examples: [
+			{ title: "Sizes", description: "Animated Rovo at 48px, 64px, and 128px.", demoSlug: "animated-rovo-demo" },
+		],
+	},
+
 	attachments: {
 		description:
 			"A compound attachment system for displaying file and source-document attachments in grid, inline, or list layouts with hover previews, remove buttons, and media-aware icons.",
@@ -1160,7 +1227,7 @@ import AddIcon from "@atlaskit/icon/core/add";
 
 	reasoning: {
 		description:
-			"A collapsible reasoning/thinking indicator that auto-opens when streaming begins and auto-closes when complete. Both triggers use Rovo logo, shimmer text, and animated color dots — the default ReasoningTrigger always shows a chevron, while AdsReasoningTrigger supports an optional chevron.",
+			"A collapsible reasoning/thinking indicator that auto-opens when streaming begins and auto-closes when complete. Both triggers use Rovo logo, shimmer text, and animated color dots (optional), with optional wave motion during streaming via root props — the default ReasoningTrigger always shows a chevron, while AdsReasoningTrigger supports an optional chevron.",
 		usage: `import {
   Reasoning,
   ReasoningTrigger,
@@ -1178,6 +1245,17 @@ import AddIcon from "@atlaskit/icon/core/add";
 <Reasoning isStreaming={isStreaming}>
   <AdsReasoningTrigger showChevron={false} />
   <ReasoningContent>{reasoningText}</ReasoningContent>
+</Reasoning>
+
+// Add wave motion on top of shimmer while streaming
+<Reasoning
+  isStreaming={isStreaming}
+  streamingWave
+  streamingWaveGradientColor={["#1868db", "#bf63f3", "#fca700"]}
+  animatedDots={false}
+>
+  <AdsReasoningTrigger showChevron={false} />
+  <ReasoningContent>{reasoningText}</ReasoningContent>
 </Reasoning>`,
 		props: [
 			{
@@ -1185,6 +1263,33 @@ import AddIcon from "@atlaskit/icon/core/add";
 				type: "boolean",
 				default: "false",
 				description: "Whether reasoning content is actively streaming. Controls auto-open/close behavior.",
+			},
+			{
+				name: "streamingWave",
+				type: "boolean",
+				default: "false",
+				description: "Enable wave motion layered on top of shimmer while streaming. When false, uses shimmer-only text.",
+			},
+			{
+				name: "streamingWaveGradientColor",
+				type: "string | string[]",
+				description: "Optional wave highlight color (or color stops) forwarded to Shimmer when streamingWave is enabled.",
+			},
+			{
+				name: "streamingWaveDuration",
+				type: "number",
+				description: "Optional wave duration override (seconds) forwarded to Shimmer while streaming.",
+			},
+			{
+				name: "streamingWaveSpread",
+				type: "number",
+				description: "Optional wave spread override forwarded to Shimmer while streaming.",
+			},
+			{
+				name: "animatedDots",
+				type: "boolean",
+				default: "true",
+				description: "Show animated color dots after the streaming label. Set false to render label text only.",
 			},
 			{
 				name: "open",
@@ -1208,12 +1313,13 @@ import AddIcon from "@atlaskit/icon/core/add";
 			},
 		],
 		subComponents: [
-			{ name: "ReasoningTrigger", description: "Default trigger with Rovo logo, shimmer text, animated color dots, and chevron." },
-			{ name: "AdsReasoningTrigger", description: "ADS-styled trigger with Rovo logo, shimmer text, animated color dots, and optional chevron." },
+			{ name: "ReasoningTrigger", description: "Default trigger with Rovo logo, shimmer text, optional animated color dots, and chevron." },
+			{ name: "AdsReasoningTrigger", description: "ADS-styled trigger with Rovo logo, shimmer text, optional animated color dots, and optional chevron." },
 			{ name: "ReasoningContent", description: "Collapsible content area rendering reasoning text via Streamdown." },
 		],
 		examples: [
 			{ title: "ADS streaming", description: "ADS trigger with Rovo logo, shimmer, dots, and chevron in streaming state.", demoSlug: "reasoning-demo-ads-streaming" },
+			{ title: "ADS streaming + wave", description: "ADS indicator-style trigger with gradient wave shimmer using default wave timing, without dots or chevron.", demoSlug: "reasoning-demo-ads-streaming-wave" },
 			{ title: "ADS completed", description: "ADS trigger showing completed state with duration.", demoSlug: "reasoning-demo-ads-completed" },
 			{ title: "ADS indicator", description: "ADS trigger without chevron, matching ThinkingIndicator visual.", demoSlug: "reasoning-demo-ads-indicator" },
 			{ title: "Default streaming", description: "Default BrainIcon trigger in streaming state.", demoSlug: "reasoning-demo-streaming" },
@@ -2192,12 +2298,26 @@ const edgeTypes = {
 
 	shimmer: {
 		description:
-			"An animated text shimmer effect that sweeps across content, ideal for indicating loading states or drawing attention to dynamic content in AI applications. Uses CSS gradients and Motion for React with customizable duration and spread.",
+			"An animated text shimmer effect that sweeps across content, ideal for indicating loading states or drawing attention to dynamic content in AI applications. Supports optional wave motion with full geometry, timing, and color controls inspired by Motion Primitives.",
 		usage: `import { Shimmer } from "@/components/ui-ai/shimmer";
 
 <Shimmer>Thinking...</Shimmer>
 <Shimmer duration={1} as="span">Fast shimmer</Shimmer>
-<Shimmer spread={4} className="text-lg">Wide spread shimmer</Shimmer>`,
+<Shimmer spread={4} className="text-lg">Wide spread shimmer</Shimmer>
+<Shimmer wave duration={1.2}>Shimmer with wave</Shimmer>
+<Shimmer
+  wave
+  baseColor="var(--color-muted-foreground)"
+  baseGradientColor={["#1868db", "#bf63f3", "#fca700"]}
+  xDistance={3}
+  yDistance={-2}
+  zDistance={12}
+  scaleDistance={1.12}
+  rotateYDistance={14}
+  transition={{ ease: "easeInOut", repeatDelay: 0.1 }}
+>
+  Full wave configuration
+</Shimmer>`,
 		props: [
 			{
 				name: "children",
@@ -2219,22 +2339,79 @@ const edgeTypes = {
 			{
 				name: "duration",
 				type: "number",
-				default: "2",
+				default: "2 (shimmer), 1 (wave)",
 				description: "Animation duration in seconds.",
 			},
 			{
 				name: "spread",
 				type: "number",
+				default: "2 (shimmer), 1 (wave)",
+				description: "Shimmer gradient spread multiplier and wave stagger spread.",
+			},
+			{
+				name: "wave",
+				type: "boolean",
+				default: "false",
+				description: "Enables an additional per-character wave animation layered on top of the shimmer effect.",
+			},
+			{
+				name: "baseColor",
+				type: "string",
+				description: "Base/resting text color used by wave mode.",
+			},
+			{
+				name: "baseGradientColor",
+				type: "string | string[]",
+				description: "Highlight color (or color stops) used by wave mode.",
+			},
+			{
+				name: "zDistance",
+				type: "number",
+				default: "10",
+				description: "Wave depth translation on the Z axis.",
+			},
+			{
+				name: "xDistance",
+				type: "number",
 				default: "2",
-				description: "Shimmer gradient spread multiplier (multiplied by text length).",
+				description: "Wave horizontal translation distance.",
+			},
+			{
+				name: "yDistance",
+				type: "number",
+				default: "-2",
+				description: "Wave vertical translation distance.",
+			},
+			{
+				name: "scaleDistance",
+				type: "number",
+				default: "1.1",
+				description: "Peak scale multiplier for wave characters.",
+			},
+			{
+				name: "rotateYDistance",
+				type: "number",
+				default: "10",
+				description: "Peak Y-axis rotation for wave characters.",
+			},
+			{
+				name: "transition",
+				type: "Transition",
+				description: "Optional Motion transition overrides for wave characters.",
 			},
 		],
 		subComponents: [
-			{ name: "Shimmer", description: "Memoized motion component with infinite linear gradient sweep across text using background-clip and text-transparent." },
+			{ name: "Shimmer", description: "Memoized motion component with infinite linear gradient sweep across text, and optional wave-only foreground animation when wave mode is enabled." },
 		],
 		examples: [
 			{ title: "Custom duration", description: "Shimmer with varying animation speeds: fast (1s), slow (3s), and very slow (5s).", demoSlug: "shimmer-demo-custom-duration" },
 			{ title: "Custom spread", description: "Shimmer with narrow, wide, and extra wide gradient spread.", demoSlug: "shimmer-demo-custom-spread" },
+			{ title: "Wave", description: "Shimmer with optional wave motion enabled.", demoSlug: "shimmer-demo-wave" },
+			{ title: "Wave colors", description: "Neutral wave plus a dot-inspired gradient highlight using baseColor/baseGradientColor.", demoSlug: "shimmer-demo-wave-colors" },
+			{ title: "Wave geometry", description: "Compare xDistance and yDistance permutations.", demoSlug: "shimmer-demo-wave-geometry" },
+			{ title: "Wave depth", description: "Compare zDistance, scaleDistance, and rotateYDistance permutations.", demoSlug: "shimmer-demo-wave-depth" },
+			{ title: "Wave timing and spread", description: "Compare duration and spread permutations in wave mode.", demoSlug: "shimmer-demo-wave-timing-spread" },
+			{ title: "Wave full config", description: "Single showcase combining all wave controls including transition override.", demoSlug: "shimmer-demo-wave-full-config" },
 			{ title: "Polymorphic", description: "Shimmer rendered as heading and span elements with different text sizes.", demoSlug: "shimmer-demo-heading" },
 		],
 	},

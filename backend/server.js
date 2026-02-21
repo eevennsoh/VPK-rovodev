@@ -567,6 +567,7 @@ async function generateTextViaGateway({
 	gatewayUrl,
 	signal,
 	allowFallback = false,
+	portIndex,
 }) {
 	const backendSelection = await resolvePreferredBackend({ allowFallback });
 	if (backendSelection.backend === "rovodev") {
@@ -578,6 +579,7 @@ async function generateTextViaGateway({
 				conflictPolicy: "wait-for-turn",
 				timeoutMs: WAIT_FOR_TURN_TIMEOUT_MS,
 				signal,
+				portIndex,
 			});
 		} catch (rovoDevError) {
 			const is409Timeout =
@@ -2685,6 +2687,7 @@ async function generateSuggestedQuestions({
 	message,
 	conversationHistory,
 	assistantResponse,
+	portIndex,
 }) {
 	if (!assistantResponse || !assistantResponse.trim()) {
 		return [];
@@ -2702,6 +2705,7 @@ async function generateSuggestedQuestions({
 			prompt: promptText,
 			maxOutputTokens: 200,
 			temperature: 0.7,
+			portIndex,
 		});
 
 		return parseSuggestedQuestions(text);
@@ -5141,6 +5145,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 							message: latestUserMessage,
 							conversationHistory,
 							assistantResponse: assistantText,
+							portIndex,
 						});
 
 						if (suggestedQuestions.length > 0) {

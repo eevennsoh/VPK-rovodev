@@ -65,7 +65,7 @@ function utilityComponent(slug: string, name?: string): ComponentEntry {
 	return {
 		name: name ?? toTitleCase(slug),
 		slug,
-		importPath: `@/components/website/demos/utility/${slug}-demo`,
+		importPath: `@/components/website/demos/utils/${slug}-demo`,
 		category: "utility",
 		detail: UTILITY_DETAILS[slug],
 	};
@@ -83,6 +83,8 @@ function visualComponent(slug: string, name: string, importPath: string): Compon
 
 export const AI_COMPONENTS: ComponentEntry[] = [
 	aiComponent("agent"),
+	aiComponent("animated-dots", "Animated Dots"),
+	aiComponent("animated-rovo", "Animated Rovo"),
 	aiComponent("artifact"),
 	aiComponent("attachments"),
 	aiComponent("audio-player", "Audio Player"),

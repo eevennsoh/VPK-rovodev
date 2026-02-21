@@ -28,6 +28,22 @@ export function ReasoningDemoAdsStreaming() {
 	);
 }
 
+export function ReasoningDemoAdsStreamingWave() {
+	return (
+		<Reasoning
+			isStreaming
+			streamingWave
+			streamingWaveGradientColor={["#1868db", "#bf63f3", "#fca700"]}
+			animatedDots={false}
+			animatedRovo
+			defaultOpen={false}
+		>
+			<AdsReasoningTrigger showChevron={false} label="Rovo is thinking" />
+			<ReasoningContent>{SAMPLE_TIMELINE_REASONING}</ReasoningContent>
+		</Reasoning>
+	);
+}
+
 export function ReasoningDemoAdsCompleted() {
 	return (
 		<Reasoning open duration={5}>

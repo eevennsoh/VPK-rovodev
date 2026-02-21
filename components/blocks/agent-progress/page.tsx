@@ -13,8 +13,8 @@ import RetryIcon from "@atlaskit/icon/core/retry";
 import VideoStopOverlayIcon from "@atlaskit/icon/core/video-stop-overlay";
 import DeleteIcon from "@atlaskit/icon/core/delete";
 import { MOCK_TASKS, type ProgressStatusGroups, type ProgressTask } from "./data/mock-tasks";
+import { AnimatedDots } from "@/components/ui-ai/animated-dots";
 
-const DOT_COLORS = ["#1868db", "#bf63f3", "#fca700"] as const;
 const SUMMARY_RING_SEGMENTED_GRADIENT =
 	"conic-gradient(from 220deg, transparent 0deg 252deg, #8d63ff 252deg 266deg, #7fbb44 266deg 280deg, #3b66e0 280deg 294deg, #e5a126 294deg 308deg, transparent 308deg 360deg)";
 const SUMMARY_RING_STROKE_PX = 3;
@@ -23,11 +23,6 @@ const SUMMARY_RING_EASING = "var(--ease-in-out)";
 const SUMMARY_RING_MASK =
 	`radial-gradient(farthest-side, transparent calc(100% - ${SUMMARY_RING_STROKE_PX}px), #000 calc(100% - ${SUMMARY_RING_STROKE_PX}px))`;
 const CARD_ANIMATION_STYLES = `
-@keyframes dot-reveal {
-	0%, 20% { opacity: 0; }
-	40%, 100% { opacity: 1; }
-}
-
 @keyframes rainbow-ring-spin {
 	to { transform: rotate(360deg); }
 }
@@ -382,21 +377,7 @@ export default function AgentsProgress({
 								<>
 									<span className="inline-flex items-baseline text-xs leading-4 text-text-subtlest">
 										{statusText}
-										<span className="inline-flex items-baseline" aria-hidden="true">
-											{DOT_COLORS.map((color, i) => (
-												<span
-													key={i}
-													className="text-xs leading-none"
-													style={{
-														color,
-														animation: "dot-reveal 1.2s ease-in-out infinite",
-														animationDelay: `${i * 0.2}s`,
-													}}
-												>
-													.
-												</span>
-											))}
-										</span>
+										<AnimatedDots className="[&>span]:text-xs" />
 									</span>
 								</>
 							) : (

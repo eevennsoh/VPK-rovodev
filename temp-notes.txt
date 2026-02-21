@@ -1,0 +1,6 @@
+export const WEDGES = [
+	{ d: wedgePath(0), fill: "#FCA700" },   // Orange
+	{ d: wedgePath(90), fill: "#AF59E1" },  // Purple
+	{ d: wedgePath(180), fill: "#1868DB" }, // Blue
+	{ d: wedgePath(270), fill: "#6A9A23" }, // Green
+] as const;

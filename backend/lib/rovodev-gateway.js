@@ -957,6 +957,7 @@ async function generateTextViaRovoDev({
 	conflictPolicy = "cancel-and-retry",
 	timeoutMs,
 	signal,
+	portIndex,
 }) {
 	throwIfAborted(signal, "RovoDev text generation aborted");
 
@@ -977,7 +978,7 @@ async function generateTextViaRovoDev({
 
 	const handle = await acquirePort({
 		timeoutMs: waitForTurn ? WAIT_FOR_TURN_TIMEOUT_MS : RETRY_TIMEOUT_MS,
-		excludePinnedPorts: true,
+		...(typeof portIndex === "number" ? { portIndex } : { excludePinnedPorts: true }),
 		signal,
 	});
 
