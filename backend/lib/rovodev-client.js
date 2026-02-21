@@ -757,7 +757,15 @@ function sendMessageSync(message, options = {}) {
  * Cancel an ongoing chat operation.
  */
 async function cancelChat(port, { timeoutMs = 10000 } = {}) {
-	await request("POST", "/v3/cancel", undefined, timeoutMs, port);
+	const { status, data } = await request("POST", "/v3/cancel", undefined, timeoutMs, port);
+	if (status !== 200) {
+		throw createHttpStatusError(
+			`Cancel failed (status ${status}): ${data}`,
+			status,
+			"/v3/cancel",
+			data
+		);
+	}
 }
 
 /**

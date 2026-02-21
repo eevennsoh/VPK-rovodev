@@ -24,7 +24,6 @@ const {
 	isChatInProgressError,
 	initPool,
 	setPinnedPortCount,
-	setPortRecovery,
 	WAIT_FOR_TURN_TIMEOUT_MS,
 } = require("./lib/rovodev-gateway");
 const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
@@ -216,16 +215,6 @@ async function refreshRovoDevAvailability() {
 			});
 			initPool(_rovoDevPool);
 			setPinnedPortCount(PINNED_PORT_COUNT);
-			setPortRecovery(async (port) => {
-				return restartRovoDevPort({
-					port,
-					cancelChat: rovoDevCancelChat,
-					healthCheck: rovoDevHealthCheck,
-					getListeningPidsForPort,
-					refreshAvailability: refreshRovoDevAvailability,
-					timeoutMs: 30_000,
-				});
-			});
 		}
 
 		if (healthyPorts.length === 1) {
