@@ -22,14 +22,14 @@ export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
 
   const generateRandomMovement = () => {
     return {
-      x: (Math.random() - 0.5) * 50, // Random x offset up to +/- 25px
-      y: (Math.random() - 0.5) * 50, // Random y offset up to +/- 25px
-      scale: 0.85 + Math.random() * 0.3, // Random scale between 0.85 and 1.15
+      x: (Math.random() - 0.5) * 20, // Reduced offset up to +/- 10px
+      y: (Math.random() - 0.5) * 20, // Reduced offset up to +/- 10px
+      scale: 0.9 + Math.random() * 0.2, // Random scale between 0.9 and 1.1
       transition: {
         type: "spring",
-        stiffness: 80 + Math.random() * 80, // Random stiffness (80-160)
-        damping: 10 + Math.random() * 10,   // Moderate damping (10-20)
-        mass: 0.8 + Math.random() * 0.4,    // Small mass changes
+        stiffness: 150 + Math.random() * 100, // Higher stiffness for faster snappy bouncing (150-250)
+        damping: 8 + Math.random() * 4,   // Lower damping for more sustained oscillation (8-12)
+        mass: 0.6 + Math.random() * 0.3,    // Reduced mass for quicker direction changes
         restDelta: 0.001,
       },
     };
