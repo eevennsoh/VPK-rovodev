@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-SESSION_NAME="vpk-dev"
 WINDOW_NAME="ports"
 POOL_SIZE="${ROVODEV_POOL_SIZE:-6}"
 SITE_URL="${ROVODEV_SITE_URL:-https://hello.atlassian.net}"
@@ -36,6 +35,35 @@ resolve_rovodev_cmd() {
 	echo "Neither 'rovodev' nor 'acli' is installed or on PATH."
 	exit 1
 }
+
+resolve_session_name() {
+	node - <<'NODE'
+const { getWorktreeName } = require("./scripts/lib/worktree-ports");
+
+const sanitizeToken = (value, fallback) => {
+	const normalized = String(value ?? "")
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9_-]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.replace(/-{2,}/g, "-");
+
+	return normalized.length > 0 ? normalized : fallback;
+};
+
+const explicitName = process.env.ROVODEV_TMUX_SESSION;
+if (typeof explicitName === "string" && explicitName.trim().length > 0) {
+	process.stdout.write(explicitName.trim());
+	process.exit(0);
+}
+
+const prefix = sanitizeToken(process.env.ROVODEV_TMUX_SESSION_PREFIX || "vpk-dev", "vpk-dev");
+const worktree = sanitizeToken(getWorktreeName() || "main", "main");
+process.stdout.write(`${prefix}-${worktree}`);
+NODE
+}
+
+SESSION_NAME="$(resolve_session_name)"
 
 prepare_port_files() {
 	node - <<'NODE' "$POOL_SIZE"
@@ -223,6 +251,10 @@ status_session() {
 
 usage() {
 	echo "Usage: $0 [start|stop|attach|status]"
+	echo ""
+	echo "Session resolution:"
+	echo "  ROVODEV_TMUX_SESSION          Exact tmux session name override"
+	echo "  ROVODEV_TMUX_SESSION_PREFIX   Prefix for auto-generated name (default: vpk-dev)"
 	echo ""
 	echo "Commands:"
 	echo "  start   Start or attach tmux 8-pane dev session (default)"

@@ -1,20 +1,28 @@
 /**
  * Worktree-aware port reservation system
  *
- * Each git worktree gets a deterministic port range based on its name.
+ * Each git worktree gets a deterministic, non-overlapping port range.
  * This prevents port conflicts when running multiple worktrees simultaneously.
  *
  * Port allocation strategy:
- * - Main worktree (or non-worktree): base ports (3000, 8080)
- * - Named worktrees: hash the name to get an offset (0-49), multiply by 2
- *   Frontend: 3000 + (offset * 2) → 3000, 3002, 3004, ..., 3098
- *   Backend:  8080 + (offset * 2) → 8080, 8082, 8084, ..., 8178
+ * - Main worktree: slot 0
+ * - Other active worktrees: unique slots 1..99 (sorted by identifier)
+ * - Offset = slot * 2
+ * - Frontend: 3000 + offset
+ * - Backend:  8080 + offset
+ * - RovoDev:  8000 + offset
  *
- * The *2 multiplier leaves room for port-finding to increment by 1 if needed.
+ * The *2 stride leaves room for port-finding to increment by 1 if needed.
  */
 
 const { execSync } = require("node:child_process");
 const path = require("node:path");
+
+const FRONTEND_DEFAULT_BASE = 3000;
+const BACKEND_DEFAULT_BASE = 8080;
+const ROVODEV_DEFAULT_BASE = 8000;
+const SLOT_STRIDE = 2;
+const WORKTREE_SLOT_CAPACITY = 100;
 
 /**
  * Simple string hash function (djb2)
@@ -28,68 +36,169 @@ function hashString(str) {
 	return Math.abs(hash);
 }
 
+function execGit(command) {
+	return execSync(command, {
+		encoding: "utf8",
+		stdio: ["pipe", "pipe", "pipe"],
+	}).trim();
+}
+
+function isMainWorktreePath(worktreePath) {
+	return !worktreePath.replace(/\\/g, "/").includes("/worktrees/");
+}
+
+function resolveWorktreeIdentifier(worktree) {
+	if (typeof worktree.branch === "string" && worktree.branch.length > 0) {
+		return worktree.branch;
+	}
+	return path.basename(worktree.path);
+}
+
+function getGitWorktrees() {
+	try {
+		const output = execGit("git worktree list --porcelain");
+		const worktrees = [];
+		let current = null;
+
+		for (const rawLine of output.split("\n")) {
+			const line = rawLine.trimEnd();
+			if (line.startsWith("worktree ")) {
+				if (current && current.path && !current.bare) {
+					worktrees.push(current);
+				}
+				current = {
+					path: path.resolve(line.slice(9)),
+					branch: null,
+					bare: false,
+				};
+				continue;
+			}
+
+			if (!current) {
+				continue;
+			}
+
+			if (line.startsWith("branch ")) {
+				current.branch = line.slice(7).replace("refs/heads/", "");
+				continue;
+			}
+
+			if (line === "bare") {
+				current.bare = true;
+			}
+		}
+
+		if (current && current.path && !current.bare) {
+			worktrees.push(current);
+		}
+
+		return worktrees.map((worktree) => ({
+			...worktree,
+			isMain: isMainWorktreePath(worktree.path),
+			identifier: resolveWorktreeIdentifier(worktree),
+		}));
+	} catch {
+		return [];
+	}
+}
+
+function getCurrentWorktreePath() {
+	try {
+		return path.resolve(execGit("git rev-parse --show-toplevel"));
+	} catch {
+		return null;
+	}
+}
+
+function buildWorktreeSlotTable(worktrees) {
+	const mainWorktree = worktrees.find((worktree) => worktree.isMain) ?? null;
+	const nonMainWorktrees = worktrees
+		.filter((worktree) => !worktree.isMain)
+		.sort((a, b) => {
+			const identifierCompare = a.identifier.localeCompare(b.identifier);
+			if (identifierCompare !== 0) {
+				return identifierCompare;
+			}
+			return a.path.localeCompare(b.path);
+		});
+
+	const ordered = mainWorktree
+		? [mainWorktree, ...nonMainWorktrees]
+		: [...nonMainWorktrees];
+
+	if (ordered.length > WORKTREE_SLOT_CAPACITY) {
+		throw new Error(
+			`Active git worktrees (${ordered.length}) exceed slot capacity (${WORKTREE_SLOT_CAPACITY}).`
+		);
+	}
+
+	const slots = new Map();
+	for (let index = 0; index < ordered.length; index += 1) {
+		slots.set(ordered[index].path, index);
+	}
+
+	return { ordered, slots };
+}
+
+function getOffsetFromSlot(slot) {
+	return slot * SLOT_STRIDE;
+}
+
+function getWorktreePortOffsetForPath(worktreePath) {
+	const normalizedPath = path.resolve(worktreePath);
+	const worktrees = getGitWorktrees();
+	const { slots } = buildWorktreeSlotTable(worktrees);
+	const slot = slots.get(normalizedPath);
+
+	if (typeof slot !== "number") {
+		return 0;
+	}
+
+	return getOffsetFromSlot(slot);
+}
+
+function buildPortInfo(worktreeName, offset, slot) {
+	return {
+		worktreeName,
+		offset,
+		slot,
+		frontendBase: FRONTEND_DEFAULT_BASE + offset,
+		backendBase: BACKEND_DEFAULT_BASE + offset,
+		rovodevBase: ROVODEV_DEFAULT_BASE + offset,
+	};
+}
+
 /**
  * Get the current worktree name
  * Returns null if not in a worktree or if it's the main worktree
  */
 function getWorktreeName() {
-	try {
-		// Get the git directory - for worktrees this points to .git/worktrees/<name>
-		const gitDir = execSync("git rev-parse --git-dir", {
-			encoding: "utf8",
-			stdio: ["pipe", "pipe", "pipe"],
-		}).trim();
-
-		// Check if we're in a worktree (path contains /worktrees/)
-		if (gitDir.includes("/worktrees/")) {
-			// Extract worktree name from path like: /path/to/.git/worktrees/feature-branch
-			const parts = gitDir.split("/worktrees/");
-			if (parts.length > 1) {
-				return parts[1].split("/")[0];
-			}
-		}
-
-		// Check if we're the main worktree by comparing paths
-		const toplevel = execSync("git rev-parse --show-toplevel", {
-			encoding: "utf8",
-			stdio: ["pipe", "pipe", "pipe"],
-		}).trim();
-
-		const commonDir = execSync("git rev-parse --git-common-dir", {
-			encoding: "utf8",
-			stdio: ["pipe", "pipe", "pipe"],
-		}).trim();
-
-		// If the common dir's parent matches toplevel, we're in main worktree
-		const commonParent = path.dirname(path.resolve(commonDir));
-		if (path.resolve(toplevel) === commonParent) {
-			return null; // Main worktree, use default ports
-		}
-
-		// Fallback: use the directory name as worktree identifier
-		return path.basename(toplevel);
-	} catch {
-		// Not in a git repo or git not available
+	const currentPath = getCurrentWorktreePath();
+	if (!currentPath) {
 		return null;
 	}
+
+	const worktrees = getGitWorktrees();
+	const currentWorktree = worktrees.find((worktree) => worktree.path === currentPath);
+
+	if (currentWorktree) {
+		return currentWorktree.isMain ? null : currentWorktree.identifier;
+	}
+
+	return null;
 }
 
 /**
  * Calculate the base port offset for the current worktree
- * Returns 0 for main worktree, or a deterministic offset (0-98, even numbers) for others
+ * Returns 0 for main worktree.
  */
 function getWorktreePortOffset() {
-	const worktreeName = getWorktreeName();
-
-	if (!worktreeName) {
-		return 0; // Main worktree uses default ports
+	const currentPath = getCurrentWorktreePath();
+	if (!currentPath) {
+		return 0;
 	}
 
-	// Hash the worktree name to get a slot (0-49)
-	const slot = hashString(worktreeName) % 50;
-
-	// Multiply by 2 to leave room for port-finding fallback
-	return slot * 2;
+	return getWorktreePortOffsetForPath(currentPath);
 }
 
 /**
@@ -101,9 +210,8 @@ function getFrontendBasePort() {
 		return Number.parseInt(envPort, 10);
 	}
 
-	const defaultBase = 3000;
 	const offset = getWorktreePortOffset();
-	const basePort = defaultBase + offset;
+	const basePort = FRONTEND_DEFAULT_BASE + offset;
 
 	const worktreeName = getWorktreeName();
 	if (worktreeName && offset > 0) {
@@ -122,9 +230,8 @@ function getBackendBasePort() {
 		return Number.parseInt(envPort, 10);
 	}
 
-	const defaultBase = 8080;
 	const offset = getWorktreePortOffset();
-	const basePort = defaultBase + offset;
+	const basePort = BACKEND_DEFAULT_BASE + offset;
 
 	const worktreeName = getWorktreeName();
 	if (worktreeName && offset > 0) {
@@ -143,9 +250,8 @@ function getRovodevBasePort() {
 		return Number.parseInt(envPort, 10);
 	}
 
-	const defaultBase = 8000;
 	const offset = getWorktreePortOffset();
-	const basePort = defaultBase + offset;
+	const basePort = ROVODEV_DEFAULT_BASE + offset;
 
 	const worktreeName = getWorktreeName();
 	if (worktreeName && offset > 0) {
@@ -159,24 +265,54 @@ function getRovodevBasePort() {
  * Get port info for the current worktree (useful for diagnostics)
  */
 function getPortInfo() {
-	const worktreeName = getWorktreeName();
-	const offset = getWorktreePortOffset();
+	const currentPath = getCurrentWorktreePath();
+	if (!currentPath) {
+		return buildPortInfo("main", 0, 0);
+	}
 
-	return {
-		worktreeName: worktreeName || "main",
-		offset,
-		frontendBase: 3000 + offset,
-		backendBase: 8080 + offset,
-		rovodevBase: 8000 + offset,
-	};
+	return getPortInfoForPath(currentPath);
+}
+
+function getPortInfoForPath(worktreePath) {
+	const normalizedPath = path.resolve(worktreePath);
+	const worktrees = getGitWorktrees();
+	const { slots } = buildWorktreeSlotTable(worktrees);
+	const worktree = worktrees.find((entry) => entry.path === normalizedPath);
+	const slot = slots.get(normalizedPath) ?? 0;
+	const offset = getOffsetFromSlot(slot);
+	const worktreeName = worktree && !worktree.isMain ? worktree.identifier : "main";
+
+	return buildPortInfo(worktreeName, offset, slot);
+}
+
+function getAllWorktreePortInfo() {
+	const worktrees = getGitWorktrees();
+	const { ordered, slots } = buildWorktreeSlotTable(worktrees);
+
+	return ordered.map((worktree) => {
+		const slot = slots.get(worktree.path) ?? 0;
+		const offset = getOffsetFromSlot(slot);
+		const info = buildPortInfo(worktree.isMain ? "main" : worktree.identifier, offset, slot);
+
+		return {
+			...info,
+			path: worktree.path,
+			isMain: worktree.isMain,
+			branch: worktree.branch,
+			identifier: worktree.identifier,
+		};
+	});
 }
 
 module.exports = {
 	hashString,
 	getWorktreeName,
 	getWorktreePortOffset,
+	getWorktreePortOffsetForPath,
 	getFrontendBasePort,
 	getBackendBasePort,
 	getRovodevBasePort,
 	getPortInfo,
+	getPortInfoForPath,
+	getAllWorktreePortInfo,
 };
