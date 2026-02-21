@@ -27,13 +27,12 @@ export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
     let ease;
 
     if (isRapidSpin) {
-      // Rapid spin 360 degrees forward or backward
-      const spinDirection = Math.random() > 0.5 ? 360 : -360;
-      nextRotation = currentRotation + spinDirection;
+      // Rapid spin 360 degrees forward (clockwise strictly)
+      nextRotation = currentRotation + 360;
       duration = 0.5 + Math.random() * 0.5; // Quick! 0.5s to 1.0s
       ease = "easeInOut" as const;
     } else {
-      // Normal slow continuous forward rotation
+      // Normal slow continuous forward rotation (clockwise strictly)
       nextRotation = currentRotation + (90 + Math.random() * 90); // 90 to 180 degrees further
       duration = 1.0 + Math.random() * 1.5; // Made slower spins faster: 1.0s to 2.5s
       ease = "linear" as const;
