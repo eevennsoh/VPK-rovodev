@@ -80,6 +80,10 @@ RovoDev billing defaults to `https://hello.atlassian.net` and can be overridden 
 
 `pnpm run rovodev:tmux` starts a tmux session with 8 panes: frontend, backend, and 6 rovodev serve ports.
 
+Session naming is worktree-aware by default: `vpk-dev-<worktree>` (or `vpk-dev-main` in the main worktree), so multiple worktrees can run tmux mode in parallel without session-name collisions. You can override the name with `ROVODEV_TMUX_SESSION`, or change the prefix with `ROVODEV_TMUX_SESSION_PREFIX`.
+
+Port reservation is also worktree-unique across active git worktrees (no overlap). Each worktree receives a unique reserved slot; startup can still auto-increment by 1 when the reserved port is occupied.
+
 ```text
 Panel A → port 8000 (pinned)     ┐
 Panel B → port 8001 (pinned)     ├─ Interactive chat (indices 0-2)
