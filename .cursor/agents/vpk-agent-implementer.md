@@ -1,6 +1,6 @@
 ---
 name: vpk-agent-implementer
-model: sonnet
+model: opus
 color: green
 tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "mcp__ads-mcp__ads_plan", "mcp__ads-mcp__ads_get_components", "mcp__ads-mcp__ads_analyze_a11y"]
 description: |

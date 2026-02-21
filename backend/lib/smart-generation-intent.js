@@ -140,22 +140,43 @@ function buildClassifierPrompt({ latestUserMessage, conversationHistory }) {
 	].join("\n");
 }
 
-function withTimeout(promise, timeoutMs) {
-	return new Promise((resolve, reject) => {
-		const timer = setTimeout(() => {
-			const timeoutError = new Error("smart-generation-classifier-timeout");
-			timeoutError.code = "SMART_GENERATION_CLASSIFIER_TIMEOUT";
-			reject(timeoutError);
-		}, timeoutMs);
+function createClassifierTimeoutError() {
+	const timeoutError = new Error("smart-generation-classifier-timeout");
+	timeoutError.code = "SMART_GENERATION_CLASSIFIER_TIMEOUT";
+	return timeoutError;
+}
 
-		Promise.resolve(promise)
+function withTimeout(operation, timeoutMs) {
+	const effectiveTimeoutMs =
+		typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0
+			? timeoutMs
+			: 800;
+
+	return new Promise((resolve, reject) => {
+		const abortController = new AbortController();
+		let settled = false;
+
+		const settle = (callback, value) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timer);
+			callback(value);
+		};
+
+		const timer = setTimeout(() => {
+			abortController.abort();
+			settle(reject, createClassifierTimeoutError());
+		}, effectiveTimeoutMs);
+
+		Promise.resolve()
+			.then(() => operation({ signal: abortController.signal }))
 			.then((value) => {
-				clearTimeout(timer);
-				resolve(value);
+				settle(resolve, value);
 			})
 			.catch((error) => {
-				clearTimeout(timer);
-				reject(error);
+				settle(reject, error);
 			});
 	});
 }
@@ -180,10 +201,12 @@ async function classifySmartGenerationIntent({
 
 	try {
 		const rawOutput = await withTimeout(
-			classify({
-				system: CLASSIFIER_SYSTEM_PROMPT,
-				prompt: buildClassifierPrompt({ latestUserMessage: prompt, conversationHistory }),
-			}),
+			({ signal }) =>
+				classify({
+					system: CLASSIFIER_SYSTEM_PROMPT,
+					prompt: buildClassifierPrompt({ latestUserMessage: prompt, conversationHistory }),
+					signal,
+				}),
 			timeoutMs,
 		);
 		const parsed = parseClassification(rawOutput);

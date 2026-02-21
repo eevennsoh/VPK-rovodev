@@ -1133,6 +1133,14 @@ const BLOCK_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"agent-progress-demo-early-progress": dynamic(() => import("./demos/blocks/agent-progress-demo").then((mod) => ({ default: mod.AgentProgressDemoEarlyProgress })), { ssr: false }),
 	"agent-progress-demo-multiple-runs": dynamic(() => import("./demos/blocks/agent-progress-demo").then((mod) => ({ default: mod.AgentProgressDemoMultipleRuns })), { ssr: false }),
 	"agent-progress-demo-all-states": dynamic(() => import("./demos/blocks/agent-progress-demo").then((mod) => ({ default: mod.AgentProgressDemoAllStates })), { ssr: false }),
+
+	// Question Card
+	"question-card-demo-single-select": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoSingleSelect })), { ssr: false }),
+	"question-card-demo-multi-select": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoMultiSelect })), { ssr: false }),
+	"question-card-demo-mixed": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoMixed })), { ssr: false }),
+	"question-card-demo-no-custom-input": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoNoCustomInput })), { ssr: false }),
+	"question-card-demo-custom-placeholder": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoCustomPlaceholder })), { ssr: false }),
+	"question-card-demo-pre-populated": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoPrePopulated })), { ssr: false }),
 };
 
 const TEMPLATE_DEMOS: Record<string, ComponentType> = {
@@ -1241,23 +1249,27 @@ const VISUAL_DEMOS: Record<string, ComponentType> = {
 	shadow: dynamic(() => import("./demos/visual/shadow-demo"), { ssr: false }),
 };
 
+const CATEGORY_REGISTRIES: Record<string, Record<string, ComponentType>> = {
+	visual: VISUAL_DEMOS,
+	utility: UTILITY_DEMOS,
+	templates: TEMPLATE_DEMOS,
+	blocks: BLOCK_DEMOS,
+	"ui-ai": UI_AI_DEMO,
+	ui: UI_DEMO,
+};
+
 export function getDemoComponent(slug: string, category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual"): ComponentType | null {
-	const registry =
-		category === "visual"
-			? VISUAL_DEMOS
-			: category === "utility"
-				? UTILITY_DEMOS
-				: category === "templates"
-					? TEMPLATE_DEMOS
-					: category === "blocks"
-						? BLOCK_DEMOS
-						: category === "ui-ai"
-							? UI_AI_DEMO
-							: UI_DEMO;
-	return registry[slug] ?? null;
+	const registry = CATEGORY_REGISTRIES[category];
+	return registry?.[slug] ?? null;
 }
 
+const VARIANT_REGISTRIES: Record<string, Record<string, ComponentType>> = {
+	"ui-ai": UI_AI_VARIANT_DEMOS,
+	blocks: BLOCK_VARIANT_DEMOS,
+	ui: UI_VARIANT_DEMOS,
+};
+
 export function getVariantDemoComponent(slug: string, category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual"): ComponentType | null {
-	const registry = category === "ui-ai" ? UI_AI_VARIANT_DEMOS : category === "blocks" ? BLOCK_VARIANT_DEMOS : UI_VARIANT_DEMOS;
-	return registry[slug] ?? null;
+	const registry = VARIANT_REGISTRIES[category];
+	return registry?.[slug] ?? null;
 }

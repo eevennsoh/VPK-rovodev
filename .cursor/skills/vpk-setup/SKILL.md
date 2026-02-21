@@ -76,6 +76,28 @@ rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
 RovoDev Serve handles primary chat. AI Gateway fallback is always enabled, and Google endpoint variables are always configured for `provider: "google"` image and TTS routes.
 RovoDev billing defaults to `https://hello.atlassian.net` and can be overridden via `ROVODEV_SITE_URL`.
 
+### Multiport / tmux Mode
+
+`pnpm run rovodev:tmux` starts a tmux session with 8 panes: frontend, backend, and 6 rovodev serve ports.
+
+```text
+Panel A → port 8000 (pinned)     ┐
+Panel B → port 8001 (pinned)     ├─ Interactive chat (indices 0-2)
+Panel C → port 8002 (pinned)     ┘
+Background tasks → port 8003-8005  ─ Suggested questions, clarification cards
+```
+
+Port isolation ensures background tasks (suggested questions, clarification cards) never use ports pinned to chat panels. A 200ms cooldown prevents released ports from being reacquired before rovodev serve clears its turn state. See [Port Isolation Guide](references/guide-ports.md) for details.
+
+### RovoDev Instance Reuse
+
+`pnpm run rovodev` is designed for repeated use without resetting your `~/.rovodev/config.yaml`:
+
+- **Healthy instances are reused** — if a previous pool is still running and healthy, it's kept as-is
+- **Only unhealthy instances are stopped** — stale/crashed processes are gracefully terminated (SIGTERM with SIGKILL fallback)
+- **`rovodev:setup` is a true one-off** — run it once to approve MCP servers; those approvals persist in `~/.rovodev/config.yaml` and are honored via `--respect-configured-permissions`
+- **Force clean start is opt-in** — set `ROVODEV_FORCE_CLEAN_START=true` only if you need to kill all instances and start fresh
+
 ## AI Gateway Credential Setup
 
 Required for the default setup path.
@@ -117,7 +139,7 @@ node ./.cursor/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID
 
 ```bash
 # AI Gateway Configuration
-AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-haiku-4-5-20251001-v1:0/invoke-with-response-stream
+AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-sonnet-4-6/invoke-with-response-stream
 AI_GATEWAY_URL_GOOGLE=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publishers/google/v1/chat/completions
 GOOGLE_IMAGE_MODEL=gemini-3-pro-image-preview
 GOOGLE_TTS_MODEL=tts-latest
@@ -147,6 +169,8 @@ ROVODEV_SITE_URL=https://hello.atlassian.net
 | `AUTO_FALLBACK_TO_AI_GATEWAY` | Yes | Must be `true` to route to AI Gateway when RovoDev is unavailable |
 | `ROVODEV_SITE_URL` | Yes | Billing site URL for `rovodev serve` (default: `https://hello.atlassian.net`) |
 | `ROVODEV_POOL_SIZE` | Optional | Concurrent RovoDev instances for agents team (default: 6) |
+| `ROVODEV_FORCE_CLEAN_START` | Optional | Set `true` to kill all RovoDev instances on startup (default: `false` — reuses healthy instances) |
+| `ROVODEV_SUPERVISOR` | Optional | Set to `tmux` when running via `pnpm run rovodev:tmux` — prevents port recovery from killing processes in tmux panes (auto-set by `dev-tmux-8.sh`) |
 | `ROVODEV_PORT` | Optional | Explicit RovoDev Serve port override (normally auto-managed via `.dev-rovodev-port`) |
 | `AI_GATEWAY_URL` | Yes | Default model endpoint (Bedrock/OpenAI/Google) |
 | `AI_GATEWAY_URL_GOOGLE` | Yes | Google endpoint for `provider: "google"` requests + TTS route |
@@ -177,7 +201,7 @@ Model switching via `.env.local` applies only when using AI Gateway (RovoDev man
 
 | Provider | Model | Endpoint |
 | -------- | ----- | -------- |
-| **Claude (Default)** | `anthropic.claude-haiku-4-5-20251001-v1:0` | `/v1/bedrock/model/{MODEL_ID}/invoke-with-response-stream` |
+| **Claude (Default)** | `anthropic.claude-sonnet-4-6` | `/v1/bedrock/model/{MODEL_ID}/invoke-with-response-stream` |
 | **GPT** | `gpt-5.2-2025-12-11` | `/v1/openai/v1/chat/completions` |
 | **Gemini** | `gemini-3-pro-image-preview` | `/v1/google/publishers/google/v1/chat/completions` |
 
@@ -210,7 +234,8 @@ For full model switching details, see [references/guide-model-switch.md](referen
 | "EADDRINUSE" error | Servers auto-find available ports (3001+/8081+). If still failing, run with `--force-kill`: `./.cursor/skills/vpk-setup/scripts/start-dev.sh --force-kill` |
 | Next.js lock error | Remove stale lock: `rm -f .next/dev/lock` then restart |
 | Turbopack cache corrupted | Clear cache: `rm -rf .next` then restart |
-| Zombie processes blocking ports | Force kill: `lsof -ti:3000,8000,8080 \| xargs kill -9` |
+| Zombie processes blocking ports | `ROVODEV_FORCE_CLEAN_START=true pnpm run rovodev` (graceful SIGTERM then SIGKILL fallback) |
+| Config keeps resetting (`~/.rovodev/config.yaml`) | Ensure you're using `pnpm run rovodev` (not `rovodev:setup`); setup is a one-off |
 | Frontend 500 (providers) | Ensure `components/providers.tsx` matches import casing |
 | "ASAP_PRIVATE_KEY: MISSING" | Check .env.local format - private key must be quoted and escaped |
 | No AI response (RovoDev) | Verify `pnpm run rovodev` is running and RovoDev Serve started successfully |
@@ -220,6 +245,9 @@ For full model switching details, see [references/guide-model-switch.md](referen
 | Bedrock 403 while OpenAI works | Pull latest branch and confirm `backend/lib/ai-gateway-helpers.js` does **not** rewrite Bedrock URL; restart backend |
 | Want to switch models | See [Model Switching Guide](references/guide-model-switch.md) |
 | Stale AI context / wrong answers | RovoDev session may be corrupted — restart with `pnpm run rovodev` |
+| 409 "chat already in progress" | Background tasks may be using pinned panel ports — check that `PINNED_PORT_COUNT` matches your panel count. See [Port Isolation Guide](references/guide-ports.md) |
+| 409 on first prompt (tmux) | Ensure `ROVODEV_SUPERVISOR=tmux` is set in the backend pane — `dev-tmux-8.sh` sets this automatically |
+| Port dies after recovery (tmux) | tmux `remain-on-exit` doesn't auto-restart processes — `ROVODEV_SUPERVISOR=tmux` prevents process kill during recovery |
 
 ### Port Auto-Discovery
 
@@ -267,3 +295,4 @@ If you cloned VPK to start a new prototype, consider these additional steps:
 
 - [Setup Guide](references/guide-setup.md) - Detailed setup documentation
 - [Model Switching Guide](references/guide-model-switch.md) - Switch between Claude, GPT, Gemini (AI Gateway-enabled mode)
+- [Port Isolation Guide](references/guide-ports.md) - How the port pool prevents 409 errors in multiport setups

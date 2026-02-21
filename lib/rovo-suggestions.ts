@@ -7,8 +7,8 @@
 import type { ComponentType } from "react";
 
 // Icon imports - these will be used by consuming components
-import TaskIcon from "@atlaskit/icon/core/task";
-import PageIcon from "@atlaskit/icon/core/page";
+import TimelineIcon from "@atlaskit/icon/core/timeline";
+import EditIcon from "@atlaskit/icon/core/edit";
 
 export interface RovoSuggestion {
 	id: string;
@@ -28,15 +28,15 @@ export interface RovoSuggestion {
  */
 export const defaultSuggestions: RovoSuggestion[] = [
 	{
-		id: "create-jira-ticket",
-		label: "Create Jira ticket for bug",
-		icon: TaskIcon,
+		id: "work-last-7-days",
+		label: "Last 7 days of work",
+		icon: TimelineIcon,
 		type: "skill",
 	},
 	{
-		id: "summarize-confluence",
-		label: "Summarize Confluence page",
-		icon: PageIcon,
+		id: "draft-confluence-page",
+		label: "Draft Confluence page",
+		icon: EditIcon,
 		type: "skill",
 	},
 	{

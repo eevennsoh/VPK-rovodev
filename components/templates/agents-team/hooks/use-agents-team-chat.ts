@@ -18,6 +18,10 @@ import {
 	buildPlanApprovalPrompt,
 	type PlanApprovalSubmission,
 } from "@/components/templates/shared/lib/plan-approval";
+import {
+	buildGenerativeWidgetSubmitPrompt,
+	type GenerativeWidgetPrimaryActionPayload,
+} from "@/components/templates/shared/lib/generative-widget";
 import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import {
 	AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
@@ -37,43 +41,16 @@ import {
 	updateThreadTitle,
 	upsertThreadSnapshot,
 } from "../lib/thread-store";
-
-function persistThreadToServer(thread: AgentsTeamThread): void {
-	fetch(API_ENDPOINTS.agentsTeamThreads(), {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			id: thread.id,
-			title: thread.title,
-			messages: thread.messages,
-			createdAt: new Date(thread.createdAt).toISOString(),
-			updatedAt: new Date(thread.updatedAt).toISOString(),
-		}),
-	}).catch(() => {
-		// Fire-and-forget — optimistic local state takes precedence
-	});
-}
-
-function updateThreadOnServer(
-	threadId: string,
-	fields: { title?: string; messages?: ReadonlyArray<RovoUIMessage>; updatedAt?: string }
-): void {
-	fetch(API_ENDPOINTS.agentsTeamThread(threadId), {
-		method: "PUT",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(fields),
-	}).catch(() => {
-		// Fire-and-forget
-	});
-}
-
-function deleteThreadOnServer(threadId: string): void {
-	fetch(API_ENDPOINTS.agentsTeamThread(threadId), {
-		method: "DELETE",
-	}).catch(() => {
-		// Fire-and-forget
-	});
-}
+import {
+	persistThreadToServer,
+	updateThreadOnServer,
+	deleteThreadOnServer,
+	fetchAITitle,
+	deriveTitleFromAssistantMessage,
+	updateUrlThreadParam,
+	areMessageArraysShallowEqual,
+	createAgentTeamRequestId,
+} from "../lib/thread-api";
 
 type AgentTeamPlanningPhase = "awaiting-plan" | "retrying-missing-plan";
 
@@ -82,92 +59,6 @@ interface AgentTeamPlanningSession {
 	phase: AgentTeamPlanningPhase;
 	hasStreamStarted: boolean;
 	retryUsed: boolean;
-}
-
-async function fetchAITitle(message: string): Promise<string | null> {
-	try {
-		const response = await fetch(API_ENDPOINTS.CHAT_TITLE, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ message }),
-		});
-
-		if (!response.ok) {
-			return null;
-		}
-
-		const data = (await response.json()) as { title?: string };
-		return data.title?.trim() || null;
-	} catch {
-		return null;
-	}
-}
-
-function deriveTitleFromAssistantMessage(messageText: string): string | null {
-	const trimmed = messageText.trim();
-	if (!trimmed) {
-		return null;
-	}
-
-	const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/m);
-	if (headingMatch?.[1]) {
-		const headingTitle = trimTitleText(headingMatch[1]);
-		return headingTitle || null;
-	}
-
-	const firstNonEmptyLine = trimmed
-		.split(/\r?\n/)
-		.map((line) => trimTitleText(line.replace(/^[-*]\s+/, "")))
-		.find((line) => line.length > 0);
-
-	if (!firstNonEmptyLine) {
-		return null;
-	}
-
-	const firstSentence = firstNonEmptyLine.split(/[.!?](?:\s|$)/)[0] ?? firstNonEmptyLine;
-	return trimTitleText(firstSentence) || null;
-}
-
-function updateUrlThreadParam(threadId: string | null): void {
-	if (typeof window === "undefined") return;
-	const url = new URL(window.location.href);
-	if (threadId) {
-		url.searchParams.set("thread", threadId);
-	} else {
-		url.searchParams.delete("thread");
-	}
-	if (url.toString() !== window.location.href) {
-		window.history.replaceState(null, "", url.toString());
-	}
-}
-
-function areMessageArraysShallowEqual(
-	left: ReadonlyArray<RovoUIMessage>,
-	right: ReadonlyArray<RovoUIMessage>
-): boolean {
-	if (left === right) {
-		return true;
-	}
-
-	if (left.length !== right.length) {
-		return false;
-	}
-
-	for (let index = 0; index < left.length; index += 1) {
-		if (left[index] !== right[index]) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-function createAgentTeamRequestId(): string {
-	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-		return crypto.randomUUID();
-	}
-
-	return `agent-team-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 interface UseAgentsTeamChatReturn {
@@ -188,6 +79,9 @@ interface UseAgentsTeamChatReturn {
 	activeChatId: string | null;
 	handleSubmit: () => Promise<void>;
 	handleSuggestedQuestionClick: (question: string) => Promise<void>;
+	handleWidgetPrimaryAction: (
+		payload: GenerativeWidgetPrimaryActionPayload
+	) => Promise<void>;
 	submitClarification: (
 		promptText: string,
 		clarification: ClarificationSubmission
@@ -282,7 +176,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				id: thread.id,
 				title: thread.title,
 			})),
-		[threads]
+		[threads],
 	);
 
 	useEffect(() => {
@@ -395,12 +289,12 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 			const queuedTransition = threadTransitionQueueRef.current.then(
 				runTransition,
-				runTransition
+				runTransition,
 			);
 			threadTransitionQueueRef.current = queuedTransition.catch(() => undefined);
 			return queuedTransition;
 		},
-		[]
+		[],
 	);
 
 	const snapshotThreadMessages = useCallback(
@@ -436,7 +330,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				updatedAt: new Date().toISOString(),
 			});
 		},
-		[]
+		[],
 	);
 
 	const transitionChatState = useCallback(
@@ -470,7 +364,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				setActiveChatId(nextChatId);
 			});
 		},
-		[enqueueThreadTransition, replaceMessages, snapshotThreadMessages, stopStreaming]
+		[enqueueThreadTransition, replaceMessages, snapshotThreadMessages, stopStreaming],
 	);
 
 	useEffect(() => {
@@ -545,7 +439,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			resolveChatTitle(chatId, fallbackTitle);
 			return true;
 		},
-		[resolveChatTitle]
+		[resolveChatTitle],
 	);
 
 	const createChatEntry = useCallback((firstMessage: string) => {
@@ -664,7 +558,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				clearCreationMode();
 			}
 		},
-		[isPlanMode, sendPrompt, clearCreationMode]
+		[isPlanMode, sendPrompt, clearCreationMode],
 	);
 
 	useEffect(() => {
@@ -771,40 +665,42 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				},
 			});
 		},
-		[agentTeamPlanningSession?.requestId, isPlanMode, sendPrompt]
+		[agentTeamPlanningSession?.requestId, isPlanMode, sendPrompt],
 	);
+
 	const submitPlanApproval = useCallback(
 		async (approval: PlanApprovalSubmission) => {
 			const approvalPrompt = buildPlanApprovalPrompt(approval).trim();
-				if (!approvalPrompt) {
-					return;
-				}
+			if (!approvalPrompt) {
+				return;
+			}
 
-				await sendPrompt(approvalPrompt, {
-					approval,
-					messageMetadata: {
-						visibility: "hidden",
-						source: "plan-approval-submit",
+			await sendPrompt(approvalPrompt, {
+				approval,
+				messageMetadata: {
+					visibility: "hidden",
+					source: "plan-approval-submit",
 				},
 			});
 		},
-		[sendPrompt]
+		[sendPrompt],
 	);
+
 	const sendAgentDirective = useCallback(
 		async (agentName: string, message: string) => {
 			const trimmed = message.trim();
-				if (!trimmed) {
-					return;
-				}
+			if (!trimmed) {
+				return;
+			}
 
-				await sendPrompt(`@${agentName}: ${trimmed}`, {
-					messageMetadata: {
-						visibility: "hidden",
-						source: "agent-directive",
+			await sendPrompt(`@${agentName}: ${trimmed}`, {
+				messageMetadata: {
+					visibility: "hidden",
+					source: "agent-directive",
 				},
 			});
 		},
-		[sendPrompt]
+		[sendPrompt],
 	);
 
 	const handleSubmit = useCallback(async () => {
@@ -857,7 +753,24 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			isChatMode,
 			sendAgentsPrompt,
 			createChatEntry,
-		]
+		],
+	);
+
+	const handleWidgetPrimaryAction = useCallback(
+		async (payload: GenerativeWidgetPrimaryActionPayload) => {
+			const submitPrompt = buildGenerativeWidgetSubmitPrompt(payload);
+			if (!submitPrompt.trim()) {
+				return;
+			}
+
+			if (!isChatMode || activeChatIdRef.current === null) {
+				setIsChatMode(true);
+				createChatEntry(submitPrompt);
+			}
+
+			await sendAgentsPrompt(submitPrompt);
+		},
+		[createChatEntry, isChatMode, sendAgentsPrompt],
 	);
 
 	const clearPendingTitleState = useCallback(() => {
@@ -904,7 +817,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				console.error("[AGENTS-TEAM] Failed to switch chat thread:", error);
 			});
 		},
-		[transitionChatState]
+		[transitionChatState],
 	);
 
 	const handleDeleteChat = useCallback(
@@ -990,12 +903,18 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 					});
 			}
 		},
-		[clearPendingTitleState, snapshotThreadMessages, transitionChatState]
+		[clearPendingTitleState, snapshotThreadMessages, transitionChatState],
 	);
 
 	const togglePlanMode = useCallback(() => {
-		setPlanModeEnabled(!isPlanMode);
-	}, [isPlanMode, setPlanModeEnabled]);
+		setIsPlanMode((prev) => {
+			const next = !prev;
+			if (!next) {
+				setAgentTeamPlanningSession(null);
+			}
+			return next;
+		});
+	}, []);
 
 	return {
 		prompt,
@@ -1015,6 +934,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		activeChatId,
 		handleSubmit,
 		handleSuggestedQuestionClick,
+		handleWidgetPrimaryAction,
 		submitClarification,
 		submitPlanApproval,
 		sendAgentDirective,

@@ -8,7 +8,7 @@ interface HeadingProps extends HTMLAttributes<HTMLElement> {
 	size?: "xxsmall" | "xsmall" | "small" | "medium" | "large" | "xlarge" | "xxlarge";
 }
 
-const sizeMap: Record<NonNullable<HeadingProps["size"]>, string> = {
+const sizeMap: Record<NonNullable<HeadingProps["size"]>, Parameters<typeof token>[0]> = {
 	xxsmall: "font.heading.xxsmall",
 	xsmall: "font.heading.xsmall",
 	small: "font.heading.small",
@@ -26,10 +26,12 @@ export default function Heading({
 	...props
 }: Readonly<HeadingProps>) {
 	const mergedStyle: CSSProperties = {
-		font: token(sizeMap[size] as Parameters<typeof token>[0]),
+		font: token(sizeMap[size]),
 		color: token("color.text"),
 		...style,
 	};
 
-	return <Component style={mergedStyle} className={className} {...props} />;
+	const PolymorphicHeading = Component as ElementType<HTMLAttributes<HTMLElement>>;
+
+	return <PolymorphicHeading style={mergedStyle} className={className} {...props} />;
 }

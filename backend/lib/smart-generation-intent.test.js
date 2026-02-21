@@ -73,3 +73,25 @@ test("classifySmartGenerationIntent times out to normal", async () => {
 	assert.equal(result.intent, "normal");
 	assert.equal(result.timedOut, true);
 });
+
+test("classifySmartGenerationIntent aborts classifier call when timeout elapses", async () => {
+	let observedAbort = false;
+	const result = await classifySmartGenerationIntent({
+		latestUserMessage: "Generate a dashboard",
+		conversationHistory: [],
+		timeoutMs: 5,
+		classify: ({ signal }) =>
+			new Promise(() => {
+				if (!signal) {
+					return;
+				}
+				signal.addEventListener("abort", () => {
+					observedAbort = true;
+				});
+			}),
+	});
+
+	assert.equal(result.intent, "normal");
+	assert.equal(result.timedOut, true);
+	assert.equal(observedAbort, true);
+});

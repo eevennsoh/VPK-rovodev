@@ -1,69 +1,65 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import { ProgressIndicator } from "@/components/ui/progress-indicator";
-import {
-	getCustomOptionIndex,
-	getNextFocusedIndex,
-	getTotalOptionSlots,
-	getVisibleOptionCount,
-} from "@/components/blocks/question-card/lib/option-slots";
+import { cn } from "@/lib/utils";
+import CheckMarkIcon from "@atlaskit/icon/core/check-mark";
 import ChevronLeftIcon from "@atlaskit/icon/core/chevron-left";
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import CrossIcon from "@atlaskit/icon/core/cross";
+import { getVisibleOptionCount } from "@/components/blocks/question-card/lib/option-slots";
+import { getCustomInputValue, getSelectedValues } from "@/components/blocks/question-card/lib/question-helpers";
+import { useQuestionCard } from "@/components/blocks/question-card/hooks/use-question-card";
+import type { QuestionCardAnswerValue, QuestionCardAnswers, QuestionCardQuestion } from "../types";
 
-export interface QuestionCardOption {
-	id: string;
+// Re-export types for backward compatibility
+export type { QuestionCardOption, QuestionCardQuestion, QuestionCardAnswerValue, QuestionCardAnswers } from "../types";
+
+// ---------------------------------------------------------------------------
+// Component props
+// ---------------------------------------------------------------------------
+
+export interface QuestionCardProps extends Omit<React.ComponentProps<"div">, "onSubmit"> {
+	/** Ordered list of questions to present. */
+	questions: ReadonlyArray<QuestionCardQuestion>;
+	/** When `true`, all interactions are disabled and a loading state is shown. */
+	isSubmitting?: boolean;
+	/** Called with the collected answers when the user completes all questions or clicks Submit. */
+	onSubmit: (answers: QuestionCardAnswers) => void;
+	/** Called when the user dismisses the card (Escape or Skip on last question). When omitted, the dismiss button is hidden. */
+	onDismiss?: () => void;
+	/** Maximum number of pre-defined options to display per question. Additional options are truncated. @default 4 */
+	maxVisibleOptions?: number;
+	/** Placeholder text for the free-form custom input row. @default "Tell Rovo what to do..." */
+	customInputPlaceholder?: string;
+	/** Whether to show the free-form custom input row after the option list. @default true */
+	showCustomInput?: boolean;
+	/** Initial answers to pre-populate. Keys are question IDs. */
+	defaultAnswers?: QuestionCardAnswers;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const DEFAULT_MAX_VISIBLE_OPTIONS = 4;
+const DEFAULT_CUSTOM_INPUT_PLACEHOLDER = "Tell Rovo what to do...";
+
+// ---------------------------------------------------------------------------
+// QuestionOptionRow (internal)
+// ---------------------------------------------------------------------------
+
+interface QuestionOptionRowProps {
+	index: number;
 	label: string;
 	description?: string;
-}
-
-export interface QuestionCardQuestion {
-	id: string;
-	label: string;
-	kind: "single-select" | "multi-select" | "text";
-	options: ReadonlyArray<QuestionCardOption>;
-}
-
-export type QuestionCardAnswerValue = string | string[];
-export type QuestionCardAnswers = Record<string, QuestionCardAnswerValue>;
-
-export interface QuestionCardProps {
-	questions: ReadonlyArray<QuestionCardQuestion>;
-	isSubmitting?: boolean;
-	onSubmit: (answers: QuestionCardAnswers) => void;
-	onDismiss?: () => void;
-}
-
-const MAX_GENERATED_OPTIONS = 3;
-const CUSTOM_OPTION_PLACEHOLDER = "Tell Rovo what to do...";
-
-function getSelectedValues(answerValue: QuestionCardAnswerValue | undefined): string[] {
-	if (typeof answerValue === "string") {
-		return answerValue.trim().length > 0 ? [answerValue] : [];
-	}
-
-	return Array.isArray(answerValue) ? answerValue : [];
-}
-
-function getCustomInputValue(question: QuestionCardQuestion, answerValue: QuestionCardAnswerValue | undefined): string {
-	if (typeof answerValue !== "string") {
-		return "";
-	}
-
-	const hasMatchingOption = question.options.some((option) => option.id === answerValue);
-	return hasMatchingOption ? "" : answerValue;
-}
-
-function isQuestionAnswered(question: QuestionCardQuestion, answers: QuestionCardAnswers): boolean {
-	const answerValue = answers[question.id];
-	if (answerValue === undefined) return false;
-	if (typeof answerValue === "string") return answerValue.trim().length > 0;
-	if (Array.isArray(answerValue)) return answerValue.length > 0;
-	return false;
+	selected: boolean;
+	focused: boolean;
+	disabled: boolean;
+	kind: QuestionCardQuestion["kind"];
+	onPress: () => void;
+	onMouseEnter: () => void;
 }
 
 function QuestionOptionRow({
@@ -73,20 +69,14 @@ function QuestionOptionRow({
 	selected,
 	focused,
 	disabled,
+	kind,
 	onPress,
 	onMouseEnter,
-}: Readonly<{
-	index: number;
-	label: string;
-	description?: string;
-	selected: boolean;
-	focused: boolean;
-	disabled: boolean;
-	onPress: () => void;
-	onMouseEnter: () => void;
-}>): React.ReactElement {
+}: Readonly<QuestionOptionRowProps>): React.ReactElement {
+	const isMultiSelect = kind === "multi-select";
+
 	return (
-		<li>
+		<li data-slot="question-card-option">
 			<button
 				type="button"
 				aria-pressed={selected}
@@ -100,6 +90,7 @@ function QuestionOptionRow({
 				)}
 			>
 				<span
+					data-slot="question-card-option-index"
 					className={cn(
 						"inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border bg-surface text-sm leading-5 font-medium",
 						selected ? "border-border-selected text-text-selected" : "border-border text-text",
@@ -107,13 +98,43 @@ function QuestionOptionRow({
 				>
 					{index + 1}
 				</span>
-				<span className="min-w-0 flex-1">
+				<span data-slot="question-card-option-content" className="min-w-0 flex-1">
 					<span className={cn("block truncate text-sm leading-5 font-medium", selected ? "text-text-selected" : "text-text")}>{label}</span>
 					{description ? <span className={cn("block text-sm leading-5 font-normal", selected ? "text-text-selected" : "text-text-subtle")}>{description}</span> : null}
 				</span>
+				{isMultiSelect ? (
+					<span
+						data-slot="question-card-option-checkbox"
+						aria-hidden="true"
+						className={cn(
+							"inline-flex size-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
+							selected ? "border-primary bg-primary text-primary-foreground" : "border-input bg-bg-input",
+						)}
+					>
+						{selected ? <CheckMarkIcon label="" size="small" /> : null}
+					</span>
+				) : null}
 			</button>
 		</li>
 	);
+}
+
+// ---------------------------------------------------------------------------
+// QuestionInput (internal)
+// ---------------------------------------------------------------------------
+
+interface QuestionInputProps {
+	question: QuestionCardQuestion;
+	answerValue: QuestionCardAnswerValue | undefined;
+	focusedIndex: number;
+	customOptionIndex: number;
+	isSubmitting: boolean;
+	customInputRef: React.RefObject<HTMLInputElement | null>;
+	maxVisibleOptions: number;
+	customInputPlaceholder: string;
+	showCustomInput: boolean;
+	onFocusIndex: (index: number) => void;
+	onAnswerChange: (value: QuestionCardAnswerValue, options?: Readonly<{ autoAdvance?: boolean }>) => void;
 }
 
 function QuestionInput({
@@ -123,25 +144,19 @@ function QuestionInput({
 	customOptionIndex,
 	isSubmitting,
 	customInputRef,
+	maxVisibleOptions,
+	customInputPlaceholder,
+	showCustomInput,
 	onFocusIndex,
 	onAnswerChange,
-}: Readonly<{
-	question: QuestionCardQuestion;
-	answerValue: QuestionCardAnswerValue | undefined;
-	focusedIndex: number;
-	customOptionIndex: number;
-	isSubmitting: boolean;
-	customInputRef: React.RefObject<HTMLInputElement | null>;
-	onFocusIndex: (index: number) => void;
-	onAnswerChange: (value: QuestionCardAnswerValue, options?: Readonly<{ autoAdvance?: boolean }>) => void;
-}>): React.ReactElement {
+}: Readonly<QuestionInputProps>): React.ReactElement {
 	const selectedValues = getSelectedValues(answerValue);
-	const visibleOptionCount = getVisibleOptionCount(question.options.length, MAX_GENERATED_OPTIONS);
+	const visibleOptionCount = getVisibleOptionCount(question.options.length, maxVisibleOptions);
 	const visibleOptions = question.options.slice(0, visibleOptionCount);
 	const customInputValue = getCustomInputValue(question, answerValue);
 
 	return (
-		<ul className="m-0 flex list-none flex-col gap-1 p-0" role="listbox">
+		<ul data-slot="question-card-options" className="m-0 flex list-none flex-col gap-1 p-0" role="group" aria-label={question.label}>
 			{visibleOptions.map((option, index) => {
 				const isSelected = selectedValues.includes(option.id);
 				return (
@@ -153,6 +168,7 @@ function QuestionInput({
 						selected={isSelected}
 						focused={focusedIndex === index}
 						disabled={isSubmitting}
+						kind={question.kind}
 						onMouseEnter={() => onFocusIndex(index)}
 						onPress={() => {
 							if (question.kind === "single-select") {
@@ -166,245 +182,100 @@ function QuestionInput({
 					/>
 				);
 			})}
-			<li
-				className="flex h-8 items-center gap-4 rounded-lg pl-2"
-				onMouseEnter={() => {
-					onFocusIndex(customOptionIndex);
-					customInputRef.current?.focus();
-				}}
-			>
-				<span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">{customOptionIndex + 1}</span>
-				<Input
-					ref={customInputRef}
-					aria-label={`${question.label} custom answer`}
-					value={customInputValue}
-					onChange={(event) => onAnswerChange((event.target as HTMLInputElement).value)}
-					onFocus={() => onFocusIndex(customOptionIndex)}
-					disabled={isSubmitting}
-					placeholder={CUSTOM_OPTION_PLACEHOLDER}
-					className="h-8 border-input bg-bg-input text-sm leading-5"
-				/>
-			</li>
+			{showCustomInput ? (
+				<li
+					data-slot="question-card-custom-input"
+					className="flex h-8 items-center gap-4 rounded-lg pl-2"
+					onMouseEnter={() => {
+						onFocusIndex(customOptionIndex);
+						customInputRef.current?.focus();
+					}}
+				>
+					<span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">{customOptionIndex + 1}</span>
+					<Input
+						ref={customInputRef}
+						aria-label={`${question.label} custom answer`}
+						value={customInputValue}
+						onChange={(event) => onAnswerChange((event.target as HTMLInputElement).value)}
+						onFocus={() => onFocusIndex(customOptionIndex)}
+						disabled={isSubmitting}
+						placeholder={customInputPlaceholder}
+						className="h-8 border-input bg-bg-input text-sm leading-5"
+					/>
+				</li>
+			) : null}
 		</ul>
 	);
 }
 
-export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDismiss }: Readonly<QuestionCardProps>): React.ReactElement {
-	const cardRef = useRef<HTMLDivElement>(null);
-	const customInputRef = useRef<HTMLInputElement>(null);
-	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-	const [answers, setAnswers] = useState<QuestionCardAnswers>({});
-	const [focusedIndex, setFocusedIndex] = useState(0);
-	const [hasSkippedQuestions, setHasSkippedQuestions] = useState(false);
-	const [visitedLastQuestion, setVisitedLastQuestion] = useState(false);
+// ---------------------------------------------------------------------------
+// QuestionCard
+// ---------------------------------------------------------------------------
 
-	const totalQuestions = questions.length;
-	const hasMultipleQuestions = totalQuestions > 1;
-	const safeQuestionIndex = Math.min(Math.max(0, currentQuestionIndex), totalQuestions - 1);
-	const currentQuestion = questions[safeQuestionIndex];
-	const canGoToPreviousQuestion = safeQuestionIndex > 0;
-	const canGoToNextQuestion = safeQuestionIndex < totalQuestions - 1;
-	const visibleOptionCount = getVisibleOptionCount(currentQuestion.options.length, MAX_GENERATED_OPTIONS);
-	const customOptionIndex = getCustomOptionIndex(visibleOptionCount);
-	const totalOptionSlots = getTotalOptionSlots(visibleOptionCount);
-
-	const allQuestionsAnswered = questions.every((question) => isQuestionAnswered(question, answers));
-
-	const needsManualSubmit = hasSkippedQuestions && visitedLastQuestion;
-	const showSubmitButton = needsManualSubmit && !allQuestionsAnswered;
-
-	useEffect(() => {
-		cardRef.current?.focus();
-	}, []);
-
-	useEffect(() => {
-		if (document.activeElement === customInputRef.current) {
-			cardRef.current?.focus();
-		}
-	}, [safeQuestionIndex]);
-
-	useEffect(() => {
-		if (focusedIndex === customOptionIndex) {
-			customInputRef.current?.focus();
-		}
-	}, [focusedIndex, customOptionIndex]);
-
-	const resetFocusForNewQuestion = useCallback(() => {
-		setFocusedIndex(0);
-	}, []);
-
-	const goToNextQuestion = useCallback(() => {
-		resetFocusForNewQuestion();
-		setCurrentQuestionIndex((previous) => {
-			const next = Math.min(totalQuestions - 1, previous + 1);
-			if (next === totalQuestions - 1) {
-				setVisitedLastQuestion(true);
-			}
-			return next;
-		});
-	}, [totalQuestions, resetFocusForNewQuestion]);
-
-	const goToPreviousQuestion = useCallback(() => {
-		resetFocusForNewQuestion();
-		setCurrentQuestionIndex((previous) => Math.max(0, previous - 1));
-	}, [resetFocusForNewQuestion]);
-
-	const handleSkip = useCallback(() => {
-		if (isSubmitting) return;
-
-		if (canGoToNextQuestion) {
-			setHasSkippedQuestions(true);
-			goToNextQuestion();
-		} else {
-			onDismiss?.();
-		}
-	}, [isSubmitting, canGoToNextQuestion, goToNextQuestion, onDismiss]);
-
-	const handleSelectOption = useCallback(
-		(optionId: string) => {
-			if (isSubmitting) return;
-
-			const nextAnswers = { ...answers, [currentQuestion.id]: optionId };
-			setAnswers(nextAnswers);
-
-			if (canGoToNextQuestion) {
-				goToNextQuestion();
-				return;
-			}
-
-			const allAnswered = questions.every((question) => (question.id === currentQuestion.id ? true : isQuestionAnswered(question, nextAnswers)));
-			if (allAnswered) {
-				onSubmit(nextAnswers);
-			} else {
-				setVisitedLastQuestion(true);
-				setHasSkippedQuestions(true);
-			}
-		},
-		[isSubmitting, answers, currentQuestion, canGoToNextQuestion, goToNextQuestion, questions, onSubmit],
-	);
-
-	const handleCustomInputSubmit = useCallback(
-		(value: string) => {
-			if (isSubmitting || !value.trim()) return;
-
-			const nextAnswers = { ...answers, [currentQuestion.id]: value.trim() };
-			setAnswers(nextAnswers);
-
-			if (canGoToNextQuestion) {
-				goToNextQuestion();
-				cardRef.current?.focus();
-				return;
-			}
-
-			const allAnswered = questions.every((question) => (question.id === currentQuestion.id ? true : isQuestionAnswered(question, nextAnswers)));
-			if (allAnswered) {
-				onSubmit(nextAnswers);
-			} else {
-				setVisitedLastQuestion(true);
-				setHasSkippedQuestions(true);
-			}
-		},
-		[isSubmitting, answers, currentQuestion, canGoToNextQuestion, goToNextQuestion, questions, onSubmit],
-	);
-
-	const handleKeyDown = useCallback(
-		(event: React.KeyboardEvent) => {
-			if (isSubmitting) return;
-
-			const isCustomInputFocused = document.activeElement === customInputRef.current;
-			switch (event.key) {
-				case "ArrowUp": {
-					event.preventDefault();
-					if (isCustomInputFocused) {
-						cardRef.current?.focus();
-					}
-					setFocusedIndex((previous) => getNextFocusedIndex(previous, totalOptionSlots, "up"));
-					break;
-				}
-				case "ArrowDown": {
-					event.preventDefault();
-					if (isCustomInputFocused) {
-						cardRef.current?.focus();
-					}
-					setFocusedIndex((previous) => getNextFocusedIndex(previous, totalOptionSlots, "down"));
-					break;
-				}
-				case "Enter": {
-					if (isCustomInputFocused) {
-						event.preventDefault();
-						const inputValue = customInputRef.current?.value ?? "";
-						handleCustomInputSubmit(inputValue);
-						return;
-					}
-
-					event.preventDefault();
-					if (focusedIndex < visibleOptionCount) {
-						const option = currentQuestion.options[focusedIndex];
-						if (option) {
-							handleSelectOption(option.id);
-						}
-					} else if (focusedIndex === customOptionIndex) {
-						customInputRef.current?.focus();
-					}
-					break;
-				}
-				case "ArrowLeft": {
-					if (isCustomInputFocused) return;
-					event.preventDefault();
-					if (canGoToPreviousQuestion) {
-						goToPreviousQuestion();
-					}
-					break;
-				}
-				case "ArrowRight": {
-					if (isCustomInputFocused) return;
-					event.preventDefault();
-					if (canGoToNextQuestion) {
-						goToNextQuestion();
-					}
-					break;
-				}
-				case "Escape": {
-					event.preventDefault();
-					if (isCustomInputFocused) {
-						cardRef.current?.focus();
-						return;
-					}
-					onDismiss?.();
-					break;
-				}
-			}
-		},
-		[
-			isSubmitting,
-			totalOptionSlots,
-			focusedIndex,
-			visibleOptionCount,
-			customOptionIndex,
-			currentQuestion,
-			canGoToPreviousQuestion,
-			canGoToNextQuestion,
-			goToPreviousQuestion,
-			goToNextQuestion,
-			handleSelectOption,
-			handleCustomInputSubmit,
-			onDismiss,
-		],
-	);
+function QuestionCard({
+	questions,
+	isSubmitting = false,
+	onSubmit,
+	onDismiss,
+	maxVisibleOptions = DEFAULT_MAX_VISIBLE_OPTIONS,
+	customInputPlaceholder = DEFAULT_CUSTOM_INPUT_PLACEHOLDER,
+	showCustomInput = true,
+	defaultAnswers,
+	className,
+	...props
+}: Readonly<QuestionCardProps>): React.ReactElement {
+	const {
+		cardRef,
+		customInputRef,
+		answers,
+		focusedIndex,
+		setFocusedIndex,
+		currentQuestion,
+		safeQuestionIndex,
+		totalQuestions,
+		hasMultipleQuestions,
+		canGoToPreviousQuestion,
+		canGoToNextQuestion,
+		customOptionIndex,
+		showSubmitButton,
+		goToNextQuestion,
+		goToPreviousQuestion,
+		handleSkip,
+		handleAnswerChange,
+		handleKeyDown,
+		onSubmit: handleSubmit,
+	} = useQuestionCard({
+		questions,
+		isSubmitting,
+		maxVisibleOptions,
+		showCustomInput,
+		defaultAnswers,
+		onSubmit,
+		onDismiss,
+	});
 
 	return (
 		<div
 			ref={cardRef}
+			data-slot="question-card"
 			data-testid="question-card"
 			tabIndex={0}
 			role="dialog"
 			aria-label={`Question ${safeQuestionIndex + 1} of ${totalQuestions}: ${currentQuestion.label}`}
 			onKeyDown={handleKeyDown}
-			className="mx-auto w-full max-w-[776px] overflow-hidden rounded-xl border border-border bg-surface shadow-[0_-2px_50px_8px_rgba(30,31,33,0.08)] outline-none"
+			className={cn("mx-auto w-full max-w-[776px] overflow-hidden rounded-xl border border-border bg-surface shadow-[0_-2px_50px_8px_rgba(30,31,33,0.08)] outline-none", className)}
+			{...props}
 		>
-			<header className="px-4 pb-2 pt-4">
+			<header data-slot="question-card-header" className="px-4 pb-2 pt-4">
 				<div className="flex items-start justify-between gap-2">
-					<h2 className="min-w-0 text-sm leading-5 font-medium text-text">{currentQuestion.label}</h2>
+					<div className="min-w-0">
+						{currentQuestion.header ? (
+							<span className="mb-0.5 block text-xs font-medium text-text-subtlest uppercase tracking-wider">
+								{currentQuestion.header}
+							</span>
+						) : null}
+						<h2 className="text-sm leading-5 font-medium text-text">{currentQuestion.label}</h2>
+					</div>
 					{onDismiss ? (
 						<Button aria-label="Dismiss questions" size="icon" variant="ghost" disabled={isSubmitting} className="-mr-1 -mt-1 shrink-0" onClick={onDismiss} tabIndex={-1}>
 							<CrossIcon label="" size="small" />
@@ -413,7 +284,7 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 				</div>
 			</header>
 
-			<div className="px-3 pb-4">
+			<div data-slot="question-card-body" className="px-3 pb-4">
 				<QuestionInput
 					question={currentQuestion}
 					answerValue={answers[currentQuestion.id]}
@@ -421,37 +292,15 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 					customOptionIndex={customOptionIndex}
 					isSubmitting={isSubmitting}
 					customInputRef={customInputRef}
+					maxVisibleOptions={maxVisibleOptions}
+					customInputPlaceholder={customInputPlaceholder}
+					showCustomInput={showCustomInput}
 					onFocusIndex={setFocusedIndex}
-					onAnswerChange={(answerValue, options) => {
-						if (isSubmitting) return;
-
-						setAnswers((previousAnswers) => ({
-							...previousAnswers,
-							[currentQuestion.id]: answerValue,
-						}));
-
-						if (options?.autoAdvance && currentQuestion.kind === "single-select") {
-							if (canGoToNextQuestion) {
-								goToNextQuestion();
-							} else {
-								const nextAnswers = {
-									...answers,
-									[currentQuestion.id]: answerValue,
-								};
-								const allAnswered = questions.every((question) => (question.id === currentQuestion.id ? true : isQuestionAnswered(question, nextAnswers)));
-								if (allAnswered) {
-									onSubmit(nextAnswers);
-								} else {
-									setVisitedLastQuestion(true);
-									setHasSkippedQuestions(true);
-								}
-							}
-						}
-					}}
+					onAnswerChange={handleAnswerChange}
 				/>
 			</div>
 
-			<footer className="flex h-16 items-center justify-between border-t border-border p-4">
+			<footer data-slot="question-card-footer" className="flex h-16 items-center justify-between border-t border-border p-4">
 				{hasMultipleQuestions ? (
 					<div className="flex items-center gap-2">
 						<button
@@ -481,7 +330,7 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 				)}
 
 				{showSubmitButton ? (
-					<Button disabled={isSubmitting} onClick={() => onSubmit(answers)} tabIndex={-1}>
+					<Button disabled={isSubmitting} onClick={handleSubmit} tabIndex={-1}>
 						{isSubmitting ? "Submitting..." : "Submit"}
 					</Button>
 				) : (
@@ -493,3 +342,5 @@ export function QuestionCard({ questions, isSubmitting = false, onSubmit, onDism
 		</div>
 	);
 }
+
+export { QuestionCard };

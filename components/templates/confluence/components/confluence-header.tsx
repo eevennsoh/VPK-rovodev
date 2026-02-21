@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
@@ -26,21 +26,26 @@ export default function ConfluenceHeader() {
 	const [shareButtonRect, setShareButtonRect] = useState<DOMRect | null>(null);
 	const shareButtonRef = useRef<HTMLButtonElement>(null);
 	const shareMenuRef = useRef<HTMLDivElement>(null);
+	const closeShareDropdown = () => {
+		setIsShareDropdownOpen(false);
+		setShareButtonRect(null);
+	};
+	const toggleShareDropdown = () => {
+		if (isShareDropdownOpen) {
+			closeShareDropdown();
+			return;
+		}
+
+		const rect = shareButtonRef.current?.getBoundingClientRect() ?? null;
+		setShareButtonRect(rect);
+		setIsShareDropdownOpen(true);
+	};
 
 	useClickOutside(
 		[shareMenuRef, shareButtonRef],
-		() => setIsShareDropdownOpen(false),
+		closeShareDropdown,
 		isShareDropdownOpen
 	);
-
-	useEffect(() => {
-		if (!isShareDropdownOpen) {
-			setShareButtonRect(null);
-			return;
-		}
-		const rect = shareButtonRef.current?.getBoundingClientRect() ?? null;
-		setShareButtonRect(rect);
-	}, [isShareDropdownOpen]);
 
 	return (
 		<div
@@ -121,7 +126,7 @@ export default function ConfluenceHeader() {
 								size="icon"
 								variant="secondary"
 								className="rounded-l-none"
-								onClick={() => setIsShareDropdownOpen(prev => !prev)}
+								onClick={toggleShareDropdown}
 							>
 								<ChevronDownIcon label="" size="small" />
 							</Button>
@@ -130,7 +135,7 @@ export default function ConfluenceHeader() {
 								<ShareDropdownMenu
 									menuRef={shareMenuRef}
 									buttonRect={shareButtonRect}
-									onClose={() => setIsShareDropdownOpen(false)}
+									onClose={closeShareDropdown}
 								/>
 							)}
 						</div>

@@ -51,7 +51,7 @@ function normalizeRootStackPadding(spec: Spec): Spec {
 
 	const normalizedPadding = Math.max(
 		0,
-		Math.min(Math.round(rawPadding), ROOT_STACK_PADDING_UNITS),
+		Math.min(Math.round(rawPadding), ROOT_STACK_PADDING_UNITS)
 	);
 
 	if (normalizedPadding === rawPadding) {
@@ -100,20 +100,43 @@ function toRenderableSpec(spec: Spec | null): Spec | null {
 	}
 }
 
+interface JsonRenderViewProps {
+	spec: Spec | null;
+	loading?: boolean;
+	skipValidation?: boolean;
+	onStateChange?: (path: string, value: unknown) => void;
+	handlers?: Record<
+		string,
+		(params: Record<string, unknown>) => Promise<unknown> | unknown
+	>;
+}
+
 export function JsonRenderView({
 	spec,
 	loading,
-}: {
-	spec: Spec | null;
-	loading?: boolean;
-}) {
-	const renderableSpec = useMemo(() => toRenderableSpec(spec), [spec]);
+	skipValidation,
+	onStateChange,
+	handlers,
+}: Readonly<JsonRenderViewProps>) {
+	const renderableSpec = useMemo(() => {
+		if (skipValidation) {
+			return hasRenderableShape(spec)
+				? normalizeRootStackPadding(spec)
+				: null;
+		}
+		return toRenderableSpec(spec);
+	}, [spec, skipValidation]);
 	if (!renderableSpec) {
 		return null;
 	}
 
 	return (
-		<JSONUIProvider registry={registry} initialState={renderableSpec.state}>
+		<JSONUIProvider
+			registry={registry}
+			initialState={renderableSpec.state}
+			onStateChange={onStateChange}
+			handlers={handlers}
+		>
 			<Renderer spec={renderableSpec} registry={registry} loading={loading} />
 		</JSONUIProvider>
 	);

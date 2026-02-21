@@ -13,6 +13,10 @@ import {
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
 } from "@/components/templates/shared/lib/question-card-widget";
+import {
+	buildGenerativeWidgetSubmitPrompt,
+	type GenerativeWidgetPrimaryActionPayload,
+} from "@/components/templates/shared/lib/generative-widget";
 
 interface UseRovoChatPanelOptions {
 	product: Product;
@@ -54,12 +58,11 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 	}, [stopStreaming]);
 
 	const buildSendOptions = useCallback(() => {
-		const contextDescription = (() => {
-			if (!contextEnabled) return undefined;
-			if (product === "confluence") return "You have context from the current Confluence page.";
-			if (product === "jira") return "You have context from the current Jira board.";
-			return undefined;
-		})();
+		const contextDescriptions: Record<string, string> = {
+			confluence: "You have context from the current Confluence page.",
+			jira: "You have context from the current Jira board.",
+		};
+		const contextDescription = contextEnabled ? contextDescriptions[product] : undefined;
 
 		return {
 			contextDescription,
@@ -87,6 +90,14 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 
 		await sendPrompt(currentPrompt, buildSendOptions());
 	}, [prompt, sendPrompt, buildSendOptions]);
+
+	const handleWidgetPrimaryAction = useCallback(
+		async (payload: GenerativeWidgetPrimaryActionPayload) => {
+			const submitPrompt = buildGenerativeWidgetSubmitPrompt(payload);
+			await sendPrompt(submitPrompt, buildSendOptions());
+		},
+		[buildSendOptions, sendPrompt]
+	);
 
 	const handleFullScreen = useCallback(() => {
 		resetChat();
@@ -125,9 +136,8 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		[activeQuestionCard, buildSendOptions, sendPrompt]
 	);
 
-	const hasChatStarted = useMemo(
-		() => uiMessages.some((message) => message.role === "assistant" || message.role === "user"),
-		[uiMessages]
+	const hasChatStarted = uiMessages.some(
+		(message) => message.role === "assistant" || message.role === "user"
 	);
 
 	return {
@@ -156,6 +166,7 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		scrollSpacerRef,
 		handleSubmit,
 		handleSuggestedQuestionClick,
+		handleWidgetPrimaryAction,
 		handleFullScreen,
 		hasChatStarted,
 		activeQuestionCard,

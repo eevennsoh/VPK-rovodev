@@ -138,8 +138,7 @@ export default function ChatTitleRow({
 										<span className="-mt-0.5 inline-flex size-6 items-center justify-center">
 											<ConfluenceIcon
 												label="Confluence"
-												size={24}
-												style={{ width: 24, height: 24 }}
+												size="small"
 											/>
 										</span>
 									}

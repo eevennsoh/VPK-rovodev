@@ -3,6 +3,7 @@ const path = require("node:path");
 const { spawn, execSync } = require("node:child_process");
 const { getRovodevBasePort } = require("./lib/worktree-ports");
 const { isPortAvailable, checkRovodevHealth, resolveRovodevBin } = require("./lib/rovodev-utils");
+const { dedupeAllowedMcpServersInConfig } = require("./lib/rovodev-config");
 
 try {
 	require("dotenv").config({ path: path.join(process.cwd(), ".env.local") });
@@ -13,7 +14,7 @@ try {
 const basePort = getRovodevBasePort();
 const maxTries = Number.parseInt(process.env.PORT_SEARCH_MAX ?? "20", 10);
 const poolSize = Math.max(1, Number.parseInt(process.env.ROVODEV_POOL_SIZE ?? "6", 10));
-const forceCleanStart = process.env.ROVODEV_FORCE_CLEAN_START !== "false";
+const forceCleanStart = process.env.ROVODEV_FORCE_CLEAN_START === "true";
 const defaultBillingSiteUrl = "https://hello.atlassian.net";
 const configuredBillingSiteUrl =
 	typeof process.env.ROVODEV_SITE_URL === "string" &&
@@ -42,41 +43,62 @@ const getListeningPids = (port) => {
 };
 
 /**
- * Kill all listeners in the candidate RovoDev port range.
- * This guarantees a clean start for local development.
+ * Gracefully stop all listeners in the candidate RovoDev port range.
+ * Sends SIGTERM first to allow clean config-file shutdown, then escalates
+ * to SIGKILL after a grace period for any processes that didn't exit.
  */
 const cleanupAllInstances = async (minPort, maxPort) => {
-	console.log(`[rovodev] Force clean start enabled. Killing listeners on ports ${minPort}-${maxPort}...`);
-	const killedPids = new Set();
+	console.log(`[rovodev] Force clean start enabled. Stopping listeners on ports ${minPort}-${maxPort}...`);
+	const signalledPids = new Set();
 
 	for (let port = minPort; port <= maxPort; port++) {
 		const pids = getListeningPids(port);
 		for (const pid of pids) {
-			if (killedPids.has(pid)) {
+			if (signalledPids.has(pid)) {
 				continue;
 			}
 			try {
-				process.kill(pid, "SIGKILL");
-				killedPids.add(pid);
+				process.kill(pid, "SIGTERM");
+				signalledPids.add(pid);
 			} catch {
 				// ignore kill failures (process may have already exited)
 			}
 		}
 	}
 
-	if (killedPids.size > 0) {
-		console.log(`[rovodev] Killed ${killedPids.size} stale process(es).`);
+	if (signalledPids.size === 0) {
+		return;
+	}
+
+	console.log(`[rovodev] Sent SIGTERM to ${signalledPids.size} process(es). Waiting for graceful shutdown...`);
+	await sleep(2000);
+
+	// Escalate to SIGKILL for any survivors
+	let forceKilled = 0;
+	for (const pid of signalledPids) {
+		try {
+			process.kill(pid, 0); // check if still alive
+			process.kill(pid, "SIGKILL");
+			forceKilled++;
+		} catch {
+			// already exited — good
+		}
+	}
+
+	if (forceKilled > 0) {
+		console.log(`[rovodev] Force-killed ${forceKilled} process(es) that didn't exit gracefully.`);
 		await sleep(250);
 	}
 };
 
 /**
- * Kill stale RovoDev instances on unhealthy ports.
- * Returns count of instances killed.
+ * Gracefully stop stale RovoDev instances on unhealthy ports.
+ * Sends SIGTERM first, waits for graceful shutdown, then escalates to SIGKILL.
+ * Returns count of instances stopped.
  */
 const cleanupStaleInstances = async (minPort, maxPort) => {
 	console.log(`[rovodev] Scanning for stale instances (ports ${minPort}-${maxPort})...`);
-	let killed = 0;
+	const stalePids = new Set();
 
 	for (let port = minPort; port <= maxPort; port++) {
 		const health = await checkRovodevHealth(port);
@@ -89,26 +111,48 @@ const cleanupStaleInstances = async (minPort, maxPort) => {
 		// Port is responding but unhealthy (MCP servers failed)
 		if (!health.healthy) {
 			console.log(
-				`[rovodev] Found unhealthy instance on port ${port} (status: ${health.status}). Killing...`
+				`[rovodev] Found unhealthy instance on port ${port} (status: ${health.status}). Stopping...`
 			);
-			try {
-				// Try to kill by port number using lsof + kill
-				execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`, {
-					stdio: "pipe",
-				});
-				killed++;
-				await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for kill to take effect
-			} catch {
-				// Ignore kill errors
+			const pids = getListeningPids(port);
+			for (const pid of pids) {
+				if (stalePids.has(pid)) {
+					continue;
+				}
+				try {
+					process.kill(pid, "SIGTERM");
+					stalePids.add(pid);
+				} catch {
+					// ignore — process may have already exited
+				}
 			}
 		}
 	}
 
-	if (killed > 0) {
-		console.log(`[rovodev] Killed ${killed} stale instance(s).`);
+	if (stalePids.size === 0) {
+		return 0;
 	}
 
-	return killed;
+	console.log(`[rovodev] Sent SIGTERM to ${stalePids.size} stale process(es). Waiting for graceful shutdown...`);
+	await sleep(2000);
+
+	// Escalate to SIGKILL for any survivors
+	let forceKilled = 0;
+	for (const pid of stalePids) {
+		try {
+			process.kill(pid, 0); // check if still alive
+			process.kill(pid, "SIGKILL");
+			forceKilled++;
+		} catch {
+			// already exited — good
+		}
+	}
+
+	if (forceKilled > 0) {
+		console.log(`[rovodev] Force-killed ${forceKilled} process(es) that didn't exit gracefully.`);
+		await sleep(250);
+	}
+
+	return stalePids.size;
 };
 
 const findAvailablePorts = async (count) => {
@@ -178,6 +222,16 @@ const readRecordedPorts = () => {
 };
 
 const run = async () => {
+	const configState = dedupeAllowedMcpServersInConfig();
+	if (configState.removed > 0) {
+		console.log(
+			`[rovodev] Removed ${configState.removed} duplicate MCP server approval(s) from ${configState.configPath}.`
+		);
+	}
+	if (configState.exists) {
+		console.log(`[rovodev] Using config: ${configState.configPath}`);
+	}
+
 	// Clean up instances before starting.
 	const scanMax = basePort + maxTries - 1;
 	if (forceCleanStart) {
@@ -240,26 +294,45 @@ const run = async () => {
 			` (override with ROVODEV_SITE_URL)`
 	);
 
-	// Spawn one child per port
-	const children = [];
+	// Spawn one child per port and keep each port supervised so a single stuck
+	// instance can be restarted without tearing down the whole pool.
+	const childrenByPort = new Map();
+	const restartTimersByPort = new Map();
 	let firstError = null;
+	let shuttingDown = false;
 
-	for (const port of ports) {
+	const buildSpawnArgsForPort = (port) => [
 		// Disable session token auth so the backend can call rovodev serve
 		// without needing to coordinate Bearer tokens. This is safe because
 		// rovodev serve only listens on 127.0.0.1.
 
 		// Use --respect-configured-permissions to honor the global ~/.rovodev/config.yml
 		// so you don't need to re-approve MCP servers on every restart.
-		const spawnArgs = [
-			...servePrefix,
-			"serve",
-			"--disable-session-token",
-			"--respect-configured-permissions",
-			"--site-url",
-			configuredBillingSiteUrl,
-			String(port),
-		];
+		...servePrefix,
+		"serve",
+		...(configState.exists ? ["--config-file", configState.configPath] : []),
+		"--disable-session-token",
+		"--respect-configured-permissions",
+		"--site-url",
+		configuredBillingSiteUrl,
+		String(port),
+	];
+
+	const killAllChildren = (signal) => {
+		for (const child of childrenByPort.values()) {
+			try {
+				child.kill(signal);
+			} catch {
+				// ignore
+			}
+		}
+	};
+
+	const spawnChildForPort = (port, { isRestart = false } = {}) => {
+		const spawnArgs = buildSpawnArgsForPort(port);
+		if (isRestart) {
+			console.log(`[rovodev] Restarting process on port ${port}...`);
+		}
 		console.log(`[rovodev] Starting: ${rovodevBin} ${spawnArgs.join(" ")}`);
 		const child = spawn(rovodevBin, spawnArgs, {
 			stdio: "inherit",
@@ -270,10 +343,12 @@ const run = async () => {
 		});
 
 		child._rovodevPort = port;
+		childrenByPort.set(port, child);
 
 		child.on("error", (err) => {
 			if (!firstError) {
 				firstError = err;
+				shuttingDown = true;
 				cleanup();
 				if (err.code === "ENOENT") {
 					console.error(
@@ -285,38 +360,66 @@ const run = async () => {
 					console.error("Failed to start rovodev serve:", err.message);
 				}
 				// Kill remaining children and exit
-				for (const c of children) {
-					try { c.kill("SIGTERM"); } catch { /* ignore */ }
-				}
+				killAllChildren("SIGTERM");
 				process.exit(1);
 			}
 		});
 
 		child.on("exit", (code, signal) => {
-			const remaining = children.filter((c) => c !== child && !c.killed);
-			if (remaining.length === 0) {
-				// Last child exited — clean up and exit
-				cleanup();
-				if (signal) {
-					process.kill(process.pid, signal);
-					return;
+			const currentChild = childrenByPort.get(port);
+			if (currentChild === child) {
+				childrenByPort.delete(port);
+			}
+
+			if (shuttingDown) {
+				if (childrenByPort.size === 0) {
+					cleanup();
+					if (signal) {
+						process.kill(process.pid, signal);
+						return;
+					}
+					process.exit(code ?? 0);
 				}
-				process.exit(code ?? 0);
+				return;
+			}
+
+			if (childrenByPort.size > 0) {
+				console.warn(
+					`[rovodev] Process on port ${child._rovodevPort} exited (code=${code}, signal=${signal}). ` +
+					`${childrenByPort.size} other port(s) still running.`
+				);
 			} else {
 				console.warn(
 					`[rovodev] Process on port ${child._rovodevPort} exited (code=${code}, signal=${signal}). ` +
-					`${remaining.length} remaining.`
+					`No ports currently running.`
 				);
 			}
-		});
 
-		children.push(child);
+			if (restartTimersByPort.has(port)) {
+				clearTimeout(restartTimersByPort.get(port));
+			}
+			const restartTimer = setTimeout(() => {
+				restartTimersByPort.delete(port);
+				if (shuttingDown) {
+					return;
+				}
+				spawnChildForPort(port, { isRestart: true });
+			}, 1_500);
+			restartTimersByPort.set(port, restartTimer);
+		});
+	};
+
+	for (const port of ports) {
+		spawnChildForPort(port);
 	}
 
 	const forwardSignal = (signal) => {
-		for (const child of children) {
-			try { child.kill(signal); } catch { /* ignore */ }
+		shuttingDown = true;
+		for (const timer of restartTimersByPort.values()) {
+			clearTimeout(timer);
 		}
+		restartTimersByPort.clear();
+		killAllChildren(signal);
 	};
 
 	process.on("SIGINT", forwardSignal);

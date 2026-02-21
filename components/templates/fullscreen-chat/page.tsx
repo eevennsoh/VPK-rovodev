@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
 import RovoChatInput from "./components/rovo-chat-input";
 import RovoChatMessages from "./components/rovo-chat-messages";
 import RovoViewHeader from "./components/rovo-view-header";
@@ -10,6 +9,7 @@ import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scro
 import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
 import { QuestionCardShortcutsFooter } from "@/components/templates/shared/components/question-card-shortcuts-footer";
 import { CONTAINER_STYLES } from "./data/container-styles";
+import { useDismissibleCards } from "@/components/templates/shared/hooks/use-dismissible-cards";
 import styles from "./rovo.module.css";
 
 export default function RovoView() {
@@ -36,6 +36,7 @@ export default function RovoView() {
 		activeQuestionCard,
 		handleSubmit,
 		handleSuggestedQuestionClick,
+		handleWidgetPrimaryAction,
 		handleBackToStart,
 		isStreaming,
 		isSubmitPending,
@@ -47,18 +48,9 @@ export default function RovoView() {
 		uiMessages,
 		enabled: isChatMode,
 	});
-	const activeQuestionCardKey = useMemo(
-		() => (activeQuestionCard ? `${activeQuestionCard.sessionId}-${activeQuestionCard.round}` : null),
-		[activeQuestionCard]
-	);
-	const [dismissedQuestionCardKey, setDismissedQuestionCardKey] = useState<string | null>(null);
-	const shouldShowQuestionCard = !isRequestInFlight && activeQuestionCard !== null && dismissedQuestionCardKey !== activeQuestionCardKey;
-	const dismissQuestionCard = useCallback(() => {
-		if (!activeQuestionCardKey) {
-			return;
-		}
-		setDismissedQuestionCardKey(activeQuestionCardKey);
-	}, [activeQuestionCardKey]);
+	const { shouldShowQuestionCard: shouldShowQuestionCardRaw, activeQuestionCardKey, dismissQuestionCard } =
+		useDismissibleCards({ activeQuestionCard, activePlanWidget: null });
+	const shouldShowQuestionCard = !isRequestInFlight && shouldShowQuestionCardRaw;
 
 	return (
 		<div style={isChatMode ? CONTAINER_STYLES.chatMode : CONTAINER_STYLES.initial}>
@@ -89,28 +81,28 @@ export default function RovoView() {
 			) : (
 				<>
 					<div
-						className={styles.rovoViewChat}
-						style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", alignItems: "center" }}
+						className={`${styles.rovoViewChat} flex flex-1 flex-col items-center overflow-hidden`}
 					>
-						<div style={{ flex: 1, width: "100%", maxWidth: "768px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-								<RovoChatMessages
-									uiMessages={uiMessages}
-									variant="sidepanel"
-									messageMode="ask"
-									enableSmartWidgets={true}
-									onSuggestedQuestionClick={handleSuggestedQuestionClick}
-									userName={userName ?? undefined}
-									conversationContextRef={conversationContextRef}
-									scrollSpacerRef={scrollSpacerRef}
-									isStreaming={isStreaming}
-									isSubmitPending={isSubmitPending}
-								/>
+						<div className="flex flex-1 flex-col overflow-hidden w-full max-w-[768px]">
+							<RovoChatMessages
+								uiMessages={uiMessages}
+								variant="sidepanel"
+								messageMode="ask"
+								enableSmartWidgets={true}
+								onSuggestedQuestionClick={handleSuggestedQuestionClick}
+								onWidgetPrimaryAction={handleWidgetPrimaryAction}
+								userName={userName ?? undefined}
+								conversationContextRef={conversationContextRef}
+								scrollSpacerRef={scrollSpacerRef}
+								isStreaming={isStreaming}
+								isSubmitPending={isSubmitPending}
+							/>
 						</div>
 					</div>
 
-					<div style={{ flexShrink: 0, maxWidth: "800px", width: "100%", margin: "0 auto" }}>
+					<div className="shrink-0 mx-auto w-full max-w-[800px]">
 						{shouldShowQuestionCard && activeQuestionCard ? (
-							<div style={{ padding: "0 12px" }}>
+							<div className="px-3">
 								<ClarificationQuestionCard
 									key={activeQuestionCardKey ?? undefined}
 									questionCard={activeQuestionCard}

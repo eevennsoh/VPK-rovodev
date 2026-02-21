@@ -5,7 +5,7 @@ import type { HTMLAttributes } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ArrowRightIcon, MinusIcon, PackageIcon, PlusIcon } from "lucide-react";
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 
 type ChangeType = "major" | "minor" | "patch" | "added" | "removed";
 
@@ -35,10 +35,8 @@ export const PackageInfo = ({
   className,
   children,
   ...props
-}: PackageInfoProps) => (
-  <PackageInfoContext.Provider
-    value={{ changeType, currentVersion, name, newVersion }}
-  >
+}: Readonly<PackageInfoProps>) => (
+  <PackageInfoContext value={{ changeType, currentVersion, name, newVersion }}>
     <div
       className={cn("rounded-lg border bg-background p-4", className)}
       {...props}
@@ -53,7 +51,7 @@ export const PackageInfo = ({
         </>
       )}
     </div>
-  </PackageInfoContext.Provider>
+  </PackageInfoContext>
 );
 
 export type PackageInfoHeaderProps = HTMLAttributes<HTMLDivElement>;
@@ -62,7 +60,7 @@ export const PackageInfoHeader = ({
   className,
   children,
   ...props
-}: PackageInfoHeaderProps) => (
+}: Readonly<PackageInfoHeaderProps>) => (
   <div
     className={cn("flex items-center justify-between gap-2", className)}
     {...props}
@@ -77,8 +75,8 @@ export const PackageInfoName = ({
   className,
   children,
   ...props
-}: PackageInfoNameProps) => {
-  const { name } = useContext(PackageInfoContext);
+}: Readonly<PackageInfoNameProps>) => {
+  const { name } = use(PackageInfoContext);
 
   return (
     <div className={cn("flex items-center gap-2", className)} {...props}>
@@ -110,8 +108,8 @@ export const PackageInfoChangeType = ({
   className,
   children,
   ...props
-}: PackageInfoChangeTypeProps) => {
-  const { changeType } = useContext(PackageInfoContext);
+}: Readonly<PackageInfoChangeTypeProps>) => {
+  const { changeType } = use(PackageInfoContext);
 
   if (!changeType) {
     return null;
@@ -139,8 +137,8 @@ export const PackageInfoVersion = ({
   className,
   children,
   ...props
-}: PackageInfoVersionProps) => {
-  const { currentVersion, newVersion } = useContext(PackageInfoContext);
+}: Readonly<PackageInfoVersionProps>) => {
+  const { currentVersion, newVersion } = use(PackageInfoContext);
 
   if (!(currentVersion || newVersion)) {
     return null;
@@ -175,7 +173,7 @@ export const PackageInfoDescription = ({
   className,
   children,
   ...props
-}: PackageInfoDescriptionProps) => (
+}: Readonly<PackageInfoDescriptionProps>) => (
   <p className={cn("mt-2 text-muted-foreground text-sm", className)} {...props}>
     {children}
   </p>
@@ -187,7 +185,7 @@ export const PackageInfoContent = ({
   className,
   children,
   ...props
-}: PackageInfoContentProps) => (
+}: Readonly<PackageInfoContentProps>) => (
   <div className={cn("mt-3 border-t pt-3", className)} {...props}>
     {children}
   </div>
@@ -199,7 +197,7 @@ export const PackageInfoDependencies = ({
   className,
   children,
   ...props
-}: PackageInfoDependenciesProps) => (
+}: Readonly<PackageInfoDependenciesProps>) => (
   <div className={cn("space-y-2", className)} {...props}>
     <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
       Dependencies
@@ -219,7 +217,7 @@ export const PackageInfoDependency = ({
   className,
   children,
   ...props
-}: PackageInfoDependencyProps) => (
+}: Readonly<PackageInfoDependencyProps>) => (
   <div
     className={cn("flex items-center justify-between text-sm", className)}
     {...props}

@@ -12,7 +12,7 @@ This guide explains how to switch between Claude (Bedrock), GPT, and Gemini (Goo
 
 | Provider | Model ID | Endpoint Path |
 |----------|----------|---------------|
-| **Claude (Default)** | `anthropic.claude-haiku-4-5-20251001-v1:0` | `/v1/bedrock/model/{MODEL_ID}/invoke-with-response-stream` |
+| **Claude (Default)** | `anthropic.claude-sonnet-4-6` | `/v1/bedrock/model/{MODEL_ID}/invoke-with-response-stream` |
 | **GPT** | `gpt-5.2-2025-12-11` | `/v1/openai/v1/chat/completions` |
 | **Gemini (Google)** | `gemini-3-pro-image-preview` | `/v1/google/publishers/google/v1/chat/completions` |
 | **TTS (Audio Speech)** | `tts-latest` | `/v1/google/v1/text:synthesize` (when model maps to `vendor: GOOGLE`) |
@@ -52,7 +52,7 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publi
 Edit `.env.local` and change `AI_GATEWAY_URL` to:
 
 ```bash
-AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-haiku-4-5-20251001-v1:0/invoke-with-response-stream
+AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-sonnet-4-6/invoke-with-response-stream
 ```
 
 ### Step 3: Restart Dev Servers
@@ -130,7 +130,7 @@ By default, VPK uses **Claude via Bedrock** when AI Gateway is active:
 
 ```bash
 # .env.local (default - Claude)
-AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-haiku-4-5-20251001-v1:0/invoke-with-response-stream
+AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-sonnet-4-6/invoke-with-response-stream
 ```
 
 ---
@@ -139,7 +139,7 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/mode
 
 ```javascript
 const DEFAULT_MODELS = {
-  bedrock: "anthropic.claude-haiku-4-5-20251001-v1:0",  // Claude - model ID in URL
+  bedrock: "anthropic.claude-sonnet-4-6",  // Claude - model ID in URL
   openai: "gpt-5.2-2025-12-11",                         // GPT - model ID in payload
   google: "gemini-3-pro-image-preview",                 // Gemini - supports image generation
 };
@@ -155,7 +155,7 @@ Update the model ID in the URL:
 
 ```bash
 # Example: Using Claude Sonnet instead of Haiku
-AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-3-5-sonnet-20241022-v2:0/invoke-with-response-stream
+AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/model/anthropic.claude-sonnet-4-6/invoke-with-response-stream
 ```
 
 ### For GPT Models
@@ -165,7 +165,7 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/mode
 
 ```javascript
 const DEFAULT_MODELS = {
-  bedrock: "anthropic.claude-haiku-4-5-20251001-v1:0",
+  bedrock: "anthropic.claude-sonnet-4-6",
   openai: "gpt-4.1-2025-04-14",  // Change to your preferred GPT model
 };
 ```
@@ -197,18 +197,14 @@ Provider mappings can vary by environment, so treat Atlas CLI output as the sour
 
 **Claude (Bedrock):**
 - `anthropic.claude-haiku-4-5-20251001-v1:0` (fast, cheap)
-- `anthropic.claude-3-5-sonnet-20241022-v2:0` (balanced)
-- `anthropic.claude-sonnet-4-20250514-v1:0` (latest)
+- `anthropic.claude-sonnet-4-6` (latest)
+- `anthropic.claude-opus-4-6` (most capable)
 
 **GPT:**
 - `gpt-5.2-2025-12-11` (latest)
-- `gpt-4.1-mini-2025-04-14` (fast, cheap)
-- `gpt-4.1-2025-04-14` (balanced)
 
 **Gemini (Google):**
 - `gemini-3-pro-image-preview` (image generation + text)
-- `gemini-2.5-flash-image` (image generation + text, legacy default in older configs)
-- `gemini-2.0-flash` (fast, text only)
 
 **TTS (Audio):**
 - `tts-latest` (text to speech via `/v1/google/v1/text:synthesize` when mapped to Google)
@@ -261,7 +257,7 @@ If Bedrock still fails after the fix, verify principal/model access with:
 
 ```bash
 atlas ml aigateway usecase view --id YOUR-USE-CASE-ID -e stg-east --active
-atlas ml aigateway model view --modelId anthropic.claude-haiku-4-5-20251001-v1:0
+atlas ml aigateway model view --modelId anthropic.claude-sonnet-4-6
 ```
 
 ### Changes not taking effect

@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-	"grid w-full gap-y-2 rounded-sm p-4 text-left text-[14px]/[20px] [word-break:break-word] group/alert has-[>[data-slot=icon]]:grid-cols-[auto_1fr] has-[>[data-slot=icon]]:items-start has-[>[data-slot=icon]]:gap-x-4 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:items-start has-[>svg]:gap-x-4 [&>[data-slot=icon]]:self-center [&>[data-slot=icon]>svg:not([class*='size-'])]:size-4 [&>svg]:self-center [&>svg:not([class*='size-'])]:size-4 has-[>[data-slot=alert-description]]:[&>[data-slot=icon]]:mt-0.5 has-[>[data-slot=alert-description]]:[&>[data-slot=icon]]:self-start has-[>[data-slot=alert-description]]:[&>svg]:mt-0.5 has-[>[data-slot=alert-description]]:[&>svg]:self-start has-[>[data-slot=alert-action]]:[&>[data-slot=icon]]:self-start has-[>[data-slot=alert-action]]:[&>svg]:self-start",
+	"grid w-full gap-y-2 rounded-md p-4 text-left text-[14px]/[20px] [word-break:break-word] group/alert has-[>[data-slot=icon]]:grid-cols-[auto_1fr] has-[>[data-slot=icon]]:items-start has-[>[data-slot=icon]]:gap-x-4 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:items-start has-[>svg]:gap-x-4 [&>[data-slot=icon]]:self-center [&>[data-slot=icon]>svg:not([class*='size-'])]:size-4 [&>svg]:self-center [&>svg:not([class*='size-'])]:size-4 has-[>[data-slot=alert-description]]:[&>[data-slot=icon]]:mt-0.5 has-[>[data-slot=alert-description]]:[&>[data-slot=icon]]:self-start has-[>[data-slot=alert-description]]:[&>svg]:mt-0.5 has-[>[data-slot=alert-description]]:[&>svg]:self-start has-[>[data-slot=alert-action]]:[&>[data-slot=icon]]:self-start has-[>[data-slot=alert-action]]:[&>svg]:self-start",
 	{
 		variants: {
 			variant: {

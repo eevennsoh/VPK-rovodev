@@ -345,7 +345,7 @@ The script will:
 6. Push to `docker.atl-paas.net`
 7. Deploy using `atlas micros service deploy`
 
-For manual deployment commands, see [references/MANUAL_DEPLOYMENT.md](references/MANUAL_DEPLOYMENT.md).
+For manual deployment commands, see [references/guide-manual-deployment.md](references/guide-manual-deployment.md).
 
 ## Deployment Checklist
 
@@ -447,4 +447,4 @@ This creates a proper npm lockfile with resolved registry URLs instead of pnpm s
 
 ## References
 
-For detailed documentation, see [references/GUIDE_DEPLOYMENT.md](references/GUIDE_DEPLOYMENT.md) in this skill directory.
+For detailed documentation, see [references/guide-deployment.md](references/guide-deployment.md) in this skill directory.

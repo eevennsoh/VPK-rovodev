@@ -7,10 +7,11 @@ import { getBackendUrl } from "@/app/api/_utils/backend-url";
  * This route is used only during local development. In production, the frontend
  * is served by Express and calls /api/chat-cancel on the same origin.
  */
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
 	try {
 		const backendUrl = getBackendUrl();
-		const url = `${backendUrl}/api/chat-cancel`;
+		const query = request.nextUrl.search;
+		const url = `${backendUrl}/api/chat-cancel${query}`;
 
 		const response = await fetch(url, {
 			method: "POST",

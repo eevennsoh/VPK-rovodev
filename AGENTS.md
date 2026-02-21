@@ -363,7 +363,7 @@ Exports:
 ### Development
 
 - Install dependencies: `pnpm install`
-- First-time MCP setup: `pnpm run rovodev:setup` (interactive, approve MCP servers, then Ctrl+C)
+- First-time MCP setup: `acli rovodev` (interactive, approve MCP servers, then Ctrl+C)
 - Start everything: `pnpm run rovodev` (starts rovodev serve pool + backend + frontend)
 - Start frontend + backend only: `pnpm run dev` (requires rovodev serve already running)
 - Start frontend only: `pnpm run dev:frontend`

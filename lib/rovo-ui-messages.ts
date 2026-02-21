@@ -23,6 +23,15 @@ export interface AgentExecutionUpdate {
 
 export type ThinkingEventPhase = "start" | "result" | "error";
 
+export type ThinkingStatusActivity =
+	| "image"
+	| "audio"
+	| "ui"
+	| "data"
+	| "results";
+
+export type ThinkingStatusSource = "backend" | "fallback";
+
 export interface ThinkingEventUpdate {
 	eventId: string;
 	phase: ThinkingEventPhase;
@@ -88,6 +97,8 @@ export type RovoDataParts = {
 	"thinking-status": {
 		label: string;
 		content?: string;
+		activity?: ThinkingStatusActivity;
+		source?: ThinkingStatusSource;
 	};
 	"thinking-event": ThinkingEventUpdate;
 	"tool-first-warning": ToolFirstWarningData;
@@ -117,6 +128,20 @@ export type RovoToolPart = ToolUIPart | DynamicToolUIPart;
 export type RovoSourcePart = SourceUrlUIPart | SourceDocumentUIPart;
 
 const CREATE_PLAN_SIGNAL_REGEX = /\bcreate[-_\s]?plan\b/i;
+
+function thinkingPhaseToState(phase: ThinkingEventPhase): ThinkingToolState {
+	if (phase === "error") return "error";
+	if (phase === "result") return "completed";
+	return "running";
+}
+
+function extractOutputPreview(
+	phase: ThinkingEventPhase,
+	preview: unknown
+): string | undefined {
+	if (phase !== "result" && phase !== "error") return undefined;
+	return typeof preview === "string" ? preview : undefined;
+}
 
 export function createAssistantTextMessage(
 	id: string,
@@ -308,20 +333,10 @@ export function getThinkingToolCallSummaries(
 				id: key,
 				toolName,
 				toolCallId,
-				state:
-					event.phase === "error"
-						? "error"
-						: event.phase === "result"
-							? "completed"
-							: "running",
+				state: thinkingPhaseToState(event.phase),
 				input: event.input,
 				output: event.phase === "result" ? eventOutputPreview : undefined,
-				outputPreview:
-					event.phase === "result" || event.phase === "error"
-						? typeof eventOutputPreview === "string"
-							? eventOutputPreview
-							: undefined
-						: undefined,
+				outputPreview: extractOutputPreview(event.phase, eventOutputPreview),
 				outputTruncated: eventOutputTruncated || undefined,
 				outputBytes: eventOutputBytes,
 				suppressedRawOutput: eventSuppressedRawOutput || undefined,

@@ -363,10 +363,17 @@ function extractChunkFromEvent(eventName, parsed) {
 	return text ? { type: "text", text } : null;
 }
 
+function createAbortError(message = "RovoDev request aborted") {
+	const error = new Error(message);
+	error.name = "AbortError";
+	error.code = "ABORT_ERR";
+	return error;
+}
+
 /**
  * Make a JSON request to the RovoDev serve API.
  */
-function request(method, path, body, timeoutMs = 10000, port) {
+function request(method, path, body, timeoutMs = 10000, port, signal) {
 	return new Promise((resolve, reject) => {
 		const resolvedPort = typeof port === "number" && port > 0 ? port : getPort();
 		const url = new URL(path, `http://127.0.0.1:${resolvedPort}`);
@@ -382,25 +389,76 @@ function request(method, path, body, timeoutMs = 10000, port) {
 			timeout: timeoutMs,
 		};
 
+		let settled = false;
+		let abortHandler = null;
+
+		const finish = (callback, value) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			if (signal && abortHandler) {
+				signal.removeEventListener("abort", abortHandler);
+			}
+			callback(value);
+		};
+
 		const req = http.request(options, (res) => {
 			let data = "";
 			res.on("data", (chunk) => (data += chunk));
-			res.on("end", () => resolve({ status: res.statusCode || 0, data }));
+			res.on("end", () => finish(resolve, { status: res.statusCode || 0, data }));
 		});
 
 		req.on("timeout", () => {
 			req.destroy();
-			reject(new Error("Request timed out"));
+			finish(reject, new Error("Request timed out"));
 		});
 		req.on("error", (err) => {
-			reject(new Error(`RovoDev connection failed: ${err.message}. Is "rovodev serve" running on port ${resolvedPort}?`));
+			if (signal?.aborted || err?.name === "AbortError" || err?.code === "ABORT_ERR") {
+				finish(reject, createAbortError());
+				return;
+			}
+			finish(
+				reject,
+				new Error(
+					`RovoDev connection failed: ${err.message}. Is "rovodev serve" running on port ${resolvedPort}?`
+				)
+			);
 		});
+
+		if (signal) {
+			abortHandler = () => {
+				req.destroy(createAbortError());
+				finish(reject, createAbortError());
+			};
+
+			if (signal.aborted) {
+				abortHandler();
+				return;
+			}
+
+			signal.addEventListener("abort", abortHandler, { once: true });
+		}
 
 		if (body) {
 			req.write(JSON.stringify(body));
 		}
 		req.end();
 	});
+}
+
+/**
+ * Create an HTTP status error with structured metadata.
+ */
+function createHttpStatusError(message, status, endpoint, data) {
+	const error = new Error(message);
+	error.status = status;
+	error.statusCode = status;
+	error.endpoint = endpoint;
+	if (typeof data === "string" && data.length > 0) {
+		error.response = data;
+	}
+	return error;
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -451,6 +509,7 @@ async function getStatus() {
 function sendMessageStreaming(message, callbacks, port) {
 	let aborted = false;
 	let currentReq = null;
+	const abortController = new AbortController();
 
 	const run = async () => {
 		try {
@@ -461,10 +520,16 @@ function sendMessageStreaming(message, callbacks, port) {
 				"/v3/set_chat_message",
 				{ message },
 				30000,
-				port
+				port,
+				abortController.signal
 			);
 			if (setStatus !== 200) {
-				throw new Error(`Failed to queue message (status ${setStatus}): ${setData}`);
+				throw createHttpStatusError(
+					`Failed to queue message (status ${setStatus}): ${setData}`,
+					setStatus,
+					"/v3/set_chat_message",
+					setData
+				);
 			}
 			console.log("[rovodev] Message queued successfully.");
 
@@ -497,7 +562,16 @@ function sendMessageStreaming(message, callbacks, port) {
 					if (res.statusCode !== 200) {
 						let errData = "";
 						res.on("data", (chunk) => (errData += chunk));
-						res.on("end", () => reject(new Error(`Stream failed (status ${res.statusCode}): ${errData}`)));
+						res.on("end", () =>
+							reject(
+								createHttpStatusError(
+									`Stream failed (status ${res.statusCode}): ${errData}`,
+									typeof res.statusCode === "number" ? res.statusCode : 0,
+									"/v3/stream_chat",
+									errData
+								)
+							)
+						);
 						return;
 					}
 					console.log("[rovodev] SSE stream connected, waiting for events...");
@@ -586,6 +660,7 @@ function sendMessageStreaming(message, callbacks, port) {
 	return {
 		abort: () => {
 			aborted = true;
+			abortController.abort();
 			if (currentReq) {
 				currentReq.destroy();
 			}
@@ -610,20 +685,29 @@ function sendMessageSync(message, options = {}) {
 			? options.timeoutMs
 			: 120_000;
 	const port = typeof options.port === "number" && options.port > 0 ? options.port : undefined;
+	const signal = options.signal;
 
 	return new Promise((resolve, reject) => {
 		let fullText = "";
 		let settled = false;
 		let timeoutHandle = null;
+		let abortHandler = null;
+
+		const cleanup = () => {
+			if (timeoutHandle) {
+				clearTimeout(timeoutHandle);
+			}
+			if (signal && abortHandler) {
+				signal.removeEventListener("abort", abortHandler);
+			}
+		};
 
 		const settleWith = (callback) => (value) => {
 			if (settled) {
 				return;
 			}
 			settled = true;
-			if (timeoutHandle) {
-				clearTimeout(timeoutHandle);
-			}
+			cleanup();
 			callback(value);
 		};
 
@@ -643,6 +727,20 @@ function sendMessageSync(message, options = {}) {
 				rejectOnce(err);
 			},
 		}, port);
+
+		if (signal) {
+			abortHandler = () => {
+				streamHandle.abort();
+				rejectOnce(createAbortError("RovoDev sync request aborted"));
+			};
+
+			if (signal.aborted) {
+				abortHandler();
+				return;
+			}
+
+			signal.addEventListener("abort", abortHandler, { once: true });
+		}
 
 		timeoutHandle = setTimeout(() => {
 			streamHandle.abort();

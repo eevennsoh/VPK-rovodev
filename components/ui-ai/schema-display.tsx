@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { ChevronRightIcon } from "lucide-react";
-import { createContext, useContext, useMemo } from "react";
+import { createContext, use, useMemo } from "react";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -64,7 +64,7 @@ export const SchemaDisplay = ({
   className,
   children,
   ...props
-}: SchemaDisplayProps) => {
+}: Readonly<SchemaDisplayProps>) => {
   const contextValue = useMemo(
     () => ({
       description,
@@ -78,7 +78,7 @@ export const SchemaDisplay = ({
   );
 
   return (
-    <SchemaDisplayContext.Provider value={contextValue}>
+    <SchemaDisplayContext value={contextValue}>
       <div
         className={cn(
           "overflow-hidden rounded-lg border bg-background",
@@ -109,7 +109,7 @@ export const SchemaDisplay = ({
           </>
         )}
       </div>
-    </SchemaDisplayContext.Provider>
+    </SchemaDisplayContext>
   );
 };
 
@@ -119,7 +119,7 @@ export const SchemaDisplayHeader = ({
   className,
   children,
   ...props
-}: SchemaDisplayHeaderProps) => (
+}: Readonly<SchemaDisplayHeaderProps>) => (
   <div
     className={cn("flex items-center gap-3 border-b px-4 py-3", className)}
     {...props}
@@ -142,8 +142,8 @@ export const SchemaDisplayMethod = ({
   className,
   children,
   ...props
-}: SchemaDisplayMethodProps) => {
-  const { method } = useContext(SchemaDisplayContext);
+}: Readonly<SchemaDisplayMethodProps>) => {
+  const { method } = use(SchemaDisplayContext);
 
   return (
     <Badge
@@ -162,23 +162,28 @@ export const SchemaDisplayPath = ({
   className,
   children,
   ...props
-}: SchemaDisplayPathProps) => {
-  const { path } = useContext(SchemaDisplayContext);
+}: Readonly<SchemaDisplayPathProps>) => {
+  const { path } = use(SchemaDisplayContext);
 
-  // Highlight path parameters
-  const highlightedPath = path.replaceAll(
-    /\{([^}]+)\}/g,
-    '<span class="text-blue-600">{$1}</span>'
-  );
+  // Highlight path parameters using React elements instead of dangerouslySetInnerHTML
+  const highlightedPath = useMemo(() => {
+    const parts = path.split(/(\{[^}]+\})/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("{") && part.endsWith("}")) {
+        return (
+          <span key={i} className="text-blue-600">
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  }, [path]);
 
   return (
-    <span
-      className={cn("font-mono text-sm", className)}
-      // biome-ignore lint/security/noDangerouslySetInnerHtml: "needed for parameter highlighting"
-      // oxlint-disable-next-line eslint-plugin-react(no-danger)
-      dangerouslySetInnerHTML={{ __html: children ?? highlightedPath }}
-      {...props}
-    />
+    <span className={cn("font-mono text-sm", className)} {...props}>
+      {children ?? highlightedPath}
+    </span>
   );
 };
 
@@ -189,8 +194,8 @@ export const SchemaDisplayDescription = ({
   className,
   children,
   ...props
-}: SchemaDisplayDescriptionProps) => {
-  const { description } = useContext(SchemaDisplayContext);
+}: Readonly<SchemaDisplayDescriptionProps>) => {
+  const { description } = use(SchemaDisplayContext);
 
   return (
     <p
@@ -211,7 +216,7 @@ export const SchemaDisplayContent = ({
   className,
   children,
   ...props
-}: SchemaDisplayContentProps) => (
+}: Readonly<SchemaDisplayContentProps>) => (
   <div className={cn("divide-y", className)} {...props}>
     {children}
   </div>
@@ -223,8 +228,8 @@ export const SchemaDisplayParameters = ({
   className,
   children,
   ...props
-}: SchemaDisplayParametersProps) => {
-  const { parameters } = useContext(SchemaDisplayContext);
+}: Readonly<SchemaDisplayParametersProps>) => {
+  const { parameters } = use(SchemaDisplayContext);
 
   return (
     <Collapsible className={cn(className)} defaultOpen {...props}>
@@ -258,7 +263,7 @@ export const SchemaDisplayParameter = ({
   location,
   className,
   ...props
-}: SchemaDisplayParameterProps) => (
+}: Readonly<SchemaDisplayParameterProps>) => (
   <div className={cn("px-4 py-3 pl-10", className)} {...props}>
     <div className="flex items-center gap-2">
       <span className="font-mono text-sm">{name}</span>
@@ -291,8 +296,8 @@ export const SchemaDisplayRequest = ({
   className,
   children,
   ...props
-}: SchemaDisplayRequestProps) => {
-  const { requestBody } = useContext(SchemaDisplayContext);
+}: Readonly<SchemaDisplayRequestProps>) => {
+  const { requestBody } = use(SchemaDisplayContext);
 
   return (
     <Collapsible className={cn(className)} defaultOpen {...props}>
@@ -318,8 +323,8 @@ export const SchemaDisplayResponse = ({
   className,
   children,
   ...props
-}: SchemaDisplayResponseProps) => {
-  const { responseBody } = useContext(SchemaDisplayContext);
+}: Readonly<SchemaDisplayResponseProps>) => {
+  const { responseBody } = use(SchemaDisplayContext);
 
   return (
     <Collapsible className={cn(className)} defaultOpen {...props}>
@@ -345,7 +350,7 @@ export const SchemaDisplayBody = ({
   className,
   children,
   ...props
-}: SchemaDisplayBodyProps) => (
+}: Readonly<SchemaDisplayBodyProps>) => (
   <div className={cn("divide-y", className)} {...props}>
     {children}
   </div>
@@ -366,7 +371,7 @@ export const SchemaDisplayProperty = ({
   depth = 0,
   className,
   ...props
-}: SchemaDisplayPropertyProps) => {
+}: Readonly<SchemaDisplayPropertyProps>) => {
   const hasChildren = properties || items;
   const paddingLeft = 40 + depth * 16;
 
@@ -459,7 +464,7 @@ export const SchemaDisplayExample = ({
   className,
   children,
   ...props
-}: SchemaDisplayExampleProps) => (
+}: Readonly<SchemaDisplayExampleProps>) => (
   <pre
     className={cn(
       "mx-4 mb-4 overflow-auto rounded-md bg-muted p-4 font-mono text-sm",

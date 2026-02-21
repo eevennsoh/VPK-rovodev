@@ -55,7 +55,7 @@ export default function MultiportsDemo(): React.ReactElement {
 		>
 			{Array.from({ length: PORT_COUNT }, (_, i) => (
 				<div key={i} className="flex min-w-0 flex-1 justify-center" style={{ maxWidth: 400 }}>
-					<RovoChatProvider>
+					<RovoChatProvider portIndex={i}>
 						<ChatPanel
 							onClose={() => {}}
 							enableSmartWidgets={true}

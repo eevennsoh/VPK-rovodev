@@ -15,7 +15,7 @@ import ChevronDownIcon from "@atlaskit/icon/core/chevron-down"
 
 export interface SplitButtonItem {
 	label: string
-	onClick?: () => void
+	onSelect?: () => void
 	disabled?: boolean
 }
 
@@ -94,7 +94,7 @@ function SplitButton({
 					{items.map((item) => (
 						<DropdownMenuItem
 							key={item.label}
-							onClick={item.onClick}
+							onSelect={item.onSelect}
 							disabled={item.disabled}
 						>
 							{item.label}

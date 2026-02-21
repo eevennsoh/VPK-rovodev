@@ -22,7 +22,7 @@ import {
   createContext,
   memo,
   useCallback,
-  useContext,
+  use,
   useEffect,
   useMemo,
   useRef,
@@ -306,85 +306,95 @@ const CodeBlockBody = memo(
 
 CodeBlockBody.displayName = "CodeBlockBody";
 
-export const CodeBlockContainer = ({
+export function CodeBlockContainer({
   className,
   language,
   style,
   ...props
-}: HTMLAttributes<HTMLDivElement> & { language: string }) => (
-  <div
-    className={cn(
-      "group relative w-full overflow-hidden rounded-md border border-border bg-surface-raised text-text",
-      className
-    )}
-    data-language={language}
-    style={{
-      containIntrinsicSize: "auto 200px",
-      contentVisibility: "auto",
-      ...style,
-    }}
-    {...props}
-  />
-);
+}: Readonly<HTMLAttributes<HTMLDivElement> & { language: string }>) {
+  return (
+    <div
+      className={cn(
+        "group relative w-full overflow-hidden rounded-md border border-border bg-surface-raised text-text",
+        className
+      )}
+      data-language={language}
+      style={{
+        containIntrinsicSize: "auto 200px",
+        contentVisibility: "auto",
+        ...style,
+      }}
+      {...props}
+    />
+  );
+}
 
-export const CodeBlockHeader = ({
+export function CodeBlockHeader({
   children,
   className,
   ...props
-}: HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn(
-      "flex items-center justify-between border-border border-b bg-bg-neutral px-3 py-2 text-text-subtle text-xs",
-      className
-    )}
-    {...props}
-  >
-    {children}
-  </div>
-);
+}: Readonly<HTMLAttributes<HTMLDivElement>>) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between border-border border-b bg-bg-neutral px-3 py-2 text-text-subtle text-xs",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
 
-export const CodeBlockTitle = ({
+export function CodeBlockTitle({
   children,
   className,
   ...props
-}: HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex min-w-0 items-center gap-2", className)} {...props}>
-    {children}
-  </div>
-);
+}: Readonly<HTMLAttributes<HTMLDivElement>>) {
+  return (
+    <div className={cn("flex min-w-0 items-center gap-2", className)} {...props}>
+      {children}
+    </div>
+  );
+}
 
-export const CodeBlockFilename = ({
+export function CodeBlockFilename({
   children,
   className,
   ...props
-}: HTMLAttributes<HTMLSpanElement>) => (
-  <span className={cn("font-mono text-text-subtle", className)} {...props}>
-    {children}
-  </span>
-);
+}: Readonly<HTMLAttributes<HTMLSpanElement>>) {
+  return (
+    <span className={cn("font-mono text-text-subtle", className)} {...props}>
+      {children}
+    </span>
+  );
+}
 
-export const CodeBlockActions = ({
+export function CodeBlockActions({
   children,
   className,
   ...props
-}: HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn("flex items-center gap-1", className)}
-    {...props}
-  >
-    {children}
-  </div>
-);
+}: Readonly<HTMLAttributes<HTMLDivElement>>) {
+  return (
+    <div
+      className={cn("flex items-center gap-1", className)}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
 
-export const CodeBlockContent = ({
+export function CodeBlockContent({
   code,
   language,
   showLineNumbers = false,
-}: {
+}: Readonly<{
   code: string;
   language: BundledLanguage;
   showLineNumbers?: boolean;
-}) => {
+}>) {
   // Memoized raw tokens for immediate display
   const rawTokens = useMemo(() => createRawTokens(code), [code]);
 
@@ -414,20 +424,20 @@ export const CodeBlockContent = ({
       <CodeBlockBody showLineNumbers={showLineNumbers} tokenized={tokenized} />
     </div>
   );
-};
+}
 
-export const CodeBlock = ({
+export function CodeBlock({
   code,
   language,
   showLineNumbers = false,
   className,
   children,
   ...props
-}: CodeBlockProps) => {
+}: Readonly<CodeBlockProps>) {
   const contextValue = useMemo(() => ({ code }), [code]);
 
   return (
-    <CodeBlockContext.Provider value={contextValue}>
+    <CodeBlockContext value={contextValue}>
       <CodeBlockContainer className={className} language={language} {...props}>
         {children}
         <CodeBlockContent
@@ -436,9 +446,9 @@ export const CodeBlock = ({
           showLineNumbers={showLineNumbers}
         />
       </CodeBlockContainer>
-    </CodeBlockContext.Provider>
+    </CodeBlockContext>
   );
-};
+}
 
 export type CodeBlockCopyButtonProps = ComponentProps<typeof Button> & {
   onCopy?: () => void;
@@ -446,17 +456,17 @@ export type CodeBlockCopyButtonProps = ComponentProps<typeof Button> & {
   timeout?: number;
 };
 
-export const CodeBlockCopyButton = ({
+export function CodeBlockCopyButton({
   onCopy,
   onError,
   timeout = 2000,
   children,
   className,
   ...props
-}: CodeBlockCopyButtonProps) => {
+}: Readonly<CodeBlockCopyButtonProps>) {
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
-  const { code } = useContext(CodeBlockContext);
+  const { code } = use(CodeBlockContext);
 
   const copyToClipboard = useCallback(async () => {
     if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
@@ -500,55 +510,63 @@ export const CodeBlockCopyButton = ({
       {children ?? <Icon size={14} />}
     </Button>
   );
-};
+}
 
 export type CodeBlockLanguageSelectorProps = ComponentProps<typeof Select>;
 
-export const CodeBlockLanguageSelector = (
-  props: CodeBlockLanguageSelectorProps
-) => <Select {...props} />;
+export function CodeBlockLanguageSelector(
+  props: Readonly<CodeBlockLanguageSelectorProps>
+) {
+  return <Select {...props} />;
+}
 
 export type CodeBlockLanguageSelectorTriggerProps = ComponentProps<
   typeof SelectTrigger
 >;
 
-export const CodeBlockLanguageSelectorTrigger = ({
+export function CodeBlockLanguageSelectorTrigger({
   className,
   ...props
-}: CodeBlockLanguageSelectorTriggerProps) => (
-  <SelectTrigger
-    className={cn(
-      "h-7 border-none bg-transparent px-2 text-text-subtle text-xs shadow-none",
-      className
-    )}
-    size="sm"
-    {...props}
-  />
-);
+}: Readonly<CodeBlockLanguageSelectorTriggerProps>) {
+  return (
+    <SelectTrigger
+      className={cn(
+        "h-7 border-none bg-transparent px-2 text-text-subtle text-xs shadow-none",
+        className
+      )}
+      size="sm"
+      {...props}
+    />
+  );
+}
 
 export type CodeBlockLanguageSelectorValueProps = ComponentProps<
   typeof SelectValue
 >;
 
-export const CodeBlockLanguageSelectorValue = (
-  props: CodeBlockLanguageSelectorValueProps
-) => <SelectValue {...props} />;
+export function CodeBlockLanguageSelectorValue(
+  props: Readonly<CodeBlockLanguageSelectorValueProps>
+) {
+  return <SelectValue {...props} />;
+}
 
 export type CodeBlockLanguageSelectorContentProps = ComponentProps<
   typeof SelectContent
 >;
 
-export const CodeBlockLanguageSelectorContent = ({
+export function CodeBlockLanguageSelectorContent({
   align = "end",
   ...props
-}: CodeBlockLanguageSelectorContentProps) => (
-  <SelectContent align={align} {...props} />
-);
+}: Readonly<CodeBlockLanguageSelectorContentProps>) {
+  return <SelectContent align={align} {...props} />;
+}
 
 export type CodeBlockLanguageSelectorItemProps = ComponentProps<
   typeof SelectItem
 >;
 
-export const CodeBlockLanguageSelectorItem = (
-  props: CodeBlockLanguageSelectorItemProps
-) => <SelectItem {...props} />;
+export function CodeBlockLanguageSelectorItem(
+  props: Readonly<CodeBlockLanguageSelectorItemProps>
+) {
+  return <SelectItem {...props} />;
+}

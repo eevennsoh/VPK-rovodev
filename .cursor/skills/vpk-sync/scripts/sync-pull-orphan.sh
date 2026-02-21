@@ -93,7 +93,7 @@ if [ "$COMMIT_COUNT" -eq 1 ]; then
 	COMMITS_TO_PICK=$(git rev-list "origin/$BRANCH_NAME" | head -1)
 else
 	# Skip the first (oldest) commit which is usually the boilerplate
-	COMMITS_TO_PICK=$(git rev-list "origin/$BRANCH_NAME" | head -n -1 | tac)
+	COMMITS_TO_PICK=$(git rev-list --reverse "origin/$BRANCH_NAME" | tail -n +2)
 fi
 
 echo -e "${YELLOW}Commits to cherry-pick:${NC}"

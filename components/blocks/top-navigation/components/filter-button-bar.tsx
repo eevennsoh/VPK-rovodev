@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import CustomizeIcon from "@atlaskit/icon/core/customize";
@@ -36,14 +37,14 @@ export default function FilterButtonBar(): React.ReactElement {
 
 			{/* Right group */}
 			<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-				<Button className="gap-2" variant="secondary">
-					<img src="/3p/google-drive/20.svg" alt="" aria-hidden="true" style={{ width: "20px", height: "20px" }} />
-					<span>Google Drive</span>
-				</Button>
-				<Button className="gap-2" variant="secondary">
-					<img src="/3p/slack/20.svg" alt="" aria-hidden="true" style={{ width: "20px", height: "20px" }} />
-					<span>Slack</span>
-				</Button>
+					<Button className="gap-2" variant="secondary">
+						<Image src="/3p/google-drive/20.svg" alt="" aria-hidden width={20} height={20} />
+						<span>Google Drive</span>
+					</Button>
+					<Button className="gap-2" variant="secondary">
+						<Image src="/3p/slack/20.svg" alt="" aria-hidden width={20} height={20} />
+						<span>Slack</span>
+					</Button>
 				<Button variant="secondary">+47</Button>
 			</div>
 		</div>

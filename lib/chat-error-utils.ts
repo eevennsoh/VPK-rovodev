@@ -1,7 +1,7 @@
 const RATE_LIMIT_PATTERN =
 	/429|rate[- ]?limit|too many requests|throttl/i;
 const CHAT_IN_PROGRESS_PATTERN =
-	/status\s*409|chat(?: already)? in progress|chat-turn wait timed out|ROVODEV_CHAT_IN_PROGRESS_TIMEOUT/i;
+	/ROVODEV_CHAT_IN_PROGRESS(?:_TIMEOUT)?|chat(?: turn| already)? in progress|chat-turn wait timed out|still finishing (?:the )?(?:previous|another) response/i;
 const PROMPT_TOO_LONG_PATTERN =
 	/prompt is too long|tokens?\s*>\s*\d+\s*maximum|conversation has become too long/i;
 
@@ -54,14 +54,18 @@ export function getChatInProgressRetryCountdownLabel(
 	return `Retrying in ${formatSeconds(safeSeconds)}`;
 }
 
+export function getChatInProgressRetryContent(): string {
+	return "Another request is still finishing for this chat session. Attempting automatic recovery.";
+}
+
 export function getChatInProgressUserMessage(retryAttempt: number): string {
 	if (retryAttempt < CHAT_IN_PROGRESS_MAX_RETRIES) {
-		return `The previous chat is still finishing. ${getChatInProgressRetryCountdownLabel(
+		return `Another request is still finishing for this chat session. Attempting automatic recovery. ${getChatInProgressRetryCountdownLabel(
 			Math.ceil(CHAT_IN_PROGRESS_RETRY_DELAY_MS / 1000)
 		)}.`;
 	}
 
-	return "The previous chat is still finishing. Please wait a moment and try again.";
+	return "Automatic recovery timed out while waiting for the previous turn. Please retry or reset the chat.";
 }
 
 export function isPromptTooLongError(rawMessage: string | undefined): boolean {

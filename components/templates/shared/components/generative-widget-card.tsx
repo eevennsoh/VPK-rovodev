@@ -1,25 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
-import AngleBracketsIcon from "@atlaskit/icon/core/angle-brackets";
-import AudioIcon from "@atlaskit/icon/core/audio";
-import BoardIcon from "@atlaskit/icon/core/board";
-import ChartBarIcon from "@atlaskit/icon/core/chart-bar";
-import ChartBubbleIcon from "@atlaskit/icon/core/chart-bubble";
-import ChartMatrixIcon from "@atlaskit/icon/core/chart-matrix";
-import ChartPieIcon from "@atlaskit/icon/core/chart-pie";
-import ChartTrendIcon from "@atlaskit/icon/core/chart-trend";
+import type { Spec } from "@json-render/react";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import CrossIcon from "@atlaskit/icon/core/cross";
-import FileIcon from "@atlaskit/icon/core/file";
-import ImageIcon from "@atlaskit/icon/core/image";
-import PageIcon from "@atlaskit/icon/core/page";
-import TableIcon from "@atlaskit/icon/core/table";
-import TextIcon from "@atlaskit/icon/core/text";
-import VideoIcon from "@atlaskit/icon/core/video";
-import WorkItemIcon from "@atlaskit/icon/core/work-item";
-import GenerativeIndicatorIcon from "@atlaskit/icon-lab/core/generative-indicator";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,124 +24,203 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Tile } from "@/components/ui/tile";
 import { AudioPlayerElement } from "@/components/ui-ai/audio-player";
 import { JsonRenderView } from "@/lib/json-render/renderer";
+import { useProgressiveSpec } from "@/lib/json-render/use-progressive-spec";
 import {
+	type GenerativeWidgetPrimaryActionPayload,
 	parseGenerativeWidget,
 	resolveGenerativeWidgetMetadata,
+	createBodyOnlySpec,
 	type ParsedGenerativeWidget,
+	type GenerativeWidgetMetadata,
 } from "@/components/templates/shared/lib/generative-widget";
 import { formatContentTypeLabel } from "@/components/templates/shared/lib/generative-widget-branding";
-import type { GenerativeContentType } from "@/components/templates/shared/lib/generative-widget";
+import { ContentTypeTile } from "./content-type-tile";
+
+/* -------------------------------------------------------------------------- */
+/*  Props                                                                     */
+/* -------------------------------------------------------------------------- */
 
 interface GenerativeWidgetCardProps {
 	widgetType: string;
 	widgetData: unknown;
 	className?: string;
+	onPrimaryAction?: (
+		payload: GenerativeWidgetPrimaryActionPayload
+	) => Promise<void> | void;
 }
 
 interface GenerativeWidgetCardShellProps {
-	widget: ParsedGenerativeWidget;
+	bodyWidget: ParsedGenerativeWidget;
+	metadata: GenerativeWidgetMetadata;
 	className?: string;
 	previewMode?: boolean;
 	onOpenPreview?: () => void;
+	onPrimaryAction?: () => Promise<void> | void;
+	showPrimaryAction?: boolean;
+	primaryActionLabel?: string;
+	onStateChange?: (path: string, value: unknown) => void;
 }
 
-interface GenerativeWidgetHeaderData {
-	contentTypeLabel: string;
-	metadata: ReturnType<typeof resolveGenerativeWidgetMetadata>;
+interface GenuiBodyProps {
+	spec: Spec;
+	previewMode: boolean;
+	withContainer?: boolean;
+	onStateChange?: (path: string, value: unknown) => void;
+	progressive?: boolean;
 }
 
-function resolveGenerativeWidgetHeaderData(
-	widget: ParsedGenerativeWidget
-): GenerativeWidgetHeaderData {
-	const metadata = resolveGenerativeWidgetMetadata(widget);
-	const contentTypeLabel = formatContentTypeLabel(metadata.contentType);
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                   */
+/* -------------------------------------------------------------------------- */
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Immutable path update -- shallow-copies only the objects along the mutation
+ * path instead of deep-cloning the entire state tree on every change.
+ */
+function immutableSetByPath(
+	state: Record<string, unknown>,
+	path: string,
+	value: unknown,
+): Record<string, unknown> {
+	const segments = path.replace(/^\//, "").split("/").filter(Boolean);
+	if (segments.length === 0) return state;
+
+	if (segments.length === 1) {
+		return { ...state, [segments[0]]: value };
+	}
+
+	const [first, ...rest] = segments;
+	const child = state[first];
+	const childObj = isObjectRecord(child) ? child : {};
 
 	return {
-		contentTypeLabel,
-		metadata,
+		...state,
+		[first]: immutableSetByPath(childObj, "/" + rest.join("/"), value),
 	};
 }
 
-function renderContentTypeIcon(contentType: GenerativeContentType): ReactNode {
-	if (contentType === "image") {
-		return <ImageIcon label="" size="small" />;
-	}
-
-	if (contentType === "text") {
-		return <TextIcon label="" size="small" />;
-	}
-
-	if (contentType === "chart-bar") {
-		return <ChartBarIcon label="" size="small" />;
-	}
-
-	if (contentType === "chart-line" || contentType === "chart-area") {
-		return <ChartTrendIcon label="" size="small" />;
-	}
-
-	if (contentType === "chart-pie") {
-		return <ChartPieIcon label="" size="small" />;
-	}
-
-	if (contentType === "chart-radar") {
-		return <ChartMatrixIcon label="" size="small" />;
-	}
-
-	if (contentType === "chart-scatter") {
-		return <ChartBubbleIcon label="" size="small" />;
-	}
-
-	if (contentType === "chart") {
-		return <ChartBarIcon label="" size="small" />;
-	}
-
-	if (contentType === "sound") {
-		return <AudioIcon label="" size="small" />;
-	}
-
-	if (contentType === "video") {
-		return <VideoIcon label="" size="small" />;
-	}
-
-	if (contentType === "work-item") {
-		return <WorkItemIcon label="" size="small" />;
-	}
-
-	if (contentType === "page") {
-		return <PageIcon label="" size="small" />;
-	}
-
-	if (contentType === "board") {
-		return <BoardIcon label="" size="small" />;
-	}
-
-	if (contentType === "table") {
-		return <TableIcon label="" size="small" />;
-	}
-
-	if (contentType === "code") {
-		return <AngleBracketsIcon label="" size="small" />;
-	}
-
-	if (contentType === "ui") {
-		return <FileIcon label="" size="small" />;
-	}
-
-	return <GenerativeIndicatorIcon label="" size="small" />;
+function toInitialGenuiState(widget: ParsedGenerativeWidget): Record<string, unknown> {
+	if (widget.type !== "genui-preview") return {};
+	return isObjectRecord(widget.spec.state) ? { ...widget.spec.state } : {};
 }
 
-function renderContentTypeTile(
-	contentType: GenerativeContentType,
-	contentTypeLabel: string,
-	tileSize: "medium" | "large" = "medium"
-): ReactNode {
+/* -------------------------------------------------------------------------- */
+/*  Widget body renderers                                                     */
+/* -------------------------------------------------------------------------- */
+
+function GenuiBody({
+	spec,
+	previewMode,
+	withContainer = true,
+	onStateChange,
+	progressive = false,
+}: Readonly<GenuiBodyProps>): ReactNode {
+	const { progressiveSpec, isProgressing } = useProgressiveSpec(spec, progressive);
+
+	const content = (
+		<JsonRenderView
+			spec={progressiveSpec ?? spec}
+			skipValidation={isProgressing}
+			onStateChange={onStateChange}
+		/>
+	);
+
+	if (!withContainer) {
+		return previewMode ? (
+			<div className="max-h-[65vh] overflow-auto">{content}</div>
+		) : (
+			content
+		);
+	}
+
 	return (
-		<Tile label={contentTypeLabel} size={tileSize} variant="transparent" hasBorder className="text-icon-subtle [&_span]:!size-4 [&_svg]:!size-4">
-			{renderContentTypeIcon(contentType)}
-		</Tile>
+		<div
+			className={cn(
+				"overflow-hidden rounded-md bg-surface [&>[data-slot=card]]:gap-0 [&>[data-slot=card]]:py-0 [&>[data-slot=card]>[data-slot=card-content]]:p-0 [&>[data-slot=card]>[data-slot=card-content]>div]:!p-0",
+				previewMode && "max-h-[65vh] overflow-auto",
+			)}
+		>
+			{content}
+		</div>
+	);
+}
+
+function AudioBody({
+	audioUrl,
+	transcript,
+	withContainer,
+}: Readonly<{
+	audioUrl: string;
+	transcript?: string;
+	withContainer: boolean;
+}>): ReactNode {
+	const content = (
+		<>
+			<AudioPlayerElement controls preload="metadata" src={audioUrl} className="w-full" />
+			{transcript ? (
+				<p className={cn("text-xs text-text-subtle", withContainer ? "mt-2" : "mt-3")}>
+					{transcript}
+				</p>
+			) : null}
+		</>
+	);
+
+	return (
+		<div className={withContainer ? "rounded-md bg-surface" : undefined}>
+			{content}
+		</div>
+	);
+}
+
+function ImageBody({
+	images,
+	withContainer,
+	onImageClick,
+}: Readonly<{
+	images: Array<{ url: string; mimeType?: string }>;
+	withContainer: boolean;
+	onImageClick?: () => void;
+}>): ReactNode {
+	return (
+		<div className="grid place-items-center gap-2 sm:grid-cols-2">
+			{images.map((image, index) => {
+				const imageEl = (
+					<Image
+						src={image.url}
+						alt={`Generated image ${index + 1}`}
+						width={960}
+						height={960}
+						unoptimized
+						className="size-full object-cover"
+					/>
+				);
+				const containerClass = cn(
+					"block overflow-hidden rounded-md aspect-square w-full",
+					withContainer && "bg-surface"
+				);
+
+				return onImageClick ? (
+					<button
+						key={`${image.url}-${index}`}
+						type="button"
+						onClick={onImageClick}
+						className={cn(containerClass, "cursor-pointer")}
+					>
+						{imageEl}
+					</button>
+				) : (
+					<div key={`${image.url}-${index}`} className={containerClass}>
+						{imageEl}
+					</div>
+				);
+			})}
+		</div>
 	);
 }
 
@@ -164,100 +228,68 @@ function renderWidgetBody(
 	widget: ParsedGenerativeWidget,
 	previewMode: boolean,
 	withContainer = true,
-	onImageClick?: () => void
+	onImageClick?: () => void,
+	onStateChange?: (path: string, value: unknown) => void,
+	progressive = false,
 ): ReactNode {
 	if (widget.type === "genui-preview") {
-		const content = <JsonRenderView spec={widget.spec} />;
-		if (!withContainer) {
-			return previewMode ? (
-				<div className="max-h-[65vh] overflow-auto">
-					{content}
-				</div>
-			) : content;
-		}
-
 		return (
-			<div
-				className={cn(
-					"overflow-hidden rounded-md bg-surface",
-					previewMode && "max-h-[65vh] overflow-auto"
-				)}
-			>
-				{content}
-			</div>
+			<GenuiBody
+				spec={widget.spec}
+				previewMode={previewMode}
+				withContainer={withContainer}
+				onStateChange={onStateChange}
+				progressive={progressive}
+			/>
 		);
 	}
 
 	if (widget.type === "audio-preview") {
-		const content = (
-			<>
-				<AudioPlayerElement controls preload="metadata" src={widget.audioUrl} />
-				{widget.transcript ? (
-					<p className={cn("text-xs text-text-subtle", withContainer ? "mt-2" : "mt-3")}>
-						{widget.transcript}
-					</p>
-				) : null}
-			</>
-		);
-		if (!withContainer) {
-			return (
-				<div>
-					{content}
-				</div>
-			);
-		}
-
 		return (
-			<div className="rounded-md bg-surface">
-				{content}
-			</div>
+			<AudioBody
+				audioUrl={widget.audioUrl}
+				transcript={widget.transcript}
+				withContainer={withContainer}
+			/>
 		);
 	}
 
 	if (widget.type === "image-preview") {
 		return (
-			<div className="grid place-items-center gap-2 sm:grid-cols-2">
-				{widget.images.map((image, index) => (
-					<button
-						key={`${image.url}-${index}`}
-						type="button"
-						onClick={onImageClick}
-						className={cn(
-							"block overflow-hidden aspect-square w-full cursor-pointer",
-							withContainer ? "rounded-md bg-surface" : ""
-						)}
-					>
-						<Image
-							src={image.url}
-							alt={`Generated image ${index + 1}`}
-							width={960}
-							height={960}
-							unoptimized
-							className="size-full object-cover"
-						/>
-					</button>
-				))}
-			</div>
+			<ImageBody
+				images={widget.images}
+				withContainer={withContainer}
+				onImageClick={onImageClick}
+			/>
 		);
 	}
 
 	return null;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Card shell                                                                */
+/* -------------------------------------------------------------------------- */
+
 function GenerativeWidgetCardShell({
-	widget,
+	bodyWidget,
+	metadata,
 	className,
 	previewMode = false,
 	onOpenPreview,
+	onPrimaryAction,
+	showPrimaryAction = false,
+	primaryActionLabel,
+	onStateChange,
 }: Readonly<GenerativeWidgetCardShellProps>): ReactNode {
 	const [expanded, setExpanded] = useState(true);
-	const { metadata, contentTypeLabel } = resolveGenerativeWidgetHeaderData(widget);
+	const contentTypeLabel = formatContentTypeLabel(metadata.contentType);
 
 	return (
 		<Card className={cn("w-full gap-0 p-0", className)}>
-			<CardHeader className={cn("px-4 py-3", expanded && "border-b")}>
+			<CardHeader className={cn("p-4", expanded && "border-b")}>
 				<div className="flex min-w-0 items-center gap-3">
-					{renderContentTypeTile(metadata.contentType, contentTypeLabel)}
+					<ContentTypeTile contentType={metadata.contentType} label={contentTypeLabel} />
 					<div className="min-w-0 flex-1">
 						<CardTitle className="truncate text-sm leading-5 font-semibold">
 							{metadata.title}
@@ -289,23 +321,33 @@ function GenerativeWidgetCardShell({
 				style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
 			>
 				<div className="overflow-hidden">
-					<CardContent className={cn("px-4", previewMode ? "py-4" : "py-3")}>
-						{renderWidgetBody(widget, previewMode, true, onOpenPreview)}
-					</CardContent>
-					<CardFooter className="h-16 justify-end px-4 py-4">
-						{previewMode ? (
-							<Button variant="outline" className="h-8 min-w-[117px]" disabled>
-								Open preview
-							</Button>
-						) : (
-							<Button
-								variant="outline"
-								className="h-8 min-w-[117px]"
-								onClick={onOpenPreview}
-							>
-								Open preview
-							</Button>
+					<CardContent className="p-4">
+						{renderWidgetBody(
+							bodyWidget,
+							previewMode,
+							true,
+							onOpenPreview,
+							onStateChange,
+							!previewMode,
 						)}
+					</CardContent>
+					<CardFooter className="h-16 justify-end gap-2 px-4 py-4">
+						<Button
+							variant="outline"
+							className="h-8 min-w-[117px]"
+							disabled={previewMode}
+							onClick={previewMode ? undefined : onOpenPreview}
+						>
+							Open preview
+						</Button>
+						{showPrimaryAction && primaryActionLabel ? (
+							<Button
+								className="h-8 min-w-[117px]"
+								onClick={onPrimaryAction}
+							>
+								{primaryActionLabel}
+							</Button>
+						) : null}
 					</CardFooter>
 				</div>
 			</div>
@@ -313,30 +355,87 @@ function GenerativeWidgetCardShell({
 	);
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Main card component                                                       */
+/* -------------------------------------------------------------------------- */
+
 export function GenerativeWidgetCard({
 	widgetType,
 	widgetData,
 	className,
+	onPrimaryAction,
 }: Readonly<GenerativeWidgetCardProps>): ReactNode {
 	const [previewOpen, setPreviewOpen] = useState(false);
-	const parsedWidget = parseGenerativeWidget(widgetType, widgetData);
-	if (!parsedWidget) {
-		return null;
-	}
+	const parsedWidget = useMemo(
+		() => parseGenerativeWidget(widgetType, widgetData),
+		[widgetData, widgetType]
+	);
+	const metadata = useMemo(
+		() => (parsedWidget ? resolveGenerativeWidgetMetadata(parsedWidget) : null),
+		[parsedWidget]
+	);
+	const contentTypeLabel = metadata ? formatContentTypeLabel(metadata.contentType) : "";
+	const [genuiState, setGenuiState] = useState<Record<string, unknown>>(
+		() => (parsedWidget ? toInitialGenuiState(parsedWidget) : {})
+	);
+	const bodyWidget = useMemo(() => {
+		if (!parsedWidget || parsedWidget.type !== "genui-preview") return parsedWidget;
+		return { ...parsedWidget, spec: createBodyOnlySpec(parsedWidget) };
+	}, [parsedWidget]);
 
-	const { metadata, contentTypeLabel } = resolveGenerativeWidgetHeaderData(parsedWidget);
+	const handleGenuiStateChange = useCallback(
+		(path: string, value: unknown) => {
+			setGenuiState((previousState) => {
+				if (!path.startsWith("/")) return previousState;
+				return immutableSetByPath(previousState, path, value);
+			});
+		},
+		[]
+	);
+
+	const shouldShowPrimaryAction =
+		parsedWidget?.type === "genui-preview" &&
+		Boolean(metadata?.primaryActionLabel) &&
+		typeof onPrimaryAction === "function";
+
+	const handlePrimaryAction = useCallback(() => {
+		if (
+			parsedWidget?.type !== "genui-preview" ||
+			!metadata?.primaryActionLabel ||
+			!metadata.title ||
+			!metadata.description ||
+			typeof onPrimaryAction !== "function"
+		) {
+			return;
+		}
+
+		void onPrimaryAction({
+			widgetType: "genui-preview",
+			actionLabel: metadata.primaryActionLabel,
+			title: metadata.title,
+			description: metadata.description,
+			formState: genuiState,
+		});
+	}, [parsedWidget, metadata, onPrimaryAction, genuiState]);
+
+	if (!parsedWidget || !metadata) return null;
 
 	return (
 		<div className={cn("pb-2", className)}>
 			<Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
 				<GenerativeWidgetCardShell
-					widget={parsedWidget}
+					bodyWidget={bodyWidget ?? parsedWidget}
+					metadata={metadata}
 					onOpenPreview={() => setPreviewOpen(true)}
+					onPrimaryAction={handlePrimaryAction}
+					showPrimaryAction={shouldShowPrimaryAction}
+					primaryActionLabel={metadata.primaryActionLabel}
+					onStateChange={handleGenuiStateChange}
 				/>
-				<DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-5xl" size="xl" showCloseButton={false}>
+				<DialogContent className="max-h-[90vh] overflow-hidden gap-0 p-0 sm:max-w-5xl" size="xl" showCloseButton={false}>
 					<DialogHeader className="mx-0 mt-0 flex-row items-center border-b p-6">
 						<div className="flex min-w-0 flex-1 items-center gap-3">
-							{renderContentTypeTile(metadata.contentType, contentTypeLabel)}
+							<ContentTypeTile contentType={metadata.contentType} label={contentTypeLabel} />
 							<div className="min-w-0 flex-1 space-y-1">
 								<DialogTitle className="truncate">
 									{metadata.title}
@@ -351,7 +450,13 @@ export function GenerativeWidgetCard({
 						</DialogClose>
 					</DialogHeader>
 					<div className="max-h-[65vh] overflow-y-auto p-6">
-						{renderWidgetBody(parsedWidget, false, false)}
+						{bodyWidget ? renderWidgetBody(
+							bodyWidget,
+							false,
+							false,
+							undefined,
+							handleGenuiStateChange
+						) : null}
 					</div>
 				</DialogContent>
 			</Dialog>

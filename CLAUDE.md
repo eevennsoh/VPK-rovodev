@@ -11,7 +11,7 @@ Next.js 16 (React 19, Tailwind CSS v4) + Express backend with AI SDK (Vercel) an
 - Quick start:
   - `pnpm install`
   - `pnpm run dev`
-- Local runtime uses two processes: Next.js frontend proxy + Express backend.
+- Local runtime uses three processes: RovoDev Serve + Express backend + Next.js frontend proxy.
 - Production runtime uses one Express process serving static export plus `/api/*`.
 - Primary frontend edits are in `components/templates/`, `components/blocks/`, and `app/` route files.
 - Backend API edits are in `backend/server.js` and `app/api/*/route.ts` (dev proxy).
@@ -36,7 +36,7 @@ Prefer reading these references over relying on pre-trained knowledge.
 | Motion + Base UI animation             | `.claude/rules/motion-base-ui.md`                           |
 | Motion for React rules                 | `.claude/rules/motion-react.md`                             |
 | Session corrections log                | `AGENTS-LESSONS.md`                                         |
-| AI SDK chat integration                | `rovo/config.js`, `app/contexts/context-rovo-chat-plan.tsx` |
+| AI SDK chat integration                | `rovo/config.js`, `app/contexts/context-rovo-chat.tsx`      |
 | RovoDev Serve gateway (agent loop)     | `backend/lib/rovodev-gateway.js`, `backend/lib/rovodev-client.js` |
 | Agent team run types                   | `lib/agents-team-run-types.ts`                              |
 | Agent team run manager                 | `backend/lib/agents-team-runs.js`                           |
@@ -97,7 +97,7 @@ If instructions overlap, use this precedence:
 Local development — single command starts all three processes:
 
 ```text
-pnpm run dev → rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
+pnpm run rovodev → rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
 
 Browser -> Next.js (:3000) -> app/api/* proxy -> Express (:8080) -> rovodev serve (:8000)
 ```
@@ -108,7 +108,7 @@ Production with static export (single process, requires `NEXT_OUTPUT=export` dur
 Browser -> Express (:8080) -> static export + /api/* -> RovoDev Serve
 ```
 
-The `dev` script starts all three processes concurrently. The backend auto-detects RovoDev Serve via the `.dev-rovodev-port` file and will reject chat requests if it's unavailable.
+The `rovodev` script starts all three processes concurrently. The `dev` script starts only backend + frontend (requires RovoDev Serve already running). The backend auto-detects RovoDev Serve via `.dev-rovodev-port` (single) or `.dev-rovodev-ports` (pool) files and will reject chat requests if it's unavailable.
 
 ### Key Directories
 
@@ -141,9 +141,8 @@ Provider order in `app/providers.tsx`:
 ```text
 ThemeWrapper
   -> SidebarProvider
-    -> RovoChatProvider
-      -> RovoChatPureProvider
-        -> SystemPromptProvider
+    -> CreationModeProvider
+      -> RovoChatProvider
 ```
 
 ### API Surfaces
@@ -176,6 +175,12 @@ Backend (`backend/server.js`):
 - `POST /api/agents-team/threads`
 - `PUT /api/agents-team/threads/:threadId`
 - `DELETE /api/agents-team/threads/:threadId`
+
+Orchestrator (cross-panel debugging):
+
+- `GET /api/orchestrator/log`
+- `GET /api/orchestrator/timeline`
+- `DELETE /api/orchestrator/log`
 
 Dev proxy routes (`app/api/*/route.ts`) forward to backend:
 
@@ -213,8 +218,11 @@ Custom data parts sent by the backend:
 
 - `widget-loading` — signals widget loading state
 - `widget-data` — delivers widget payload to the frontend
+- `widget-error` — widget generation error
 - `suggested-questions` — provides follow-up question suggestions
 - `thinking-status` — thinking visualization state
+- `thinking-event` — tool call lifecycle events (start/result/error phases)
+- `tool-first-warning` — warnings about tool relevance
 - `agent-execution` — agent task execution updates
 
 Backend streaming (`backend/server.js`):
@@ -230,7 +238,7 @@ RovoDev Serve integration (`backend/lib/rovodev-gateway.js`):
 
 Key files:
 
-- `app/contexts/context-rovo-chat-plan.tsx` — `useChat` integration, data part handling, message transformation
+- `app/contexts/context-rovo-chat.tsx` — `useChat` integration, data part handling, message transformation
 - `rovo/config.js` — system prompt builder, model config, payload construction
 - `backend/server.js` — Express streaming endpoint using `createUIMessageStream`
 - `backend/lib/rovodev-gateway.js` — RovoDev Serve streaming/text bridge
@@ -369,11 +377,12 @@ Exports:
 ### Development
 
 - Install dependencies: `pnpm install`
-- First-time MCP setup: `pnpm run rovodev:setup` (interactive, approve MCP servers, then Ctrl+C)
+- First-time MCP setup: `acli rovodev` (interactive, approve MCP servers, then Ctrl+C)
 - Start everything: `pnpm run rovodev` (starts rovodev serve pool + backend + frontend)
 - Start frontend + backend only: `pnpm run dev` (requires rovodev serve already running)
 - Start frontend only: `pnpm run dev:frontend`
 - Start backend only: `pnpm run dev:backend`
+- Start with tmux (8 panes): `pnpm run rovodev:tmux`
 
 ### Build and Run
 
@@ -520,7 +529,6 @@ You can add gitignored local overrides:
 
 ```text
 .cursor/skills/vpk-deploy/SKILL.local.md
-.cursor/agents/vpk-agent-tidy.local.md
 .claude.local.md
 ```
 
@@ -538,7 +546,7 @@ Note: `.claude.local.md` should be added to `.gitignore` if used for personal/lo
 - Dev API calls traverse Next.js proxy then Express; debug both layers. <!-- added: 2026-02-08 -->
 - Use functional state updates for toggles (`setX(prev => !prev)`). <!-- added: 2026-02-08 -->
 - Derive render-only values inline; do not sync derived state via effects. <!-- added: 2026-02-08 -->
-- **RovoDev-only mode**: `pnpm run dev` starts RovoDev Serve automatically alongside the backend and frontend. All chat endpoints return 503 if RovoDev Serve is unavailable. There is no AI Gateway fallback. <!-- added: 2026-02-17 -->
+- **RovoDev-only mode**: `pnpm run rovodev` starts RovoDev Serve pool alongside backend and frontend. `pnpm run dev` starts only backend + frontend (requires RovoDev Serve already running). All chat endpoints return 503 if RovoDev Serve is unavailable. <!-- updated: 2026-02-21 -->
 - If the chat gives unexpected answers or stale context, the RovoDev session may be corrupted — restart `pnpm run rovodev` for a fresh session. <!-- updated: 2026-02-19 -->
 - No directories are excluded from TypeScript type-checking (only `node_modules`). All errors are visible and trackable. <!-- added: 2026-02-15 -->
 - Always `await stop()` before calling `sendMessage()` in AI SDK `useChat` flows — `stop`, `sendMessage`, `regenerate`, and `resumeStream` share mutable internal state and must not be fire-and-forgotten in sequence. <!-- added: 2026-02-12 -->
@@ -571,6 +579,12 @@ backend/
     agents-team-runs.js         # Agent team run manager (task tracking, SSE streaming)
     rovodev-gateway.js          # RovoDev Serve streaming/text bridge
     rovodev-client.js           # Low-level V3 REST + SSE client for rovodev serve
+    rovodev-pool.js             # Port pool manager for concurrent RovoDev sessions
+    rovodev-port-assignment.js  # Deterministic panel-to-port mapping
+    rovodev-port-recovery.js    # Graceful restart for stuck RovoDev instances
+    orchestrator-log.js         # Cross-panel activity log (JSONL persistence)
+    question-card-extractor.js  # Extracts clarification cards from assistant responses
+    smart-audio-routing.js      # Audio generation intent routing
 
 components/
   templates/                   # ADS-themed feature surfaces
@@ -580,7 +594,7 @@ components/
     jira/                      # Kanban board
     search/                    # Search results
     sidebar-chat/              # Chat with sidebar
-    shared/                    # Shared template utilities (thread-message-bubble, message-turns)
+    shared/                    # Shared template utilities (ThreadMessage compound component, message processing)
   ui-ai/                       # AI element components (TS excluded)
   blocks/                      # Block features
     chat/                      # ADS-themed chat block
@@ -623,6 +637,9 @@ Optional environment variables:
 - `PORT=8080` - Backend server port
 - `BACKEND_URL=http://localhost:8080` - Backend URL for frontend
 - `ROVODEV_PORT` - RovoDev Serve port (auto-set by `pnpm run rovodev`; do not set manually)
+- `ROVODEV_POOL_SIZE=6` - Number of RovoDev Serve instances in pool (default 6)
+- `ROVODEV_FORCE_CLEAN_START=true` - Kill all existing RovoDev instances before starting
+- `ROVODEV_SUPERVISOR=tmux` - Enable tmux supervisor mode for port recovery
 - `NEXT_PUBLIC_API_URL` - API URL for production builds
 
 ### Provider Reference
@@ -630,10 +647,10 @@ Optional environment variables:
 | Context         | File                                       | Purpose                                             |
 | --------------- | ------------------------------------------ | --------------------------------------------------- |
 | Chat panel      | `app/contexts/context-chat.tsx`            | Generic chat panel state                            |
-| Rovo chat       | `app/contexts/context-rovo-chat-plan.tsx`  | AI chat via AI SDK `useChat` with streaming/widgets |
-| Rovo chat ask   | `app/contexts/context-rovo-chat-ask.tsx`   | Non-agentic AI chat (plain markdown, no widgets)    |
+| Rovo chat       | `app/contexts/context-rovo-chat.tsx`       | AI chat via AI SDK `useChat` with streaming/widgets |
+| Creation mode   | `app/contexts/context-creation-mode.tsx`   | Creation mode state                                 |
 | Sidebar         | `app/contexts/context-sidebar.tsx`         | Sidebar visibility and route                        |
-| System prompt   | `app/contexts/context-system-prompt.tsx`   | Custom AI prompts                                   |
+| Agents team     | `app/contexts/context-agents-team.tsx`     | Agent team State/Actions/Meta (route-level mount)   |
 | Work item modal | `app/contexts/context-work-item-modal.tsx` | Work item detail modal using State/Actions/Meta     |
 | Theme           | `components/utils/theme-wrapper.tsx`       | Light/dark/system mode                              |
 
@@ -651,14 +668,10 @@ Optional environment variables:
 | Component AI | `/vpk-component-ai` | Utility  | Migrate custom AI components to ui-ai                 |
 | Lesson       | `/vpk-lesson`       | Utility  | Log corrections to `AGENTS-LESSONS.md`                |
 
-Available VPK agent:
-
-- `vpk-agent-tidy` (React cleanup and modular refactoring)
-
 Figma pipeline agents:
 
 - `vpk-agent-extractor` (haiku)
-- `vpk-agent-implementer` (sonnet)
+- `vpk-agent-implementer` (opus)
 - `vpk-agent-validator` (haiku)
 
 ### Agent Team Workflow Reference
@@ -670,7 +683,7 @@ Recommended role ownership:
 | Explore   | Explorer                                 | Read-only investigation           | Find patterns and scope files            |
 | Implement | Frontend/Backend/Token/Docs implementers | Distinct file sets                | Deliver changes without conflicts        |
 | Test      | Tester                                   | Validation tools + browser checks | Verify lint, type, visual, and a11y      |
-| Tidy      | `vpk-agent-tidy`                         | Modified implementation files     | Enforce architecture and maintainability |
+| Tidy      | General-purpose agent + `/vpk-tidy` skill | Modified implementation files     | Enforce architecture and maintainability |
 
 Team rules:
 

@@ -1,67 +1,76 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { QueuedPromptItem } from "@/app/contexts";
 import Image from "next/image";
 import PromptGallery from "@/components/blocks/prompt-gallery/page";
 import { Footer } from "@/components/ui/footer";
+import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import { useTheme } from "@/components/utils/theme-wrapper";
 import { getPlanModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
+import {
+	useAgentsTeamState,
+	useAgentsTeamActions,
+} from "@/app/contexts/context-agents-team";
 import AgentsTeamComposer from "./agents-team-composer";
 
-interface AgentsTeamInitialViewProps {
-	prompt: string;
-	isStreaming: boolean;
-	isPlanMode: boolean;
-	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
-	onPromptChange: (value: string) => void;
-	onSubmit: () => Promise<void> | void;
-	onStop: () => void;
-	onPlanModeToggle: () => void;
-	onRemoveQueuedPrompt: (id: string) => void;
-}
+export default function AgentsTeamInitialView() {
+	const {
+		prompt,
+		isStreaming,
+		isSubmitPending,
+		isPlanMode,
+		queuedPrompts,
+	} = useAgentsTeamState();
 
-export default function AgentsTeamInitialView({
-	prompt,
-	isStreaming,
-	isPlanMode,
-	queuedPrompts,
-	onPromptChange,
-	onSubmit,
-	onStop,
-	onPlanModeToggle,
-	onRemoveQueuedPrompt,
-}: Readonly<AgentsTeamInitialViewProps>) {
+	const {
+		setPrompt,
+		handleSubmit,
+		stopStreaming,
+		togglePlanMode,
+		removeQueuedPrompt,
+	} = useAgentsTeamActions();
+
 	const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
 	const [galleryExpanded, setGalleryExpanded] = useState(false);
 	const composerContainerRef = useRef<HTMLDivElement>(null);
 	const { actualTheme } = useTheme();
 	const modeCopy = getPlanModeCopy(isPlanMode);
-	const illustrationSrc = actualTheme === "dark"
-		? modeCopy.illustration.dark
-		: modeCopy.illustration.light;
-	const handlePromptGallerySelect = useCallback((selectedPrompt: string) => {
-		onPromptChange(selectedPrompt);
-		composerContainerRef.current?.scrollIntoView({
-			behavior: "smooth",
-			block: "start",
-		});
-		requestAnimationFrame(() => {
-			const textarea = composerContainerRef.current?.querySelector<HTMLTextAreaElement>(
-				'textarea[aria-label="Chat message input"]'
-			);
-			if (!textarea) {
-				return;
-			}
-			textarea.focus();
-			const cursorPosition = textarea.value.length;
-			textarea.setSelectionRange(cursorPosition, cursorPosition);
-		});
-	}, [onPromptChange]);
+	const illustrationSrc =
+		actualTheme === "dark"
+			? modeCopy.illustration.dark
+			: modeCopy.illustration.light;
+
+	const handlePromptGallerySelect = useCallback(
+		(selectedPrompt: string) => {
+			setPrompt(selectedPrompt);
+			composerContainerRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "start",
+			});
+			requestAnimationFrame(() => {
+				const textarea =
+					composerContainerRef.current?.querySelector<HTMLTextAreaElement>(
+						'textarea[aria-label="Chat message input"]',
+					);
+				if (!textarea) return;
+				textarea.focus();
+				const cursorPosition = textarea.value.length;
+				textarea.setSelectionRange(cursorPosition, cursorPosition);
+			});
+		},
+		[setPrompt],
+	);
+
+	const isRequestInFlight = isStreaming || isSubmitPending;
 
 	return (
-		<div className={`relative flex h-full min-h-0 flex-1 flex-col items-center px-4 pb-8 ${galleryExpanded ? "justify-start pt-16" : "justify-center"}`}>
+		<div
+			className={cn(
+				"relative flex h-full min-h-0 flex-1 flex-col items-center px-4 pb-8",
+				galleryExpanded ? "justify-start pt-16" : "justify-center",
+			)}
+		>
 			<div className="flex w-full max-w-[800px] flex-col items-center gap-2">
 				<div className="flex flex-col items-center gap-6 px-4 py-6">
 					<Image
@@ -71,21 +80,26 @@ export default function AgentsTeamInitialView({
 						height={80}
 					/>
 
-					<h2 style={{ font: token("font.heading.xxlarge") }} className="text-text text-center">{modeCopy.heading}</h2>
+					<h2
+						style={{ font: token("font.heading.xxlarge") }}
+						className="text-text text-center"
+					>
+						{modeCopy.heading}
+					</h2>
 				</div>
 
 				<div ref={composerContainerRef} className="w-full px-1">
 					<AgentsTeamComposer
 						prompt={prompt}
 						placeholder={previewPrompt ?? modeCopy.placeholder}
-						isStreaming={isStreaming}
+						isStreaming={isRequestInFlight}
 						isPlanMode={isPlanMode}
-						onPlanModeToggle={onPlanModeToggle}
+						onPlanModeToggle={togglePlanMode}
 						queuedPrompts={queuedPrompts}
-						onPromptChange={onPromptChange}
-						onSubmit={onSubmit}
-						onStop={onStop}
-						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
+						onPromptChange={setPrompt}
+						onSubmit={handleSubmit}
+						onStop={stopStreaming}
+						onRemoveQueuedPrompt={removeQueuedPrompt}
 						expandedPlaceholder={galleryExpanded || !!previewPrompt}
 					/>
 				</div>

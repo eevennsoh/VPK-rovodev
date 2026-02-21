@@ -26,6 +26,7 @@ export interface ParsedQuestionCardOption {
 export interface ParsedQuestionCardQuestion {
 	id: string;
 	label: string;
+	header?: string;
 	description?: string;
 	required: boolean;
 	kind: QuestionKind;
@@ -48,7 +49,7 @@ const DEFAULT_SESSION_ID = "clarification-session";
 const DEFAULT_MAX_ROUNDS = 3;
 const DEFAULT_TITLE = "Help me clarify this";
 const DEFAULT_PLACEHOLDER = "Tell Rovo what to do...";
-const MAX_GENERATED_OPTIONS = 3;
+const MAX_GENERATED_OPTIONS = 4;
 
 function isStringRecord(value: unknown): value is StringRecord {
 	return typeof value === "object" && value !== null;
@@ -102,23 +103,20 @@ function normalizeQuestionOptions(value: unknown): ParsedQuestionCardOption[] {
 	const seenOptionIds = new Set<string>();
 	const seenOptionLabels = new Set<string>();
 	const options: ParsedQuestionCardOption[] = [];
-	value.forEach((option, index) => {
-		if (!isStringRecord(option)) {
-			return;
-		}
+
+	for (const [index, option] of value.entries()) {
+		if (!isStringRecord(option)) continue;
 
 		const label =
 			getNonEmptyString(option.label) ??
 			getNonEmptyString(option.title) ??
 			getNonEmptyString(option.text);
-		if (!label) {
-			return;
-		}
+		if (!label) continue;
 
 		const optionId = getNonEmptyString(option.id) ?? `option-${index + 1}`;
 		const normalizedLabel = label.toLowerCase();
 		if (seenOptionIds.has(optionId) || seenOptionLabels.has(normalizedLabel)) {
-			return;
+			continue;
 		}
 
 		seenOptionIds.add(optionId);
@@ -129,7 +127,7 @@ function normalizeQuestionOptions(value: unknown): ParsedQuestionCardOption[] {
 			description: getNonEmptyString(option.description) ?? undefined,
 			recommended: Boolean(option.recommended),
 		});
-	});
+	}
 
 	return options.slice(0, MAX_GENERATED_OPTIONS);
 }
@@ -192,19 +190,21 @@ export function parseQuestionCardPayload(
 
 	const questions: ParsedQuestionCardQuestion[] = [];
 	const seenQuestionIds = new Set<string>();
-	questionsValue.forEach((question, index) => {
-		if (!isStringRecord(question)) {
-			return;
-		}
+	const seenLabels = new Set<string>();
+
+	for (const [index, question] of questionsValue.entries()) {
+		if (!isStringRecord(question)) continue;
 
 		const questionLabel =
 			getNonEmptyString(question.label) ??
 			getNonEmptyString(question.title) ??
 			getNonEmptyString(question.question) ??
 			getNonEmptyString(question.text);
-		if (!questionLabel) {
-			return;
-		}
+		if (!questionLabel) continue;
+
+		const normalizedLabel = questionLabel.toLowerCase();
+		if (seenLabels.has(normalizedLabel)) continue;
+		seenLabels.add(normalizedLabel);
 
 		const parsedOptions = normalizeQuestionOptions(question.options);
 		const options =
@@ -217,13 +217,14 @@ export function parseQuestionCardPayload(
 		questions.push({
 			id: questionId,
 			label: questionLabel,
+			header: getNonEmptyString(question.header) ?? undefined,
 			description: getNonEmptyString(question.description) ?? undefined,
 			required: question.required !== false,
 			kind: "single-select",
 			options,
 			placeholder: DEFAULT_PLACEHOLDER,
 		});
-	});
+	}
 	if (questions.length === 0) {
 		return null;
 	}
@@ -339,7 +340,7 @@ export function buildClarificationSummaryPrompt(
 		...answerSummaryLines,
 		"",
 		"Use these details to generate the final plan tasks now.",
-		"Do not ask more clarification questions unless I explicitly request another round.",
+		"If you still need more information, ask follow-up questions using the request_user_input tool so they render as question cards.",
 		"Use the create-plan skill and return a plan widget with concrete tasks.",
 	].join("\n");
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,12 +47,14 @@ export function ModalHeader() {
 				<BreadcrumbList>
 					<BreadcrumbItem>
 						<BreadcrumbLink href="#" className="gap-1.5 inline-flex items-center">
-							<img
-								src="/avatar-project/rocket.svg"
-								alt="Project"
-								style={{
-									width: "20px",
-									height: "20px",
+								<Image
+									src="/avatar-project/rocket.svg"
+									alt="Project"
+									width={20}
+									height={20}
+									style={{
+										width: "20px",
+										height: "20px",
 									borderRadius: token("radius.xsmall"),
 								}}
 							/>

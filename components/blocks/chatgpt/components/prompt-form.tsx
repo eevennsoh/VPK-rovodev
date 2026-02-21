@@ -1,10 +1,8 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState } from "react";
 
-import {
-	Example,
-} from "@/components/example"
+import { Example } from "@/components/example";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -15,27 +13,38 @@ import {
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-	Field,
-	FieldLabel,
-} from "@/components/ui/field"
+} from "@/components/ui/dropdown-menu";
+import { Field, FieldLabel } from "@/components/ui/field";
 import {
 	InputGroup,
 	InputGroupAddon,
 	InputGroupButton,
 	InputGroupTextarea,
-} from "@/components/ui/input-group"
-import { Kbd } from "@/components/ui/kbd"
+} from "@/components/ui/input-group";
+import { Kbd } from "@/components/ui/kbd";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { PlusIcon, PaperclipIcon, SparklesIcon, ShoppingBagIcon, WandIcon, MousePointerIcon, MoreHorizontalIcon, ShareIcon, BookOpenIcon, GlobeIcon, PenToolIcon, AudioLinesIcon, ArrowUpIcon } from "lucide-react"
+} from "@/components/ui/tooltip";
+import {
+	ArrowUpIcon,
+	AudioLinesIcon,
+	BookOpenIcon,
+	GlobeIcon,
+	MoreHorizontalIcon,
+	MousePointerIcon,
+	PaperclipIcon,
+	PenToolIcon,
+	PlusIcon,
+	ShareIcon,
+	ShoppingBagIcon,
+	SparklesIcon,
+	WandIcon,
+} from "lucide-react";
 
 export function PromptForm() {
-	const [, setDictateEnabled] = useState(false)
+	const [, setDictateEnabled] = useState(false);
 
 	return (
 		<Example title="Prompt Form">
@@ -55,7 +64,6 @@ export function PromptForm() {
 												<InputGroupButton
 													variant="ghost"
 													size="icon-sm"
-													onClick={() => setDictateEnabled(prev => !prev)}
 													className="rounded-4xl"
 												/>
 											}
@@ -139,7 +147,7 @@ export function PromptForm() {
 									<InputGroupButton
 										variant="ghost"
 										size="icon-sm"
-										onClick={() => setDictateEnabled(prev => !prev)}
+										onClick={() => setDictateEnabled((prev) => !prev)}
 										className="ml-auto rounded-4xl"
 									/>
 								}
@@ -159,5 +167,5 @@ export function PromptForm() {
 				</InputGroup>
 			</Field>
 		</Example>
-	)
+	);
 }

@@ -6,23 +6,13 @@ import type { ComponentProps, ReactNode } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 
 type ToolUIPartApproval =
   | {
       id: string;
       approved?: never;
       reason?: never;
-    }
-  | {
-      id: string;
-      approved: boolean;
-      reason?: string;
-    }
-  | {
-      id: string;
-      approved: true;
-      reason?: string;
     }
   | {
       id: string;
@@ -45,52 +35,52 @@ const ConfirmationContext = createContext<ConfirmationContextValue | null>(
   null
 );
 
-const useConfirmation = () => {
-  const context = useContext(ConfirmationContext);
+function useConfirmation() {
+  const context = use(ConfirmationContext);
 
   if (!context) {
     throw new Error("Confirmation components must be used within Confirmation");
   }
 
   return context;
-};
+}
 
 export type ConfirmationProps = ComponentProps<typeof Alert> & {
   approval?: ToolUIPartApproval;
   state: ToolUIPart["state"];
 };
 
-export const Confirmation = ({
+export function Confirmation({
   className,
   approval,
   state,
   ...props
-}: ConfirmationProps) => {
+}: Readonly<ConfirmationProps>) {
   if (!approval || state === "input-streaming" || state === "input-available") {
     return null;
   }
 
   return (
-    <ConfirmationContext.Provider value={{ approval, state }}>
+    <ConfirmationContext value={{ approval, state }}>
       <Alert className={cn("flex flex-col gap-2", className)} {...props} />
-    </ConfirmationContext.Provider>
+    </ConfirmationContext>
   );
-};
+}
 
 export type ConfirmationTitleProps = ComponentProps<typeof AlertDescription>;
 
-export const ConfirmationTitle = ({
+export function ConfirmationTitle({
   className,
   ...props
-}: ConfirmationTitleProps) => (
-  <AlertDescription className={cn("inline", className)} {...props} />
-);
+}: Readonly<ConfirmationTitleProps>) {
+  return <AlertDescription className={cn("inline", className)} {...props} />;
+}
 
 export interface ConfirmationRequestProps {
   children?: ReactNode;
 }
 
-export const ConfirmationRequest = ({ children }: ConfirmationRequestProps) => {
+export function ConfirmationRequest({ children }: Readonly<ConfirmationRequestProps>) {
   const { state } = useConfirmation();
 
   // Only show when approval is requested
@@ -99,15 +89,15 @@ export const ConfirmationRequest = ({ children }: ConfirmationRequestProps) => {
   }
 
   return children;
-};
+}
 
 export interface ConfirmationAcceptedProps {
   children?: ReactNode;
 }
 
-export const ConfirmationAccepted = ({
+export function ConfirmationAccepted({
   children,
-}: ConfirmationAcceptedProps) => {
+}: Readonly<ConfirmationAcceptedProps>) {
   const { approval, state } = useConfirmation();
 
   // Only show when approved and in response states
@@ -121,15 +111,15 @@ export const ConfirmationAccepted = ({
   }
 
   return children;
-};
+}
 
 export interface ConfirmationRejectedProps {
   children?: ReactNode;
 }
 
-export const ConfirmationRejected = ({
+export function ConfirmationRejected({
   children,
-}: ConfirmationRejectedProps) => {
+}: Readonly<ConfirmationRejectedProps>) {
   const { approval, state } = useConfirmation();
 
   // Only show when rejected and in response states
@@ -143,14 +133,14 @@ export const ConfirmationRejected = ({
   }
 
   return children;
-};
+}
 
 export type ConfirmationActionsProps = ComponentProps<"div">;
 
-export const ConfirmationActions = ({
+export function ConfirmationActions({
   className,
   ...props
-}: ConfirmationActionsProps) => {
+}: Readonly<ConfirmationActionsProps>) {
   const { state } = useConfirmation();
 
   // Only show when approval is requested
@@ -164,10 +154,10 @@ export const ConfirmationActions = ({
       {...props}
     />
   );
-};
+}
 
 export type ConfirmationActionProps = ComponentProps<typeof Button>;
 
-export const ConfirmationAction = (props: ConfirmationActionProps) => (
-  <Button className="h-8 px-3 text-sm" type="button" {...props} />
-);
+export function ConfirmationAction(props: Readonly<ConfirmationActionProps>) {
+  return <Button className="h-8 px-3 text-sm" type="button" {...props} />;
+}

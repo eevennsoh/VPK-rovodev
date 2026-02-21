@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useRovoChatPanel } from "../hooks/use-rovo-chat-panel";
+import { useDismissibleCards } from "@/components/templates/shared/hooks/use-dismissible-cards";
 import RovoChatHeader from "./rovo-chat-header";
 import RovoChatMessages from "./rovo-chat-messages";
 import RovoChatInput from "./rovo-chat-input";
@@ -43,6 +43,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		scrollSpacerRef,
 		handleSubmit,
 		handleSuggestedQuestionClick,
+		handleWidgetPrimaryAction,
 		handleFullScreen,
 		hasChatStarted,
 		activeQuestionCard,
@@ -50,18 +51,9 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		stopStreaming,
 	} = useRovoChatPanel({ product });
 	const isRequestInFlight = isStreaming || isSubmitPending;
-	const activeQuestionCardKey = useMemo(
-		() => (activeQuestionCard ? `${activeQuestionCard.sessionId}-${activeQuestionCard.round}` : null),
-		[activeQuestionCard]
-	);
-	const [dismissedQuestionCardKey, setDismissedQuestionCardKey] = useState<string | null>(null);
-	const shouldShowQuestionCard = !isRequestInFlight && activeQuestionCard !== null && dismissedQuestionCardKey !== activeQuestionCardKey;
-	const dismissQuestionCard = useCallback(() => {
-		if (!activeQuestionCardKey) {
-			return;
-		}
-		setDismissedQuestionCardKey(activeQuestionCardKey);
-	}, [activeQuestionCardKey]);
+	const { shouldShowQuestionCard: shouldShowQuestionCardRaw, activeQuestionCardKey, dismissQuestionCard } =
+		useDismissibleCards({ activeQuestionCard, activePlanWidget: null });
+	const shouldShowQuestionCard = !isRequestInFlight && shouldShowQuestionCardRaw;
 
 	const isFloating = variant === "floating";
 	const panelHeight = isFloating
@@ -97,6 +89,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				messageMode="ask"
 				enableSmartWidgets={true}
 				onSuggestedQuestionClick={handleSuggestedQuestionClick}
+				onWidgetPrimaryAction={handleWidgetPrimaryAction}
 				userName={userName ?? undefined}
 				conversationContextRef={conversationContextRef}
 				scrollSpacerRef={scrollSpacerRef}

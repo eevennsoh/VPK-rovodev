@@ -10,6 +10,10 @@ import {
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
 } from "@/components/templates/shared/lib/question-card-widget";
+import {
+	buildGenerativeWidgetSubmitPrompt,
+	type GenerativeWidgetPrimaryActionPayload,
+} from "@/components/templates/shared/lib/generative-widget";
 
 export function useRovoViewChat() {
 	const [prompt, setPrompt] = useState("");
@@ -34,6 +38,15 @@ export function useRovoViewChat() {
 	const { name: userName } = useUrlParams();
 	const hasProcessedPendingPrompt = useRef(false);
 
+	const { isListening, interimText, toggleDictation } = useSpeechRecognition({
+		onFinalTranscript: (transcript) => setPrompt((prev) => prev + transcript),
+	});
+
+	const activeQuestionCard = useMemo(
+		() => getLatestQuestionCardPayload(uiMessages),
+		[uiMessages]
+	);
+
 	const buildSendOptions = useCallback(
 		() => ({
 			userName: userName || undefined,
@@ -45,10 +58,45 @@ export function useRovoViewChat() {
 		[userName]
 	);
 
-	const activeQuestionCard = useMemo(
-		() => getLatestQuestionCardPayload(uiMessages),
-		[uiMessages]
+	useEffect(() => {
+		return () => {
+			void stopStreaming();
+		};
+	}, [stopStreaming]);
+
+	const handleSubmit = useCallback(async () => {
+		if (!prompt.trim()) return;
+
+		setIsChatMode(true);
+		const currentPrompt = prompt;
+		setPrompt("");
+
+		await sendPrompt(currentPrompt, buildSendOptions());
+	}, [prompt, sendPrompt, buildSendOptions]);
+
+	const handleSuggestedQuestionClick = useCallback(
+		async (question: string) => {
+			if (!question.trim()) return;
+
+			setIsChatMode(true);
+			await sendPrompt(question, buildSendOptions());
+		},
+		[sendPrompt, buildSendOptions]
 	);
+
+	const handleWidgetPrimaryAction = useCallback(
+		async (payload: GenerativeWidgetPrimaryActionPayload) => {
+			const submitPrompt = buildGenerativeWidgetSubmitPrompt(payload);
+			await sendPrompt(submitPrompt, buildSendOptions());
+		},
+		[buildSendOptions, sendPrompt]
+	);
+
+	const handleBackToStart = useCallback(() => {
+		resetChat();
+		setPrompt("");
+		setIsChatMode(false);
+	}, [resetChat]);
 
 	const handleClarificationSubmit = useCallback(
 		async (answers: ClarificationAnswers) => {
@@ -77,66 +125,22 @@ export function useRovoViewChat() {
 		[activeQuestionCard, buildSendOptions, sendPrompt]
 	);
 
-	const { isListening, interimText, toggleDictation } = useSpeechRecognition({
-		onFinalTranscript: (transcript) => setPrompt((prev) => prev + transcript),
-	});
-
-	useEffect(() => {
-		return () => {
-			void stopStreaming();
-		};
-	}, [stopStreaming]);
-
-	const handleSubmit = useCallback(async () => {
-		if (!prompt.trim()) return;
-
-		if (!isChatMode) {
-			setIsChatMode(true);
-		}
-
-		const currentPrompt = prompt;
-		setPrompt("");
-
-		await sendPrompt(currentPrompt, buildSendOptions());
-	}, [prompt, isChatMode, sendPrompt, buildSendOptions]);
-
-	const handleSuggestedQuestionClick = useCallback(
-		async (question: string) => {
-			if (!question.trim()) return;
-
-			if (!isChatMode) {
-				setIsChatMode(true);
-			}
-
-			await sendPrompt(question, buildSendOptions());
-		},
-		[isChatMode, sendPrompt, buildSendOptions]
-	);
-
-	const handleBackToStart = useCallback(() => {
-		resetChat();
-		setPrompt("");
-		setIsChatMode(false);
-	}, [resetChat]);
-
 	// Handle pending prompt from external navigation
 	useEffect(() => {
-		if (pendingPrompt && !hasProcessedPendingPrompt.current) {
-			hasProcessedPendingPrompt.current = true;
+		if (hasProcessedPendingPrompt.current) return;
+		if (typeof pendingPrompt !== "string" || !pendingPrompt.trim()) return;
 
-			const submitPendingPrompt = async () => {
-				if (!pendingPrompt.trim()) return;
+		hasProcessedPendingPrompt.current = true;
+		const promptToSubmit = pendingPrompt;
 
-				setIsChatMode(true);
+		async function submitPendingPrompt() {
+			setIsChatMode(true);
+			setPendingPrompt(null);
 
-				const promptToSubmit = pendingPrompt;
-				setPendingPrompt(null);
-
-				await sendPrompt(promptToSubmit, buildSendOptions());
-			};
-
-			submitPendingPrompt();
+			await sendPrompt(promptToSubmit, buildSendOptions());
 		}
+
+		void submitPendingPrompt();
 	}, [pendingPrompt, setPendingPrompt, sendPrompt, buildSendOptions]);
 
 	return {
@@ -161,6 +165,7 @@ export function useRovoViewChat() {
 		activeQuestionCard,
 		handleSubmit,
 		handleSuggestedQuestionClick,
+		handleWidgetPrimaryAction,
 		handleBackToStart,
 		isStreaming,
 		isSubmitPending,

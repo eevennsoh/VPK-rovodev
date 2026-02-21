@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Heading from "@/components/blocks/shared-ui/heading";
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
@@ -30,11 +31,13 @@ export default function JiraHeader({ selectedTab, onTabChange }: Readonly<JiraHe
 								Spaces
 							</span>
 							<div className="flex items-center gap-2">
-								<img
-									src="/avatar-project/rocket.svg"
-									alt="Project avatar"
-									style={{ width: "20px", height: "20px", borderRadius: token("radius.xsmall") }}
-								/>
+									<Image
+										src="/avatar-project/rocket.svg"
+										alt="Project avatar"
+										width={20}
+										height={20}
+										style={{ width: "20px", height: "20px", borderRadius: token("radius.xsmall") }}
+									/>
 								<Heading size="medium">Vitafleet Q4 launch</Heading>
 								<Button aria-label="Teams" size="icon-sm" variant="ghost">
 									<TeamsIcon label="" size="small" />
@@ -100,7 +103,7 @@ export default function JiraHeader({ selectedTab, onTabChange }: Readonly<JiraHe
 								return tabContent;
 							})}
 						</TabsList>
-						{JIRA_TABS.map((tab, index) => (
+							{JIRA_TABS.map((tab) => (
 							<TabsContent key={tab.label} value={tab.label}>
 								{tab.hasContent ? (
 									<div />

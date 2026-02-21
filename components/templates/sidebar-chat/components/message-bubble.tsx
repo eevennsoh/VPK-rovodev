@@ -1,14 +1,20 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { RovoRenderableUIMessage } from "@/lib/rovo-ui-messages";
-import { ThreadMessageBubble } from "@/components/templates/shared/thread-message-bubble";
+import { ThreadMessage } from "@/components/templates/shared/thread-message";
 import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
+import type { GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
+import LoadingWidget from "./loading-widget";
 
 interface MessageBubbleProps {
 	message: RovoRenderableUIMessage;
 	onSuggestionClick?: (question: string) => void;
 	enableSmartWidgets?: boolean;
 	showThinkingStatusSection?: boolean;
+	onWidgetPrimaryAction?: (
+		payload: GenerativeWidgetPrimaryActionPayload
+	) => Promise<void> | void;
 }
 
 export default function MessageBubble({
@@ -16,29 +22,39 @@ export default function MessageBubble({
 	onSuggestionClick,
 	enableSmartWidgets = false,
 	showThinkingStatusSection = true,
-}: Readonly<MessageBubbleProps>): React.ReactElement {
+	onWidgetPrimaryAction,
+}: Readonly<MessageBubbleProps>): ReactNode {
+	const renderWidget = enableSmartWidgets
+		? (widget: { type: string; data: unknown }) => (
+				<GenerativeWidgetCard
+					widgetType={widget.type}
+					widgetData={widget.data}
+					onPrimaryAction={onWidgetPrimaryAction}
+				/>
+			)
+		: undefined;
+
+	const renderLoadingWidget = enableSmartWidgets
+		? (widgetType?: string) => <LoadingWidget widgetType={widgetType} />
+		: undefined;
+
 	return (
-		<ThreadMessageBubble
+		<ThreadMessage.Root
 			message={message}
 			surface="sidebar"
-			onSuggestionClick={onSuggestionClick}
-			showFeedbackActions={true}
-			showFollowUpSuggestions={true}
-			showThinkingStatusSection={showThinkingStatusSection}
-			showToolsSection={true}
-			showWidgetSections={enableSmartWidgets}
-			renderWidget={(widget) => {
-				if (!enableSmartWidgets) {
-					return null;
-				}
-
-				return (
-					<GenerativeWidgetCard
-						widgetType={widget.type}
-						widgetData={widget.data}
-					/>
-				);
-			}}
-		/>
+			renderWidget={renderWidget}
+			renderLoadingWidget={renderLoadingWidget}
+		>
+			<ThreadMessage.Reasoning />
+			{showThinkingStatusSection ? <ThreadMessage.ThinkingStatus /> : null}
+			<ThreadMessage.Widget position="before-content" />
+			<ThreadMessage.Content />
+			<ThreadMessage.Feedback />
+			<ThreadMessage.Tools />
+			<ThreadMessage.ToolFirstWarning />
+			<ThreadMessage.Sources />
+			<ThreadMessage.Suggestions onSuggestionClick={onSuggestionClick} />
+			<ThreadMessage.Widget position="after-content" />
+		</ThreadMessage.Root>
 	);
 }

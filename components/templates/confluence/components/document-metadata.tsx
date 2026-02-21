@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { token } from "@/lib/tokens";
 
 import { Button } from "@/components/ui/button";
@@ -32,12 +33,15 @@ export default function DocumentMetadata({
 							gap: token("space.100"),
 						}}
 					>
-						<img
-							src={author.avatar}
-							alt={author.name}
-							style={{
-								width: 16,
-								height: 16,
+							<Image
+								src={author.avatar}
+								alt={author.name}
+								width={16}
+								height={16}
+								unoptimized
+								style={{
+									width: 16,
+									height: 16,
 								borderRadius: "50%",
 								objectFit: "cover",
 							}}

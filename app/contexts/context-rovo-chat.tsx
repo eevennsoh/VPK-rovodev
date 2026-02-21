@@ -27,6 +27,7 @@ import {
 	CHAT_IN_PROGRESS_MAX_RETRIES,
 	CHAT_IN_PROGRESS_RETRY_DELAY_MS,
 	getChatInProgressRetryCountdownLabel,
+	getChatInProgressRetryContent,
 	getChatInProgressUserMessage,
 } from "@/lib/chat-error-utils";
 import { DefaultChatTransport } from "ai";
@@ -60,6 +61,23 @@ type RovoUIMessagePart = RovoUIMessage["parts"][number];
 const INLINE_DATA_PLACEHOLDER = "[inline data omitted]";
 const CHAT_REQUEST_MAX_BYTES = 4 * 1024 * 1024;
 const CHAT_REQUEST_MIN_MESSAGES = 8;
+
+function buildSendMessageBody(
+	options: SendPromptOptions | undefined,
+	hasQueuedPrompts: boolean
+): Record<string, unknown> {
+	return {
+		contextDescription: options?.contextDescription,
+		userName: options?.userName,
+		clarification: options?.clarification,
+		approval: options?.approval,
+		planMode: options?.planMode,
+		planRequestId: options?.planRequestId,
+		creationMode: options?.creationMode,
+		smartGeneration: options?.smartGeneration,
+		hasQueuedPrompts,
+	};
+}
 
 function isValidRovoUiMessagePart(part: unknown): part is RovoUIMessagePart {
 	return (
@@ -331,7 +349,15 @@ function createQueueItemId(fallbackCounter: number): string {
 	return `queue-${Date.now()}-${fallbackCounter}`;
 }
 
-export function RovoChatProvider({ children }: { children: ReactNode }) {
+interface RovoChatProviderProps {
+	children: ReactNode;
+	portIndex?: number;
+}
+
+export function RovoChatProvider({
+	children,
+	portIndex,
+}: Readonly<RovoChatProviderProps>) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [isSubmitPending, setIsSubmitPending] = useState(false);
 	const [pendingSubmitStartedAt, setPendingSubmitStartedAt] = useState<number | null>(
@@ -440,7 +466,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 				createAssistantThinkingStatusMessage(
 					errorMessageId,
 					getChatInProgressRetryCountdownLabel(secondsRemaining),
-					"The previous chat is still finishing. Retrying automatically."
+					getChatInProgressRetryContent()
 				)
 			);
 
@@ -455,7 +481,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 					createAssistantThinkingStatusMessage(
 						errorMessageId,
 						getChatInProgressRetryCountdownLabel(secondsRemaining),
-						"The previous chat is still finishing. Retrying automatically."
+						getChatInProgressRetryContent()
 					)
 				);
 			}, 1000);
@@ -491,11 +517,12 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 							...sanitizedBody,
 							messages: trimmedMessages,
 							payloadTrimmed: trimmed,
+							...(portIndex !== undefined ? { portIndex } : {}),
 						},
 					};
 				},
 			}),
-		[]
+		[portIndex]
 	);
 
 	const {
@@ -534,26 +561,19 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 					await stop();
 				}
 
+				const messagePayload = {
+					text: saved.text,
+					metadata: saved.options?.messageMetadata,
+				};
+				const bodyPayload = {
+					body: buildSendMessageBody(
+						saved.options,
+						queuedPromptsRef.current.length > 0
+					),
+				};
+
 				try {
-					await sendMessage(
-						{
-							text: saved.text,
-							metadata: saved.options?.messageMetadata,
-						},
-						{
-							body: {
-								contextDescription: saved.options?.contextDescription,
-								userName: saved.options?.userName,
-								clarification: saved.options?.clarification,
-								approval: saved.options?.approval,
-								planMode: saved.options?.planMode,
-								planRequestId: saved.options?.planRequestId,
-								creationMode: saved.options?.creationMode,
-								smartGeneration: saved.options?.smartGeneration,
-								hasQueuedPrompts: queuedPromptsRef.current.length > 0,
-							},
-						}
-					);
+					await sendMessage(messagePayload, bodyPayload);
 				} catch (sendError) {
 					if (!isInvalidPartStateError(sendError)) {
 						throw sendError;
@@ -561,25 +581,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 
 					setMessages((prev) => sanitizeRovoUiMessages(prev));
 					await Promise.resolve();
-					await sendMessage(
-						{
-							text: saved.text,
-							metadata: saved.options?.messageMetadata,
-						},
-						{
-							body: {
-								contextDescription: saved.options?.contextDescription,
-								userName: saved.options?.userName,
-								clarification: saved.options?.clarification,
-								approval: saved.options?.approval,
-								planMode: saved.options?.planMode,
-								planRequestId: saved.options?.planRequestId,
-								creationMode: saved.options?.creationMode,
-								smartGeneration: saved.options?.smartGeneration,
-								hasQueuedPrompts: queuedPromptsRef.current.length > 0,
-							},
-						}
-					);
+					await sendMessage(messagePayload, bodyPayload);
 				}
 			};
 
@@ -775,26 +777,20 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 			if (isStreamingRef.current) {
 				await stop();
 			}
+
+			const messagePayload = {
+				text: promptItem.text,
+				metadata: promptItem.options?.messageMetadata,
+			};
+			const bodyPayload = {
+				body: buildSendMessageBody(
+					promptItem.options,
+					queuedPromptsRef.current.length > 0
+				),
+			};
+
 			try {
-				await sendMessage(
-					{
-						text: promptItem.text,
-						metadata: promptItem.options?.messageMetadata,
-					},
-					{
-						body: {
-							contextDescription: promptItem.options?.contextDescription,
-							userName: promptItem.options?.userName,
-							clarification: promptItem.options?.clarification,
-							approval: promptItem.options?.approval,
-							planMode: promptItem.options?.planMode,
-							planRequestId: promptItem.options?.planRequestId,
-							creationMode: promptItem.options?.creationMode,
-							smartGeneration: promptItem.options?.smartGeneration,
-							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
-						},
-					}
-				);
+				await sendMessage(messagePayload, bodyPayload);
 			} catch (error) {
 				if (!isInvalidPartStateError(error)) {
 					throw error;
@@ -802,25 +798,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 
 				setMessages((prev) => sanitizeRovoUiMessages(prev));
 				await Promise.resolve();
-				await sendMessage(
-					{
-						text: promptItem.text,
-						metadata: promptItem.options?.messageMetadata,
-					},
-					{
-						body: {
-							contextDescription: promptItem.options?.contextDescription,
-							userName: promptItem.options?.userName,
-							clarification: promptItem.options?.clarification,
-							approval: promptItem.options?.approval,
-							planMode: promptItem.options?.planMode,
-							planRequestId: promptItem.options?.planRequestId,
-							creationMode: promptItem.options?.creationMode,
-							smartGeneration: promptItem.options?.smartGeneration,
-							hasQueuedPrompts: queuedPromptsRef.current.length > 0,
-						},
-					}
-				);
+				await sendMessage(messagePayload, bodyPayload);
 			}
 		},
 		[sendMessage, setMessages, stop]
@@ -865,7 +843,9 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 
 	useEffect(() => {
 		maybeFinalizeAndProcessRef.current = maybeFinalizeAndProcess;
-	}, [maybeFinalizeAndProcess]);
+		// Flush any prompts that may have been queued before refs were wired.
+		queueTick();
+	}, [maybeFinalizeAndProcess, queueTick]);
 
 	const processNextPrompt = useCallback(async () => {
 		if (
@@ -906,7 +886,9 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 
 	useEffect(() => {
 		processNextPromptRef.current = processNextPrompt;
-	}, [processNextPrompt]);
+		// Ensure queued prompts can drain after initial callback registration.
+		queueTick();
+	}, [processNextPrompt, queueTick]);
 
 	useEffect(() => {
 		queuedPromptsRef.current = queuedPrompts;
@@ -995,7 +977,11 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 			// stream. The primary cancellation path is req.on("close") → AbortSignal,
 			// but this handles edge cases where the SSE close event is delayed.
 			try {
-				await fetch(API_ENDPOINTS.CHAT_CANCEL, { method: "POST" });
+				const cancelEndpoint =
+					typeof portIndex === "number"
+						? `${API_ENDPOINTS.CHAT_CANCEL}?portIndex=${encodeURIComponent(String(portIndex))}`
+						: API_ENDPOINTS.CHAT_CANCEL;
+				await fetch(cancelEndpoint, { method: "POST" });
 			} catch {
 				// Ignore cancel endpoint errors — the stream may have already ended.
 			}
@@ -1007,7 +993,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 		} finally {
 			cancelStreamPromiseRef.current = null;
 		}
-	}, [stop]);
+	}, [portIndex, stop]);
 
 	const stopStreaming = useCallback(async () => {
 		if (activePromptRef.current) {
@@ -1077,10 +1063,6 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 		[cancelRetryTimer, clearSubmitPending, queueTick, setMessages]
 	);
 
-	const setPendingPromptValue = useCallback((prompt: string | null) => {
-		setPendingPrompt(prompt);
-	}, []);
-
 	const queueCount = queuedPrompts.length;
 
 	return (
@@ -1099,7 +1081,7 @@ export function RovoChatProvider({ children }: { children: ReactNode }) {
 				isSubmitPending,
 				pendingSubmitStartedAt,
 				pendingPrompt,
-				setPendingPrompt: setPendingPromptValue,
+				setPendingPrompt,
 				queuedPrompts,
 				activePrompt,
 				removeQueuedPrompt,

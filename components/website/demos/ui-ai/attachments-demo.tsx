@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
 	Attachments,
 	Attachment,
@@ -164,11 +165,14 @@ export function AttachmentsDemoHoverCard() {
 						</AttachmentHoverCardTrigger>
 					</Attachment>
 					<AttachmentHoverCardContent>
-						<img
-							alt={file.filename ?? "Preview"}
-							className="max-h-48 rounded object-contain"
-							src={(file as { url: string }).url}
-						/>
+							<Image
+								alt={file.filename ?? "Preview"}
+								className="max-h-48 rounded object-contain"
+								src={(file as { url: string }).url}
+								width={400}
+								height={300}
+								unoptimized
+							/>
 					</AttachmentHoverCardContent>
 				</AttachmentHoverCard>
 			))}

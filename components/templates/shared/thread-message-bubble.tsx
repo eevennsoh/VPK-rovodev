@@ -1,47 +1,22 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
-import {
-	getAllDataParts,
-	hasCreatePlanSkillSignal,
-	getLatestDataPart,
-	getMessageReasoning,
-	getMessageSources,
-	getMessageText,
-	getThinkingToolCallSummaries,
-	getToolFirstWarning,
-	getMessageToolParts,
-	isMessageTextStreaming,
-	type RovoRenderableUIMessage,
-} from "@/lib/rovo-ui-messages";
-import {
-	AdsReasoningTrigger,
-	Reasoning,
-	ReasoningContent,
-	ReasoningSection,
-	ReasoningText,
-} from "@/components/ui-ai/reasoning";
+import { useDynamicThinkingLabel } from "@/components/templates/shared/hooks/use-dynamic-thinking-label";
 import {
 	Message as UiMessage,
 	MessageContent,
 	MessageResponse,
 } from "@/components/ui-ai/message";
-import {
-	extractPlanRenderableText,
-	removeActionItemsSection,
-	removeLeadingSingleCharacterFragment,
-	removeTrailingSingleCharacterLine,
-	sanitizeMarkdownArtifactMarkers,
-	suppressToolJsonTrace,
-} from "./lib/message-text-utils";
-import { UserMessageBubble } from "./components/user-message-bubble";
+import { cn } from "@/lib/utils";
+import { getMessageText, type RovoRenderableUIMessage } from "@/lib/rovo-ui-messages";
+import { processAssistantMessage } from "./lib/process-assistant-message";
 import { AssistantFeedbackActions } from "./components/assistant-feedback-actions";
 import { AssistantReasoningSection } from "./components/assistant-reasoning-section";
-import { AssistantThinkingToolsSection } from "./components/assistant-thinking-tools-section";
-import { AssistantToolsSection } from "./components/assistant-tools-section";
 import { AssistantSourcesSection } from "./components/assistant-sources-section";
 import { AssistantSuggestionsSection } from "./components/assistant-suggestions-section";
+import { AssistantThinkingStatusSection } from "./components/assistant-thinking-status-section";
+import { AssistantToolsSection } from "./components/assistant-tools-section";
+import { UserMessageBubble } from "./components/user-message-bubble";
 
 interface ThreadMessageBubbleProps {
 	message: RovoRenderableUIMessage;
@@ -61,6 +36,8 @@ interface ThreadMessageBubbleProps {
 	) => ReactNode;
 }
 
+type ProcessedAssistantMessage = NonNullable<ReturnType<typeof processAssistantMessage>>;
+
 export function ThreadMessageBubble({
 	message,
 	surface,
@@ -75,63 +52,109 @@ export function ThreadMessageBubble({
 	renderLoadingWidget,
 	renderWidget,
 }: Readonly<ThreadMessageBubbleProps>): ReactNode {
-	const rawMessageText = getMessageText(message);
-
 	if (message.role === "user") {
-		return <UserMessageBubble messageText={rawMessageText} onDelete={onDeleteMessage ? () => onDeleteMessage(message.id) : undefined} />;
+		return (
+			<UserMessageBubble
+				messageText={getMessageText(message)}
+				onDelete={onDeleteMessage ? () => onDeleteMessage(message.id) : undefined}
+			/>
+		);
 	}
 
-	const widgetLoadingPart = getLatestDataPart(message, "data-widget-loading");
-	const widgetDataPart = getLatestDataPart(message, "data-widget-data");
-	const widgetErrorPart = getLatestDataPart(message, "data-widget-error");
-	const suggestedQuestionsPart = getLatestDataPart(message, "data-suggested-questions");
-	const thinkingStatusPart = getLatestDataPart(message, "data-thinking-status");
-	const isStreaming = isMessageTextStreaming(message);
-	const widgetType =
-		widgetDataPart?.data.type ??
-		widgetLoadingPart?.data.type ??
-		widgetErrorPart?.data.type;
-	const isWidgetLoading = widgetLoadingPart?.data.loading ?? false;
-	const normalizedWidgetText = widgetType
-		? removeLeadingSingleCharacterFragment(rawMessageText)
-		: rawMessageText;
-	const isCreatePlanSkillFlow = hasCreatePlanSkillSignal(message);
-	const isPlanWidgetFlow =
-		widgetType === "plan" ||
-		widgetLoadingPart?.data.type === "plan" ||
-		widgetErrorPart?.data.type === "plan";
-	const planRenderableText =
-		widgetType === "plan" && isCreatePlanSkillFlow
-			? extractPlanRenderableText(normalizedWidgetText, { maxSummaryLines: 2 })
-			: null;
-	const baseMessageText =
-		widgetType === "question-card"
-			? removeTrailingSingleCharacterLine(normalizedWidgetText)
-			: widgetType === "plan"
-				? isCreatePlanSkillFlow
-					? planRenderableText?.text ?? ""
-					: removeActionItemsSection(normalizedWidgetText)
-			: normalizedWidgetText;
-	const suggestedQuestions = suggestedQuestionsPart?.data.questions ?? [];
-	const reasoning = getMessageReasoning(message);
-	const sources = getMessageSources(message);
-	const toolFirstWarning = getToolFirstWarning(message);
-	const toolParts = getMessageToolParts(message);
-	const thinkingToolCalls = getThinkingToolCallSummaries(message);
-	const hasToolExecutionEvidence =
-		Boolean(thinkingStatusPart) ||
-		toolParts.length > 0 ||
-		thinkingToolCalls.length > 0;
-	const messageTextBeforeMarkdownSanitization = hasToolExecutionEvidence
-		? suppressToolJsonTrace(baseMessageText).text
-		: baseMessageText;
-	const messageText = sanitizeMarkdownArtifactMarkers(
-		messageTextBeforeMarkdownSanitization
+	if (message.role !== "assistant") return null;
+
+	const processed = processAssistantMessage(message);
+	if (!processed) return null;
+
+	return (
+		<AssistantThreadMessageBubble
+			assistantStreamingRenderMode={assistantStreamingRenderMode}
+			message={message}
+			onSuggestionClick={onSuggestionClick}
+			processed={processed}
+			renderLoadingWidget={renderLoadingWidget}
+			renderWidget={renderWidget}
+			showFeedbackActionsProp={showFeedbackActionsProp}
+			showFollowUpSuggestions={showFollowUpSuggestions}
+			showThinkingStatusSection={showThinkingStatusSection}
+			showToolsSection={showToolsSection}
+			showWidgetSections={showWidgetSections}
+			surface={surface}
+		/>
 	);
+}
+
+interface AssistantThreadMessageBubbleProps {
+	assistantStreamingRenderMode: "rich" | "text-first";
+	message: RovoRenderableUIMessage;
+	onSuggestionClick?: (question: string) => void;
+	processed: ProcessedAssistantMessage;
+	renderLoadingWidget?: (widgetType?: string) => ReactNode;
+	renderWidget?: (
+		widget: { type: string; data: unknown },
+		message: RovoRenderableUIMessage
+	) => ReactNode;
+	showFeedbackActionsProp?: boolean;
+	showFollowUpSuggestions?: boolean;
+	showThinkingStatusSection: boolean;
+	showToolsSection?: boolean;
+	showWidgetSections?: boolean;
+	surface: "sidebar" | "fullscreen";
+}
+
+function AssistantThreadMessageBubble({
+	assistantStreamingRenderMode,
+	message,
+	onSuggestionClick,
+	processed,
+	renderLoadingWidget,
+	renderWidget,
+	showFeedbackActionsProp,
+	showFollowUpSuggestions,
+	showThinkingStatusSection,
+	showToolsSection,
+	showWidgetSections,
+	surface,
+}: Readonly<AssistantThreadMessageBubbleProps>): ReactNode {
+	const thinkingStatusPart = processed.thinkingStatusPart ?? null;
+	const thinkingEventParts = processed.thinkingEventParts ?? [];
+	const isStreaming = processed.isStreaming ?? false;
+
+	const lastThinkingEventPart =
+		thinkingEventParts[thinkingEventParts.length - 1] ?? null;
+	const thinkingStatusUpdateSignal = [
+		message.id,
+		`status-label:${thinkingStatusPart?.data.label ?? ""}`,
+		`status-content:${thinkingStatusPart?.data.content ?? ""}`,
+		`event-count:${thinkingEventParts.length}`,
+		`event-id:${lastThinkingEventPart?.data.eventId ?? ""}`,
+		`event-phase:${lastThinkingEventPart?.data.phase ?? ""}`,
+	].join("|");
+	const { label: resolvedThinkingStatusLabel } = useDynamicThinkingLabel({
+		baseLabel: thinkingStatusPart?.data.label ?? "Thinking",
+		isStreaming:
+			isStreaming && showThinkingStatusSection && Boolean(thinkingStatusPart),
+		updateSignal: thinkingStatusUpdateSignal,
+	});
+
+	const {
+		messageText,
+		widgetType,
+		isWidgetLoading,
+		isPlanWidgetFlow,
+		isCreatePlanSkillFlow,
+		suggestedQuestions,
+		reasoning,
+		sources,
+		toolFirstWarning,
+		toolParts,
+		thinkingToolCalls,
+		widgetDataPart,
+	} = processed;
+
 	const thinkingToolCallsForStatus = toolParts.length > 0 ? [] : thinkingToolCalls;
 	const shouldShowToolsSection = showToolsSection ?? true;
 	const shouldShowWidgetSections = showWidgetSections ?? true;
-
 	const shouldShowFeedbackActions = showFeedbackActionsProp ?? surface === "fullscreen";
 	const shouldShowFollowUpSuggestions = showFollowUpSuggestions ?? surface === "fullscreen";
 	const shouldRenderPlainTextWhileStreaming =
@@ -142,35 +165,38 @@ export function ThreadMessageBubble({
 		Boolean(isPlanWidgetFlow) &&
 		isCreatePlanSkillFlow &&
 		assistantStreamingRenderMode !== "text-first";
+
 	const isRetryThinkingStatus = thinkingStatusPart?.data.label?.includes("Retrying") ?? false;
-	const showThinkingStatus = showThinkingStatusSection && Boolean(thinkingStatusPart) && Boolean(rawMessageText) && !(isRetryThinkingStatus && !isStreaming);
+	const showThinkingStatus =
+		showThinkingStatusSection &&
+		Boolean(thinkingStatusPart) &&
+		!(isRetryThinkingStatus && !isStreaming);
+
 	const renderedWidget =
 		shouldShowWidgetSections &&
 		widgetDataPart &&
 		!isWidgetLoading &&
 		(widgetType !== "plan" || !isStreaming)
 			? renderWidget?.(
-					{
-						type: widgetType ?? "widget",
-						data: widgetDataPart.data.payload,
-					},
+					{ type: widgetType ?? "widget", data: widgetDataPart.data.payload },
 					message
 				)
 			: null;
 	const shouldRenderPlanWidgetFirst = widgetType === "plan";
 	const hasRenderedWidget = Boolean(renderedWidget);
+
 	const shouldSuppressTextForWidget =
 		shouldSuppressStreamingText ||
-		(widgetType === "plan" &&
-			isCreatePlanSkillFlow &&
-			isWidgetLoading) ||
-		(shouldShowWidgetSections && widgetType === "question-card" && !isStreaming);
+		(widgetType === "plan" && isCreatePlanSkillFlow && isWidgetLoading) ||
+		(shouldShowWidgetSections && widgetType === "question-card" && !isStreaming) ||
+		(shouldShowWidgetSections && widgetType === "genui-preview");
 	const shouldRenderMessageText = Boolean(messageText) && !shouldSuppressTextForWidget;
 	const showFeedback = shouldShowFeedbackActions && !isStreaming && shouldRenderMessageText && !hasRenderedWidget;
 	const showSuggestions = shouldShowFollowUpSuggestions && !isStreaming && suggestedQuestions.length > 0 && !hasRenderedWidget;
-	const hasToolFirstWarning =
-		Boolean(toolFirstWarning?.message) && !isStreaming;
-	const hasRenderableContent = shouldRenderMessageText ||
+	const hasToolFirstWarning = Boolean(toolFirstWarning?.message) && !isStreaming;
+
+	const hasRenderableContent =
+		shouldRenderMessageText ||
 		showFeedback ||
 		Boolean(reasoning) ||
 		showThinkingStatus ||
@@ -180,9 +206,8 @@ export function ThreadMessageBubble({
 		showSuggestions ||
 		(shouldShowWidgetSections && isWidgetLoading && Boolean(renderLoadingWidget)) ||
 		Boolean(renderedWidget);
-	if (!hasRenderableContent) {
-		return null;
-	}
+
+	if (!hasRenderableContent) return null;
 
 	const widgetSection = (
 		<>
@@ -199,63 +224,16 @@ export function ThreadMessageBubble({
 				<AssistantReasoningSection reasoning={reasoning} />
 			) : null}
 
-			{showThinkingStatus && thinkingStatusPart ? (() => {
-				const accumulatedContent = getAllDataParts(message, "data-thinking-status")
-					.map((part) => part.data.content)
-					.filter(Boolean)
-					.join("\n\n");
-				const hasThinkingText = Boolean(accumulatedContent);
-				const hasToolParts = toolParts.length > 0;
-				const hasThinkingToolCalls = thinkingToolCallsForStatus.length > 0;
-				const hasTools = hasToolParts || hasThinkingToolCalls;
-				const hasDetails = hasThinkingText || hasTools;
-				return (
-					<div className={reasoning ? "pt-2" : undefined}>
-						<Reasoning className="mb-0" defaultOpen={hasDetails} isStreaming={isStreaming}>
-							<AdsReasoningTrigger
-								label={thinkingStatusPart.data.label}
-								showChevron={hasDetails}
-							/>
-							{hasDetails ? (
-								<ReasoningContent>
-									<div className="space-y-4">
-										{hasThinkingText ? (
-											<ReasoningSection title="Thinking">
-												<ReasoningText
-													maxVisibleTimelineItems={6}
-													text={accumulatedContent}
-													timelineMode="auto"
-												/>
-											</ReasoningSection>
-										) : null}
-										{hasTools ? (
-											<ReasoningSection title="Tools">
-												{hasToolParts ? (
-													<div className="-mx-6">
-														<AssistantToolsSection
-															messageId={message.id}
-															toolParts={toolParts}
-															defaultOpenMode="running"
-														/>
-													</div>
-												) : null}
-												{hasThinkingToolCalls ? (
-													<AssistantThinkingToolsSection
-														className="pt-1"
-														defaultOpenMode="running"
-														idPrefix={message.id}
-														thinkingToolCalls={thinkingToolCallsForStatus}
-													/>
-												) : null}
-											</ReasoningSection>
-										) : null}
-									</div>
-								</ReasoningContent>
-							) : null}
-						</Reasoning>
-					</div>
-				);
-			})() : null}
+			{showThinkingStatus && thinkingStatusPart ? (
+				<AssistantThinkingStatusSection
+					message={message}
+					label={resolvedThinkingStatusLabel}
+					isStreaming={isStreaming}
+					hasReasoning={Boolean(reasoning)}
+					toolParts={toolParts}
+					thinkingToolCalls={thinkingToolCallsForStatus}
+				/>
+			) : null}
 
 			{shouldRenderPlanWidgetFirst ? widgetSection : null}
 
@@ -308,7 +286,7 @@ export function ThreadMessageBubble({
 					suggestedQuestions={suggestedQuestions}
 					onSuggestionClick={onSuggestionClick}
 				/>
-				) : null}
+			) : null}
 
 			{!shouldRenderPlanWidgetFirst ? widgetSection : null}
 		</UiMessage>

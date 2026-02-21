@@ -37,8 +37,9 @@ function SkillListItem({
 	onClick?: () => void;
 }>) {
 	const IconComponent = suggestion.icon;
-	const isAtlassianAppSuggestion = suggestion.id === "create-jira-ticket" || suggestion.id === "summarize-confluence";
-	const iconColor = isAtlassianAppSuggestion ? token("color.icon.brand") : token("color.icon.subtlest");
+	const iconColor = suggestion.id === "draft-confluence-page"
+		? token("color.icon.accent.blue")
+		: token("color.icon.subtlest");
 
 	return (
 		<div
@@ -80,7 +81,7 @@ function SkillListItem({
 
 export default function ChatGreeting({ heading = "Let's do this together", onSuggestionClick }: Readonly<ChatGreetingProps>) {
 	return (
-		<div style={{ width: "100%" }}>
+		<div className="w-full">
 			<div className="flex flex-col gap-6">
 				{/* Greeting section - centered */}
 				<div className="flex flex-col items-center gap-2">
@@ -89,7 +90,7 @@ export default function ChatGreeting({ heading = "Let's do this together", onSug
 				</div>
 
 				{/* Skills list - full width */}
-				<div style={{ width: "100%" }}>
+				<div className="w-full">
 					<div className="flex flex-col gap-1">
 						{defaultSuggestions.map((suggestion) => (
 							<SkillListItem key={suggestion.id} suggestion={suggestion} onClick={() => onSuggestionClick?.(suggestion)} />

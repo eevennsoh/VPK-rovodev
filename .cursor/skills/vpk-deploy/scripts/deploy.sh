@@ -68,7 +68,7 @@ if atlas micros service show --service=$SERVICE_NAME --env=$ENV 2>/dev/null; the
 
   if [ ${#MISSING_VARS[@]} -gt 0 ]; then
     echo "⚠️  WARNING: Missing environment variables: ${MISSING_VARS[*]}"
-    echo "   The deployment may fail. See references/MANUAL_DEPLOYMENT.md for setup."
+    echo "   The deployment may fail. See references/guide-manual-deployment.md for setup."
   else
     echo "✅ All required environment variables are set"
   fi
@@ -77,7 +77,7 @@ else
   echo ""
   echo "For first-time deployment, you must first:"
   echo "  1. Create the service:  atlas micros service create --service=$SERVICE_NAME --no-sd"
-  echo "  2. Set environment variables (see references/MANUAL_DEPLOYMENT.md)"
+  echo "  2. Set environment variables (see references/guide-manual-deployment.md)"
   echo "  3. Run this script again"
   echo ""
   echo "Quick setup:"

@@ -16,7 +16,7 @@ export function SprintKanbanBoard() {
 	const statuses: StatusType[] = ["backlog", "todo", "in-progress", "review", "done"];
 
 	const handleTaskMove = (task: Task, newStatus: StatusType) => {
-		setTasks(tasks.map(t => (t.id === task.id ? { ...t, status: newStatus } : t)));
+		setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: newStatus } : t)));
 	};
 
 	const handleDragStart = (task: Task) => {
@@ -76,7 +76,6 @@ export function SprintKanbanBoard() {
 							key={status}
 							status={status}
 							tasks={tasksByStatus[status]}
-							onTaskMove={handleTaskMove}
 							onDragStart={handleDragStart}
 							onDrop={() => handleDrop(status)}
 							draggedTask={draggedTask}

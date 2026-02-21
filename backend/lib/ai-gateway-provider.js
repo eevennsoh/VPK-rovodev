@@ -149,6 +149,20 @@ function resolveGatewayUrlForProvider(envVars, preferredProvider, providedGatewa
 	return envVars.AI_GATEWAY_URL || envVars.AI_GATEWAY_URL_GOOGLE;
 }
 
+function createAbortError(message = "AI Gateway request aborted") {
+	const error = new Error(message);
+	error.name = "AbortError";
+	error.code = "ABORT_ERR";
+	return error;
+}
+
+function throwIfAborted(signal, message) {
+	if (!signal?.aborted) {
+		return;
+	}
+	throw createAbortError(message);
+}
+
 async function fetchOpenAiCompatibleCompletion({
 	gatewayUrl,
 	envVars,
@@ -157,7 +171,9 @@ async function fetchOpenAiCompatibleCompletion({
 	messages,
 	maxOutputTokens,
 	temperature,
+	signal,
 }) {
+	throwIfAborted(signal, "AI Gateway request aborted");
 	const token = await getAuthToken();
 	const resolvedMessages = toOpenAiMessages({
 		system,
@@ -187,6 +203,7 @@ async function fetchOpenAiCompatibleCompletion({
 		method: "POST",
 		headers: getGatewayHeaders(envVars, token, false),
 		body: JSON.stringify(payload),
+		signal,
 	});
 
 	if (!response.ok) {
@@ -218,7 +235,9 @@ function createAIGatewayProvider(options = {}) {
 		gatewayUrl,
 		onTextDelta,
 		onFile,
+		signal,
 	} = {}) {
+		throwIfAborted(signal, "AI Gateway request aborted");
 		const envVars = getEnvVars();
 		const rawGatewayUrl = resolveGatewayUrlForProvider(
 			envVars,
@@ -233,6 +252,7 @@ function createAIGatewayProvider(options = {}) {
 		const endpointType = detectEndpointType(resolvedGatewayUrl);
 
 		if (endpointType === "bedrock") {
+			throwIfAborted(signal, "AI Gateway request aborted");
 			const result = await streamBedrockGatewayManualSse({
 				gatewayUrl: resolvedGatewayUrl,
 				envVars,
@@ -246,6 +266,7 @@ function createAIGatewayProvider(options = {}) {
 		}
 
 		if (endpointType === "google") {
+			throwIfAborted(signal, "AI Gateway request aborted");
 			const result = await streamGoogleGatewayManualSse({
 				gatewayUrl: resolvedGatewayUrl,
 				envVars,
@@ -271,6 +292,7 @@ function createAIGatewayProvider(options = {}) {
 					messages,
 					maxOutputTokens,
 					temperature,
+					signal,
 				})
 			).trim();
 			if (resultText && typeof onTextDelta === "function") {
@@ -284,6 +306,7 @@ function createAIGatewayProvider(options = {}) {
 			);
 
 			const fallbackResult = await streamGoogleGatewayManualSse({
+				// streamGoogleGatewayManualSse currently does not accept AbortSignal.
 				gatewayUrl: resolvedGatewayUrl,
 				envVars,
 				model: getModelId(resolvedGatewayUrl),
@@ -307,6 +330,7 @@ function createAIGatewayProvider(options = {}) {
 		temperature = 0.4,
 		provider,
 		gatewayUrl,
+		signal,
 	} = {}) {
 		return streamText({
 			system,
@@ -316,6 +340,7 @@ function createAIGatewayProvider(options = {}) {
 			temperature,
 			provider,
 			gatewayUrl,
+			signal,
 		});
 	}
 

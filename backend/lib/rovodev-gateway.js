@@ -23,12 +23,16 @@ const RETRY_INITIAL_DELAY_MS = 250;
 const RETRY_DELAY_STEP_MS = 250;
 const RETRY_MAX_DELAY_MS = 1_000;
 const RETRY_TIMEOUT_MS = 10_000;
+const PINNED_PORT_ACQUIRE_TIMEOUT_MS = 30_000;
 const WAIT_FOR_TURN_TIMEOUT_MS = 600_000;
 
 // ─── Pool integration ───────────────────────────────────────────────────────
 
 /** @type {import("./rovodev-pool").Pool | null} */
 let _pool = null;
+
+/** Number of ports reserved for interactive chat panels (set by server.js). */
+let _pinnedPortCount = 0;
 
 /**
  * Inject the RovoDev port pool. Called once from server.js at startup.
@@ -39,17 +43,47 @@ function initPool(pool) {
 }
 
 /**
+ * Set how many leading pool indices are reserved for interactive chat panels.
+ * Background tasks (suggestions, question cards) will avoid these indices.
+ * @param {number} count
+ */
+function setPinnedPortCount(count) {
+	_pinnedPortCount = Math.max(0, count);
+}
+
+/**
  * Acquire a port handle. When a pool is available, delegates to pool.acquire().
  * Otherwise returns a dummy handle using the single env-var port.
  *
+ * If `port` is provided and a pool exists, acquires that exact port.
+ * If `portIndex` is provided and a pool exists, acquires the specific port at
+ * that index (sticky session assignment for multiport demos).
+ * If `excludePinnedPorts` is true and a pool exists, acquires a port that is
+ * NOT in the first `_pinnedPortCount` indices (for background tasks).
+ *
  * @param {object} [opts]
  * @param {number} [opts.timeoutMs]
+ * @param {number} [opts.port] - Explicit RovoDev port number for dedicated assignment
+ * @param {number} [opts.portIndex] - Sticky port index (0-based) for dedicated assignment
+ * @param {boolean} [opts.excludePinnedPorts] - Avoid pinned panel ports (for background tasks)
  * @param {AbortSignal} [opts.signal]
  * @returns {Promise<{ port: number; release: () => void }>}
  */
-async function acquirePort({ timeoutMs = 30_000, signal } = {}) {
+async function acquirePort({ timeoutMs = 30_000, port, portIndex, excludePinnedPorts, signal } = {}) {
 	if (!_pool) {
-		return { port: getRovoDevPort(), release: () => {} };
+		const resolvedPort =
+			typeof port === "number" && port > 0 ? port : getRovoDevPort();
+		return { port: resolvedPort, release: () => {} };
+	}
+	if (typeof port === "number" && port > 0) {
+		return _pool.acquireByPort(port, { timeoutMs, signal });
+	}
+	if (typeof portIndex === "number" && portIndex >= 0) {
+		return _pool.acquireByIndex(portIndex, { timeoutMs, signal });
+	}
+	if (excludePinnedPorts && _pinnedPortCount > 0 && typeof _pool.acquireExcluding === "function") {
+		const excludedIndices = Array.from({ length: _pinnedPortCount }, (_, i) => i);
+		return _pool.acquireExcluding(excludedIndices, { timeoutMs, signal });
 	}
 	return _pool.acquire({ timeoutMs, signal });
 }
@@ -66,7 +100,44 @@ let queuedTextGenerationId = 0;
  * @returns {boolean}
  */
 function isChatInProgressError(err) {
-	return err && typeof err.message === "string" && err.message.includes("status 409");
+	if (!err || typeof err !== "object") {
+		return false;
+	}
+
+	const errorRecord = /** @type {{ message?: unknown; code?: unknown; status?: unknown; statusCode?: unknown; endpoint?: unknown }} */ (
+		err
+	);
+	const message =
+		typeof errorRecord.message === "string" ? errorRecord.message : "";
+	const code = typeof errorRecord.code === "string" ? errorRecord.code : "";
+	if (code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT") {
+		return true;
+	}
+
+	if (
+		/chat(?: already)? in progress|chat-turn wait timed out|still finishing the previous response/i.test(
+			message
+		)
+	) {
+		return true;
+	}
+
+	const status =
+		typeof errorRecord.status === "number"
+			? errorRecord.status
+			: typeof errorRecord.statusCode === "number"
+				? errorRecord.statusCode
+				: null;
+	if (status !== 409) {
+		return false;
+	}
+
+	const endpoint =
+		typeof errorRecord.endpoint === "string" ? errorRecord.endpoint : "";
+	return (
+		/\/v3\/(?:set_chat_message|stream_chat|cancel)\b/i.test(endpoint) ||
+		/\/v3\/(?:set_chat_message|stream_chat|cancel)\b/i.test(message)
+	);
 }
 
 /**
@@ -107,6 +178,54 @@ function sleep(ms, signal) {
 	});
 }
 
+function createAbortError(message = "RovoDev operation aborted") {
+	const abortError = new Error(message);
+	abortError.name = "AbortError";
+	abortError.code = "ABORT_ERR";
+	return abortError;
+}
+
+function throwIfAborted(signal, message) {
+	if (!signal?.aborted) {
+		return;
+	}
+	throw createAbortError(message);
+}
+
+/**
+ * Retry an operation while RovoDev reports "chat already in progress" (409).
+ * Uses short, bounded backoff delays so queued prompts start as soon as possible.
+ *
+ * @param {object} params
+ * @param {boolean} [params.cancelOnConflict]
+ * @param {number} [params.cancelAfterMs]
+ * @param {number} [params.elapsedMs]
+ * @returns {boolean}
+ */
+function shouldCancelConflictingTurn({
+	cancelOnConflict = true,
+	cancelAfterMs = 0,
+	elapsedMs = 0,
+}) {
+	if (!cancelOnConflict) {
+		return false;
+	}
+
+	const safeCancelAfterMs =
+		typeof cancelAfterMs === "number" && Number.isFinite(cancelAfterMs)
+			? Math.max(0, cancelAfterMs)
+			: 0;
+	if (safeCancelAfterMs === 0) {
+		return true;
+	}
+
+	const safeElapsedMs =
+		typeof elapsedMs === "number" && Number.isFinite(elapsedMs)
+			? Math.max(0, elapsedMs)
+			: 0;
+	return safeElapsedMs >= safeCancelAfterMs;
+}
+
 /**
  * Retry an operation while RovoDev reports "chat already in progress" (409).
  * Uses short, bounded backoff delays so queued prompts start as soon as possible.
@@ -116,9 +235,13 @@ function sleep(ms, signal) {
  * @param {object} params
  * @param {AbortSignal} [params.signal]
  * @param {function} [params.onRetry]
+ * @param {function} [params.onRetryProgress]
  * @param {string} params.logPrefix
  * @param {number} [params.timeoutMs]
  * @param {boolean} [params.cancelOnConflict]
+ * @param {number} [params.cancelAfterMs]
+ * @param {(port?: number) => Promise<unknown>} [params.cancelConflictTurn]
+ * @param {number} [params.port]
  * @returns {Promise<{ aborted: boolean; value: T | undefined }>}
  */
 async function retryChatInProgress(
@@ -126,9 +249,13 @@ async function retryChatInProgress(
 	{
 		signal,
 		onRetry,
+		onRetryProgress,
 		logPrefix,
 		timeoutMs = RETRY_TIMEOUT_MS,
 		cancelOnConflict = true,
+		cancelAfterMs = 0,
+		cancelConflictTurn = cancelChat,
+		port,
 	}
 ) {
 	const startedAtMs = Date.now();
@@ -172,16 +299,33 @@ async function retryChatInProgress(
 				onRetry();
 			}
 
+			const elapsedMs = Date.now() - startedAtMs;
 			const waitMs = Math.min(retryDelayMs, RETRY_MAX_DELAY_MS, remainingMs);
+			const shouldCancel = shouldCancelConflictingTurn({
+				cancelOnConflict,
+				cancelAfterMs,
+				elapsedMs,
+			});
+			if (typeof onRetryProgress === "function") {
+				onRetryProgress({
+					conflictCount,
+					elapsedMs,
+					waitMs,
+					remainingMs,
+					willCancel: shouldCancel,
+				});
+			}
 			console.warn(
-				cancelOnConflict
+				shouldCancel
 					? `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — cancelling and retrying in ${waitMs}ms...`
-					: `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — waiting ${waitMs}ms before retrying...`
+					: cancelOnConflict
+						? `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — waiting ${waitMs}ms before attempting cancellation...`
+						: `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — waiting ${waitMs}ms before retrying...`
 			);
 
-			if (cancelOnConflict) {
+			if (shouldCancel) {
 				try {
-					await cancelChat();
+					await cancelConflictTurn(port);
 				} catch {
 					// Ignore cancel errors — the chat may have finished on its own
 				}
@@ -292,6 +436,119 @@ function getToolNameKey(toolName) {
 	return normalizedToolName.toLowerCase().replace(/[\s:/.+-]+/g, "_");
 }
 
+const IMAGE_TOOL_HINTS = [
+	"image",
+	"screenshot",
+	"photo",
+	"picture",
+	"thumbnail",
+	"spritesheet",
+	"figjam",
+];
+
+const AUDIO_TOOL_HINTS = [
+	"audio",
+	"sound",
+	"speech",
+	"voice",
+	"transcribe",
+	"transcript",
+	"tts",
+	"stt",
+	"whisper",
+	"music",
+];
+
+const UI_TOOL_HINTS = [
+	"genui",
+	"figma",
+	"design_context",
+	"design_system",
+	"component",
+	"layout",
+	"wireframe",
+	"prototype",
+	"tailwind",
+	"html",
+	"css",
+];
+
+const DATA_TOOL_HINTS = [
+	"calendar",
+	"jira",
+	"confluence",
+	"slack",
+	"drive",
+	"search",
+	"query",
+	"fetch",
+	"list",
+	"meeting",
+	"event",
+	"issue",
+	"project",
+	"document",
+	"repo",
+	"notion",
+	"github",
+	"compass",
+	"graph",
+	"task",
+];
+
+function hasToolHint(toolKey, hints) {
+	return hints.some((hint) => toolKey.includes(hint));
+}
+
+function getThinkingActivityFromToolName(toolName) {
+	const toolKey = getToolNameKey(toolName);
+	if (!toolKey) {
+		return "results";
+	}
+
+	if (hasToolHint(toolKey, IMAGE_TOOL_HINTS)) {
+		return "image";
+	}
+	if (hasToolHint(toolKey, AUDIO_TOOL_HINTS)) {
+		return "audio";
+	}
+	if (hasToolHint(toolKey, UI_TOOL_HINTS)) {
+		return "ui";
+	}
+	if (hasToolHint(toolKey, DATA_TOOL_HINTS)) {
+		return "data";
+	}
+
+	return "results";
+}
+
+function getThinkingLabelForActivity(activity, phase) {
+	if (activity === "image") {
+		if (phase === "start") return "Generating image";
+		if (phase === "error") return "Image generation failed";
+		return "Generated image";
+	}
+	if (activity === "audio") {
+		if (phase === "start") return "Generating audio";
+		if (phase === "error") return "Audio generation failed";
+		return "Generated audio";
+	}
+	if (activity === "ui") {
+		if (phase === "start") return "Generating UI";
+		if (phase === "error") return "UI generation failed";
+		return "Generated UI";
+	}
+	if (activity === "data") {
+		if (phase === "start") return "Gathering information";
+		if (phase === "error") return "Information retrieval failed";
+		return "Gathered information";
+	}
+
+	if (phase === "start") return "Generating results";
+	if (phase === "error") return "Result generation failed";
+	return "Generated results";
+}
+
 function isGenericIntegrationWrapperToolName(toolName) {
 	const key = getToolNameKey(toolName);
 	if (!key) {
@@ -341,24 +598,32 @@ function resolveToolNameForToolEvent({
 function buildThinkingStatusFromToolEvent(toolName, phase) {
 	const resolvedToolName = normalizeToolName(toolName);
 	const toolLabel = resolvedToolName ?? "a tool";
+	const activity = getThinkingActivityFromToolName(resolvedToolName);
+	const label = getThinkingLabelForActivity(activity, phase);
 
 	if (phase === "start") {
 		return {
-			label: `Using ${toolLabel}`,
+			label,
 			content: `Invoking ${toolLabel}`,
+			activity,
+			source: "backend",
 		};
 	}
 
 	if (phase === "error") {
 		return {
-			label: resolvedToolName ? `${resolvedToolName} failed` : "Tool call failed",
+			label,
 			content: `Tool call failed: ${toolLabel}`,
+			activity,
+			source: "backend",
 		};
 	}
 
 	return {
-		label: `Used ${toolLabel}`,
+		label,
 		content: `Completed ${toolLabel}`,
+		activity,
+		source: "backend",
 	};
 }
 
@@ -434,8 +699,9 @@ function buildThinkingEventFromToolEvent({
  * execute function where widget-marker parsing, text buffering and
  * writer calls are already handled.
  *
- * If a 409 "chat already in progress" error occurs, the function will
- * cancel the in-progress chat and retry quickly with bounded backoff.
+ * If a 409 "chat already in progress" error occurs, the function retries with
+ * bounded backoff and can optionally cancel the conflicting turn after a
+ * short grace period.
  *
  * @param {object} params
  * @param {string} params.message - The full message to send to RovoDev
@@ -444,7 +710,14 @@ function buildThinkingEventFromToolEvent({
  * @param {function} [params.onThinkingEvent] - Called with structured tool timeline events
  * @param {function} [params.onToolCallStart] - Called with structured tool-call details when a tool starts
  * @param {function} [params.onRetry] - Called when a 409 retry is about to happen (for UI indicators)
+ * @param {function} [params.onRetryProgress] - Called for each 409 retry progress update
+ * @param {number} [params.timeoutMs] - Max time to wait for chat-turn acquisition before timeout
+ * @param {boolean} [params.cancelOnConflict] - Whether to cancel active turn on conflict instead of waiting
+ * @param {number} [params.cancelAfterMs] - Grace period before starting conflict cancellation (0 means cancel immediately)
  * @param {AbortSignal} [params.signal] - Optional signal to abort the stream (e.g. on client disconnect)
+ * @param {number} [params.port] - Explicit RovoDev port number for dedicated assignment
+ * @param {number} [params.portIndex] - Sticky port index for dedicated assignment (e.g. multiports)
+ * @param {(port: number) => void} [params.onPortAcquired] - Called once with the resolved port after acquisition
  * @returns {Promise<void>}
  */
 async function streamViaRovoDev({
@@ -454,9 +727,28 @@ async function streamViaRovoDev({
 	onThinkingEvent,
 	onToolCallStart,
 	onRetry,
+	onRetryProgress,
+	timeoutMs = RETRY_TIMEOUT_MS,
+	cancelOnConflict = true,
+	cancelAfterMs = 0,
 	signal,
+	port,
+	portIndex,
+	onPortAcquired,
 }) {
-	const handle = await acquirePort({ timeoutMs: RETRY_TIMEOUT_MS, signal });
+	const hasPinnedPort =
+		(typeof port === "number" && port > 0) ||
+		(typeof portIndex === "number" && portIndex >= 0);
+	const handle = await acquirePort({
+		timeoutMs: hasPinnedPort ? PINNED_PORT_ACQUIRE_TIMEOUT_MS : RETRY_TIMEOUT_MS,
+		signal,
+		port,
+		portIndex,
+	});
+
+	if (typeof onPortAcquired === "function") {
+		onPortAcquired(handle.port);
+	}
 
 	try {
 		const attempt = (port) =>
@@ -603,39 +895,38 @@ async function streamViaRovoDev({
 				}
 			});
 
-		if (_pool) {
-			// With a pool we own the port exclusively — no retry needed
-			await attempt(handle.port);
-		} else {
-			// No pool — fall back to retry-on-409 behavior
-			try {
-				const { aborted } = await retryChatInProgress(
-					() => attempt(handle.port),
-					{
-						signal,
-						onRetry,
-						logPrefix: "streamViaRovoDev",
-					}
-				);
-				if (aborted) {
-					return;
+		try {
+			const { aborted } = await retryChatInProgress(
+				() => attempt(handle.port),
+				{
+					signal,
+					onRetry,
+					onRetryProgress,
+					logPrefix: "streamViaRovoDev",
+					timeoutMs,
+					cancelOnConflict,
+					cancelAfterMs,
+					port: handle.port,
 				}
-			} catch (err) {
-				if (isChatInProgressError(err)) {
-					throw createChatInProgressTimeoutError(RETRY_TIMEOUT_MS, {
-						logPrefix: "streamViaRovoDev",
-						retryCount:
-							typeof err?.chatInProgressRetryCount === "number"
-								? err.chatInProgressRetryCount
-								: undefined,
-						elapsedMs:
-							typeof err?.chatInProgressElapsedMs === "number"
-								? err.chatInProgressElapsedMs
-								: undefined,
-					});
-				}
-				throw err;
+			);
+			if (aborted) {
+				return;
 			}
+		} catch (err) {
+			if (isChatInProgressError(err)) {
+				throw createChatInProgressTimeoutError(timeoutMs, {
+					logPrefix: "streamViaRovoDev",
+					retryCount:
+						typeof err?.chatInProgressRetryCount === "number"
+							? err.chatInProgressRetryCount
+							: undefined,
+					elapsedMs:
+						typeof err?.chatInProgressElapsedMs === "number"
+							? err.chatInProgressElapsedMs
+							: undefined,
+				});
+			}
+			throw err;
 		}
 	} finally {
 		handle.release();
@@ -657,6 +948,7 @@ async function streamViaRovoDev({
  * @param {string} [params.system] - System instructions
  * @param {string} params.prompt - The user prompt
  * @param {"cancel-and-retry" | "wait-for-turn"} [params.conflictPolicy]
+ * @param {AbortSignal} [params.signal]
  * @returns {Promise<string>} The response text
  */
 async function generateTextViaRovoDev({
@@ -664,7 +956,10 @@ async function generateTextViaRovoDev({
 	prompt,
 	conflictPolicy = "cancel-and-retry",
 	timeoutMs,
+	signal,
 }) {
+	throwIfAborted(signal, "RovoDev text generation aborted");
+
 	const waitForTurn = conflictPolicy === "wait-for-turn";
 	const retryTimeoutMs =
 		typeof timeoutMs === "number" && timeoutMs > 0
@@ -682,34 +977,75 @@ async function generateTextViaRovoDev({
 
 	const handle = await acquirePort({
 		timeoutMs: waitForTurn ? WAIT_FOR_TURN_TIMEOUT_MS : RETRY_TIMEOUT_MS,
+		excludePinnedPorts: true,
+		signal,
 	});
 
 	try {
 		const syncOptions = {
 			...(typeof timeoutMs === "number" && timeoutMs > 0 ? { timeoutMs } : {}),
 			port: handle.port,
+			signal,
 		};
 
 		if (_pool) {
-			// With a pool we own the port exclusively — no retry/queue needed
-			return await sendMessageSync(fullMessage, syncOptions);
+			throwIfAborted(signal, "RovoDev text generation aborted");
+			// With a pool we own the port exclusively, but the port may still
+			// have a lingering turn from startup or a previous cooldown race.
+			// Wrap in a bounded retry so transient 409s don't fail immediately.
+			const poolRetryMs =
+				typeof timeoutMs === "number" && timeoutMs > 0
+					? Math.min(timeoutMs, 5_000)
+					: 5_000;
+			try {
+				const { value, aborted } = await retryChatInProgress(
+					() => sendMessageSync(fullMessage, syncOptions),
+					{
+						signal,
+						logPrefix: "generateTextViaRovoDev[pool]",
+						timeoutMs: poolRetryMs,
+						cancelOnConflict: true,
+						cancelAfterMs: 0,
+						port: handle.port,
+					}
+				);
+				if (aborted) {
+					throw createAbortError("RovoDev text generation aborted");
+				}
+				return typeof value === "string" ? value : "";
+			} catch (retryError) {
+				if (isChatInProgressError(retryError)) {
+					throw createChatInProgressTimeoutError(poolRetryMs, {
+						logPrefix: "generateTextViaRovoDev[pool]",
+						retryCount: retryError?.chatInProgressRetryCount,
+						elapsedMs: retryError?.chatInProgressElapsedMs,
+					});
+				}
+				throw retryError;
+			}
 		}
 
 		// No pool — fall back to retry-on-409 + queue behavior
 		const runGenerate = async () => {
+			throwIfAborted(signal, "RovoDev text generation aborted");
 			try {
 				return await sendMessageSync(fullMessage, syncOptions);
 			} catch (err) {
 				if (isChatInProgressError(err)) {
 					try {
-						const { value } = await retryChatInProgress(
-							() => sendMessageSync(fullMessage, syncOptions),
-							{
-								logPrefix: "generateTextViaRovoDev",
-								timeoutMs: retryTimeoutMs,
-								cancelOnConflict: !waitForTurn,
-							}
-						);
+							const { value, aborted } = await retryChatInProgress(
+								() => sendMessageSync(fullMessage, syncOptions),
+								{
+									signal,
+									logPrefix: "generateTextViaRovoDev",
+									timeoutMs: retryTimeoutMs,
+									cancelOnConflict: !waitForTurn,
+									port: handle.port,
+								}
+							);
+						if (aborted) {
+							throw createAbortError("RovoDev text generation aborted");
+						}
 						return typeof value === "string" ? value : "";
 					} catch (retryError) {
 						if (waitForTurn && isChatInProgressError(retryError)) {
@@ -733,7 +1069,10 @@ async function generateTextViaRovoDev({
 		};
 
 		if (conflictPolicy === "wait-for-turn") {
-			return await enqueueTextGeneration(runGenerate, {
+			return await enqueueTextGeneration(async () => {
+				throwIfAborted(signal, "RovoDev text generation aborted");
+				return runGenerate();
+			}, {
 				logPrefix: "generateTextViaRovoDev",
 			});
 		}
@@ -748,8 +1087,13 @@ module.exports = {
 	streamViaRovoDev,
 	generateTextViaRovoDev,
 	isChatInProgressError,
+	retryChatInProgress,
+	shouldCancelConflictingTurn,
 	isGenericIntegrationWrapperToolName,
 	resolveToolNameForToolEvent,
+	getThinkingActivityFromToolName,
+	buildThinkingStatusFromToolEvent,
 	initPool,
+	setPinnedPortCount,
 	WAIT_FOR_TURN_TIMEOUT_MS,
 };

@@ -6,10 +6,8 @@ import Heading from "@/components/blocks/shared-ui/heading";
 import IconCircle from "./icon-circle";
 import MenuItemButton from "./menu-item-button";
 import AppsIcon from "@atlaskit/icon/core/apps";
-import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import GlobeIcon from "@atlaskit/icon/core/globe";
 import OfficeBuildingIcon from "@atlaskit/icon/core/office-building";
-import SettingsIcon from "@atlaskit/icon/core/settings";
 
 interface SourcesSectionProps {
 	webResultsEnabled: boolean;

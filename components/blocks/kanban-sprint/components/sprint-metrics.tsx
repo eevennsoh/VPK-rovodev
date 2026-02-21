@@ -7,7 +7,7 @@ interface SprintMetricsProps {
 	tasks: Task[];
 }
 
-export function SprintMetrics({ tasks }: SprintMetricsProps) {
+export function SprintMetrics({ tasks }: Readonly<SprintMetricsProps>) {
 	const totalTasks = tasks.length;
 	const completedTasks = tasks.filter(t => t.status === "done").length;
 	const inProgressTasks = tasks.filter(t => t.status === "in-progress").length;
@@ -37,11 +37,11 @@ export function SprintMetrics({ tasks }: SprintMetricsProps) {
 			label: "In Progress",
 			value: inProgressTasks,
 			total: totalTasks,
-			percentage: Math.round((inProgressTasks / totalTasks) * 100),
+			percentage: totalTasks > 0 ? Math.round((inProgressTasks / totalTasks) * 100) : 0,
 		},
 		{
 			label: "Velocity",
-			value: totalPoints > 0 ? (completedPoints / totalTasks).toFixed(1) : "0",
+			value: totalTasks > 0 ? (completedPoints / totalTasks).toFixed(1) : "0",
 			unit: "pts/task",
 		},
 	];
@@ -62,7 +62,7 @@ export function SprintMetrics({ tasks }: SprintMetricsProps) {
 							<ProgressBar value={metric.percentage} className="mb-2" />
 							<p className="text-xs text-text-subtle">
 								{metric.percentage}% complete
-								{metric.total && ` (${metric.value}/${metric.total})`}
+								{metric.total ? ` (${metric.value}/${metric.total})` : null}
 							</p>
 						</>
 					)}

@@ -17,7 +17,7 @@ import {
 import {
   createContext,
   useCallback,
-  useContext,
+  use,
   useMemo,
   useState,
 } from "react";
@@ -47,7 +47,7 @@ export type FileTreeProps = HTMLAttributes<HTMLDivElement> & {
   onExpandedChange?: (expanded: Set<string>) => void;
 };
 
-export const FileTree = ({
+export function FileTree({
   expanded: controlledExpanded,
   defaultExpanded = new Set(),
   selectedPath,
@@ -56,7 +56,7 @@ export const FileTree = ({
   className,
   children,
   ...props
-}: FileTreeProps) => {
+}: Readonly<FileTreeProps>) {
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
   const expandedPaths = controlledExpanded ?? internalExpanded;
 
@@ -80,7 +80,7 @@ export const FileTree = ({
   );
 
   return (
-    <FileTreeContext.Provider value={contextValue}>
+    <FileTreeContext value={contextValue}>
       <div
         className={cn(
           "rounded-lg border bg-background font-mono text-sm",
@@ -91,9 +91,9 @@ export const FileTree = ({
       >
         <div className="p-2">{children}</div>
       </div>
-    </FileTreeContext.Provider>
+    </FileTreeContext>
   );
-};
+}
 
 interface FileTreeFolderContextType {
   path: string;
@@ -112,15 +112,15 @@ export type FileTreeFolderProps = HTMLAttributes<HTMLDivElement> & {
   name: string;
 };
 
-export const FileTreeFolder = ({
+export function FileTreeFolder({
   path,
   name,
   className,
   children,
   ...props
-}: FileTreeFolderProps) => {
+}: Readonly<FileTreeFolderProps>) {
   const { expandedPaths, togglePath, selectedPath, onSelect } =
-    useContext(FileTreeContext);
+    use(FileTreeContext);
   const isExpanded = expandedPaths.has(path);
   const isSelected = selectedPath === path;
 
@@ -138,7 +138,7 @@ export const FileTreeFolder = ({
   );
 
   return (
-    <FileTreeFolderContext.Provider value={folderContextValue}>
+    <FileTreeFolderContext value={folderContextValue}>
       <Collapsible onOpenChange={handleOpenChange} open={isExpanded}>
         <div
           className={cn("", className)}
@@ -166,9 +166,9 @@ export const FileTreeFolder = ({
           </CollapsibleContent>
         </div>
       </Collapsible>
-    </FileTreeFolderContext.Provider>
+    </FileTreeFolderContext>
   );
-};
+}
 
 interface FileTreeFileContextType {
   path: string;
@@ -186,15 +186,15 @@ export type FileTreeFileProps = HTMLAttributes<HTMLDivElement> & {
   icon?: ReactNode;
 };
 
-export const FileTreeFile = ({
+export function FileTreeFile({
   path,
   name,
   icon,
   className,
   children,
   ...props
-}: FileTreeFileProps) => {
-  const { selectedPath, onSelect } = useContext(FileTreeContext);
+}: Readonly<FileTreeFileProps>) {
+  const { selectedPath, onSelect } = use(FileTreeContext);
   const isSelected = selectedPath === path;
 
   const handleClick = useCallback(() => {
@@ -213,7 +213,7 @@ export const FileTreeFile = ({
   const fileContextValue = useMemo(() => ({ name, path }), [name, path]);
 
   return (
-    <FileTreeFileContext.Provider value={fileContextValue}>
+    <FileTreeFileContext value={fileContextValue}>
       <div
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded px-2 py-1 transition-colors hover:bg-muted/50",
@@ -237,52 +237,58 @@ export const FileTreeFile = ({
           </>
         )}
       </div>
-    </FileTreeFileContext.Provider>
+    </FileTreeFileContext>
   );
-};
+}
 
 export type FileTreeIconProps = HTMLAttributes<HTMLSpanElement>;
 
-export const FileTreeIcon = ({
+export function FileTreeIcon({
   className,
   children,
   ...props
-}: FileTreeIconProps) => (
-  <span className={cn("shrink-0", className)} {...props}>
-    {children}
-  </span>
-);
+}: Readonly<FileTreeIconProps>) {
+  return (
+    <span className={cn("shrink-0", className)} {...props}>
+      {children}
+    </span>
+  );
+}
 
 export type FileTreeNameProps = HTMLAttributes<HTMLSpanElement>;
 
-export const FileTreeName = ({
+export function FileTreeName({
   className,
   children,
   ...props
-}: FileTreeNameProps) => (
-  <span className={cn("truncate", className)} {...props}>
-    {children}
-  </span>
-);
+}: Readonly<FileTreeNameProps>) {
+  return (
+    <span className={cn("truncate", className)} {...props}>
+      {children}
+    </span>
+  );
+}
 
 export type FileTreeActionsProps = HTMLAttributes<HTMLDivElement>;
 
 const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
-export const FileTreeActions = ({
+export function FileTreeActions({
   className,
   children,
   ...props
-}: FileTreeActionsProps) => (
-  // biome-ignore lint/a11y/noNoninteractiveElementInteractions: stopPropagation required for nested interactions
-  // biome-ignore lint/a11y/useSemanticElements: fieldset doesn't fit this UI pattern
-  <div
-    className={cn("ml-auto flex items-center gap-1", className)}
-    onClick={stopPropagation}
-    onKeyDown={stopPropagation}
-    role="group"
-    {...props}
-  >
-    {children}
-  </div>
-);
+}: Readonly<FileTreeActionsProps>) {
+  return (
+    // biome-ignore lint/a11y/noNoninteractiveElementInteractions: stopPropagation required for nested interactions
+    // biome-ignore lint/a11y/useSemanticElements: fieldset doesn't fit this UI pattern
+    <div
+      className={cn("ml-auto flex items-center gap-1", className)}
+      onClick={stopPropagation}
+      onKeyDown={stopPropagation}
+      role="group"
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}

@@ -8,6 +8,7 @@ export interface ParsedGenerativeWidgetSource {
 interface ParsedGenerativeWidgetBase {
 	title?: string;
 	description?: string;
+	primaryActionLabel?: string;
 	source: ParsedGenerativeWidgetSource | null;
 	contentTypeHint?: string;
 }
@@ -43,6 +44,15 @@ export interface GenerativeWidgetMetadata {
 	contentType: GenerativeContentType;
 	title: string;
 	description: string;
+	primaryActionLabel?: string;
+}
+
+export interface GenerativeWidgetPrimaryActionPayload {
+	widgetType: "genui-preview";
+	actionLabel: string;
+	title: string;
+	description: string;
+	formState: Record<string, unknown>;
 }
 
 const GENERATIVE_CONTENT_TYPE_HINT_KEYS = [
@@ -169,6 +179,11 @@ const ELEMENT_TYPE_CONTENT_MATCHERS: ReadonlyArray<{
 	{ pattern: /\bchart\b/i, contentType: "chart" },
 ];
 const DEFAULT_DESCRIPTION = "Generated from your request";
+const PRIMARY_ACTION_PREFERRED_LABEL_PATTERN =
+	/\b(send|submit|save|create|post|publish|run|confirm|continue|apply|start)\b/i;
+const PRIMARY_ACTION_DEPRIORITIZED_LABEL_PATTERN =
+	/\b(cancel|close|back|dismiss|reset|clear)\b/i;
+const PRIMARY_ACTION_EXCLUDED_LABEL_PATTERN = /\bopen\s+preview\b/i;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
@@ -298,6 +313,32 @@ function parseGenerativeWidgetBase(payload: Record<string, unknown>): ParsedGene
 		"cardDescription",
 		"widgetDescription",
 	]);
+	let primaryActionLabel = readFirstNonEmptyString(payload, [
+		"primaryActionLabel",
+		"primaryCtaLabel",
+		"actionLabel",
+		"submitLabel",
+		"ctaLabel",
+	]);
+	const actionsValue = payload.actions;
+	if (!primaryActionLabel && isObjectRecord(actionsValue)) {
+		const nestedPrimary = actionsValue.primary;
+		if (isObjectRecord(nestedPrimary)) {
+			primaryActionLabel = readFirstNonEmptyString(nestedPrimary, [
+				"label",
+				"text",
+				"title",
+			]);
+		}
+
+		if (!primaryActionLabel) {
+			primaryActionLabel = readFirstNonEmptyString(actionsValue, [
+				"primaryLabel",
+				"submitLabel",
+				"actionLabel",
+			]);
+		}
+	}
 
 	const contentTypeHint = readFirstNonEmptyString(payload, [
 		...GENERATIVE_CONTENT_TYPE_HINT_KEYS,
@@ -306,6 +347,7 @@ function parseGenerativeWidgetBase(payload: Record<string, unknown>): ParsedGene
 	return {
 		...(title ? { title } : {}),
 		...(description ? { description } : {}),
+		...(primaryActionLabel ? { primaryActionLabel } : {}),
 		...(contentTypeHint ? { contentTypeHint } : {}),
 		source: parseExplicitSource(payload),
 	};
@@ -463,77 +505,308 @@ function resolveContentType(widget: ParsedGenerativeWidget): GenerativeContentTy
 	return "other";
 }
 
-function resolveTitle(widget: ParsedGenerativeWidget, contentType: GenerativeContentType): string {
+function getSpecTraversalKeys(spec: Spec): string[] {
+	const keys: string[] = [];
+	const visited = new Set<string>();
+	const elements = spec.elements ?? {};
+
+	const visit = (key: string) => {
+		if (!key || visited.has(key)) {
+			return;
+		}
+
+		visited.add(key);
+		keys.push(key);
+
+		const element = elements[key];
+		if (!isObjectRecord(element) || !Array.isArray(element.children)) {
+			return;
+		}
+
+		for (const childKey of element.children) {
+			if (typeof childKey === "string" && childKey.trim().length > 0) {
+				visit(childKey);
+			}
+		}
+	};
+
+	visit(spec.root);
+	for (const key of Object.keys(elements)) {
+		visit(key);
+	}
+
+	return keys;
+}
+
+function getElementProps(element: Record<string, unknown>): Record<string, unknown> | null {
+	return isObjectRecord(element.props) ? element.props : null;
+}
+
+function chooseBestTextCandidate(
+	currentBest: { text: string; score: number; index: number } | null,
+	candidate: { text: string; score: number; index: number }
+): { text: string; score: number; index: number } {
+	if (!currentBest) {
+		return candidate;
+	}
+
+	if (candidate.score > currentBest.score) {
+		return candidate;
+	}
+
+	if (candidate.score === currentBest.score && candidate.index < currentBest.index) {
+		return candidate;
+	}
+
+	return currentBest;
+}
+
+function resolveGenuiTitleFromSpec(widget: ParsedGenuiPreviewWidget): string | undefined {
+	const traversalKeys = getSpecTraversalKeys(widget.spec);
+	let best: { text: string; score: number; index: number } | null = null;
+
+	for (const [index, key] of traversalKeys.entries()) {
+		const element = widget.spec.elements[key];
+		if (!isObjectRecord(element)) {
+			continue;
+		}
+
+		const elementType = getNonEmptyString(element.type);
+		const props = getElementProps(element);
+		if (!elementType || !props) {
+			continue;
+		}
+
+		let candidateText: string | undefined;
+		let score = 0;
+		if (elementType === "PageHeader") {
+			candidateText = getNonEmptyString(props.title);
+			score = 140;
+		} else if (elementType === "Heading") {
+			candidateText = getNonEmptyString(props.text);
+			const headingLevel = getNonEmptyString(props.level);
+			score = headingLevel === "h1" ? 130 : headingLevel === "h2" ? 125 : 120;
+		} else if (elementType === "Card") {
+			candidateText = getNonEmptyString(props.title);
+			score = 110;
+		} else {
+			candidateText = getNonEmptyString(props.title) ?? getNonEmptyString(props.text);
+			score = 80;
+		}
+
+		if (!candidateText) {
+			continue;
+		}
+
+		best = chooseBestTextCandidate(best, {
+			text: candidateText,
+			score,
+			index,
+		});
+	}
+
+	return best?.text;
+}
+
+function resolveGenuiDescriptionFromSpec(widget: ParsedGenuiPreviewWidget): string | undefined {
+	const traversalKeys = getSpecTraversalKeys(widget.spec);
+	let best: { text: string; score: number; index: number } | null = null;
+
+	for (const [index, key] of traversalKeys.entries()) {
+		const element = widget.spec.elements[key];
+		if (!isObjectRecord(element)) {
+			continue;
+		}
+
+		const elementType = getNonEmptyString(element.type);
+		const props = getElementProps(element);
+		if (!elementType || !props) {
+			continue;
+		}
+
+		let candidateText: string | undefined;
+		let score = 0;
+		if (elementType === "PageHeader") {
+			candidateText = getNonEmptyString(props.description);
+			score = 140;
+		} else if (elementType === "Card") {
+			candidateText = getNonEmptyString(props.description);
+			score = 120;
+		} else if (elementType === "Text") {
+			candidateText = getNonEmptyString(props.content);
+			score = 100;
+		} else {
+			candidateText = getNonEmptyString(props.description);
+			score = 80;
+		}
+
+		if (!candidateText || candidateText.length < 12) {
+			continue;
+		}
+
+		best = chooseBestTextCandidate(best, {
+			text: candidateText,
+			score,
+			index,
+		});
+	}
+
+	return best?.text;
+}
+
+function scorePrimaryActionLabel(
+	label: string,
+	variant: string | undefined
+): number {
+	if (PRIMARY_ACTION_EXCLUDED_LABEL_PATTERN.test(label)) {
+		return -1000;
+	}
+
+	let score = 0;
+	if (PRIMARY_ACTION_PREFERRED_LABEL_PATTERN.test(label)) {
+		score += 100;
+	}
+
+	if (PRIMARY_ACTION_DEPRIORITIZED_LABEL_PATTERN.test(label)) {
+		score -= 120;
+	}
+
+	if (variant === "default") {
+		score += 25;
+	}
+
+	if (variant === "outline" || variant === "ghost" || variant === "link") {
+		score -= 20;
+	}
+
+	if (label.length > 40) {
+		score -= 10;
+	}
+
+	return score;
+}
+
+function resolveGenuiPrimaryActionLabelFromSpec(
+	widget: ParsedGenuiPreviewWidget
+): string | undefined {
+	const traversalKeys = getSpecTraversalKeys(widget.spec);
+	let fallbackLabel: string | undefined;
+	let bestLabel: { text: string; score: number } | null = null;
+
+	for (const key of traversalKeys) {
+		const element = widget.spec.elements[key];
+		if (!isObjectRecord(element)) {
+			continue;
+		}
+
+		if (getNonEmptyString(element.type) !== "Button") {
+			continue;
+		}
+
+		const props = getElementProps(element);
+		if (!props) {
+			continue;
+		}
+
+		const label = getNonEmptyString(props.label);
+		if (!label) {
+			continue;
+		}
+
+		if (!fallbackLabel) {
+			fallbackLabel = label;
+		}
+
+		const variant = getNonEmptyString(props.variant);
+		const score = scorePrimaryActionLabel(label, variant);
+		if (!bestLabel || score > bestLabel.score) {
+			bestLabel = { text: label, score };
+		}
+	}
+
+	if (bestLabel && bestLabel.score >= 0) {
+		return bestLabel.text;
+	}
+
+	if (
+		fallbackLabel &&
+		!PRIMARY_ACTION_DEPRIORITIZED_LABEL_PATTERN.test(fallbackLabel) &&
+		!PRIMARY_ACTION_EXCLUDED_LABEL_PATTERN.test(fallbackLabel)
+	) {
+		return fallbackLabel;
+	}
+
+	return undefined;
+}
+
+const CONTENT_TYPE_FALLBACK_TITLES: Partial<Record<GenerativeContentType, string>> = {
+	"image": "Generated image",
+	"sound": "Generated audio",
+	"chart": "Generated chart preview",
+	"chart-bar": "Generated chart preview",
+	"chart-line": "Generated chart preview",
+	"chart-area": "Generated chart preview",
+	"chart-pie": "Generated chart preview",
+	"chart-radar": "Generated chart preview",
+	"chart-scatter": "Generated chart preview",
+	"text": "Generated text draft",
+	"work-item": "Generated work item",
+	"page": "Generated page draft",
+	"board": "Generated board preview",
+	"table": "Generated table preview",
+	"code": "Generated code snippet",
+	"video": "Generated video draft",
+	"ui": "Generated UI preview",
+};
+
+function resolveTitle(
+	widget: ParsedGenerativeWidget,
+	contentType: GenerativeContentType,
+	derivedGenuiTitle?: string
+): string {
 	if (widget.title) {
 		return clipText(widget.title, 72);
 	}
 
-	if (contentType === "image") {
-		return "Generated image";
+	if (widget.type === "genui-preview" && derivedGenuiTitle) {
+		return clipText(derivedGenuiTitle, 72);
 	}
 
-	if (contentType === "sound") {
-		return "Generated audio";
+	if (widget.type === "image-preview" && widget.prompt) {
+		return clipText(widget.prompt, 72);
 	}
 
-	if (
-		contentType === "chart" ||
-		contentType === "chart-bar" ||
-		contentType === "chart-line" ||
-		contentType === "chart-area" ||
-		contentType === "chart-pie" ||
-		contentType === "chart-radar" ||
-		contentType === "chart-scatter"
-	) {
-		return "Generated chart preview";
+	if (widget.type === "audio-preview" && widget.transcript) {
+		return clipText(widget.transcript, 72);
 	}
 
-	if (contentType === "text") {
-		return "Generated text draft";
-	}
-
-	if (contentType === "work-item") {
-		return "Generated work item";
-	}
-
-	if (contentType === "page") {
-		return "Generated page draft";
-	}
-
-	if (contentType === "board") {
-		return "Generated board preview";
-	}
-
-	if (contentType === "table") {
-		return "Generated table preview";
-	}
-
-	if (contentType === "code") {
-		return "Generated code snippet";
-	}
-
-	if (contentType === "video") {
-		return "Generated video draft";
-	}
-
-	if (contentType === "ui") {
-		return "Generated UI preview";
-	}
-
-	return "Generated content";
+	return CONTENT_TYPE_FALLBACK_TITLES[contentType] ?? "Generated content";
 }
 
-function resolveDescription(widget: ParsedGenerativeWidget): string {
+function resolveDescription(
+	widget: ParsedGenerativeWidget,
+	derivedGenuiDescription?: string
+): string {
 	if (widget.description) {
 		return clipText(widget.description, 140);
 	}
 
-	if (widget.type === "image-preview" && widget.prompt) {
-		return clipText(widget.prompt, 140);
+	if (widget.type === "image-preview") {
+		if (widget.title && widget.prompt) {
+			return clipText(widget.prompt, 140);
+		}
+		return "AI-generated image";
 	}
 
-	if (widget.type === "audio-preview" && widget.transcript) {
-		return clipText(widget.transcript, 140);
+	if (widget.type === "audio-preview") {
+		if (widget.title && widget.transcript) {
+			return clipText(widget.transcript, 140);
+		}
+		return "AI-generated audio";
+	}
+
+	if (widget.type === "genui-preview" && derivedGenuiDescription) {
+		return clipText(derivedGenuiDescription, 140);
 	}
 
 	if (widget.type === "genui-preview" && widget.summary) {
@@ -543,14 +816,244 @@ function resolveDescription(widget: ParsedGenerativeWidget): string {
 	return DEFAULT_DESCRIPTION;
 }
 
+function resolvePrimaryActionLabel(
+	widget: ParsedGenerativeWidget,
+	derivedGenuiPrimaryActionLabel?: string
+): string | undefined {
+	if (widget.type !== "genui-preview") {
+		return undefined;
+	}
+
+	if (widget.primaryActionLabel) {
+		return clipText(widget.primaryActionLabel, 40);
+	}
+
+	if (derivedGenuiPrimaryActionLabel) {
+		return clipText(derivedGenuiPrimaryActionLabel, 40);
+	}
+
+	return undefined;
+}
+
 export function resolveGenerativeWidgetMetadata(
 	widget: ParsedGenerativeWidget
 ): GenerativeWidgetMetadata {
 	const contentType = resolveContentType(widget);
+	const derivedGenuiTitle =
+		widget.type === "genui-preview"
+			? resolveGenuiTitleFromSpec(widget)
+			: undefined;
+	const derivedGenuiDescription =
+		widget.type === "genui-preview"
+			? resolveGenuiDescriptionFromSpec(widget)
+			: undefined;
+	const derivedGenuiPrimaryActionLabel =
+		widget.type === "genui-preview"
+			? resolveGenuiPrimaryActionLabelFromSpec(widget)
+			: undefined;
+	const primaryActionLabel = resolvePrimaryActionLabel(
+		widget,
+		derivedGenuiPrimaryActionLabel
+	);
 
 	return {
 		contentType,
-		title: resolveTitle(widget, contentType),
-		description: resolveDescription(widget),
+		title: resolveTitle(widget, contentType, derivedGenuiTitle),
+		description: resolveDescription(widget, derivedGenuiDescription),
+		...(primaryActionLabel ? { primaryActionLabel } : {}),
 	};
+}
+
+export function buildGenerativeWidgetSubmitPrompt(
+	payload: GenerativeWidgetPrimaryActionPayload
+): string {
+	const serializedState = JSON.stringify(payload.formState ?? {}, null, 2);
+
+	return [
+		`Please execute "${payload.actionLabel}" for "${payload.title}".`,
+		`Context: ${payload.description}`,
+		"Use these form values:",
+		"```json",
+		serializedState,
+		"```",
+	].join("\n");
+}
+
+interface SpecTextSource {
+	key: string;
+	propName: string;
+}
+
+function findTitleSourceInSpec(widget: ParsedGenuiPreviewWidget): SpecTextSource | null {
+	const traversalKeys = getSpecTraversalKeys(widget.spec);
+	let best: { key: string; propName: string; score: number; index: number } | null = null;
+
+	for (const [index, key] of traversalKeys.entries()) {
+		const element = widget.spec.elements[key];
+		if (!isObjectRecord(element)) continue;
+
+		const elementType = getNonEmptyString(element.type);
+		const props = getElementProps(element);
+		if (!elementType || !props) continue;
+
+		let candidateText: string | undefined;
+		let propName = "title";
+		let score = 0;
+
+		if (elementType === "PageHeader") {
+			candidateText = getNonEmptyString(props.title);
+			propName = "title";
+			score = 140;
+		} else if (elementType === "Heading") {
+			candidateText = getNonEmptyString(props.text);
+			propName = "text";
+			const headingLevel = getNonEmptyString(props.level);
+			score = headingLevel === "h1" ? 130 : headingLevel === "h2" ? 125 : 120;
+		} else if (elementType === "Card") {
+			candidateText = getNonEmptyString(props.title);
+			propName = "title";
+			score = 110;
+		} else {
+			candidateText = getNonEmptyString(props.title);
+			propName = "title";
+			if (!candidateText) {
+				candidateText = getNonEmptyString(props.text);
+				propName = "text";
+			}
+			score = 80;
+		}
+
+		if (!candidateText) continue;
+
+		if (!best || score > best.score || (score === best.score && index < best.index)) {
+			best = { key, propName, score, index };
+		}
+	}
+
+	return best ? { key: best.key, propName: best.propName } : null;
+}
+
+function findDescriptionSourceInSpec(widget: ParsedGenuiPreviewWidget): SpecTextSource | null {
+	const traversalKeys = getSpecTraversalKeys(widget.spec);
+	let best: { key: string; propName: string; score: number; index: number } | null = null;
+
+	for (const [index, key] of traversalKeys.entries()) {
+		const element = widget.spec.elements[key];
+		if (!isObjectRecord(element)) continue;
+
+		const elementType = getNonEmptyString(element.type);
+		const props = getElementProps(element);
+		if (!elementType || !props) continue;
+
+		let candidateText: string | undefined;
+		let propName = "description";
+		let score = 0;
+
+		if (elementType === "PageHeader") {
+			candidateText = getNonEmptyString(props.description);
+			propName = "description";
+			score = 140;
+		} else if (elementType === "Card") {
+			candidateText = getNonEmptyString(props.description);
+			propName = "description";
+			score = 120;
+		} else if (elementType === "Text") {
+			candidateText = getNonEmptyString(props.content);
+			propName = "content";
+			score = 100;
+		} else {
+			candidateText = getNonEmptyString(props.description);
+			propName = "description";
+			score = 80;
+		}
+
+		if (!candidateText || candidateText.length < 12) continue;
+
+		if (!best || score > best.score || (score === best.score && index < best.index)) {
+			best = { key, propName, score, index };
+		}
+	}
+
+	return best ? { key: best.key, propName: best.propName } : null;
+}
+
+const REMOVABLE_HEADER_TYPES = new Set(["PageHeader", "Heading", "Text"]);
+
+export function createBodyOnlySpec(widget: ParsedGenuiPreviewWidget): Spec {
+	const titleSource = findTitleSourceInSpec(widget);
+	const descSource = findDescriptionSourceInSpec(widget);
+
+	if (!titleSource && !descSource) {
+		return widget.spec;
+	}
+
+	const propsToStrip = new Map<string, Set<string>>();
+	for (const source of [titleSource, descSource]) {
+		if (!source) continue;
+		if (!propsToStrip.has(source.key)) {
+			propsToStrip.set(source.key, new Set());
+		}
+		propsToStrip.get(source.key)!.add(source.propName);
+	}
+
+	const newElements: Record<string, unknown> = {};
+	const keysToRemove = new Set<string>();
+
+	for (const [key, element] of Object.entries(widget.spec.elements)) {
+		if (!propsToStrip.has(key)) {
+			newElements[key] = element;
+			continue;
+		}
+
+		if (!isObjectRecord(element)) {
+			newElements[key] = element;
+			continue;
+		}
+
+		const props = getElementProps(element);
+		if (!props) {
+			newElements[key] = element;
+			continue;
+		}
+
+		const stripSet = propsToStrip.get(key)!;
+		const newProps: Record<string, unknown> = {};
+		for (const [propKey, propVal] of Object.entries(props)) {
+			if (!stripSet.has(propKey)) {
+				newProps[propKey] = propVal;
+			}
+		}
+
+		const elementType = getNonEmptyString(element.type);
+		const hasChildren = Array.isArray(element.children) && element.children.length > 0;
+
+		if (!hasChildren && elementType && REMOVABLE_HEADER_TYPES.has(elementType)) {
+			keysToRemove.add(key);
+		} else {
+			newElements[key] = { ...element, props: newProps };
+		}
+	}
+
+	if (keysToRemove.size > 0) {
+		for (const [key, element] of Object.entries(newElements)) {
+			if (!isObjectRecord(element) || !Array.isArray(element.children)) continue;
+
+			const filtered = (element.children as unknown[]).filter(
+				(childKey) => typeof childKey !== "string" || !keysToRemove.has(childKey)
+			);
+
+			if (filtered.length !== (element.children as unknown[]).length) {
+				newElements[key] = { ...element, children: filtered };
+			}
+		}
+	}
+
+	if (keysToRemove.has(widget.spec.root)) {
+		return widget.spec;
+	}
+
+	return {
+		...widget.spec,
+		elements: newElements,
+	} as Spec;
 }

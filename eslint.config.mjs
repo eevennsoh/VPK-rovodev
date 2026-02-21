@@ -13,9 +13,9 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "components/ui-ai/**",
-    "components/blocks/dashboard-*/**",
-    "components/blocks/sidebar-*/**",
-    "components/blocks/login-*/**",
+    "components/blocks/dashboard/**",
+    "components/blocks/sidebar/**",
+    "components/blocks/login/**",
   ]),
   {
     files: ["**/*.js", "**/*.cjs"],

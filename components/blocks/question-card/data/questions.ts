@@ -1,4 +1,4 @@
-import type { QuestionCardOption, QuestionCardQuestion } from "@/components/blocks/question-card/components/question-card";
+import type { QuestionCardOption, QuestionCardQuestion } from "@/components/blocks/question-card/types";
 
 export type QuestionCardDemoOption = QuestionCardOption;
 export type QuestionCardDemoQuestion = QuestionCardQuestion;
@@ -7,6 +7,7 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "participation-model",
 		label: "How should teams participate?",
+		header: "Participation",
 		kind: "single-select",
 		options: [
 			{
@@ -29,6 +30,7 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "communication-plan",
 		label: "How should rollout communication happen?",
+		header: "Communication",
 		kind: "multi-select",
 		options: [
 			{
@@ -51,6 +53,7 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "success-metric",
 		label: "Which success signal should we prioritize first?",
+		header: "Metrics",
 		kind: "single-select",
 		options: [
 			{
@@ -67,6 +70,56 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 				id: "delivery-predictability",
 				label: "Delivery predictability",
 				description: "Monitor sprint spillover and on-time milestone completion.",
+			},
+		],
+	},
+];
+
+export const QUESTION_CARD_SINGLE_SELECT_DEMO: ReadonlyArray<QuestionCardDemoQuestion> = [
+	{
+		id: "deployment-strategy",
+		label: "Which deployment strategy should we use?",
+		kind: "single-select",
+		options: [
+			{
+				id: "blue-green",
+				label: "Blue-green deployment",
+				description: "Run two identical environments and switch traffic between them.",
+			},
+			{
+				id: "canary",
+				label: "Canary release",
+				description: "Gradually roll out to a small subset of users before full deployment.",
+			},
+			{
+				id: "rolling",
+				label: "Rolling update",
+				description: "Incrementally replace instances with the new version.",
+			},
+		],
+	},
+];
+
+export const QUESTION_CARD_MULTI_SELECT_DEMO: ReadonlyArray<QuestionCardDemoQuestion> = [
+	{
+		id: "notification-channels",
+		label: "Which notification channels should we enable?",
+		kind: "multi-select",
+		options: [
+			{
+				id: "email",
+				label: "Email notifications",
+				description: "Send digest emails for important updates and mentions.",
+			},
+			{
+				id: "slack",
+				label: "Slack integration",
+				description: "Push real-time alerts to team Slack channels.",
+			},
+			{
+				id: "in-app",
+				label: "In-app notifications",
+				description: "Show notification badges and a notification center in the product.",
 			},
 		],
 	},

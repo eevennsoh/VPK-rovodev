@@ -6,13 +6,10 @@ import type { StickToBottomContext } from "use-stick-to-bottom";
 import { Conversation, ConversationContent } from "@/components/ui-ai/conversation";
 import { cn } from "@/lib/utils";
 import { MessageTurns } from "@/components/templates/shared/message-turns";
-import { ThreadMessageBubble } from "@/components/templates/shared/thread-message-bubble";
+import { ThreadMessage } from "@/components/templates/shared/thread-message";
 import {
 	isRenderableRovoUIMessage,
-	getAllDataParts,
-	getLatestDataPart,
 	getMessageText,
-	getThinkingToolCallSummaries,
 	type RovoUIMessage,
 	type RovoRenderableUIMessage,
 } from "@/lib/rovo-ui-messages";
@@ -25,6 +22,7 @@ import {
 	ReasoningText,
 } from "@/components/ui-ai/reasoning";
 import { AssistantThinkingToolsSection } from "./assistant-thinking-tools-section";
+import { useStreamingIndicatorState } from "@/components/templates/shared/hooks/use-streaming-indicator";
 import styles from "./chat-messages.module.css";
 
 export interface ChatMessagesProps {
@@ -76,9 +74,7 @@ function computeLatestTurnScrollTop(
 	const latestTurnElement = scrollElement.querySelector<HTMLElement>(
 		"[data-rovo-latest-turn='true']"
 	);
-	if (!latestTurnElement) {
-		return defaultTargetTop;
-	}
+	if (!latestTurnElement) return defaultTargetTop;
 
 	const scrollRect = scrollElement.getBoundingClientRect();
 	const latestTurnRect = latestTurnElement.getBoundingClientRect();
@@ -149,56 +145,16 @@ export function ChatMessages({
 		}
 		return null;
 	}, [renderableMessages]);
-	const hasInlineThinkingStatus = false;
 
-	const streamingIndicatorSourceMessages = useMemo(
-		() =>
-			(streamingIndicatorMessages ?? uiMessages).filter(isRenderableRovoUIMessage),
-		[streamingIndicatorMessages, uiMessages]
-	);
-	const lastStreamingSourceMessage =
-		streamingIndicatorSourceMessages[streamingIndicatorSourceMessages.length - 1];
-
-	const isAssistantAwaitingOutput =
-		isStreaming &&
-		lastStreamingSourceMessage?.role === "assistant" &&
-		getMessageText(lastStreamingSourceMessage) === "";
-	const hasAssistantThinkingStatus =
-		isAssistantAwaitingOutput &&
-		getLatestDataPart(lastStreamingSourceMessage, "data-thinking-status") !== null;
-
-	const shouldShowStreamingIndicatorFromStream =
-		isStreaming &&
-		streamingIndicatorSourceMessages.length > 0 &&
-		(lastStreamingSourceMessage?.role === "user" || isAssistantAwaitingOutput) &&
-		!hasInlineThinkingStatus;
-	const shouldShowStreamingIndicator =
-		shouldShowStreamingIndicatorFromStream || isSubmitPending;
-
-	const thinkingStatusParts = hasAssistantThinkingStatus
-		? getAllDataParts(lastStreamingSourceMessage, "data-thinking-status")
-		: [];
-	const thinkingStatusPart =
-		thinkingStatusParts[thinkingStatusParts.length - 1] ?? null;
-	const resolvedThinkingLabel = thinkingStatusPart?.data.label ?? thinkingLabel;
-	const resolvedReasoningContent = hasAssistantThinkingStatus
-		? thinkingStatusParts
-				.map((part) => part.data.content)
-				.filter(Boolean)
-				.join("\n\n") || reasoningContent
-		: reasoningContent;
-	const thinkingToolCalls =
-		hasAssistantThinkingStatus && lastStreamingSourceMessage
-			? getThinkingToolCallSummaries(lastStreamingSourceMessage)
-			: [];
-	const shouldUseExpandedReasoning =
-		streamingIndicatorVariant === "reasoning-expanded";
-	const trimmedReasoningContent = resolvedReasoningContent?.trim() ?? "";
-	const hasResolvedReasoningContent = trimmedReasoningContent.length > 0;
-	const hasThinkingToolCalls = thinkingToolCalls.length > 0;
-	const hasStreamingReasoningDetails =
-		hasResolvedReasoningContent || hasThinkingToolCalls;
-	const streamingReasoningKey = lastStreamingSourceMessage?.id ?? "stream";
+	const indicator = useStreamingIndicatorState(uiMessages, {
+		isStreaming,
+		isSubmitPending,
+		thinkingLabel,
+		reasoningContent,
+		streamingIndicatorVariant,
+		streamingIndicatorMessages,
+		lastAssistantMessageId,
+	});
 
 	const handleTargetScrollTop = useCallback(
 		(defaultTargetTop: number, { scrollElement }: { scrollElement: HTMLElement }) =>
@@ -228,77 +184,97 @@ export function ChatMessages({
 						getTurnContainerStyle={(_turn, turnIndex) => ({
 							marginTop: turnIndex > 0 ? "24px" : "0",
 						})}
-						getMessageContainerStyle={(message, messageIndex, turn) => ({
-							display: "flex",
-							justifyContent: message.role === "user" ? "flex-end" : "flex-start",
-							paddingLeft: message.role === "user" ? "24px" : "0",
-							marginTop:
+						getMessageContainerStyle={(message, messageIndex, turn) => {
+							const isEmptyAssistantPlaceholder =
 								message.role === "assistant" &&
-								!(
-									isAssistantAwaitingOutput &&
-									!hasAssistantThinkingStatus &&
-									lastStreamingSourceMessage?.id === message.id
-								) &&
-								messageIndex > 0 &&
-								turn[messageIndex - 1]?.role === "user"
-									? "24px"
-									: "0",
-						})}
+								indicator.shouldShow &&
+								getMessageText(message) === "";
+
+							return {
+								display: "flex",
+								justifyContent: message.role === "user" ? "flex-end" : "flex-start",
+								paddingLeft: message.role === "user" ? "24px" : "0",
+								marginTop:
+									message.role === "assistant" &&
+									!isEmptyAssistantPlaceholder &&
+									messageIndex > 0 &&
+									turn[messageIndex - 1]?.role === "user"
+										? "24px"
+										: "0",
+							};
+						}}
 						latestTurnClassName={styles.latestTurn}
 						latestTurnDataAttribute="data-rovo-latest-turn"
 						messages={renderableMessages}
-						renderMessage={(message) => (
-							<ThreadMessageBubble
-								message={message}
-								surface="fullscreen"
-								assistantStreamingRenderMode={assistantStreamingRenderMode}
-								showFeedbackActions={showFeedbackActions}
-								showFollowUpSuggestions={showFollowUpSuggestions}
-								onSuggestionClick={onSuggestedQuestionClick}
-								onDeleteMessage={onDeleteMessage}
-								showThinkingStatusSection={message.role === "assistant" && message.id === lastAssistantMessageId}
-								showToolsSection={!isPureMode}
-								showWidgetSections={shouldShowWidgetSections}
-								renderLoadingWidget={renderLoadingWidget}
-								renderWidget={renderWidget}
-							/>
-						)}
+						renderMessage={(message) => {
+							const showThinkingStatus =
+								message.role === "assistant" &&
+								message.id === lastAssistantMessageId;
+							const shouldShowFeedback = showFeedbackActions ?? true;
+							const shouldShowSuggestions = showFollowUpSuggestions ?? true;
+							return (
+								<ThreadMessage.Root
+									message={message}
+									surface="fullscreen"
+									assistantStreamingRenderMode={assistantStreamingRenderMode}
+									onDeleteMessage={onDeleteMessage}
+									renderWidget={shouldShowWidgetSections ? renderWidget : undefined}
+									renderLoadingWidget={shouldShowWidgetSections ? renderLoadingWidget : undefined}
+								>
+									<ThreadMessage.Reasoning />
+									{showThinkingStatus ? <ThreadMessage.ThinkingStatus /> : null}
+									<ThreadMessage.Widget position="before-content" />
+									<ThreadMessage.Content />
+									{shouldShowFeedback ? <ThreadMessage.Feedback /> : null}
+									{!isPureMode ? (
+										<>
+											<ThreadMessage.Tools />
+											<ThreadMessage.ToolFirstWarning />
+										</>
+									) : null}
+									<ThreadMessage.Sources />
+									{shouldShowSuggestions ? (
+										<ThreadMessage.Suggestions onSuggestionClick={onSuggestedQuestionClick} />
+									) : null}
+									<ThreadMessage.Widget position="after-content" />
+								</ThreadMessage.Root>
+							);
+						}}
 					/>
 				)}
-				{shouldShowStreamingIndicator ? (
-					<div className="mt-6 flex justify-start">
+				{indicator.shouldShow ? (
+					<div className="flex justify-start">
 						<Message from="assistant" className="max-w-full">
 							<Reasoning
-								key={streamingReasoningKey}
+								key={indicator.reasoningKey}
 								className="mb-0"
-								isStreaming={shouldShowStreamingIndicator}
+								isStreaming={indicator.shouldShow}
 							>
 								<AdsReasoningTrigger
-									label={resolvedThinkingLabel}
+									label={indicator.resolvedLabel}
 									showChevron={
-										shouldUseExpandedReasoning &&
-										hasStreamingReasoningDetails
+										indicator.shouldUseExpanded &&
+										indicator.hasDetails
 									}
 								/>
-								{shouldUseExpandedReasoning &&
-								hasStreamingReasoningDetails ? (
+								{indicator.shouldUseExpanded && indicator.hasDetails ? (
 									<ReasoningContent>
 										<div className="space-y-4">
-											{hasResolvedReasoningContent ? (
+											{indicator.hasContent ? (
 												<ReasoningSection title="Thinking">
 													<ReasoningText
 														maxVisibleTimelineItems={6}
-														text={trimmedReasoningContent}
+														text={indicator.trimmedContent}
 														timelineMode="auto"
 													/>
 												</ReasoningSection>
 											) : null}
-											{hasThinkingToolCalls ? (
+											{indicator.hasToolCalls ? (
 												<ReasoningSection title="Tools">
 													<AssistantThinkingToolsSection
 														defaultOpenMode="running"
-														idPrefix={lastStreamingSourceMessage?.id ?? "stream"}
-														thinkingToolCalls={thinkingToolCalls}
+														idPrefix={indicator.lastSourceMessageId ?? "stream"}
+														thinkingToolCalls={indicator.thinkingToolCalls}
 													/>
 												</ReasoningSection>
 											) : null}
@@ -309,8 +285,8 @@ export function ChatMessages({
 						</Message>
 					</div>
 				) : null}
-				{!shouldShowStreamingIndicator && showAwaitingIndicator ? (
-					<div className="mt-6 flex justify-start">
+				{!indicator.shouldShow && showAwaitingIndicator ? (
+					<div className="flex justify-start">
 						<Message from="assistant" className="max-w-full">
 							<MessageContent className="px-6">
 								<Reasoning className="mb-0" isStreaming>

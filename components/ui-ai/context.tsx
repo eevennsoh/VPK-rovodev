@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/hover-card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { createContext, useContext, useMemo } from "react";
+import { createContext, use, useMemo } from "react";
 import { getUsage } from "tokenlens";
 
 const PERCENT_MAX = 100;
@@ -31,38 +31,38 @@ interface ContextSchema {
 
 const ContextContext = createContext<ContextSchema | null>(null);
 
-const useContextValue = () => {
-  const context = useContext(ContextContext);
+function useContextValue() {
+  const context = use(ContextContext);
 
   if (!context) {
     throw new Error("Context components must be used within Context");
   }
 
   return context;
-};
+}
 
 export type ContextProps = ComponentProps<typeof HoverCard> & ContextSchema;
 
-export const Context = ({
+export function Context({
   usedTokens,
   maxTokens,
   usage,
   modelId,
   ...props
-}: ContextProps) => {
+}: Readonly<ContextProps>) {
   const contextValue = useMemo(
     () => ({ maxTokens, modelId, usage, usedTokens }),
     [maxTokens, modelId, usage, usedTokens]
   );
 
   return (
-    <ContextContext.Provider value={contextValue}>
+    <ContextContext value={contextValue}>
       <HoverCard closeDelay={0} openDelay={0} {...props} />
-    </ContextContext.Provider>
+    </ContextContext>
   );
-};
+}
 
-const ContextIcon = () => {
+function ContextIcon() {
   const { usedTokens, maxTokens } = useContextValue();
   const circumference = 2 * Math.PI * ICON_RADIUS;
   const usedPercent = usedTokens / maxTokens;
@@ -101,11 +101,11 @@ const ContextIcon = () => {
       />
     </svg>
   );
-};
+}
 
 export type ContextTriggerProps = ComponentProps<typeof Button>;
 
-export const ContextTrigger = ({ children, ...props }: ContextTriggerProps) => {
+export function ContextTrigger({ children, ...props }: Readonly<ContextTriggerProps>) {
   const { usedTokens, maxTokens } = useContextValue();
   const usedPercent = usedTokens / maxTokens;
   const renderedPercent = new Intl.NumberFormat("en-US", {
@@ -125,27 +125,29 @@ export const ContextTrigger = ({ children, ...props }: ContextTriggerProps) => {
       )}
     </HoverCardTrigger>
   );
-};
+}
 
 export type ContextContentProps = ComponentProps<typeof HoverCardContent>;
 
-export const ContextContent = ({
+export function ContextContent({
   className,
   ...props
-}: ContextContentProps) => (
-  <HoverCardContent
-    className={cn("min-w-60 divide-y overflow-hidden p-0", className)}
-    {...props}
-  />
-);
+}: Readonly<ContextContentProps>) {
+  return (
+    <HoverCardContent
+      className={cn("min-w-60 divide-y overflow-hidden p-0", className)}
+      {...props}
+    />
+  );
+}
 
 export type ContextContentHeaderProps = ComponentProps<"div">;
 
-export const ContextContentHeader = ({
+export function ContextContentHeader({
   children,
   className,
   ...props
-}: ContextContentHeaderProps) => {
+}: Readonly<ContextContentHeaderProps>) {
   const { usedTokens, maxTokens } = useContextValue();
   const usedPercent = usedTokens / maxTokens;
   const displayPct = new Intl.NumberFormat("en-US", {
@@ -176,27 +178,29 @@ export const ContextContentHeader = ({
       )}
     </div>
   );
-};
+}
 
 export type ContextContentBodyProps = ComponentProps<"div">;
 
-export const ContextContentBody = ({
+export function ContextContentBody({
   children,
   className,
   ...props
-}: ContextContentBodyProps) => (
-  <div className={cn("w-full p-3", className)} {...props}>
-    {children}
-  </div>
-);
+}: Readonly<ContextContentBodyProps>) {
+  return (
+    <div className={cn("w-full p-3", className)} {...props}>
+      {children}
+    </div>
+  );
+}
 
 export type ContextContentFooterProps = ComponentProps<"div">;
 
-export const ContextContentFooter = ({
+export function ContextContentFooter({
   children,
   className,
   ...props
-}: ContextContentFooterProps) => {
+}: Readonly<ContextContentFooterProps>) {
   const { modelId, usage } = useContextValue();
   const costUSD = modelId
     ? getUsage({
@@ -228,15 +232,15 @@ export const ContextContentFooter = ({
       )}
     </div>
   );
-};
+}
 
 export type ContextInputUsageProps = ComponentProps<"div">;
 
-export const ContextInputUsage = ({
+export function ContextInputUsage({
   className,
   children,
   ...props
-}: ContextInputUsageProps) => {
+}: Readonly<ContextInputUsageProps>) {
   const { usage, modelId } = useContextValue();
   const inputTokens = usage?.inputTokens ?? 0;
 
@@ -268,15 +272,15 @@ export const ContextInputUsage = ({
       <TokensWithCost costText={inputCostText} tokens={inputTokens} />
     </div>
   );
-};
+}
 
 export type ContextOutputUsageProps = ComponentProps<"div">;
 
-export const ContextOutputUsage = ({
+export function ContextOutputUsage({
   className,
   children,
   ...props
-}: ContextOutputUsageProps) => {
+}: Readonly<ContextOutputUsageProps>) {
   const { usage, modelId } = useContextValue();
   const outputTokens = usage?.outputTokens ?? 0;
 
@@ -308,15 +312,15 @@ export const ContextOutputUsage = ({
       <TokensWithCost costText={outputCostText} tokens={outputTokens} />
     </div>
   );
-};
+}
 
 export type ContextReasoningUsageProps = ComponentProps<"div">;
 
-export const ContextReasoningUsage = ({
+export function ContextReasoningUsage({
   className,
   children,
   ...props
-}: ContextReasoningUsageProps) => {
+}: Readonly<ContextReasoningUsageProps>) {
   const { usage, modelId } = useContextValue();
   const reasoningTokens = usage?.reasoningTokens ?? 0;
 
@@ -348,15 +352,15 @@ export const ContextReasoningUsage = ({
       <TokensWithCost costText={reasoningCostText} tokens={reasoningTokens} />
     </div>
   );
-};
+}
 
 export type ContextCacheUsageProps = ComponentProps<"div">;
 
-export const ContextCacheUsage = ({
+export function ContextCacheUsage({
   className,
   children,
   ...props
-}: ContextCacheUsageProps) => {
+}: Readonly<ContextCacheUsageProps>) {
   const { usage, modelId } = useContextValue();
   const cacheTokens = usage?.cachedInputTokens ?? 0;
 
@@ -388,23 +392,25 @@ export const ContextCacheUsage = ({
       <TokensWithCost costText={cacheCostText} tokens={cacheTokens} />
     </div>
   );
-};
+}
 
-const TokensWithCost = ({
+function TokensWithCost({
   tokens,
   costText,
-}: {
+}: Readonly<{
   tokens?: number;
   costText?: string;
-}) => (
-  <span>
-    {tokens === undefined
-      ? "—"
-      : new Intl.NumberFormat("en-US", {
-          notation: "compact",
-        }).format(tokens)}
-    {costText ? (
-      <span className="ml-2 text-muted-foreground">• {costText}</span>
-    ) : null}
-  </span>
-);
+}>) {
+  return (
+    <span>
+      {tokens === undefined
+        ? "—"
+        : new Intl.NumberFormat("en-US", {
+            notation: "compact",
+          }).format(tokens)}
+      {costText ? (
+        <span className="ml-2 text-muted-foreground">• {costText}</span>
+      ) : null}
+    </span>
+  );
+}

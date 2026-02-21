@@ -22,7 +22,7 @@ import {
 	createContext,
 	memo,
 	useCallback,
-	useContext,
+	use,
 	useEffect,
 	useMemo,
 	useRef,
@@ -44,7 +44,7 @@ interface ReasoningContextValue {
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
 
 export const useReasoning = () => {
-	const context = useContext(ReasoningContext);
+	const context = use(ReasoningContext);
 	if (!context) {
 		throw new Error("Reasoning components must be used within Reasoning");
 	}
@@ -122,7 +122,7 @@ export const Reasoning = memo(
 		maxVisibleTimelineItems = DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS,
 		children,
 		...props
-	}: ReasoningProps) => {
+	}: Readonly<ReasoningProps>) => {
 		const resolvedDefaultOpen = defaultOpen ?? isStreaming;
 		const isExplicitlyClosed = defaultOpen === false;
 
@@ -254,7 +254,7 @@ export const Reasoning = memo(
 		);
 
 		return (
-			<ReasoningContext.Provider value={contextValue}>
+			<ReasoningContext value={contextValue}>
 				<Collapsible
 					className={cn("not-prose mb-4", className)}
 					onOpenChange={handleOpenChange}
@@ -263,13 +263,16 @@ export const Reasoning = memo(
 				>
 					{children}
 				</Collapsible>
-			</ReasoningContext.Provider>
+			</ReasoningContext>
 		);
 	}
 );
 
 const DOT_COLORS = ["#1868db", "#bf63f3", "#fca700"] as const;
 const COMPLETED_STATUS_PREFIXES = ["used", "completed"] as const;
+
+/** Strip trailing dots/ellipsis from a label since animated dots are appended separately. */
+const stripTrailingDots = (label: string) => label.replace(/\.+$/, "");
 
 const isCompletedStatusLabel = (label: ReactNode) => {
 	if (typeof label !== "string") {
@@ -302,7 +305,7 @@ export const ReasoningTrigger = memo(
 		label = "Thinking",
 		completedLabel = defaultReasoningCompletedLabel,
 		...props
-	}: ReasoningTriggerProps) => {
+	}: Readonly<ReasoningTriggerProps>) => {
 		const { isStreaming, isOpen, duration } = useReasoning();
 		const isComplete = !isStreaming && duration !== undefined && duration > 0;
 		const hasCompletedStatusLabel = isCompletedStatusLabel(label);
@@ -347,7 +350,7 @@ export const ReasoningTrigger = memo(
 								/>
 								<span className="flex min-w-0 items-baseline">
 									<Shimmer duration={1} as="span" className="min-w-0 truncate">
-										{label}
+										{stripTrailingDots(label)}
 									</Shimmer>
 									<span className="shrink-0 inline-flex items-baseline" aria-hidden="true">
 										{DOT_COLORS.map((color, i) => (
@@ -404,7 +407,7 @@ export function ReasoningText({
 	text,
 	timelineMode,
 	maxVisibleTimelineItems,
-}: ReasoningTextProps): ReactNode {
+}: Readonly<ReasoningTextProps>): ReactNode {
 	const { setTimelineEntryCount } = useReasoning();
 	const shouldReduceMotion = useReducedMotion();
 
@@ -468,7 +471,7 @@ export const ReasoningContent = memo(
 		timelineMode = "auto",
 		maxVisibleTimelineItems,
 		...props
-	}: ReasoningContentProps) => {
+	}: Readonly<ReasoningContentProps>) => {
 		const { maxVisibleTimelineItems: contextMaxVisibleTimelineItems } =
 			useReasoning();
 
@@ -519,7 +522,7 @@ export type ReasoningSectionProps = ComponentProps<"div"> & {
 };
 
 export const ReasoningSection = memo(
-	({ className, title, children, ...props }: ReasoningSectionProps) => (
+	({ className, title, children, ...props }: Readonly<ReasoningSectionProps>) => (
 		<div className={cn("space-y-2", className)} {...props}>
 			{title ? (
 				<h4 className="font-medium text-muted-foreground text-[12px]">
@@ -538,7 +541,7 @@ export const AdsReasoningTrigger = memo(
 		completedLabel = defaultCompletedLabel,
 		showChevron = true,
 		...props
-	}: AdsReasoningTriggerProps) => {
+	}: Readonly<AdsReasoningTriggerProps>) => {
 		const { isStreaming, isOpen, duration } = useReasoning();
 		const isComplete = !isStreaming && duration !== undefined && duration > 0;
 		const hasCompletedStatusLabel = isCompletedStatusLabel(label);
@@ -581,7 +584,7 @@ export const AdsReasoningTrigger = memo(
 						/>
 						<span className="flex min-w-0 items-baseline">
 							<Shimmer duration={1} as="span" className="min-w-0 truncate">
-								{label}
+								{stripTrailingDots(label)}
 							</Shimmer>
 							<span className="shrink-0 inline-flex items-baseline" aria-hidden="true">
 								{DOT_COLORS.map((color, i) => (

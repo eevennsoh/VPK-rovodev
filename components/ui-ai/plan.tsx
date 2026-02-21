@@ -13,7 +13,7 @@ import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import PeopleGroupIcon from "@atlaskit/icon/core/people-group";
 import { ChevronsUpDownIcon } from "lucide-react";
 import { motion } from "motion/react";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, use, useEffect, useRef, useState } from "react";
 
 import { Shimmer } from "./shimmer";
 
@@ -36,7 +36,7 @@ interface PlanContextValue {
 const PlanContext = createContext<PlanContextValue | null>(null);
 
 const usePlan = () => {
-	const context = useContext(PlanContext);
+	const context = use(PlanContext);
 	if (!context) {
 		throw new Error("Plan components must be used within Plan");
 	}
@@ -49,7 +49,7 @@ export type PlanProps = ComponentProps<typeof Collapsible> & {
 	isStreaming?: boolean;
 };
 
-export const Plan = ({ className, isStreaming = false, children, ...props }: PlanProps) => (
+export const Plan = ({ className, isStreaming = false, children, ...props }: Readonly<PlanProps>) => (
 	<PlanContext value={{ isStreaming }}>
 		<Collapsible data-slot="plan" {...props} render={<Card className={cn("shadow-none", className)} />}>
 			{children}
@@ -61,7 +61,7 @@ export const Plan = ({ className, isStreaming = false, children, ...props }: Pla
 
 export type PlanHeaderProps = ComponentProps<typeof CardHeader>;
 
-export const PlanHeader = ({ className, ...props }: PlanHeaderProps) => <CardHeader className={cn("flex items-start justify-between", className)} data-slot="plan-header" {...props} />;
+export const PlanHeader = ({ className, ...props }: Readonly<PlanHeaderProps>) => <CardHeader className={cn("flex items-start justify-between", className)} data-slot="plan-header" {...props} />;
 
 /* ----- PlanAvatar ----- */
 
@@ -69,7 +69,7 @@ export type PlanAvatarProps = ComponentProps<"div"> & {
 	emoji?: string;
 };
 
-export const PlanAvatar = ({ emoji = "✌️", className, ...props }: PlanAvatarProps) => (
+export const PlanAvatar = ({ emoji = "✌️", className, ...props }: Readonly<PlanAvatarProps>) => (
 	<div className={cn("flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-neutral", className)} data-slot="plan-avatar" {...props}>
 		<span className="text-base leading-5 text-text-subtle">{emoji}</span>
 	</div>
@@ -81,7 +81,7 @@ export type PlanTitleProps = Omit<ComponentProps<typeof CardTitle>, "children"> 
 	children: string;
 };
 
-export const PlanTitle = ({ children, ...props }: PlanTitleProps) => {
+export const PlanTitle = ({ children, ...props }: Readonly<PlanTitleProps>) => {
 	const { isStreaming } = usePlan();
 
 	return (
@@ -97,7 +97,7 @@ export type PlanDescriptionProps = Omit<ComponentProps<typeof CardDescription>, 
 	children: string;
 };
 
-export const PlanDescription = ({ className, children, ...props }: PlanDescriptionProps) => {
+export const PlanDescription = ({ className, children, ...props }: Readonly<PlanDescriptionProps>) => {
 	const { isStreaming } = usePlan();
 
 	return (
@@ -111,25 +111,25 @@ export const PlanDescription = ({ className, children, ...props }: PlanDescripti
 
 export type PlanActionProps = ComponentProps<typeof CardAction>;
 
-export const PlanAction = (props: PlanActionProps) => <CardAction data-slot="plan-action" {...props} />;
+export const PlanAction = (props: Readonly<PlanActionProps>) => <CardAction data-slot="plan-action" {...props} />;
 
 /* ----- PlanContent ----- */
 
 export type PlanContentProps = ComponentProps<typeof CardContent>;
 
-export const PlanContent = (props: PlanContentProps) => <CollapsibleContent render={<CardContent data-slot="plan-content" {...props} />} />;
+export const PlanContent = (props: Readonly<PlanContentProps>) => <CollapsibleContent render={<CardContent data-slot="plan-content" {...props} />} />;
 
 /* ----- PlanFooter ----- */
 
 export type PlanFooterProps = ComponentProps<"div">;
 
-export const PlanFooter = (props: PlanFooterProps) => <CardFooter data-slot="plan-footer" {...props} />;
+export const PlanFooter = (props: Readonly<PlanFooterProps>) => <CardFooter data-slot="plan-footer" {...props} />;
 
 /* ----- PlanTrigger ----- */
 
 export type PlanTriggerProps = ComponentProps<typeof CollapsibleTrigger>;
 
-export const PlanTrigger = ({ className, ...props }: PlanTriggerProps) => (
+export const PlanTrigger = ({ className, ...props }: Readonly<PlanTriggerProps>) => (
 	<CollapsibleTrigger render={<Button className={cn("size-8", className)} data-slot="plan-trigger" size="icon" variant="ghost" {...props} />}>
 		<ChevronsUpDownIcon className="size-4" />
 		<span className="sr-only">Toggle plan</span>
@@ -142,7 +142,7 @@ export type PlanAgentBarProps = ComponentProps<"div"> & {
 	agents: string[];
 };
 
-export const PlanAgentBar = ({ agents, className, ...props }: PlanAgentBarProps) => {
+export const PlanAgentBar = ({ agents, className, ...props }: Readonly<PlanAgentBarProps>) => {
 	if (agents.length === 0) return null;
 
 	return (
@@ -165,7 +165,7 @@ export type PlanTaskListProps = ComponentProps<"ol"> & {
 	showMoreLabel?: string;
 };
 
-export const PlanTaskList = ({ children, className, showMoreLabel = "Show more", ...props }: PlanTaskListProps) => {
+export const PlanTaskList = ({ children, className, showMoreLabel = "Show more", ...props }: Readonly<PlanTaskListProps>) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [hasOverflow, setHasOverflow] = useState(false);
 	const [hasMeasured, setHasMeasured] = useState(false);
@@ -240,7 +240,7 @@ export type PlanTaskItemProps = {
 	className?: string;
 };
 
-export const PlanTaskItem = ({ index, label, blockedByLabels, agent, agentAvatarSrc, className }: PlanTaskItemProps) => (
+export const PlanTaskItem = ({ index, label, blockedByLabels, agent, agentAvatarSrc, className }: Readonly<PlanTaskItemProps>) => (
 	<motion.li
 		initial={{ opacity: 0, y: 8 }}
 		animate={{ opacity: 1, y: 0 }}
@@ -276,7 +276,7 @@ export type PlanChevronTriggerProps = ComponentProps<typeof Button> & {
 	isOpen?: boolean;
 };
 
-export const PlanChevronTrigger = ({ isOpen = true, className, ...props }: PlanChevronTriggerProps) => (
+export const PlanChevronTrigger = ({ isOpen = true, className, ...props }: Readonly<PlanChevronTriggerProps>) => (
 	<Button
 		aria-label={isOpen ? "Collapse plan" : "Expand plan"}
 		size="icon"

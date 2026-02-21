@@ -8,23 +8,27 @@ const CHAT_PORTS = [
 		id: "chat-port-a",
 		title: "Chat Port A",
 		description: "Use this panel for the first stream.",
+		portIndex: 0,
 	},
 	{
 		id: "chat-port-b",
 		title: "Chat Port B",
 		description: "Use this panel for the second stream.",
+		portIndex: 1,
 	},
 	{
 		id: "chat-port-c",
 		title: "Chat Port C",
 		description: "Use this panel for the third stream.",
+		portIndex: 2,
 	},
 ] as const;
 
 function MultiportChatPanel({
 	title,
 	description,
-}: Readonly<{ title: string; description: string }>) {
+	portIndex,
+}: Readonly<{ title: string; description: string; portIndex: number }>) {
 	return (
 		<section className="rounded-xl border border-border bg-surface-raised p-3">
 			<header className="mb-3 rounded-md bg-bg-neutral-subtle px-3 py-2">
@@ -32,7 +36,7 @@ function MultiportChatPanel({
 				<p className="text-xs text-text-subtle">{description}</p>
 			</header>
 			<div className="flex justify-center">
-				<RovoChatProvider>
+				<RovoChatProvider portIndex={portIndex}>
 					<ChatPanel
 						onClose={() => {}}
 						enableSmartWidgets={true}
@@ -64,6 +68,7 @@ export default function SidebarChatMultiportsPage() {
 						key={chatPort.id}
 						title={chatPort.title}
 						description={chatPort.description}
+						portIndex={chatPort.portIndex}
 					/>
 				))}
 			</div>

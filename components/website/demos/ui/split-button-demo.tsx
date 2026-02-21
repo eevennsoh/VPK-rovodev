@@ -3,9 +3,9 @@
 import { SplitButton } from "@/components/ui/split-button";
 
 const ITEMS = [
-	{ label: "Save as draft", onClick: () => {} },
-	{ label: "Save and publish", onClick: () => {} },
-	{ label: "Schedule", onClick: () => {} },
+	{ label: "Save as draft", onSelect: () => {} },
+	{ label: "Save and publish", onSelect: () => {} },
+	{ label: "Schedule", onSelect: () => {} },
 ];
 
 export default function SplitButtonDemo() {
@@ -22,8 +22,8 @@ export function SplitButtonDemoOutline() {
 
 export function SplitButtonDemoDestructive() {
 	const items = [
-		{ label: "Move to trash", onClick: () => {} },
-		{ label: "Delete permanently", onClick: () => {} },
+		{ label: "Move to trash", onSelect: () => {} },
+		{ label: "Delete permanently", onSelect: () => {} },
 	];
 	return <SplitButton label="Delete" variant="destructive" items={items} />;
 }

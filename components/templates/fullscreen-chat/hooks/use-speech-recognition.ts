@@ -2,8 +2,6 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 
-type SpeechRecognitionConstructor = new () => SpeechRecognition;
-
 interface UseSpeechRecognitionOptions {
 	lang?: string;
 	continuous?: boolean;

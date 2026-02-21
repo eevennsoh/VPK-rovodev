@@ -4,7 +4,9 @@ import type { StickToBottomContext } from "use-stick-to-bottom";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 import { ChatMessages } from "@/components/templates/shared/components/chat-messages";
 import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
+import type { GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
 import ChatEmptyState from "./chat-empty-state";
+import LoadingWidget from "./loading-widget";
 import type { PanelVariant } from "../types";
 
 interface RovoChatMessagesProps {
@@ -21,6 +23,9 @@ interface RovoChatMessagesProps {
 	isSubmitPending?: boolean;
 	messageMode?: "plan" | "ask";
 	enableSmartWidgets?: boolean;
+	onWidgetPrimaryAction?: (
+		payload: GenerativeWidgetPrimaryActionPayload
+	) => Promise<void> | void;
 }
 
 export default function RovoChatMessages({
@@ -37,6 +42,7 @@ export default function RovoChatMessages({
 	isSubmitPending = false,
 	messageMode = "ask",
 	enableSmartWidgets = false,
+	onWidgetPrimaryAction,
 }: Readonly<RovoChatMessagesProps>) {
 	return (
 		<ChatMessages
@@ -55,6 +61,8 @@ export default function RovoChatMessages({
 			renderEmptyState={() => (
 				<ChatEmptyState variant={variant} userName={userName} />
 			)}
+			renderLoadingWidget={(widgetType) =>
+				enableSmartWidgets ? <LoadingWidget widgetType={widgetType} /> : null}
 			renderWidget={(widget) => {
 				if (!enableSmartWidgets) {
 					return null;
@@ -64,6 +72,7 @@ export default function RovoChatMessages({
 					<GenerativeWidgetCard
 						widgetType={widget.type}
 						widgetData={widget.data}
+						onPrimaryAction={onWidgetPrimaryAction}
 					/>
 				);
 			}}

@@ -244,7 +244,7 @@ export default function ApprovalCardPreview() {
 	);
 
 	const handleSubmit = useCallback(
-		(_selection: PlanApprovalSelection) => {
+		() => {
 			if (isSubmitting) return;
 
 			setIsSubmitting(true);

@@ -2845,8 +2845,8 @@ const steps: ProgressTrackerStep[] = [
 
 <SplitButton
   items={[
-    { label: "Save as draft", onClick: handleDraft },
-    { label: "Schedule", onClick: handleSchedule },
+    { label: "Save as draft", onSelect: handleDraft },
+    { label: "Schedule", onSelect: handleSchedule },
   ]}
 >
   Publish
