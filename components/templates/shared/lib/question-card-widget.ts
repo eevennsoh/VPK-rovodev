@@ -345,6 +345,33 @@ export function buildClarificationSummaryPrompt(
 	].join("\n");
 }
 
+/**
+ * Adapts QuestionCard answers to the format expected by the ask_user_questions tool.
+ *
+ * The tool expects `Record<string, string[]>` where keys are question *text* (labels),
+ * not question IDs. This function maps question IDs back to their labels and normalizes
+ * all answer values to `string[]` (the tool always expects a list, even for single-select).
+ *
+ * @param answers - ID-keyed answers from the QuestionCard component
+ * @param questions - The parsed questions that were displayed (provides ID → label mapping)
+ * @returns Text-keyed answers with array values matching the tool contract
+ */
+export function adaptAnswersForToolContract(
+	answers: ClarificationAnswers,
+	questions: ReadonlyArray<ParsedQuestionCardQuestion>
+): Record<string, string[]> {
+	const idToLabel = new Map(questions.map((q) => [q.id, q.label]));
+
+	return Object.entries(answers).reduce<Record<string, string[]>>(
+		(acc, [questionId, value]) => {
+			const questionText = idToLabel.get(questionId) ?? questionId;
+			acc[questionText] = Array.isArray(value) ? value : [value];
+			return acc;
+		},
+		{}
+	);
+}
+
 export function getLatestQuestionCardPayload(
 	messages: ReadonlyArray<RovoUIMessage>
 ): ParsedQuestionCardPayload | null {
