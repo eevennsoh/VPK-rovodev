@@ -23,17 +23,23 @@ export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
 
   const generateRandomMovement = () => {
     const isSpin = Math.random() > 0.85; // 15% chance to do a full spin
+    
+    // For normal rotation, keep it between -15 and 15 degrees for subtle tilting
+    // If spinning, do a full 360 or -360 rotation
+    const rotation = isSpin 
+      ? (Math.random() > 0.5 ? 360 : -360) 
+      : (Math.random() - 0.5) * 30; // +/- 15 degrees
+
     return {
       x: (Math.random() - 0.5) * 50, // Random x offset up to +/- 25px
       y: (Math.random() - 0.5) * 50, // Random y offset up to +/- 25px
-      // Either spin fully or just randomly tilt
-      rotate: isSpin ? (Math.random() > 0.5 ? 360 : -360) : (Math.random() - 0.5) * 60,
-      scale: 0.8 + Math.random() * 0.4, // Random scale between 0.8 and 1.2
+      rotate: rotation,
+      scale: 0.85 + Math.random() * 0.3, // Random scale between 0.85 and 1.15
       transition: {
         type: "spring",
-        stiffness: 80 + Math.random() * 80, // Random stiffness for a bit of variation (80-160)
-        damping: 10 + Math.random() * 10, // Moderate damping for bouncy but settled stops (10-20)
-        mass: 0.8 + Math.random() * 0.4, // Small mass changes
+        stiffness: 80 + Math.random() * 80, // Random stiffness (80-160)
+        damping: 10 + Math.random() * 10,   // Moderate damping (10-20)
+        mass: 0.8 + Math.random() * 0.4,    // Small mass changes
         restDelta: 0.001,
       },
     };
