@@ -85,6 +85,7 @@ const UI_DEMO: Record<string, ComponentType> = {
 
 const UI_AI_DEMO: Record<string, ComponentType> = {
 	agent: dynamic(() => import("./demos/ui-ai/agent-demo"), { ssr: false }),
+	"animated-dots": dynamic(() => import("./demos/ui-ai/animated-dots-demo"), { ssr: false }),
 	artifact: dynamic(() => import("./demos/ui-ai/artifact-demo"), { ssr: false }),
 	attachments: dynamic(() => import("./demos/ui-ai/attachments-demo"), { ssr: false }),
 	"audio-player": dynamic(() => import("./demos/ui-ai/audio-player-demo"), { ssr: false }),
@@ -132,6 +133,7 @@ const UI_AI_DEMO: Record<string, ComponentType> = {
 	transcription: dynamic(() => import("./demos/ui-ai/transcription-demo"), { ssr: false }),
 	"voice-selector": dynamic(() => import("./demos/ui-ai/voice-selector-demo"), { ssr: false }),
 	"web-preview": dynamic(() => import("./demos/ui-ai/web-preview-demo"), { ssr: false }),
+	"animated-rovo": dynamic(() => import("./demos/ui-ai/animated-rovo-demo"), { ssr: false }),
 };
 
 const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
@@ -919,6 +921,9 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"agent-demo-with-tools": dynamic(() => import("./demos/ui-ai/agent-demo").then((mod) => ({ default: mod.AgentDemoWithTools })), { ssr: false }),
 	"agent-demo-with-output": dynamic(() => import("./demos/ui-ai/agent-demo").then((mod) => ({ default: mod.AgentDemoWithOutput })), { ssr: false }),
 	"agent-demo-minimal": dynamic(() => import("./demos/ui-ai/agent-demo").then((mod) => ({ default: mod.AgentDemoMinimal })), { ssr: false }),
+	"animated-dots-demo-custom-colors": dynamic(() => import("./demos/ui-ai/animated-dots-demo").then((mod) => ({ default: mod.AnimatedDotsDemoCustomColors })), { ssr: false }),
+	"animated-dots-demo-timing": dynamic(() => import("./demos/ui-ai/animated-dots-demo").then((mod) => ({ default: mod.AnimatedDotsDemoTiming })), { ssr: false }),
+	"animated-dots-demo-sizes": dynamic(() => import("./demos/ui-ai/animated-dots-demo").then((mod) => ({ default: mod.AnimatedDotsDemoSizes })), { ssr: false }),
 	"attachments-demo-grid": dynamic(() => import("./demos/ui-ai/attachments-demo").then((mod) => ({ default: mod.AttachmentsDemoGrid })), { ssr: false }),
 	"attachments-demo-inline": dynamic(() => import("./demos/ui-ai/attachments-demo").then((mod) => ({ default: mod.AttachmentsDemoInline })), { ssr: false }),
 	"attachments-demo-list": dynamic(() => import("./demos/ui-ai/attachments-demo").then((mod) => ({ default: mod.AttachmentsDemoList })), { ssr: false }),
@@ -996,6 +1001,7 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"queue-demo-with-attachments": dynamic(() => import("./demos/ui-ai/queue-demo").then((mod) => ({ default: mod.QueueDemoWithAttachments })), { ssr: false }),
 	"queue-demo-minimal": dynamic(() => import("./demos/ui-ai/queue-demo").then((mod) => ({ default: mod.QueueDemoMinimal })), { ssr: false }),
 	"reasoning-demo-ads-streaming": dynamic(() => import("./demos/ui-ai/reasoning-demo").then((mod) => ({ default: mod.ReasoningDemoAdsStreaming })), { ssr: false }),
+	"reasoning-demo-ads-streaming-wave": dynamic(() => import("./demos/ui-ai/reasoning-demo").then((mod) => ({ default: mod.ReasoningDemoAdsStreamingWave })), { ssr: false }),
 	"reasoning-demo-ads-completed": dynamic(() => import("./demos/ui-ai/reasoning-demo").then((mod) => ({ default: mod.ReasoningDemoAdsCompleted })), { ssr: false }),
 	"reasoning-demo-ads-indicator": dynamic(() => import("./demos/ui-ai/reasoning-demo").then((mod) => ({ default: mod.ReasoningDemoAdsIndicator })), { ssr: false }),
 	"reasoning-demo-streaming": dynamic(() => import("./demos/ui-ai/reasoning-demo").then((mod) => ({ default: mod.ReasoningDemoStreaming })), { ssr: false }),
@@ -1037,6 +1043,12 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"schema-display-demo-custom-composition": dynamic(() => import("./demos/ui-ai/schema-display-demo").then((mod) => ({ default: mod.SchemaDisplayDemoCustomComposition })), { ssr: false }),
 	"shimmer-demo-custom-duration": dynamic(() => import("./demos/ui-ai/shimmer-demo").then((mod) => ({ default: mod.ShimmerDemoCustomDuration })), { ssr: false }),
 	"shimmer-demo-custom-spread": dynamic(() => import("./demos/ui-ai/shimmer-demo").then((mod) => ({ default: mod.ShimmerDemoCustomSpread })), { ssr: false }),
+	"shimmer-demo-wave": dynamic(() => import("./demos/ui-ai/shimmer-demo").then((mod) => ({ default: mod.ShimmerDemoWave })), { ssr: false }),
+	"shimmer-demo-wave-colors": dynamic(() => import("./demos/ui-ai/shimmer-demo").then((mod) => ({ default: mod.ShimmerDemoWaveColors })), { ssr: false }),
+	"shimmer-demo-wave-geometry": dynamic(() => import("./demos/ui-ai/shimmer-demo").then((mod) => ({ default: mod.ShimmerDemoWaveGeometry })), { ssr: false }),
+	"shimmer-demo-wave-depth": dynamic(() => import("./demos/ui-ai/shimmer-demo").then((mod) => ({ default: mod.ShimmerDemoWaveDepth })), { ssr: false }),
+	"shimmer-demo-wave-timing-spread": dynamic(() => import("./demos/ui-ai/shimmer-demo").then((mod) => ({ default: mod.ShimmerDemoWaveTimingSpread })), { ssr: false }),
+	"shimmer-demo-wave-full-config": dynamic(() => import("./demos/ui-ai/shimmer-demo").then((mod) => ({ default: mod.ShimmerDemoWaveFullConfig })), { ssr: false }),
 	"shimmer-demo-heading": dynamic(() => import("./demos/ui-ai/shimmer-demo").then((mod) => ({ default: mod.ShimmerDemoHeading })), { ssr: false }),
 	"snippet-demo-plain": dynamic(() => import("./demos/ui-ai/snippet-demo").then((mod) => ({ default: mod.SnippetDemoPlain })), { ssr: false }),
 	"snippet-demo-multiple": dynamic(() => import("./demos/ui-ai/snippet-demo").then((mod) => ({ default: mod.SnippetDemoMultiple })), { ssr: false }),
@@ -1236,11 +1248,11 @@ export function getChartDemoComponent(slug: string): ComponentType | null {
 }
 
 const UTILITY_DEMOS: Record<string, ComponentType> = {
-	"image-generation": dynamic(() => import("./demos/utility/image-generation-demo"), { ssr: false }),
-	multiports: dynamic(() => import("./demos/utility/multiports-demo"), { ssr: false }),
-	"sound-generation": dynamic(() => import("./demos/utility/sound-generation-demo"), { ssr: false }),
-	streamdown: dynamic(() => import("./demos/utility/streamdown-demo"), { ssr: false }),
-	"ui-generation": dynamic(() => import("./demos/utility/ui-generation-demo"), { ssr: false }),
+	"image-generation": dynamic(() => import("./demos/utils/image-generation-demo"), { ssr: false }),
+	multiports: dynamic(() => import("./demos/utils/multiports-demo"), { ssr: false }),
+	"sound-generation": dynamic(() => import("./demos/utils/sound-generation-demo"), { ssr: false }),
+	streamdown: dynamic(() => import("./demos/utils/streamdown-demo"), { ssr: false }),
+	"ui-generation": dynamic(() => import("./demos/utils/ui-generation-demo"), { ssr: false }),
 };
 
 const VISUAL_DEMOS: Record<string, ComponentType> = {
