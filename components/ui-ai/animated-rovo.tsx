@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
 interface AnimatedRovoProps {
   size?: number;
@@ -9,25 +10,47 @@ interface AnimatedRovoProps {
 }
 
 export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
-  // Define a complex keyframe animation that combines floating, bouncing, dancing, and spinning
-  // The entire sequence loops infinitely
+  const [mounted, setMounted] = useState(false);
+
+  // Predictable starting state for SSR to avoid hydration mismatch
+  const [animation, setAnimation] = useState({
+    x: 0,
+    y: 0,
+    rotate: 0,
+    scale: 1,
+    transition: { duration: 0 },
+  });
+
+  const generateRandomMovement = () => {
+    const isSpin = Math.random() > 0.85; // 15% chance to do a full spin
+    return {
+      x: (Math.random() - 0.5) * 50, // Random x offset up to +/- 25px
+      y: (Math.random() - 0.5) * 50, // Random y offset up to +/- 25px
+      // Either spin fully or just randomly tilt
+      rotate: isSpin ? (Math.random() > 0.5 ? 360 : -360) : (Math.random() - 0.5) * 60,
+      scale: 0.8 + Math.random() * 0.4, // Random scale between 0.8 and 1.2
+      transition: {
+        duration: 0.25 + Math.random() * 0.4, // Rapid duration between 0.25s and 0.65s
+        ease: "easeInOut",
+      },
+    };
+  };
+
+  useEffect(() => {
+    setMounted(true);
+    setAnimation(generateRandomMovement());
+  }, []);
+
   return (
     <motion.div
       className={className}
       style={{ width: size, height: size }}
-      animate={{
-        // Define an array of values for each property to create a sequence
-        y: [0, -25, 8, -15, 5, -30, 0], // Exaggerated bouncing up and down
-        x: [0, -12, 15, -10, 12, -5, 0], // Playful side-to-side zig-zag
-        rotate: [0, -15, 20, -12, 25, -10, 360], // Deeper tilts and a quick full spin
-        scale: [1, 1.2, 0.8, 1.15, 0.85, 1.25, 1], // Stronger squash and stretch for a bouncy feel
-      }}
-      transition={{
-        duration: 3.5, // Much faster for rapid, energetic movements
-        ease: "easeInOut",
-        times: [0, 0.2, 0.4, 0.6, 0.8, 0.9, 1], // Timing for each keyframe
-        repeat: Infinity,
-        repeatType: "loop",
+      // Use the random animation state only after hydration
+      animate={mounted ? animation : { x: 0, y: 0, rotate: 0, scale: 1 }}
+      onAnimationComplete={() => {
+        if (mounted) {
+          setAnimation(generateRandomMovement());
+        }
       }}
     >
       <Image
