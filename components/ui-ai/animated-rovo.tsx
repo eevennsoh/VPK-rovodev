@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { AnimatedRovoShape } from "./animated-rovo-shape";
 
 interface AnimatedRovoProps {
   size?: number;
@@ -63,8 +64,8 @@ export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
       animate={{
         // Predictable harmonic pendulum swing from side to side
         rotate: [15, -15, 15],
-        // Elastic bounce down on the "string" exactly when crossing the center
-        y: [0, 12, 0, 12, 0],
+        // Bounce up and down proportionally to size
+        y: [0, -size * 0.08, 0, size * 0.08, 0],
       }}
       transition={{
         duration: 2,
@@ -80,15 +81,9 @@ export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
           }
         }}
         style={{ width: "100%", height: "100%" }}
+        className="dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] drop-shadow-[0_0_8px_rgba(0,0,0,0.1)]"
       >
-        <Image
-          src="/1p/rovo.svg"
-          alt="Rovo"
-          width={size}
-          height={size}
-          className="dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] drop-shadow-[0_0_8px_rgba(0,0,0,0.1)]"
-          priority
-        />
+        <AnimatedRovoShape size={size} />
       </motion.div>
     </motion.div>
   );
