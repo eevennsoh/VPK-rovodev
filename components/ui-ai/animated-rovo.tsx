@@ -17,13 +17,13 @@ export function AnimatedRovo({ size = 32, className }: AnimatedRovoProps) {
       style={{ width: size, height: size }}
       animate={{
         // Define an array of values for each property to create a sequence
-        y: [0, -10, 0, -5, 0, -8, 0], // Float up and down, subtle bounce
-        x: [0, -3, 3, -2, 2, 0, 0], // Subtle side-to-side dance
-        rotate: [0, -5, 5, -5, 5, 0, 360], // Occasional spin at the end of the loop
-        scale: [1, 1.05, 0.95, 1.02, 0.98, 1.05, 1], // Squish and stretch for bounce effect
+        y: [0, -25, 8, -15, 5, -30, 0], // Exaggerated bouncing up and down
+        x: [0, -12, 15, -10, 12, -5, 0], // Playful side-to-side zig-zag
+        rotate: [0, -15, 20, -12, 25, -10, 360], // Deeper tilts and a quick full spin
+        scale: [1, 1.2, 0.8, 1.15, 0.85, 1.25, 1], // Stronger squash and stretch for a bouncy feel
       }}
       transition={{
-        duration: 8, // Total duration for one full loop
+        duration: 3.5, // Much faster for rapid, energetic movements
         ease: "easeInOut",
         times: [0, 0.2, 0.4, 0.6, 0.8, 0.9, 1], // Timing for each keyframe
         repeat: Infinity,
