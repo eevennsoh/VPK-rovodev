@@ -24,6 +24,7 @@ const {
 	isChatInProgressError,
 	initPool,
 	setPinnedPortCount,
+	setPortRecovery,
 	WAIT_FOR_TURN_TIMEOUT_MS,
 } = require("./lib/rovodev-gateway");
 const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
@@ -215,6 +216,16 @@ async function refreshRovoDevAvailability() {
 			});
 			initPool(_rovoDevPool);
 			setPinnedPortCount(PINNED_PORT_COUNT);
+			setPortRecovery(async (port) => {
+				return restartRovoDevPort({
+					port,
+					cancelChat: rovoDevCancelChat,
+					healthCheck: rovoDevHealthCheck,
+					getListeningPidsForPort,
+					refreshAvailability: refreshRovoDevAvailability,
+					timeoutMs: 30_000,
+				});
+			});
 		}
 
 		if (healthyPorts.length === 1) {
@@ -5119,6 +5130,15 @@ app.post("/api/chat-sdk", async (req, res) => {
 						console.error("Failed to stream suggested questions:", error);
 					}
 				}
+
+				// Signal that the entire turn (including post-stream work like
+				// suggestions) is complete. The frontend uses this sentinel to
+				// safely advance its prompt queue without racing the RovoDev
+				// port cooldown period.
+				writer.write({
+					type: "data-turn-complete",
+					data: { timestamp: new Date().toISOString() },
+				});
 			},
 			onError: (error) => {
 				if (error instanceof Error) {

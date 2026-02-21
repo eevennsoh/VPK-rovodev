@@ -103,6 +103,9 @@ export type RovoDataParts = {
 	"thinking-event": ThinkingEventUpdate;
 	"tool-first-warning": ToolFirstWarningData;
 	"agent-execution": AgentExecutionUpdate;
+	"turn-complete": {
+		timestamp: string;
+	};
 };
 
 export type RovoDataPart<KEY extends keyof RovoDataParts & string> = {

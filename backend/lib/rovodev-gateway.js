@@ -35,6 +35,13 @@ let _pool = null;
 let _pinnedPortCount = 0;
 
 /**
+ * Optional callback to restart a stuck RovoDev port via process kill + supervisor restart.
+ * Set via setPortRecovery() from server.js.
+ * @type {((port: number) => Promise<{ recovered: boolean; error?: string }>) | null}
+ */
+let _recoverPort = null;
+
+/**
  * Inject the RovoDev port pool. Called once from server.js at startup.
  * @param {import("./rovodev-pool").Pool | null} pool
  */
@@ -49,6 +56,16 @@ function initPool(pool) {
  */
 function setPinnedPortCount(count) {
 	_pinnedPortCount = Math.max(0, count);
+}
+
+/**
+ * Inject a port recovery callback. Called once from server.js at startup.
+ * The callback should kill the stuck rovodev process and wait for the
+ * supervisor to restart it.
+ * @param {((port: number) => Promise<{ recovered: boolean; error?: string }>) | null} fn
+ */
+function setPortRecovery(fn) {
+	_recoverPort = typeof fn === "function" ? fn : null;
 }
 
 /**
@@ -990,39 +1007,23 @@ async function generateTextViaRovoDev({
 
 		if (_pool) {
 			throwIfAborted(signal, "RovoDev text generation aborted");
-			// With a pool we own the port exclusively, but the port may still
-			// have a lingering turn from startup or a previous cooldown race.
-			// Wrap in a bounded retry so transient 409s don't fail immediately.
-			const poolRetryMs =
-				typeof timeoutMs === "number" && timeoutMs > 0
-					? Math.min(timeoutMs, 5_000)
-					: 5_000;
-			try {
-				const { value, aborted } = await retryChatInProgress(
-					() => sendMessageSync(fullMessage, syncOptions),
-					{
-						signal,
-						logPrefix: "generateTextViaRovoDev[pool]",
-						timeoutMs: poolRetryMs,
-						cancelOnConflict: true,
-						cancelAfterMs: 0,
-						port: handle.port,
-					}
-				);
-				if (aborted) {
-					throw createAbortError("RovoDev text generation aborted");
-				}
-				return typeof value === "string" ? value : "";
-			} catch (retryError) {
-				if (isChatInProgressError(retryError)) {
-					throw createChatInProgressTimeoutError(poolRetryMs, {
-						logPrefix: "generateTextViaRovoDev[pool]",
-						retryCount: retryError?.chatInProgressRetryCount,
-						elapsedMs: retryError?.chatInProgressElapsedMs,
-					});
-				}
-				throw retryError;
-			}
+
+			// Pool-exclusive port: cancel any lingering session, then send.
+			//
+			// IMPORTANT: Do NOT retry on the same port after a 409.
+			// Each sendMessageSync call queues a message via set_chat_message,
+			// compounding the stuck state and making the port unrecoverable.
+			// Instead, throw immediately and let the finally block's async
+			// recovery hold the port until it clears. Subsequent callers
+			// waiting in acquirePort will get the port once it's released.
+			const poolCancelOpts = { timeoutMs: 3_000 };
+
+			// Pre-cancel to clear any stale session from a previous caller.
+			try { await cancelChat(handle.port, poolCancelOpts); } catch {}
+			await sleep(200, signal);
+
+			const value = await sendMessageSync(fullMessage, syncOptions);
+			return typeof value === "string" ? value : "";
 		}
 
 		// No pool — fall back to retry-on-409 + queue behavior
@@ -1079,7 +1080,51 @@ async function generateTextViaRovoDev({
 
 		return await runGenerate();
 	} finally {
-		handle.release();
+		// Cancel any lingering session before releasing the port back to the pool.
+		// When an abort signal fires (e.g., classifier timeout) or an error occurs,
+		// the RovoDev Serve instance on this port may still be processing the LLM
+		// request. Without cancellation, the port is returned in a "chat in
+		// progress" state that poisons subsequent acquirers with persistent 409s.
+		if (_pool) {
+			let cancelSucceeded = false;
+			try {
+				await cancelChat(handle.port, { timeoutMs: 3_000 });
+				cancelSucceeded = true;
+			} catch {}
+
+			if (cancelSucceeded) {
+				handle.release();
+			} else {
+				// Port is permanently stuck — cancel can't clear it.
+				// Mark it unhealthy so the pool won't hand it to the next
+				// acquirer (e.g., suggestion requests). The pool's periodic
+				// health check (every 30s) will recover it once the process
+				// is reachable again.
+				const stuckPort = handle.port;
+				console.warn(`[generateTextViaRovoDev] port ${stuckPort} stuck — marking unhealthy`);
+				handle.releaseAsUnhealthy();
+
+				// If a recovery callback is configured (process kill + supervisor
+				// restart), fire it in the background for faster recovery.
+				// Don't await — the port is already safely marked unhealthy.
+				if (_recoverPort) {
+					_recoverPort(stuckPort).then(
+						(result) => {
+							if (result.recovered) {
+								console.info(`[generateTextViaRovoDev] recovery: port ${stuckPort} restarted successfully`);
+							} else {
+								console.warn(`[generateTextViaRovoDev] recovery: port ${stuckPort} failed: ${result.error}`);
+							}
+						},
+						(err) => {
+							console.warn(`[generateTextViaRovoDev] recovery: port ${stuckPort} error:`, err?.message);
+						}
+					);
+				}
+			}
+		} else {
+			handle.release();
+		}
 	}
 }
 
@@ -1095,5 +1140,6 @@ module.exports = {
 	buildThinkingStatusFromToolEvent,
 	initPool,
 	setPinnedPortCount,
+	setPortRecovery,
 	WAIT_FOR_TURN_TIMEOUT_MS,
 };

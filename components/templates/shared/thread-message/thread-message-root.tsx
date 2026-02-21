@@ -207,7 +207,7 @@ function useThreadMessageDerived(
 			shouldRenderPlainTextWhileStreaming,
 		}),
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- stable key fields
-		[message.id, isStreaming, messageText, widgetType, isWidgetLoading]
+		[message.id, isStreaming, messageText, widgetType, isWidgetLoading, suggestedQuestions.length]
 	);
 }
 

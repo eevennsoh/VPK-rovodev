@@ -7,7 +7,7 @@ description: This skill should be used when the user asks to "set up", "get star
   or wants to set up a new VPK project from scratch. Also triggered by errors like
   "ASAP key not working", "credentials not found", "env not configured".
 disable-model-invocation: true
-argument-hint: "[email]"
+argument-hint: "[usecase-id] [email]"
 prerequisites: []
 produces: [.env.local, .asap-config]
 ---
