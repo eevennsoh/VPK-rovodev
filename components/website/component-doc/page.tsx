@@ -16,13 +16,15 @@ interface ComponentDocProps {
 
 export function ComponentDoc({ component }: Readonly<ComponentDocProps>) {
 	const { name, slug, importPath, category, detail } = component;
-	const isBlock = category === "blocks" || category === "templates" || category === "utility";
 	const adsInfo = getAdsDisplayInfo(slug);
 	const adsLinks = detail?.adsLinks?.map(link => ({ href: link.url, label: link.label }));
 	const contentContainerStyle = {
 		maxWidth: 860,
 		marginInline: "auto",
 		paddingInline: token("space.300"),
+	};
+	const previewContainerStyle = {
+		paddingInline: 24,
 	};
 	const articleStyle = {
 		paddingBottom: token("space.600"),
@@ -37,7 +39,7 @@ export function ComponentDoc({ component }: Readonly<ComponentDocProps>) {
 
 			{/* 5. Examples — only if data exists */}
 			{detail?.examples && detail.examples.length > 0 && (
-				<DocExamples examples={detail.examples} category={category} demoLayout={detail?.demoLayout} />
+				<DocExamples examples={detail.examples} category={category} />
 			)}
 
 			{/* 6. API Reference — only if props data exists */}
@@ -51,58 +53,29 @@ export function ComponentDoc({ component }: Readonly<ComponentDocProps>) {
 		</>
 	);
 
-	if (isBlock) {
-		return (
-			<article style={articleStyle}>
-				<div style={contentContainerStyle}>
-					{/* 1. Hero — always shown */}
-					<DocHero
-						name={name}
-						description={detail?.description}
-						category={category}
-						importPath={importPath}
-						adsLinks={adsLinks}
-						adsUrl={detail?.adsUrl}
-						adsPackage={adsInfo?.displayText}
-					/>
-				</div>
-
-				<div
-					style={{
-						paddingInline: token("space.300"),
-					}}
-				>
-					{/* 2. Preview — always shown (if demo exists) */}
-					<DocPreview slug={slug} category={category} variant="block" demoLayout={detail?.demoLayout} />
-				</div>
-
-				<div style={contentContainerStyle}>{detailSections}</div>
-			</article>
-		);
-	}
-
 	return (
-		<article
-			style={{
-				...contentContainerStyle,
-				paddingBottom: articleStyle.paddingBottom,
-			}}
-		>
-			{/* 1. Hero — always shown */}
-			<DocHero
-				name={name}
-				description={detail?.description}
-				category={category}
-				importPath={importPath}
-				adsLinks={adsLinks}
-				adsUrl={detail?.adsUrl}
-				adsPackage={adsInfo?.displayText}
-			/>
+		<article style={articleStyle}>
+			<div style={contentContainerStyle}>
+				{/* 1. Hero — always shown */}
+				<DocHero
+					name={name}
+					description={detail?.description}
+					category={category}
+					importPath={importPath}
+					adsLinks={adsLinks}
+					adsUrl={detail?.adsUrl}
+					adsPackage={adsInfo?.displayText}
+				/>
+			</div>
 
-			{/* 2. Preview — always shown (if demo exists) */}
-			<DocPreview slug={slug} category={category} demoLayout={detail?.demoLayout} />
+			<div style={previewContainerStyle}>
+				{/* 2. Preview — always shown (if demo exists) */}
+				<DocPreview slug={slug} category={category} />
+			</div>
 
-			{detailSections}
+			<div style={contentContainerStyle}>
+				{detailSections}
+			</div>
 		</article>
 	);
 }

@@ -281,6 +281,7 @@ export default function ChatPanel({
 							thinkingToolCalls={thinking.thinkingToolCalls}
 							lastMessageId={thinking.lastMessage?.id}
 							containerStyle={chatStyles.thinkingContainer}
+							phaseProps={thinking.reasoningPhaseProps}
 						/>
 					) : null}
 					{hasMessages ? (

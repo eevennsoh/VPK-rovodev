@@ -82,6 +82,21 @@ export interface AnimatedRovoRootProps {
 	className?: string;
 	/** Transition config forwarded to the inner \`AnimatedRovo.Shape\`. */
 	transition?: AnimatedRovoShapeTransition;
+	/**
+	 * When true, outer pendulum/bounce/spin animations settle to rest
+	 * while the inner color wheel keeps rotating.
+	 */
+	streaming?: boolean;
+	/**
+	 * Probability (0 to 1) that the next spin cycle is a full 360° rotation.
+	 * @default 0.35
+	 */
+	fullSpinProbability?: number;
+	/**
+	 * Vertical dance distance as a percentage of component size.
+	 * @default 8
+	 */
+	danceDistancePercent?: number;
 	children?: React.ReactNode;
 }
 
@@ -154,9 +169,15 @@ function AnimatedRovoRoot({
 	size = 32,
 	transition,
 	className,
+	streaming = false,
+	fullSpinProbability = 0.35,
+	danceDistancePercent = 8,
 	children,
 }: Readonly<AnimatedRovoRootProps>) {
 	const [mounted, setMounted] = useState(false);
+	const normalizedFullSpinProbability = Math.min(1, Math.max(0, fullSpinProbability));
+	const normalizedDanceDistancePercent = Math.min(100, Math.max(0, danceDistancePercent));
+	const danceOffset = size * (normalizedDanceDistancePercent / 100);
 
 	const [spinAnimation, setSpinAnimation] = useState<{
 		rotate: number;
@@ -167,7 +188,7 @@ function AnimatedRovoRoot({
 	});
 
 	const generateSpin = (currentRotation: number) => {
-		const isRapidSpin = Math.random() > 0.65;
+		const isRapidSpin = Math.random() < normalizedFullSpinProbability;
 
 		if (isRapidSpin) {
 			return {
@@ -193,6 +214,18 @@ function AnimatedRovoRoot({
 		setSpinAnimation(generateSpin(0));
 	}, []);
 
+	// Reset sporadic spin when entering/leaving streaming mode
+	useEffect(() => {
+		if (streaming) {
+			setSpinAnimation({
+				rotate: 0,
+				transition: { duration: 0.3, ease: "easeInOut" },
+			});
+		} else if (mounted) {
+			setSpinAnimation(generateSpin(0));
+		}
+	}, [streaming, mounted]);
+
 	return (
 		<motion.div
 			className={className}
@@ -201,20 +234,24 @@ function AnimatedRovoRoot({
 				height: size,
 				transformOrigin: "50% -50%",
 			}}
-			animate={{
-				rotate: [15, -15, 15],
-				y: [0, -size * 0.08, 0, size * 0.08, 0],
-			}}
-			transition={{
-				duration: 2,
-				ease: "easeInOut",
-				repeat: Infinity,
-			}}
+			animate={
+				streaming
+					? { rotate: 0, y: 0 }
+					: {
+							rotate: [15, -15, 15],
+							y: [0, -danceOffset, 0, danceOffset, 0],
+						}
+			}
+			transition={
+				streaming
+					? { duration: 0.3, ease: "easeOut" }
+					: { duration: 2, ease: "easeInOut", repeat: Infinity }
+			}
 		>
 			<motion.div
 				animate={mounted ? spinAnimation : { rotate: 0 }}
 				onAnimationComplete={(definition) => {
-					if (mounted && typeof definition === "object" && definition !== null && "rotate" in definition && typeof definition.rotate === "number") {
+					if (!streaming && mounted && typeof definition === "object" && definition !== null && "rotate" in definition && typeof definition.rotate === "number") {
 						setSpinAnimation(generateSpin(definition.rotate));
 					}
 				}}

@@ -31,6 +31,9 @@ const { getGenuiSystemPrompt } = require("./lib/genui-system-prompt");
 const { analyzeGeneratedText, pickBestSpec } = require("./lib/genui-spec-utils");
 const { classifySmartGenerationIntent } = require("./lib/smart-generation-intent");
 const {
+	buildSmartGenerationGatewayOptions,
+} = require("./lib/smart-generation-gateway-options");
+const {
 	resolveToolFirstPolicy,
 	TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY,
 	createToolFirstExecutionState,
@@ -86,9 +89,11 @@ const { detectPlanningIntent } = require("./lib/planning-intent");
 const {
 	shouldGatePlanningQuestionCard,
 } = require("./lib/planning-question-gate");
+const { resolvePlanMode } = require("./lib/plan-mode-resolution");
 const {
 	extractQuestionCardDefinitionFromAssistantText,
 	resolveFallbackQuestionCardState,
+	MAX_LABEL_LENGTH: CLARIFICATION_MAX_LABEL_LENGTH,
 } = require("./lib/question-card-extractor");
 const {
 	MAX_INLINE_ASSISTANT_JSON_CHARS,
@@ -155,6 +160,35 @@ function readRovoDevPorts() {
 }
 
 /**
+ * Poll a RovoDev port until it's ready for new requests.
+ * Uses a non-destructive healthcheck probe (no state mutation, no cancellation).
+ * Resolves when ready; rejects if the port doesn't become ready within the
+ * probe window (READY_PROBE_INTERVAL_MS × READY_PROBE_MAX_ATTEMPTS).
+ *
+ * @param {number} port
+ * @returns {Promise<void>}
+ */
+async function waitForPortReady(port) {
+	// Always wait the minimum cooldown first — RovoDev Serve needs a brief
+	// moment after the SSE stream closes before it can accept new requests.
+	await new Promise((resolve) => setTimeout(resolve, POST_STREAM_COOLDOWN_MS));
+
+	for (let attempt = 0; attempt < READY_PROBE_MAX_ATTEMPTS; attempt++) {
+		try {
+			await rovoDevHealthCheck(port);
+			// Healthcheck passed — port is alive and ready
+			return;
+		} catch {
+			// Healthcheck failed — port is still clearing or unreachable
+			await new Promise((resolve) => setTimeout(resolve, READY_PROBE_INTERVAL_MS));
+		}
+	}
+
+	// Exhausted all probe attempts — port is not recovering
+	throw new Error(`Port ${port} did not become ready after ${READY_PROBE_MAX_ATTEMPTS} probes`);
+}
+
+/**
  * Check whether a RovoDev Serve instance is reachable.
  * Reads the port files written by `dev-rovodev.js` and pings health endpoints.
  * Creates/updates the pool with all healthy ports.
@@ -211,7 +245,7 @@ async function refreshRovoDevAvailability() {
 			_rovoDevPool.updatePorts(healthyPorts);
 		} else {
 			_rovoDevPool = createRovoDevPool(healthyPorts, {
-				cooldownMs: POST_STREAM_COOLDOWN_MS,
+				waitForReady: waitForPortReady,
 			});
 			initPool(_rovoDevPool);
 			setPinnedPortCount(PINNED_PORT_COUNT);
@@ -306,14 +340,24 @@ const PLANNING_GATE_INTRO_TEXT =
 const DEFAULT_CONFLUENCE_BASE_URL = "https://venn-test.atlassian.net/wiki";
 const MAX_SLACK_SUMMARY_CHARS = 35000;
 const INTERACTIVE_CHAT_FALLBACK_ENABLED = false;
-const INTERACTIVE_CHAT_WAIT_TIMEOUT_MS = 45_000;
-const INTERACTIVE_CHAT_CONFLICT_CANCEL_AFTER_MS = 5_000;
-const INTERACTIVE_CHAT_FORCE_PORT_RECOVERY_MAX_ATTEMPTS = 1;
+const INTERACTIVE_CHAT_FORCE_PORT_RECOVERY_MAX_ATTEMPTS = 2;
 const INTERACTIVE_CHAT_FORCE_PORT_RECOVERY_TIMEOUT_MS =
 	DEFAULT_ROVODEV_PORT_RECOVERY_TIMEOUT_MS;
-const POST_STREAM_COOLDOWN_MS = 200;
+const POST_STREAM_COOLDOWN_MS = 500;
+const READY_PROBE_INTERVAL_MS = 100;
+const READY_PROBE_MAX_ATTEMPTS = 20; // 100ms × 20 = 2s max
 const PINNED_PORT_COUNT = 3;
-const AI_GATEWAY_ALLOWED_USE_CASES = ["image", "sound"];
+
+/**
+ * Tracks the latest request timestamp per portIndex.
+ * Used to detect when a newer request has arrived for the same panel,
+ * so post-stream tasks (e.g. suggestions) can be skipped for stale requests.
+ * Map<number, number> — portIndex → timestamp of most recent request.
+ */
+const portIndexRequestTimestamps = new Map();
+const AI_GATEWAY_ALLOWED_USE_CASES = ["image", "sound", "suggestions"];
+const SUGGESTIONS_BACKEND_DEFAULT = "ai-gateway";
+const SUGGESTIONS_BACKEND_VALUES = new Set(["ai-gateway", "rovodev", "dynamic"]);
 const getListeningPidsForPort = createListeningPidReader();
 
 function isTruthyFlag(value) {
@@ -326,6 +370,37 @@ function isTruthyFlag(value) {
 
 function isAIGatewayFallbackEnabled() {
 	return isTruthyFlag(process.env.AUTO_FALLBACK_TO_AI_GATEWAY);
+}
+
+function resolveSuggestionsBackendPreference() {
+	const rawValue = getNonEmptyString(process.env.SUGGESTIONS_BACKEND);
+	if (!rawValue) {
+		return SUGGESTIONS_BACKEND_DEFAULT;
+	}
+
+	const normalizedValue = rawValue.toLowerCase();
+	return SUGGESTIONS_BACKEND_VALUES.has(normalizedValue)
+		? normalizedValue
+		: SUGGESTIONS_BACKEND_DEFAULT;
+}
+
+function shouldPreferRovoDevForDynamicSuggestions() {
+	const poolStatus = _rovoDevPool?.getStatus?.();
+	if (!poolStatus || !Array.isArray(poolStatus.ports) || poolStatus.ports.length === 0) {
+		return false;
+	}
+
+	const totalPorts = poolStatus.ports.length;
+	const unhealthyCount = poolStatus.ports.filter((entry) => entry?.status === "unhealthy").length;
+	if (unhealthyCount > 0) {
+		return false;
+	}
+
+	const busyLikeCount = poolStatus.ports.filter(
+		(entry) => entry?.status === "busy" || entry?.status === "cooldown"
+	).length;
+	const utilization = busyLikeCount / totalPorts;
+	return utilization < 0.5;
 }
 
 function resolveGatewayUrlForProvider(envVars, preferredProvider, providedGatewayUrl) {
@@ -568,6 +643,7 @@ async function generateTextViaGateway({
 	signal,
 	allowFallback = false,
 	portIndex,
+	excludePinnedPorts,
 }) {
 	const backendSelection = await resolvePreferredBackend({ allowFallback });
 	if (backendSelection.backend === "rovodev") {
@@ -580,6 +656,7 @@ async function generateTextViaGateway({
 				timeoutMs: WAIT_FOR_TURN_TIMEOUT_MS,
 				signal,
 				portIndex,
+				excludePinnedPorts,
 			});
 		} catch (rovoDevError) {
 			const is409Timeout =
@@ -897,7 +974,10 @@ async function generateSmartGenuiResult({
 		prompt: conversationPrompt,
 		maxOutputTokens: 3500,
 		temperature: 0.3,
-		provider,
+		...buildSmartGenerationGatewayOptions({
+			provider,
+			excludePinnedPorts: true,
+		}),
 		gatewayUrl,
 	});
 
@@ -1606,24 +1686,8 @@ function normalizeQuestionOptions(value) {
 		.slice(0, CLARIFICATION_MAX_PRESET_OPTIONS);
 }
 
-function createFallbackQuestionOptions(questionLabel) {
-	return [
-		{
-			id: "option-1",
-			label: "Quick recommendation",
-			description: `Give a fast direction for "${questionLabel}".`,
-		},
-		{
-			id: "option-2",
-			label: "Balanced approach",
-			description: "Trade off speed and quality.",
-		},
-		{
-			id: "option-3",
-			label: "Detailed plan",
-			description: "Prioritize completeness and depth.",
-		},
-	];
+function createFallbackQuestionOptions() {
+	return [];
 }
 
 function getUniqueQuestionId(baseId, seenQuestionIds) {
@@ -1677,7 +1741,10 @@ function sanitizeQuestionCardPayload(payload, defaults = {}) {
 				return null;
 			}
 
-			const normalizedLabel = label.toLowerCase();
+			const truncatedLabel = label.length > CLARIFICATION_MAX_LABEL_LENGTH
+				? label.slice(0, CLARIFICATION_MAX_LABEL_LENGTH - 1) + "\u2026"
+				: label;
+			const normalizedLabel = truncatedLabel.toLowerCase();
 			if (seenLabels.has(normalizedLabel)) {
 				return null;
 			}
@@ -1687,13 +1754,13 @@ function sanitizeQuestionCardPayload(payload, defaults = {}) {
 			const options =
 				parsedOptions.length > 0
 					? parsedOptions
-					: createFallbackQuestionOptions(label);
+					: createFallbackQuestionOptions();
 			const baseQuestionId = getNonEmptyString(question.id) || `q-${index + 1}`;
 			const questionId = getUniqueQuestionId(baseQuestionId, seenQuestionIds);
 
 			return {
 				id: questionId,
-				label,
+				label: truncatedLabel,
 				description: getNonEmptyString(question.description) || undefined,
 				required: question.required !== false,
 				kind: "single-select",
@@ -1702,6 +1769,23 @@ function sanitizeQuestionCardPayload(payload, defaults = {}) {
 			};
 		})
 		.filter(Boolean);
+
+	// Safety net: if all questions share identical option sets, the AI likely
+	// generated generic meta-labels instead of question-specific answers.
+	// Strip the options so the UI falls back to free-text input only.
+	if (questions.length >= 2) {
+		const optionSignatures = questions
+			.filter((q) => q.options.length > 0)
+			.map((q) => q.options.map((o) => o.label.toLowerCase()).sort().join("|"));
+		const allIdentical = optionSignatures.length >= 2 &&
+			optionSignatures.every((sig) => sig === optionSignatures[0]);
+		if (allIdentical) {
+			for (const question of questions) {
+				question.options = [];
+			}
+		}
+	}
+
 	if (questions.length === 0) {
 		return null;
 	}
@@ -2441,62 +2525,6 @@ function parseJsonFromText(rawText) {
 	}
 }
 
-function createFallbackQuestionCardPayload({
-	sessionId,
-	round,
-	maxRounds,
-}) {
-	return {
-		type: CLARIFICATION_WIDGET_TYPE,
-		sessionId,
-		round,
-		maxRounds,
-		title: "Help me clarify what you need",
-		description: "Answer these questions so I can build a better plan.",
-		questions: [
-			{
-				id: "goal",
-				label: "What outcome do you want?",
-				description: "Describe the desired result in one or two sentences.",
-				required: true,
-				kind: "single-select",
-				options: [
-					{ id: "goal-fast", label: "Fast first draft", description: "Ship a quick, practical first version." },
-					{ id: "goal-balanced", label: "Balanced delivery", description: "Balance speed, quality, and scope." },
-					{ id: "goal-detailed", label: "Detailed rollout", description: "Provide a complete production-ready plan." },
-				],
-				placeholder: CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER,
-			},
-			{
-				id: "constraints",
-				label: "What constraints should I account for?",
-				description: "Include timeline, dependencies, or limits.",
-				required: true,
-				kind: "single-select",
-				options: [
-					{ id: "constraints-tight", label: "Tight deadline", description: "Prioritize speed and simple implementation." },
-					{ id: "constraints-balanced", label: "Balanced trade-offs", description: "Balance scope, risk, and timeline." },
-					{ id: "constraints-safety", label: "Quality and safety first", description: "Prioritize reliability and risk reduction." },
-				],
-				placeholder: CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER,
-			},
-			{
-				id: "risks",
-				label: "What risks or blockers are most important?",
-				description: "Pick the top concern for this effort.",
-				required: false,
-				kind: "single-select",
-				options: [
-					{ id: "scope", label: "Scope creep", description: "Requirements may keep expanding." },
-					{ id: "alignment", label: "Team alignment", description: "Stakeholders may not agree on priorities." },
-					{ id: "quality", label: "Quality regressions", description: "Changes could break existing behavior." },
-				],
-				placeholder: CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER,
-			},
-		],
-	};
-}
-
 function extractQuestionCardPayloadFromAssistantText(rawText, defaults = {}) {
 	const extractedPayload = extractQuestionCardDefinitionFromAssistantText(
 		rawText,
@@ -2559,11 +2587,17 @@ Rules:
 - At least 2 questions must be required.
 - Every question must be "single-select".
 - Every question must include 1-3 options.
+- Each option MUST be a specific, concrete answer to its question — not a generic category or meta-label.
 - Do not include a custom free-text option in the JSON options.
 - The UI automatically appends a "Tell Rovo what to do..." free-text field after the generated options.
 - Do not generate a plan or task list.
 - This is round ${round} of ${maxRounds}.
 - If previous answers are partial, ask only missing/high-impact follow-ups.
+
+Option quality:
+- BAD options (generic meta-labels): "Quick recommendation", "Balanced approach", "Detailed plan", "Basic", "Advanced"
+- GOOD options (specific answers): For "Which site?" → "Marketing site", "Developer docs", "Customer portal". For "What framework?" → "React", "Vue", "Angular".
+- Each option must directly answer the question it belongs to.
 
 Conversation context:
 ${conversationContext}
@@ -2617,19 +2651,7 @@ async function generateClarificationQuestionCard({
 		console.error("[CLARIFICATION] Gateway error:", error.message || error);
 	}
 
-	return sanitizeQuestionCardPayload(
-		createFallbackQuestionCardPayload({
-			latestUserMessage,
-			sessionId,
-			round,
-			maxRounds,
-		}),
-		{
-			sessionId,
-			round,
-			maxRounds,
-		}
-	);
+	return null;
 }
 
 function streamQuestionCardWidget({ res, payload, introText }) {
@@ -2687,6 +2709,7 @@ async function generateSuggestedQuestions({
 	message,
 	conversationHistory,
 	assistantResponse,
+	port,
 	portIndex,
 }) {
 	if (!assistantResponse || !assistantResponse.trim()) {
@@ -2699,20 +2722,78 @@ async function generateSuggestedQuestions({
 		assistantResponse
 	);
 
-	try {
-		const text = await generateTextViaGateway({
-			system: "You are a helpful assistant that generates follow-up questions.",
-			prompt: promptText,
-			maxOutputTokens: 200,
-			temperature: 0.7,
-			portIndex,
-		});
+	const backendPreference = resolveSuggestionsBackendPreference();
+	const useRovoDevFirst =
+		backendPreference === "rovodev" ||
+		(backendPreference === "dynamic" &&
+			shouldPreferRovoDevForDynamicSuggestions());
+	const backendsToTry = useRovoDevFirst
+		? ["rovodev", "ai-gateway"]
+		: ["ai-gateway", "rovodev"];
+	let lastError = null;
 
-		return parseSuggestedQuestions(text);
-	} catch (error) {
-		console.error("SUGGESTIONS gateway error:", error.message || error);
-		return [];
+	for (const backend of backendsToTry) {
+		if (backend === "ai-gateway") {
+			if (!hasGatewayUrlConfigured()) {
+				console.info("[SUGGESTIONS] Skipping AI Gateway (not configured)");
+				continue;
+			}
+
+			try {
+				const text = await aiGatewayProvider.generateText({
+					system: "You are a helpful assistant that generates follow-up questions.",
+					prompt: promptText,
+					maxOutputTokens: 200,
+					temperature: 0.7,
+				});
+				console.info("[SUGGESTIONS] Generated via AI Gateway");
+				return parseSuggestedQuestions(text);
+			} catch (error) {
+				lastError = normalizeAIGatewayError(error);
+				console.warn(
+					"[SUGGESTIONS] AI Gateway attempt failed, falling back",
+					lastError?.message || lastError
+				);
+				continue;
+			}
+		}
+
+		try {
+			// When a portIndex is provided, use the panel's own pinned port
+			// (it will be available after the stream releases and cooldown).
+			// Otherwise use the background pool with excludePinnedPorts.
+			const portOpts =
+				typeof portIndex === "number" && portIndex >= 0
+					? { portIndex }
+					: typeof port === "number" && port > 0
+						? { port }
+						: { excludePinnedPorts: true };
+			const text = await generateTextViaRovoDev({
+				system: "You are a helpful assistant that generates follow-up questions.",
+				prompt: promptText,
+				conflictPolicy: "wait-for-turn",
+				timeoutMs: WAIT_FOR_TURN_TIMEOUT_MS,
+				...portOpts,
+			});
+			console.info(
+				typeof portIndex === "number"
+					? `[SUGGESTIONS] Generated via RovoDev on pinned port index ${portIndex}`
+					: typeof port === "number" && port > 0
+						? `[SUGGESTIONS] Generated via RovoDev on port ${port}`
+						: "[SUGGESTIONS] Generated via RovoDev background pool"
+			);
+			return parseSuggestedQuestions(text);
+		} catch (error) {
+			lastError = error;
+			console.warn(
+				"[SUGGESTIONS] RovoDev attempt failed",
+				error instanceof Error ? error.message : error
+			);
+		}
 	}
+
+	console.error("SUGGESTIONS generation failed on all backends:", lastError?.message || lastError);
+	return [];
 }
 
 app.post("/api/chat-title", async (req, res) => {
@@ -2757,6 +2838,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 			clarification: rawClarification,
 			approval: rawApproval,
 			planMode: rawPlanMode,
+			planModeSource: rawPlanModeSource,
 			planRequestId,
 			creationMode,
 			smartGeneration: rawSmartGeneration,
@@ -2791,7 +2873,27 @@ app.post("/api/chat-sdk", async (req, res) => {
 			}
 		}
 		const hasQueuedPrompts = Boolean(rawHasQueuedPrompts);
-		const planMode = Boolean(rawPlanMode);
+
+		// Track the request timestamp for this portIndex so post-stream tasks
+		// (suggestions) can detect when a newer request has superseded this one.
+		const requestTimestamp = Date.now();
+		if (typeof portIndex === "number") {
+			portIndexRequestTimestamps.set(portIndex, requestTimestamp);
+		}
+
+		const resolvedPlanMode = resolvePlanMode({
+			planMode: rawPlanMode,
+			planModeSource: rawPlanModeSource,
+		});
+		const planMode = resolvedPlanMode.enabled;
+		if (resolvedPlanMode.rejected) {
+			console.info(
+				"[PLAN-MODE] Rejected plan mode request without trusted source",
+				{
+					source: resolvedPlanMode.source,
+				}
+			);
+		}
 
 		// If creationMode is set, load the instruction file and prepend to contextDescription
 		let contextDescription = rawContextDescription;
@@ -2954,8 +3056,11 @@ app.post("/api/chat-sdk", async (req, res) => {
 									prompt,
 									maxOutputTokens: 120,
 									temperature: 0,
-									provider: typeof provider === "string" ? provider : undefined,
-									signal,
+									...buildSmartGenerationGatewayOptions({
+										provider,
+										excludePinnedPorts: true,
+										signal,
+									}),
 								}),
 						});
 						console.info("[SMART-GENERATION] Intent classification", {
@@ -3022,7 +3127,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 								prompt: smartClarificationClassifierPrompt,
 								maxOutputTokens: 120,
 								temperature: 0,
-								provider: typeof provider === "string" ? provider : undefined,
+								...buildSmartGenerationGatewayOptions({
+									provider,
+									excludePinnedPorts: true,
+								}),
 							});
 							smartClarificationDecision = parseSmartClarificationClassifierOutput(
 								classifierText
@@ -3078,6 +3186,12 @@ app.post("/api/chat-sdk", async (req, res) => {
 				console.info("[SMART-GENERATION] Executing smart route", {
 					intent: smartIntentResult.intent,
 					forcedAudioRoute: forceSmartAudioRoute,
+					surface: smartGeneration.surface,
+					portIndex: typeof portIndex === "number" ? portIndex : null,
+					rovoPort:
+						typeof strictPortAssignment?.rovoPort === "number"
+							? strictPortAssignment.rovoPort
+							: null,
 				});
 				const roleMessages = mapUiMessagesToRoleContent(messages);
 					const stream = createUIMessageStream({
@@ -3261,7 +3375,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 							try {
 								const genuiResult = await generateSmartGenuiResult({
 									roleMessages,
-									provider: typeof provider === "string" ? provider : undefined,
+									provider,
 									layoutContext: smartLayoutContext,
 								});
 								const summaryText = getNonEmptyString(genuiResult.narrative);
@@ -4532,46 +4646,6 @@ app.post("/api/chat-sdk", async (req, res) => {
 							source: "backend",
 						},
 					});
-					let retryOccurred = false;
-					let lastConflictStatusAt = 0;
-					let lastConflictStatusMode = null;
-					const emitConflictWaitStatus = ({
-						conflictCount,
-						elapsedMs,
-						willCancel,
-					}) => {
-						const statusMode = willCancel ? "cancelling" : "waiting";
-						const now = Date.now();
-						if (
-							now - lastConflictStatusAt < 2500 &&
-							lastConflictStatusMode === statusMode
-						) {
-							return;
-						}
-						lastConflictStatusAt = now;
-						lastConflictStatusMode = statusMode;
-						const elapsedSeconds = Math.max(
-							1,
-							Math.floor((Number(elapsedMs) || 0) / 1000)
-						);
-						const elapsedLabel =
-							elapsedSeconds >= 60
-								? `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`
-								: `${elapsedSeconds}s`;
-						writer.write({
-							type: "data-thinking-status",
-							data: {
-								label: willCancel
-									? `Cancelling stale previous turn (${elapsedLabel})`
-									: `Waiting for previous turn (${elapsedLabel})`,
-								content: willCancel
-									? `Attempting recovery by cancelling the stale prior turn (retry ${conflictCount}).`
-									: `Still waiting for RovoDev to finish the prior turn (retry ${conflictCount}).`,
-								activity: "results",
-								source: "backend",
-							},
-						});
-					};
 					const toolFirstRetryLimit = toolFirstSoftRetryEnabled
 						? Math.max(toolFirstPolicy?.enforcement?.maxRelevantRetries ?? 0, 0)
 						: 0;
@@ -4593,9 +4667,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 								onTextDelta: handleStreamTextDelta,
 								onToolCallStart: emitRequestUserInputQuestionCard,
 								signal: abortController.signal,
-								timeoutMs: INTERACTIVE_CHAT_WAIT_TIMEOUT_MS,
-								cancelOnConflict: true,
-								cancelAfterMs: INTERACTIVE_CHAT_CONFLICT_CANCEL_AFTER_MS,
+								conflictPolicy: "wait-for-turn",
 								port: strictPortAssignment?.rovoPort,
 								portIndex,
 								onPortAcquired: (acquiredPort) => {
@@ -4646,28 +4718,57 @@ app.post("/api/chat-sdk", async (req, res) => {
 										data: sanitizedEvent,
 									});
 								},
-								onRetry: (() => {
-									let retryEmitted = false;
-									return () => {
-										retryOccurred = true;
-										if (retryEmitted) return;
-										retryEmitted = true;
-										const retryStatusId = `thinking-retry-${Date.now()}`;
-										writer.write({
-											type: "data-thinking-status",
-											id: retryStatusId,
-											data: {
-												label: "Retrying — another request is still in progress",
-												activity: "results",
-												source: "backend",
-											},
-										});
-									};
-								})(),
-								onRetryProgress: emitConflictWaitStatus,
 							});
 						} catch (rovoDevStreamError) {
-							if (rovoDevStreamError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT") {
+							if (rovoDevStreamError?.code === "ROVODEV_PORT_STUCK") {
+								// Port is stuck — inform user and restart immediately
+								const recoveryPort =
+									rovoDevStreamError.port ||
+									resolvedRovoDevPort ||
+									strictPortAssignment?.rovoPort;
+
+								handleStreamTextDelta(
+									"\n\n⚠️ This request couldn't be completed — the RovoDev port is stuck. Please try again."
+								);
+
+								if (typeof recoveryPort === "number" && recoveryPort > 0) {
+									writer.write({
+										type: "data-thinking-status",
+										data: {
+											label: "Restarting stuck port",
+											content: `RovoDev port ${recoveryPort} is being restarted.`,
+											activity: "results",
+											source: "backend",
+										},
+									});
+
+									try {
+										const recoveryResult = await restartRovoDevPort({
+											port: recoveryPort,
+											cancelChat: rovoDevCancelChat,
+											healthCheck: rovoDevHealthCheck,
+											getListeningPidsForPort,
+											refreshAvailability: refreshRovoDevAvailability,
+											timeoutMs: INTERACTIVE_CHAT_FORCE_PORT_RECOVERY_TIMEOUT_MS,
+										});
+										console.info("[CHAT-SDK] Port stuck recovery result", {
+											port: recoveryPort,
+											recovered: recoveryResult.recovered === true,
+											killedPids: recoveryResult.killedPids,
+											activePids: recoveryResult.activePids,
+											error: recoveryResult.error,
+										});
+									} catch (recoveryErr) {
+										console.error(
+											"[CHAT-SDK] Port restart failed:",
+											recoveryErr?.message || recoveryErr
+										);
+									}
+								}
+
+								// Exit the tool-first loop — no retry for stuck ports
+								shouldContinueToolFirstRetry = false;
+							} else if (rovoDevStreamError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT") {
 								streamTimedOut = true;
 								const resolvedRecoveryPort =
 									typeof resolvedRovoDevPort === "number" && resolvedRovoDevPort > 0
@@ -4821,16 +4922,6 @@ app.post("/api/chat-sdk", async (req, res) => {
 						currentToolFirstAttempt = nextAttempt;
 					}
 
-					if (retryOccurred) {
-						writer.write({
-							type: "data-thinking-status",
-							data: {
-								label: "Reconnected",
-								activity: "results",
-								source: "backend",
-							},
-						});
-					}
 
 				processTextBuffer(true);
 				maybeEmitProgressivePlanUpdate();
@@ -4851,7 +4942,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 							prompt: userMessageText,
 							maxOutputTokens: 1200,
 							temperature: 0.6,
-							provider: typeof provider === "string" ? provider : undefined,
+							...buildSmartGenerationGatewayOptions({
+								provider,
+							}),
 						});
 						const normalizedRetryText = getNonEmptyString(retryText);
 						if (
@@ -5023,7 +5116,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 								const genuiResult = await generateSmartGenuiResult({
 									roleMessages: roleMessagesForGenui,
-									provider: typeof provider === "string" ? provider : undefined,
+									provider,
 									layoutContext: smartLayoutContext,
 								});
 
@@ -5139,7 +5232,12 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 				}
 
-				if (!hasQueuedPrompts) {
+				// Skip suggestions if:
+				// 1. The original request had queued prompts, OR
+				// 2. A newer request has arrived for the same portIndex since this one started
+				const isStaleRequest = typeof portIndex === "number" &&
+					portIndexRequestTimestamps.get(portIndex) !== requestTimestamp;
+				if (!hasQueuedPrompts && !isStaleRequest) {
 					try {
 						const suggestedQuestions = await generateSuggestedQuestions({
 							message: latestUserMessage,
@@ -5155,7 +5253,8 @@ app.post("/api/chat-sdk", async (req, res) => {
 							});
 						}
 					} catch (error) {
-						console.error("Failed to stream suggested questions:", error);
+						// Suggestions are best-effort — log but don't fail the response
+						console.error("[SUGGESTIONS] Failed to generate:", error?.message || error);
 					}
 				}
 
@@ -5983,12 +6082,6 @@ const server = app.listen(port, "0.0.0.0", async () => {
 		`  INTERACTIVE_CHAT_FALLBACK: ${
 			INTERACTIVE_CHAT_FALLBACK_ENABLED ? "ENABLED" : "DISABLED"
 		}`
-	);
-	console.log(
-		`  INTERACTIVE_CHAT_WAIT_TIMEOUT_MS: ${INTERACTIVE_CHAT_WAIT_TIMEOUT_MS}`
-	);
-	console.log(
-		`  INTERACTIVE_CHAT_CONFLICT_CANCEL_AFTER_MS: ${INTERACTIVE_CHAT_CONFLICT_CANCEL_AFTER_MS}`
 	);
 	console.log(
 		`  INTERACTIVE_CHAT_FORCE_PORT_RECOVERY_MAX_ATTEMPTS: ${INTERACTIVE_CHAT_FORCE_PORT_RECOVERY_MAX_ATTEMPTS}`

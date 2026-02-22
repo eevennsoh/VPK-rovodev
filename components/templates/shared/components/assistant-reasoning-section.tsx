@@ -1,7 +1,9 @@
+import type { ReasoningPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
+import { getReasoningPropsForPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
 import {
 	Reasoning,
+	AdsReasoningTrigger,
 	ReasoningContent,
-	ReasoningTrigger,
 } from "@/components/ui-ai/reasoning";
 
 interface AssistantReasoningSectionProps {
@@ -11,13 +13,23 @@ interface AssistantReasoningSectionProps {
 export function AssistantReasoningSection({
 	reasoning,
 }: Readonly<AssistantReasoningSectionProps>): React.ReactElement {
+	const phase: ReasoningPhase = reasoning.isStreaming
+		? reasoning.text
+			? "streaming"
+			: "thinking"
+		: "completed";
+	const phaseProps = getReasoningPropsForPhase(phase, undefined, true);
+
 	return (
 		<Reasoning
 			className="px-6 pt-2"
-			defaultOpen={false}
-			isStreaming={reasoning.isStreaming}
+			defaultOpen={phaseProps.defaultOpen ?? false}
+			isStreaming={phaseProps.isStreaming}
+			streamingWave={phaseProps.streamingWave}
+			streamingWaveGradientColor={phaseProps.streamingWaveGradientColor}
+			animatedDots={phaseProps.animatedDots}
 		>
-			<ReasoningTrigger />
+			<AdsReasoningTrigger streaming={phaseProps.triggerStreaming} />
 			<ReasoningContent>{reasoning.text}</ReasoningContent>
 		</Reasoning>
 	);

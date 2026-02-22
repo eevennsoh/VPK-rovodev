@@ -165,12 +165,15 @@ export const UI_AI_DETAILS: Record<string, ComponentDetail> = {
 
 	"animated-rovo": {
 		description:
-			"An animated Rovo logo that combines floating, bouncing, dancing, and occasional spinning. Uses Motion for keyframe animation with configurable size and optional className.",
+			"An animated Rovo logo that combines floating, bouncing, dancing, and occasional spinning. Uses Motion for keyframe animation with configurable size, streaming mode, and transition controls.",
+		demoLayout: { previewContentWidth: "full" },
 		usage: `import { AnimatedRovo } from "@/components/ui-ai/animated-rovo";
 
 <AnimatedRovo.Root size={32} />
-<AnimatedRovo.Root size={64} className="mr-4" />
-<AnimatedRovo.Shape size={48} spring={{ type: "spring", duration: 1.5, bounce: 0.3 }} />`,
+<AnimatedRovo.Root size={64} streaming />
+<AnimatedRovo.Root size={64} fullSpinProbability={0.7} danceDistancePercent={14} />
+<AnimatedRovo.Root size={48} transition={{ type: "spring", duration: 1.5, bounce: 0.3 }} />
+<AnimatedRovo.Shape size={48} transition={{ type: "tween", duration: 2, ease: "linear" }} />`,
 		props: [
 			{
 				name: "size",
@@ -179,13 +182,36 @@ export const UI_AI_DETAILS: Record<string, ComponentDetail> = {
 				description: "Width and height of the logo in pixels.",
 			},
 			{
+				name: "streaming",
+				type: "boolean",
+				default: "false",
+				description: "When true, outer pendulum/bounce/spin animations settle to rest while the inner color wheel keeps rotating.",
+			},
+			{
+				name: "fullSpinProbability",
+				type: "number",
+				default: "0.35",
+				description: "Probability from 0 to 1 that the next sporadic spin cycle will be a full 360-degree rotation.",
+			},
+			{
+				name: "danceDistancePercent",
+				type: "number",
+				default: "8",
+				description: "Vertical dance amplitude as a percentage of component size (clamped to 0-100).",
+			},
+			{
+				name: "transition",
+				type: "AnimatedRovoShapeTransition",
+				description: "Transition config for the inner color-wheel rotation. Supports type (spring | tween), duration, ease (linear | easeInOut | circIn | circOut), and bounce (0\u20131, spring only).",
+			},
+			{
 				name: "className",
 				type: "string",
 				description: "Additional CSS classes applied to the wrapper.",
 			},
 		],
 		examples: [
-			{ title: "Sizes", description: "Animated Rovo at 48px, 64px, and 128px.", demoSlug: "animated-rovo-demo" },
+			{ title: "Interactive", description: "Control all AnimatedRovo props with GUI sliders and toggles.", demoSlug: "animated-rovo-demo" },
 		],
 	},
 
@@ -1227,34 +1253,22 @@ import AddIcon from "@atlaskit/icon/core/add";
 
 	reasoning: {
 		description:
-			"A collapsible reasoning/thinking indicator that auto-opens when streaming begins and auto-closes when complete. Both triggers use Rovo logo, shimmer text, and animated color dots (optional), with optional wave motion during streaming via root props — the default ReasoningTrigger always shows a chevron, while AdsReasoningTrigger supports an optional chevron.",
+			"A collapsible reasoning/thinking indicator that auto-opens when streaming begins and auto-closes when complete. Triggers use AnimatedRovo (bouncy in thinking mode, calm in streaming mode), shimmer text, and animated color dots (optional). Pass streaming to the trigger to settle the AnimatedRovo while the inner color wheel keeps spinning.",
 		usage: `import {
   Reasoning,
-  ReasoningTrigger,
   ReasoningContent,
   AdsReasoningTrigger,
 } from "@/components/ui-ai/reasoning";
 
-// Default trigger (Rovo logo + shimmer + dots + chevron)
+// Thinking state — AnimatedRovo bounces
 <Reasoning isStreaming={isStreaming}>
-  <ReasoningTrigger />
+  <AdsReasoningTrigger />
   <ReasoningContent>{reasoningText}</ReasoningContent>
 </Reasoning>
 
-// ADS-styled trigger (optional chevron)
+// Streaming state — AnimatedRovo settles, only inner wheel spins
 <Reasoning isStreaming={isStreaming}>
-  <AdsReasoningTrigger showChevron={false} />
-  <ReasoningContent>{reasoningText}</ReasoningContent>
-</Reasoning>
-
-// Add wave motion on top of shimmer while streaming
-<Reasoning
-  isStreaming={isStreaming}
-  streamingWave
-  streamingWaveGradientColor={["#1868db", "#bf63f3", "#fca700"]}
-  animatedDots={false}
->
-  <AdsReasoningTrigger showChevron={false} />
+  <AdsReasoningTrigger streaming />
   <ReasoningContent>{reasoningText}</ReasoningContent>
 </Reasoning>`,
 		props: [
@@ -1318,12 +1332,9 @@ import AddIcon from "@atlaskit/icon/core/add";
 			{ name: "ReasoningContent", description: "Collapsible content area rendering reasoning text via Streamdown." },
 		],
 		examples: [
-			{ title: "ADS streaming", description: "ADS trigger with Rovo logo, shimmer, dots, and chevron in streaming state.", demoSlug: "reasoning-demo-ads-streaming" },
-			{ title: "ADS streaming + wave", description: "ADS indicator-style trigger with gradient wave shimmer using default wave timing, without dots or chevron.", demoSlug: "reasoning-demo-ads-streaming-wave" },
-			{ title: "ADS completed", description: "ADS trigger showing completed state with duration.", demoSlug: "reasoning-demo-ads-completed" },
-			{ title: "ADS indicator", description: "ADS trigger without chevron, matching ThinkingIndicator visual.", demoSlug: "reasoning-demo-ads-indicator" },
-			{ title: "Default streaming", description: "Default BrainIcon trigger in streaming state.", demoSlug: "reasoning-demo-streaming" },
-			{ title: "Custom label", description: "ADS trigger with custom label text.", demoSlug: "reasoning-demo-custom-label" },
+			{ title: "Thinking", description: "Bouncy AnimatedRovo with gradient wave shimmer and \"Rovo is cooking\" label.", demoSlug: "reasoning-demo-thinking" },
+			{ title: "Streaming", description: "Calm AnimatedRovo with chevron and expanded tool call timeline.", demoSlug: "reasoning-demo-streaming" },
+			{ title: "Completed", description: "Completed state showing duration and static Rovo icon.", demoSlug: "reasoning-demo-completed" },
 		],
 	},
 
@@ -1554,6 +1565,145 @@ import { CodeBlock } from "@/components/ui-ai/code-block";
 			{ title: "With selection", description: "Interactive file tree with controlled selection state.", demoSlug: "file-tree-demo-with-selection" },
 			{ title: "Custom icons", description: "File-type-specific icons for code, image, JSON, and text files.", demoSlug: "file-tree-demo-custom-icons" },
 			{ title: "With actions", description: "File rows with inline copy, download, and delete action buttons.", demoSlug: "file-tree-demo-with-actions" },
+		],
+	},
+
+	"generative-card": {
+		description:
+			"A collapsible AI result card with branded source media, summary metadata, preview content, and footer actions for generated artifacts.",
+		usage: `import {
+  GenerativeCard,
+  GenerativeCardHeader,
+  GenerativeCardBody,
+  GenerativeCardContent,
+  GenerativeCardPreview,
+  GenerativeCardFooter,
+} from "@/components/ui-ai/generative-card";
+import { Tile } from "@/components/ui/tile";
+import { Button } from "@/components/ui/button";
+
+<GenerativeCard className="max-w-[380px]">
+  <GenerativeCardHeader
+    title="Schedule meeting"
+    description="Google Calendar"
+    leading={<Tile label="Google Calendar" size="medium" variant="transparent" isInset={false} />}
+  />
+  <GenerativeCardBody>
+    <GenerativeCardContent>
+      <GenerativeCardPreview>Generated content preview</GenerativeCardPreview>
+    </GenerativeCardContent>
+    <GenerativeCardFooter>
+      <Button variant="outline">Open preview</Button>
+    </GenerativeCardFooter>
+  </GenerativeCardBody>
+</GenerativeCard>`,
+		demoLayout: {
+			previewContentWidth: "full",
+			examplesContentWidth: "full",
+		},
+		props: [
+			{
+				name: "defaultExpanded",
+				type: "boolean",
+				default: "true",
+				description: "Initial expanded state when used uncontrolled.",
+			},
+			{
+				name: "expanded",
+				type: "boolean",
+				description: "Controlled expanded state.",
+			},
+			{
+				name: "onExpandedChange",
+				type: "(expanded: boolean) => void",
+				description: "Callback fired when expand/collapse state changes.",
+			},
+			{
+				name: "animate",
+				type: "boolean",
+				default: "false",
+				description: "When true, plays a one-shot WebGL bulge distortion entrance animation with Rovo color fringe glow and shimmer border.",
+			},
+			{
+				name: "animateDuration",
+				type: "number",
+				default: "820",
+				description: "Duration of the entrance animation in milliseconds.",
+			},
+			{
+				name: "animateDistortionScale",
+				type: "number",
+				default: "112",
+				description: "Maximum WebGL displacement scale used by the sweep effect. Increase for a stronger distortion.",
+			},
+			{
+				name: "animateBlur",
+				type: "number",
+				default: "2.4",
+				description: "Maximum blur amount applied inside the moving distortion band.",
+			},
+			{
+				name: "animateRadius",
+				type: "number",
+				default: "0.2",
+				description: "Distortion radius mapped to moving band height (0-1). Higher values distort a thicker region.",
+			},
+			{
+				name: "animateSpeed",
+				type: "number",
+				default: "1",
+				description: "Sweep playback speed multiplier. Higher values move the distortion band from top to bottom faster.",
+			},
+			{
+				name: "animateScaleSmoothing",
+				type: "number",
+				default: "0.46",
+				description: "Smoothing factor (0-1) for displacement scale changes. Higher values react faster.",
+			},
+			{
+				name: "animateSweepSmoothing",
+				type: "number",
+				default: "0.44",
+				description: "Smoothing factor (0-1) for vertical sweep movement. Higher values react faster.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional classes applied to the card root.",
+			},
+			{
+				name: "borderEffect",
+				type: '"shimmer" | "trace" | false',
+				default: "false",
+				description: "Border effect style: \"shimmer\" fills the border uniformly, \"trace\" shows a concentrated arc comet traveling the perimeter with an interior mesh gradient glow.",
+			},
+			{
+				name: "borderEffectDuration",
+				type: "number",
+				description: "Duration of the border effect cycle in milliseconds. Defaults to 1750 for shimmer, 2400 for trace.",
+			},
+			{
+				name: "borderEffectArcWidth",
+				type: "number",
+				default: "90",
+				description: "Trace only — angular width of the visible arc in degrees.",
+			},
+		],
+		subComponents: [
+			{ name: "GenerativeCardHeader", description: "Header row with leading media, title, description, and built-in collapse toggle." },
+			{ name: "GenerativeCardBody", description: "Animated collapsible container for card details." },
+			{ name: "GenerativeCardContent", description: "Body content section with default paddings for previews." },
+			{ name: "GenerativeCardPreview", description: "Preview placeholder surface for generated output." },
+			{ name: "GenerativeCardFooter", description: "Footer actions row aligned to the end. Accepts an optional `action` prop for a primary action button." },
+		],
+		examples: [
+			{ title: "3P source", description: "Generative card with third-party source branding.", demoSlug: "generative-card-demo-3p" },
+			{ title: "Atlassian source", description: "Generative card with Atlassian product branding.", demoSlug: "generative-card-demo-1p" },
+			{ title: "Icon source", description: "Generative card with a semantic icon tile source.", demoSlug: "generative-card-demo-icon" },
+			{ title: "With action", description: "Footer with a primary action button (e.g. Send) alongside the preview button.", demoSlug: "generative-card-demo-action" },
+			{ title: "Distortion effect", description: "One-shot WebGL bulge distortion entrance with Rovo color fringe glow and shimmer border.", demoSlug: "generative-card-demo-animated" },
+			{ title: "Border trace", description: "One-shot gradient comet tracing the card perimeter with a smooth fade-out and replay control.", demoSlug: "generative-card-demo-trace" },
+			{ title: "Inner glow", description: "Contained CSS mesh-like inner edge glow without the border trace effect.", demoSlug: "generative-card-demo-inner-glow" },
 		],
 	},
 
@@ -2297,6 +2447,7 @@ const edgeTypes = {
 	},
 
 	shimmer: {
+		demoLayout: { previewContentWidth: "full" },
 		description:
 			"An animated text shimmer effect that sweeps across content, ideal for indicating loading states or drawing attention to dynamic content in AI applications. Supports optional wave motion with full geometry, timing, and color controls inspired by Motion Primitives.",
 		usage: `import { Shimmer } from "@/components/ui-ai/shimmer";

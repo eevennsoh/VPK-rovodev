@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { getThinkingToolCallSummaries } from "@/lib/rovo-ui-messages";
+import type { ReasoningPhaseProps } from "@/components/templates/shared/hooks/use-reasoning-phase";
 import { Message } from "@/components/ui-ai/message";
 import {
 	AdsReasoningTrigger,
@@ -23,10 +24,10 @@ interface StreamingThinkingIndicatorProps {
 	thinkingToolCalls: ReturnType<typeof getThinkingToolCallSummaries>;
 	lastMessageId?: string;
 	containerStyle?: React.CSSProperties;
+	phaseProps: ReasoningPhaseProps;
 }
 
 export function StreamingThinkingIndicator({
-	isStreaming,
 	streamingReasoningKey,
 	resolvedThinkingLabel,
 	hasThinkingDetails,
@@ -36,6 +37,7 @@ export function StreamingThinkingIndicator({
 	thinkingToolCalls,
 	lastMessageId,
 	containerStyle,
+	phaseProps,
 }: Readonly<StreamingThinkingIndicatorProps>): ReactNode {
 	return (
 		<div style={containerStyle}>
@@ -43,11 +45,19 @@ export function StreamingThinkingIndicator({
 				<Reasoning
 					key={streamingReasoningKey}
 					className="mb-0"
-					isStreaming={isStreaming}
+					isStreaming={phaseProps.isStreaming}
+					streamingWave={phaseProps.streamingWave}
+					streamingWaveGradientColor={
+						phaseProps.streamingWaveGradientColor
+					}
+					animatedDots={phaseProps.animatedDots}
+					duration={phaseProps.duration}
+					defaultOpen={phaseProps.defaultOpen ?? hasThinkingDetails}
 				>
 					<AdsReasoningTrigger
 						label={resolvedThinkingLabel}
 						showChevron={hasThinkingDetails}
+						streaming={phaseProps.triggerStreaming}
 					/>
 					{hasThinkingDetails ? (
 						<ReasoningContent>

@@ -8,6 +8,12 @@ import {
 	type RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
 import { useDynamicThinkingLabel } from "@/components/templates/shared/hooks/use-dynamic-thinking-label";
+import {
+	useReasoningPhase,
+	getReasoningPropsForPhase,
+	type ReasoningPhase,
+	type ReasoningPhaseProps,
+} from "@/components/templates/shared/hooks/use-reasoning-phase";
 
 interface UseStreamingIndicatorOptions {
 	isStreaming: boolean;
@@ -30,6 +36,8 @@ export interface StreamingIndicatorState {
 	hasDetails: boolean;
 	thinkingToolCalls: ReturnType<typeof getThinkingToolCallSummaries>;
 	lastSourceMessageId?: string;
+	reasoningPhase: ReasoningPhase;
+	reasoningPhaseProps: ReasoningPhaseProps;
 }
 
 export function useStreamingIndicatorState(
@@ -101,6 +109,7 @@ export function useStreamingIndicatorState(
 		baseLabel: thinkingStatusPart?.data.label ?? thinkingLabel,
 		isStreaming: shouldShow,
 		updateSignal: thinkingStatusUpdateSignal,
+		fallbackLabel: thinkingLabel,
 	});
 
 	const resolvedContent = hasThinkingStatus
@@ -118,17 +127,41 @@ export function useStreamingIndicatorState(
 	const trimmedContent = resolvedContent?.trim() ?? "";
 	const hasContent = trimmedContent.length > 0;
 	const hasToolCalls = thinkingToolCalls.length > 0;
+	const hasDetails = hasContent || hasToolCalls;
+
+	const reasoningKey = lastSource?.id ?? "stream";
+	const hasMessageText =
+		hasThinkingStatus ||
+		(sourceMessages.length > 0 &&
+			lastSource?.role === "assistant" &&
+			getMessageText(lastSource) !== "");
+
+	const { phase: reasoningPhase, duration: reasoningDuration } =
+		useReasoningPhase({
+			isStreaming,
+			hasMessageText,
+			responseKey: reasoningKey,
+			autoIdle: true,
+		});
+
+	const reasoningPhaseProps = getReasoningPropsForPhase(
+		reasoningPhase,
+		reasoningDuration,
+		hasDetails
+	);
 
 	return {
-		shouldShow,
+		shouldShow: shouldShow || reasoningPhase === "completed",
 		resolvedLabel,
-		reasoningKey: lastSource?.id ?? "stream",
+		reasoningKey,
 		shouldUseExpanded: streamingIndicatorVariant === "reasoning-expanded",
 		trimmedContent,
 		hasContent,
 		hasToolCalls,
-		hasDetails: hasContent || hasToolCalls,
+		hasDetails,
 		thinkingToolCalls,
 		lastSourceMessageId: lastSource?.id,
+		reasoningPhase,
+		reasoningPhaseProps,
 	};
 }

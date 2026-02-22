@@ -40,7 +40,8 @@ const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 30_000;
  * @param {number[]} ports - Array of port numbers to manage
  * @param {object} [options]
  * @param {number} [options.healthCheckIntervalMs] - Interval between health checks (default 30s)
- * @param {number} [options.cooldownMs] - Delay before marking a released port as available (default 0)
+ * @param {number} [options.cooldownMs] - Delay before marking a released port as available (default 0). Used as fallback if waitForReady is not provided.
+ * @param {(port: number) => Promise<void>} [options.waitForReady] - Async function that resolves when a port is ready for new requests. Replaces the blind cooldownMs timer with a deterministic readiness check.
  * @returns {{
  *   acquire: (opts?: { timeoutMs?: number; signal?: AbortSignal }) => Promise<PortHandle>;
  *   acquireExcluding: (excludedIndices: number[], opts?: { timeoutMs?: number; signal?: AbortSignal }) => Promise<PortHandle>;
@@ -55,6 +56,7 @@ function createRovoDevPool(ports, options = {}) {
 	const {
 		healthCheckIntervalMs = DEFAULT_HEALTH_CHECK_INTERVAL_MS,
 		cooldownMs = 0,
+		waitForReady,
 	} = options;
 
 	/** @type {PortEntry[]} */
@@ -84,7 +86,16 @@ function createRovoDevPool(ports, options = {}) {
 			return;
 		}
 
-		const entry = entries.find((e) => e.status === "available");
+		// Find an available port that does NOT have an indexed waiter pending.
+		// This prevents generic/background tasks from stealing ports that are
+		// reserved for specific panels (e.g., multiports demo).
+		const entry = entries.find((e, i) => {
+			if (e.status !== "available") {
+				return false;
+			}
+			// Skip this port if an indexed waiter is waiting for it specifically
+			return !indexedWaiters.some((w) => w.targetIndex === i);
+		});
 		if (!entry) {
 			return;
 		}
@@ -115,10 +126,15 @@ function createRovoDevPool(ports, options = {}) {
 					tryNotifyWaiter();
 				};
 
-				if (cooldownMs > 0) {
-					// Keep port in "busy" state briefly so rovodev serve can
-					// finish clearing its internal turn state before we hand
-					// the port to the next caller.
+				if (typeof waitForReady === "function") {
+					entry.status = "cooldown";
+					waitForReady(entry.port).then(makeAvailable, () => {
+						// Readiness check failed — mark unhealthy so the
+						// periodic health check recovers it later.
+						entry.status = "unhealthy";
+						entry.acquiredAt = null;
+					});
+				} else if (cooldownMs > 0) {
 					entry.status = "cooldown";
 					setTimeout(makeAvailable, cooldownMs);
 				} else {
@@ -174,6 +190,12 @@ function createRovoDevPool(ports, options = {}) {
 			return;
 		}
 
+		// Guard: don't hand this port to an excluding waiter if an indexed
+		// waiter is pending for it — indexed (panel) waiters have priority.
+		if (indexedWaiters.some((w) => w.targetIndex === entryIndex)) {
+			return;
+		}
+
 		const waiterIdx = excludingWaiters.findIndex(
 			(w) => !w.excludedIndices.has(entryIndex)
 		);
@@ -186,6 +208,31 @@ function createRovoDevPool(ports, options = {}) {
 
 		const waiter = excludingWaiters.splice(waiterIdx, 1)[0];
 		waiter.resolve(createHandle(releasedEntry));
+	}
+
+	// ── Drain indexed waiters ───────────────────────────────────────────
+
+	/**
+	 * Reject all pending indexed waiters targeting a specific port index.
+	 * Used when a port is stuck to cancel all queued requests waiting for it.
+	 *
+	 * @param {number} index - Zero-based index into the pool
+	 * @returns {number} Number of waiters that were drained
+	 */
+	function drainIndexedWaiters(index) {
+		let drained = 0;
+		for (let i = indexedWaiters.length - 1; i >= 0; i--) {
+			if (indexedWaiters[i].targetIndex === index) {
+				const waiter = indexedWaiters.splice(i, 1)[0];
+				const err = new Error(
+					`RovoDev port at index ${index} is stuck — request cancelled`
+				);
+				err.code = "ROVODEV_PORT_STUCK";
+				waiter.reject(err);
+				drained++;
+			}
+		}
+		return drained;
 	}
 
 	// ── Acquire by index ────────────────────────────────────────────────
@@ -333,13 +380,14 @@ function createRovoDevPool(ports, options = {}) {
 
 		const excluded = new Set(excludedIndices);
 
-		// Fast path — grab an available non-excluded port immediately
+		// Fast path — grab an available non-excluded port that doesn't have
+		// an indexed waiter pending for it.
 		for (let i = 0; i < entries.length; i++) {
 			if (excluded.has(i)) {
 				continue;
 			}
 			const entry = entries[i];
-			if (entry.status === "available") {
+			if (entry.status === "available" && !indexedWaiters.some((w) => w.targetIndex === i)) {
 				entry.status = "busy";
 				entry.acquiredAt = Date.now();
 				return Promise.resolve(createHandle(entry));
@@ -431,8 +479,13 @@ function createRovoDevPool(ports, options = {}) {
 			return Promise.reject(new Error("Pool is shutting down"));
 		}
 
-		// Fast path — grab an available port immediately
-		const entry = entries.find((e) => e.status === "available");
+		// Fast path — grab an available port that doesn't have an indexed waiter
+		const entry = entries.find((e, i) => {
+			if (e.status !== "available") {
+				return false;
+			}
+			return !indexedWaiters.some((w) => w.targetIndex === i);
+		});
 		if (entry) {
 			entry.status = "busy";
 			entry.acquiredAt = Date.now();
@@ -633,7 +686,7 @@ function createRovoDevPool(ports, options = {}) {
 		}
 	}
 
-	return { acquire, acquireExcluding, acquireByIndex, acquireByPort, updatePorts, getStatus, shutdown };
+	return { acquire, acquireExcluding, acquireByIndex, acquireByPort, drainIndexedWaiters, updatePorts, getStatus, shutdown };
 }
 
 module.exports = { createRovoDevPool };

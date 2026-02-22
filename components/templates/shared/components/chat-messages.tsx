@@ -116,7 +116,7 @@ export function ChatMessages({
 	isStreaming = false,
 	isSubmitPending = false,
 	messageMode = "plan",
-	thinkingLabel = "Thinking",
+	thinkingLabel = "Rovo is cooking",
 	reasoningContent,
 	streamingIndicatorVariant = "thinking",
 	streamingIndicatorMessages,
@@ -248,7 +248,12 @@ export function ChatMessages({
 							<Reasoning
 								key={indicator.reasoningKey}
 								className="mb-0"
-								isStreaming={indicator.shouldShow}
+								isStreaming={indicator.reasoningPhaseProps.isStreaming}
+								streamingWave={indicator.reasoningPhaseProps.streamingWave}
+								streamingWaveGradientColor={indicator.reasoningPhaseProps.streamingWaveGradientColor}
+								animatedDots={indicator.reasoningPhaseProps.animatedDots}
+								duration={indicator.reasoningPhaseProps.duration}
+								defaultOpen={indicator.reasoningPhaseProps.defaultOpen ?? (indicator.shouldUseExpanded && indicator.hasDetails)}
 							>
 								<AdsReasoningTrigger
 									label={indicator.resolvedLabel}
@@ -256,6 +261,7 @@ export function ChatMessages({
 										indicator.shouldUseExpanded &&
 										indicator.hasDetails
 									}
+									streaming={indicator.reasoningPhaseProps.triggerStreaming}
 								/>
 								{indicator.shouldUseExpanded && indicator.hasDetails ? (
 									<ReasoningContent>

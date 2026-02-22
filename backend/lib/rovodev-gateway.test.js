@@ -225,3 +225,37 @@ test("retryChatInProgress does not cancel when cancelOnConflict is disabled", as
 	assert.equal(cancelCalls, 0);
 	assert.ok(retryProgress.every((status) => status?.willCancel === false));
 });
+
+test("retryChatInProgress throttles consecutive cancel calls by cancelMinIntervalMs", async () => {
+	let attempts = 0;
+	const cancelTimestamps = [];
+
+	await retryChatInProgress(
+		async () => {
+			attempts += 1;
+			if (attempts <= 6) {
+				const conflictError = new Error("chat already in progress");
+				conflictError.status = 409;
+				conflictError.endpoint = "/v3/stream_chat";
+				throw conflictError;
+			}
+			return "ok";
+		},
+		{
+			logPrefix: "retryChatInProgress.test.throttle",
+			timeoutMs: 8000,
+			cancelOnConflict: true,
+			cancelAfterMs: 0,
+			cancelMinIntervalMs: 500,
+			cancelConflictTurn: async () => {
+				cancelTimestamps.push(Date.now());
+			},
+		}
+	);
+
+	assert.ok(cancelTimestamps.length >= 2, "expected at least 2 cancel calls");
+	for (let i = 1; i < cancelTimestamps.length; i++) {
+		const gap = cancelTimestamps[i] - cancelTimestamps[i - 1];
+		assert.ok(gap >= 400, `cancel gap ${gap}ms was shorter than throttle interval`);
+	}
+});

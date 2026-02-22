@@ -21,6 +21,10 @@ export function DocHero({ name, description, category, importPath, adsLinks, ads
 			: adsUrl
 				? [{ href: adsUrl, label: adsPackage ?? "Atlassian Design System" }]
 				: [];
+	const importPaths = importPath
+		.split("\n")
+		.map(path => path.trim())
+		.filter(Boolean);
 
 	return (
 		<div
@@ -91,15 +95,18 @@ export function DocHero({ name, description, category, importPath, adsLinks, ads
 					gap: token("space.075"),
 				}}
 			>
-				<code
-					style={{
-						fontSize: "13px",
-						color: token("color.text.subtlest"),
-						fontFamily: "monospace",
-					}}
-				>
-					{importPath}
-				</code>
+				{importPaths.map(path => (
+					<code
+						key={path}
+						style={{
+							fontSize: "13px",
+							color: token("color.text.subtlest"),
+							fontFamily: "monospace",
+						}}
+					>
+						{path}
+					</code>
+				))}
 				{resolvedAdsLinks.map(link => (
 					<a
 						key={link.href}

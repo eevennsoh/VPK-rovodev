@@ -141,6 +141,15 @@ function shouldGatePlanningQuestionCard({
 		if (isConversationalMessage(latestVisibleUserMessage.text)) {
 			return false;
 		}
+
+		if (typeof detectPlanningIntent !== "function") {
+			return false;
+		}
+
+		if (!detectPlanningIntent(latestVisibleUserMessage.text)) {
+			return false;
+		}
+
 		return !hasCompletedPlan;
 	}
 

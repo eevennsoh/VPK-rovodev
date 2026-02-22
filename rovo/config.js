@@ -16,6 +16,7 @@ const REQUEST_USER_INPUT_INSTRUCTION = [
 	"[Clarification Protocol]",
 	"When you need to ask the user clarifying questions before proceeding (e.g. to gather requirements, preferences, or missing details), you MUST use the `request_user_input` tool instead of writing questions as plain text.",
 	"The tool renders an interactive question card in the UI. Provide 2–4 questions, each with a short label, description, and 1–3 predefined options. The UI automatically appends a free-text option.",
+	"Each option must be a specific, concrete answer to its question (e.g. site names, technologies, team names) — never generic labels like \"Quick\", \"Balanced\", or \"Detailed\".",
 	"Only skip the tool when you are asking a single simple yes/no follow-up or making a casual conversational remark.",
 	"[End Clarification Protocol]",
 ].join("\n");

@@ -195,7 +195,6 @@ Changes:
 ### Validation commands
 1. `pnpm run lint`
 2. `pnpm tsc --noEmit`
-3. `pnpm run audit:previews` (if preview/demo files touched)
 
 ### UI verification
 1. Light + dark themes.

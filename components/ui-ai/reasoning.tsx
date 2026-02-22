@@ -18,7 +18,7 @@ import { mermaid } from "@streamdown/mermaid";
 import RovoIconGlyph from "@atlaskit/icon-lab/core/rovo";
 import { ChevronDownIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import Image from "next/image";
+
 import {
 	createContext,
 	memo,
@@ -39,7 +39,6 @@ interface ReasoningContextValue {
 	isStreaming: boolean;
 	streamingWave: boolean;
 	animatedDots: boolean;
-	animatedRovo: boolean;
 	streamingWaveGradientColor?: string | readonly string[];
 	streamingWaveDuration?: number;
 	streamingWaveSpread?: number;
@@ -64,7 +63,6 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
 	isStreaming?: boolean;
 	streamingWave?: boolean;
 	animatedDots?: boolean;
-	animatedRovo?: boolean;
 	streamingWaveGradientColor?: string | readonly string[];
 	streamingWaveDuration?: number;
 	streamingWaveSpread?: number;
@@ -163,7 +161,6 @@ export const Reasoning = memo(
 		isStreaming = false,
 		streamingWave = false,
 		animatedDots = true,
-		animatedRovo = false,
 		streamingWaveGradientColor,
 			streamingWaveDuration,
 			streamingWaveSpread,
@@ -291,7 +288,6 @@ export const Reasoning = memo(
 		const contextValue = useMemo(
 			() => ({
 				animatedDots,
-				animatedRovo,
 				duration,
 				isOpen,
 				isStreaming,
@@ -305,7 +301,6 @@ export const Reasoning = memo(
 				}),
 				[
 					animatedDots,
-					animatedRovo,
 				duration,
 				handleTimelineEntryCountChange,
 				isOpen,
@@ -335,6 +330,27 @@ export const Reasoning = memo(
 );
 
 const COMPLETED_STATUS_PREFIXES = ["used", "completed"] as const;
+const ROVO_COOKING_SHIMMER_PROPS = {
+	duration: 1,
+	spread: 1.4,
+	xDistance: 0,
+	yDistance: 2.4,
+	zDistance: 0,
+	scaleDistance: 1,
+	rotateYDistance: 0,
+	transition: { ease: "easeInOut", repeatDelay: 0.1 },
+} as const;
+const REASONING_ANIMATED_ROVO_PROPS = {
+	size: 16,
+	streaming: false,
+	fullSpinProbability: 0.6,
+	danceDistancePercent: 8,
+	transition: {
+		type: "tween",
+		duration: 2,
+		ease: "linear",
+	},
+} as const;
 
 /** Strip trailing dots/ellipsis from a label since animated dots are appended separately. */
 const stripTrailingDots = (label: string) => label.replace(/\.+$/, "");
@@ -353,42 +369,37 @@ function StreamingReasoningLabel({
 	label,
 	streamingWave,
 	animatedDots,
-	animatedRovo,
 	streamingWaveGradientColor,
 	streamingWaveDuration,
 	streamingWaveSpread,
 }: Readonly<{
 	label: string;
+	streaming?: boolean;
 	streamingWave: boolean;
 	animatedDots: boolean;
-	animatedRovo: boolean;
 	streamingWaveGradientColor?: string | readonly string[];
 	streamingWaveDuration?: number;
 	streamingWaveSpread?: number;
 }>): ReactNode {
 	const renderedLabel = animatedDots ? stripTrailingDots(label) : label;
 
-	return (
-		<>
-			{animatedRovo ? (
-				<AnimatedRovo.Root size={16} />
-			) : (
-				<Image
-					alt=""
-					height={20}
-					src="/loading/rovo-logo.gif"
-					unoptimized
-					width={20}
-				/>
-			)}
-			<span className="flex min-w-0 items-baseline">
+		return (
+			<>
+				<AnimatedRovo.Root {...REASONING_ANIMATED_ROVO_PROPS} />
+				<span className="flex min-w-0 items-baseline">
 				<Shimmer
 					baseGradientColor={streamingWaveGradientColor}
 					as="span"
 					className="min-w-0 truncate"
-					duration={streamingWaveDuration ?? 1}
-					spread={streamingWaveSpread}
+					duration={streamingWaveDuration ?? ROVO_COOKING_SHIMMER_PROPS.duration}
+					spread={streamingWaveSpread ?? ROVO_COOKING_SHIMMER_PROPS.spread}
 					wave={streamingWave}
+					xDistance={ROVO_COOKING_SHIMMER_PROPS.xDistance}
+					yDistance={ROVO_COOKING_SHIMMER_PROPS.yDistance}
+					zDistance={ROVO_COOKING_SHIMMER_PROPS.zDistance}
+					scaleDistance={ROVO_COOKING_SHIMMER_PROPS.scaleDistance}
+					rotateYDistance={ROVO_COOKING_SHIMMER_PROPS.rotateYDistance}
+					transition={ROVO_COOKING_SHIMMER_PROPS.transition}
 				>
 					{renderedLabel}
 				</Shimmer>
@@ -403,6 +414,7 @@ export type ReasoningTriggerProps = ComponentProps<
 > & {
 	label?: string;
 	completedLabel?: (duration?: number) => ReactNode;
+	streaming?: boolean;
 };
 
 const defaultReasoningCompletedLabel = (duration?: number) => {
@@ -418,6 +430,7 @@ export const ReasoningTrigger = memo(
 		children,
 		label = "Thinking",
 		completedLabel = defaultReasoningCompletedLabel,
+		streaming,
 		...props
 	}: Readonly<ReasoningTriggerProps>) => {
 		const {
@@ -426,7 +439,6 @@ export const ReasoningTrigger = memo(
 			duration,
 			streamingWave,
 			animatedDots,
-			animatedRovo,
 			streamingWaveGradientColor,
 			streamingWaveDuration,
 			streamingWaveSpread,
@@ -456,9 +468,9 @@ export const ReasoningTrigger = memo(
 						) : (
 							<StreamingReasoningLabel
 								label={label}
+								streaming={streaming}
 								streamingWave={streamingWave}
 								animatedDots={animatedDots}
-								animatedRovo={animatedRovo}
 								streamingWaveGradientColor={streamingWaveGradientColor}
 								streamingWaveDuration={streamingWaveDuration}
 								streamingWaveSpread={streamingWaveSpread}
@@ -618,6 +630,7 @@ export type AdsReasoningTriggerProps = ComponentProps<
 	label?: string;
 	completedLabel?: (duration?: number) => ReactNode;
 	showChevron?: boolean;
+	streaming?: boolean;
 };
 
 const defaultCompletedLabel = (duration?: number) => {
@@ -650,6 +663,7 @@ export const AdsReasoningTrigger = memo(
 		label = "Thinking",
 		completedLabel = defaultCompletedLabel,
 		showChevron = true,
+		streaming,
 		...props
 	}: Readonly<AdsReasoningTriggerProps>) => {
 		const {
@@ -658,7 +672,6 @@ export const AdsReasoningTrigger = memo(
 			duration,
 			streamingWave,
 			animatedDots,
-			animatedRovo,
 			streamingWaveGradientColor,
 			streamingWaveDuration,
 			streamingWaveSpread,
@@ -686,9 +699,9 @@ export const AdsReasoningTrigger = memo(
 				) : (
 					<StreamingReasoningLabel
 						label={label}
+						streaming={streaming}
 						streamingWave={streamingWave}
 						animatedDots={animatedDots}
-						animatedRovo={animatedRovo}
 						streamingWaveGradientColor={streamingWaveGradientColor}
 						streamingWaveDuration={streamingWaveDuration}
 						streamingWaveSpread={streamingWaveSpread}

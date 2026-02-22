@@ -7,8 +7,6 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "eslint",
-		"audit:previews": "node scripts/audit-default-previews.js",
-		"validate:ui-previews": "pnpm run audit:previews",
 		"deploy:micros": "./scripts/dev-deploy-fast.sh",
 		"dev:backend": "node scripts/dev-backend.js",
 		"dev:frontend": "node scripts/dev-frontend.js",

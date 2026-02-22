@@ -483,8 +483,8 @@ async function healthCheck(port) {
 /**
  * Get the current agent status.
  */
-async function getStatus() {
-	const { status, data } = await request("GET", "/v3/status");
+async function getStatus(port) {
+	const { status, data } = await request("GET", "/v3/status", undefined, 10000, port);
 	if (status !== 200) {
 		throw new Error(`Status check failed: ${data}`);
 	}

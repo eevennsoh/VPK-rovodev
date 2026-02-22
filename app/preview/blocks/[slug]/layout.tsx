@@ -1,16 +1,8 @@
 import type { Metadata } from "next";
-import { getPreviewPageTitle } from "@/lib/template-page-title";
+import { PreviewCategoryLayout, getCategoryPreviewMetadata, type PreviewLayoutProps } from "@/app/preview/_shared/preview-metadata";
 
-interface LayoutProps {
-	params: Promise<{ slug: string }>;
-	children: React.ReactNode;
+export async function generateMetadata({ params }: PreviewLayoutProps): Promise<Metadata> {
+	return getCategoryPreviewMetadata(params, "blocks");
 }
 
-export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
-	const { slug } = await params;
-	return { title: getPreviewPageTitle(slug, "blocks") };
-}
-
-export default function PreviewBlockLayout({ children }: LayoutProps) {
-	return children;
-}
+export default PreviewCategoryLayout;

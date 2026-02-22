@@ -1,6 +1,42 @@
 import type { ComponentDetail } from "@/app/data/component-detail-types";
 
 export const UTILITY_DETAILS: Record<string, ComponentDetail> = {
+	gui: {
+		description:
+			"A reusable compound component for building interactive animation and parameter control panels. Includes a slider/input control row (GUI.Control) and a card wrapper with copy-values button (GUI.Panel). Used by Shimmer and Generative Card demo pages.",
+		demoLayout: { previewContentWidth: "full" },
+		usage: `import { GUI } from "@/components/utils/gui";
+
+<GUI.Panel title="Controls" values={config}>
+  <GUI.Control
+    id="my-param"
+    label="Duration"
+    description="How long the animation takes."
+    value={duration}
+    min={0.1}
+    max={3}
+    step={0.05}
+    unit="s"
+    onChange={setDuration}
+  />
+</GUI.Panel>`,
+		props: [
+			{ name: "id", type: "string", description: "Unique identifier for the control. Used to generate input element IDs." },
+			{ name: "label", type: "string", description: "Display label shown next to the input." },
+			{ name: "description", type: "string", description: "Optional helper text below the label." },
+			{ name: "value", type: "number", description: "Current numeric value." },
+			{ name: "defaultValue", type: "number", description: "Optional default value. When provided, shows an undo button that resets to this value." },
+			{ name: "min", type: "number", description: "Minimum value for the slider range." },
+			{ name: "max", type: "number", description: "Maximum value for the slider range." },
+			{ name: "step", type: "number", description: "Step increment for the slider. Also determines decimal precision in the readout." },
+			{ name: "unit", type: "string", description: "Optional unit label displayed after the input (e.g. \"px\", \"s\", \"deg\")." },
+			{ name: "onChange", type: "(next: number) => void", description: "Callback fired when the value changes via input or slider." },
+		],
+		subComponents: [
+			{ name: "GUI.Control", description: "A single parameter row with label, undo button, number input, slider, and min/max range labels." },
+			{ name: "GUI.Panel", description: "Collapsible card wrapper with a title, copy-values button, chevron toggle, and content area for controls." },
+		],
+	},
 	"streamdown": {
 		description: "A streaming-optimized React Markdown renderer with syntax highlighting, Mermaid diagrams, math rendering, and CJK support. Supports caret animation, interactive code controls, and both streaming and static rendering modes.",
 	},

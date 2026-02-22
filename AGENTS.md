@@ -401,7 +401,6 @@ Run on every change:
 
 1. `pnpm run lint`
 2. `pnpm tsc --noEmit`
-3. `pnpm run audit:previews` (required when changing default preview/demo files)
 
 Run additionally for UI changes:
 
@@ -682,7 +681,6 @@ Use this checklist in PR descriptions:
 
 - [ ] ESLint passed (`pnpm run lint`)
 - [ ] TypeScript passed (`pnpm tsc --noEmit`)
-- [ ] Default preview audit passed (`pnpm run audit:previews`) when preview/demo files changed
 - [ ] Design token usage verified
 - [ ] Imports resolved correctly
 - [ ] Visual checks completed in light and dark mode

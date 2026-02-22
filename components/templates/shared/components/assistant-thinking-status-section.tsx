@@ -4,6 +4,10 @@ import type { ReactNode } from "react";
 import { getAllDataParts, type RovoRenderableUIMessage } from "@/lib/rovo-ui-messages";
 import type { getMessageToolParts, getThinkingToolCallSummaries } from "@/lib/rovo-ui-messages";
 import {
+	type ReasoningPhase,
+	getReasoningPropsForPhase,
+} from "@/components/templates/shared/hooks/use-reasoning-phase";
+import {
 	AdsReasoningTrigger,
 	Reasoning,
 	ReasoningContent,
@@ -20,6 +24,7 @@ interface AssistantThinkingStatusSectionProps {
 	hasReasoning: boolean;
 	toolParts: ReturnType<typeof getMessageToolParts>;
 	thinkingToolCalls: ReturnType<typeof getThinkingToolCallSummaries>;
+	reasoningPhase?: ReasoningPhase;
 }
 
 export function AssistantThinkingStatusSection({
@@ -29,6 +34,7 @@ export function AssistantThinkingStatusSection({
 	hasReasoning,
 	toolParts,
 	thinkingToolCalls,
+	reasoningPhase,
 }: Readonly<AssistantThinkingStatusSectionProps>): ReactNode {
 	const accumulatedContent = getAllDataParts(message, "data-thinking-status")
 		.map((part) => part.data.content)
@@ -40,12 +46,23 @@ export function AssistantThinkingStatusSection({
 	const hasTools = hasToolParts || hasThinkingToolCalls;
 	const hasDetails = hasThinkingText || hasTools;
 
+	const resolvedPhase = reasoningPhase ?? (isStreaming ? "streaming" : "completed");
+	const phaseProps = getReasoningPropsForPhase(resolvedPhase, undefined, hasDetails);
+
 	return (
 		<div className={hasReasoning ? "pt-2" : undefined}>
-			<Reasoning className="mb-0" defaultOpen={hasDetails} isStreaming={isStreaming}>
+			<Reasoning
+				className="mb-0"
+				defaultOpen={phaseProps.defaultOpen ?? hasDetails}
+				isStreaming={phaseProps.isStreaming}
+				streamingWave={phaseProps.streamingWave}
+				streamingWaveGradientColor={phaseProps.streamingWaveGradientColor}
+				animatedDots={phaseProps.animatedDots}
+			>
 				<AdsReasoningTrigger
 					label={label}
 					showChevron={hasDetails}
+					streaming={phaseProps.triggerStreaming}
 				/>
 				{hasDetails ? (
 					<ReasoningContent>

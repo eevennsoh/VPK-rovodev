@@ -23,8 +23,16 @@ const RETRY_INITIAL_DELAY_MS = 250;
 const RETRY_DELAY_STEP_MS = 250;
 const RETRY_MAX_DELAY_MS = 1_000;
 const RETRY_TIMEOUT_MS = 10_000;
+const RETRY_CANCEL_MIN_INTERVAL_MS = 2_000;
 const PINNED_PORT_ACQUIRE_TIMEOUT_MS = 30_000;
 const WAIT_FOR_TURN_TIMEOUT_MS = 600_000;
+/** Timeout for background text generation that falls back to a pinned port.
+ *  Long enough for tasks like suggestions to complete patiently (they queue
+ *  behind the panel's interactive turn), but bounded so they don't hold
+ *  pinned ports indefinitely. */
+const BACKGROUND_ON_PINNED_PORT_TIMEOUT_MS = 120_000;
+const WAIT_FOR_TURN_409_MAX_RETRIES = 1;
+const WAIT_FOR_TURN_409_RETRY_DELAY_MS = 500;
 
 // ─── Pool integration ───────────────────────────────────────────────────────
 
@@ -240,6 +248,7 @@ function shouldCancelConflictingTurn({
  * @param {number} [params.timeoutMs]
  * @param {boolean} [params.cancelOnConflict]
  * @param {number} [params.cancelAfterMs]
+ * @param {number} [params.cancelMinIntervalMs]
  * @param {(port?: number) => Promise<unknown>} [params.cancelConflictTurn]
  * @param {number} [params.port]
  * @returns {Promise<{ aborted: boolean; value: T | undefined }>}
@@ -254,6 +263,7 @@ async function retryChatInProgress(
 		timeoutMs = RETRY_TIMEOUT_MS,
 		cancelOnConflict = true,
 		cancelAfterMs = 0,
+		cancelMinIntervalMs = RETRY_CANCEL_MIN_INTERVAL_MS,
 		cancelConflictTurn = cancelChat,
 		port,
 	}
@@ -263,6 +273,8 @@ async function retryChatInProgress(
 	let retryDelayMs = RETRY_INITIAL_DELAY_MS;
 	let retryNotified = false;
 	let conflictCount = 0;
+	let cancelAttemptCount = 0;
+	let lastCancelAttemptAtMs = 0;
 
 	while (true) {
 		if (signal?.aborted) {
@@ -274,7 +286,7 @@ async function retryChatInProgress(
 			if (conflictCount > 0) {
 				const elapsedMs = Date.now() - startedAtMs;
 				console.info(
-					`[${logPrefix}] Chat turn acquired after ${conflictCount} conflict retries (${elapsedMs}ms elapsed).`
+					`[${logPrefix}] Chat turn acquired after ${conflictCount} conflict retries (${elapsedMs}ms elapsed, ${cancelAttemptCount} cancel attempts).`
 				);
 			}
 			return { aborted: false, value };
@@ -290,6 +302,7 @@ async function retryChatInProgress(
 					err.chatInProgressTimedOut = true;
 					err.chatInProgressRetryCount = conflictCount;
 					err.chatInProgressElapsedMs = Date.now() - startedAtMs;
+					err.chatInProgressCancelAttempts = cancelAttemptCount;
 				}
 				throw err;
 			}
@@ -306,24 +319,38 @@ async function retryChatInProgress(
 				cancelAfterMs,
 				elapsedMs,
 			});
+			const elapsedSinceLastCancelMs = Date.now() - lastCancelAttemptAtMs;
+			const cancelThrottled =
+				shouldCancel && elapsedSinceLastCancelMs < cancelMinIntervalMs;
+			const cancelBackoffRemainingMs = cancelThrottled
+				? cancelMinIntervalMs - elapsedSinceLastCancelMs
+				: 0;
+			const willCancelNow = shouldCancel && !cancelThrottled;
 			if (typeof onRetryProgress === "function") {
 				onRetryProgress({
 					conflictCount,
 					elapsedMs,
 					waitMs,
 					remainingMs,
-					willCancel: shouldCancel,
+					willCancel: willCancelNow,
+					cancelThrottled,
+					cancelBackoffRemainingMs,
+					cancelAttemptCount,
 				});
 			}
 			console.warn(
-				shouldCancel
+				willCancelNow
 					? `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — cancelling and retrying in ${waitMs}ms...`
+					: cancelThrottled
+						? `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — cancel throttled for ${Math.ceil(cancelBackoffRemainingMs)}ms, retrying in ${waitMs}ms...`
 					: cancelOnConflict
 						? `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — waiting ${waitMs}ms before attempting cancellation...`
 						: `[${logPrefix}] Chat already in progress (conflict ${conflictCount}) — waiting ${waitMs}ms before retrying...`
 			);
 
-			if (shouldCancel) {
+			if (willCancelNow) {
+				cancelAttemptCount += 1;
+				lastCancelAttemptAtMs = Date.now();
 				try {
 					await cancelConflictTurn(port);
 				} catch {
@@ -371,6 +398,28 @@ function createChatInProgressTimeoutError(timeoutMs, metadata = {}) {
 		timeoutError.source = metadata.logPrefix.trim();
 	}
 	return timeoutError;
+}
+
+/**
+ * Build a typed error for a stuck port that should be restarted immediately.
+ * @param {number} port
+ * @param {number} [portIndex]
+ * @returns {Error}
+ */
+function createPortStuckError(port, portIndex) {
+	const portLabel =
+		typeof portIndex === "number"
+			? `port index ${portIndex} (port ${port})`
+			: `port ${port}`;
+	const err = new Error(
+		`RovoDev ${portLabel} is stuck — a previous turn never completed. Port has been marked unhealthy and will be restarted.`
+	);
+	err.code = "ROVODEV_PORT_STUCK";
+	err.port = port;
+	if (typeof portIndex === "number") {
+		err.portIndex = portIndex;
+	}
+	return err;
 }
 
 /**
@@ -700,8 +749,8 @@ function buildThinkingEventFromToolEvent({
  * writer calls are already handled.
  *
  * If a 409 "chat already in progress" error occurs, the function retries with
- * bounded backoff and can optionally cancel the conflicting turn after a
- * short grace period.
+ * bounded backoff. The `conflictPolicy` controls whether to cancel the
+ * conflicting turn ("cancel-and-retry") or wait patiently ("wait-for-turn").
  *
  * @param {object} params
  * @param {string} params.message - The full message to send to RovoDev
@@ -711,9 +760,8 @@ function buildThinkingEventFromToolEvent({
  * @param {function} [params.onToolCallStart] - Called with structured tool-call details when a tool starts
  * @param {function} [params.onRetry] - Called when a 409 retry is about to happen (for UI indicators)
  * @param {function} [params.onRetryProgress] - Called for each 409 retry progress update
+ * @param {"cancel-and-retry" | "wait-for-turn"} [params.conflictPolicy] - Conflict resolution policy
  * @param {number} [params.timeoutMs] - Max time to wait for chat-turn acquisition before timeout
- * @param {boolean} [params.cancelOnConflict] - Whether to cancel active turn on conflict instead of waiting
- * @param {number} [params.cancelAfterMs] - Grace period before starting conflict cancellation (0 means cancel immediately)
  * @param {AbortSignal} [params.signal] - Optional signal to abort the stream (e.g. on client disconnect)
  * @param {number} [params.port] - Explicit RovoDev port number for dedicated assignment
  * @param {number} [params.portIndex] - Sticky port index for dedicated assignment (e.g. multiports)
@@ -728,14 +776,21 @@ async function streamViaRovoDev({
 	onToolCallStart,
 	onRetry,
 	onRetryProgress,
-	timeoutMs = RETRY_TIMEOUT_MS,
-	cancelOnConflict = true,
-	cancelAfterMs = 0,
+	conflictPolicy = "cancel-and-retry",
+	timeoutMs,
 	signal,
 	port,
 	portIndex,
 	onPortAcquired,
+	onComplete,
 }) {
+	const waitForTurn = conflictPolicy === "wait-for-turn";
+	const resolvedTimeoutMs =
+		typeof timeoutMs === "number" && timeoutMs > 0
+			? timeoutMs
+			: waitForTurn
+				? WAIT_FOR_TURN_TIMEOUT_MS
+				: RETRY_TIMEOUT_MS;
 	const hasPinnedPort =
 		(typeof port === "number" && port > 0) ||
 		(typeof portIndex === "number" && portIndex >= 0);
@@ -750,6 +805,8 @@ async function streamViaRovoDev({
 		onPortAcquired(handle.port);
 	}
 
+	let portStuck = false;
+
 	try {
 		const attempt = (port) =>
 			new Promise((resolve, reject) => {
@@ -758,6 +815,7 @@ async function streamViaRovoDev({
 					return;
 				}
 
+				let onAbort = null;
 				const toolNameByCallId = new Map();
 				const streamHandle = sendMessageStreaming(message, {
 					onChunk: (chunk) => {
@@ -861,9 +919,15 @@ async function streamViaRovoDev({
 						}
 					},
 					onDone: () => {
+						if (signal && onAbort) {
+							signal.removeEventListener("abort", onAbort);
+						}
 						resolve();
 					},
 					onError: (err) => {
+						if (signal && onAbort) {
+							signal.removeEventListener("abort", onAbort);
+						}
 						if (isChatInProgressError(err)) {
 							reject(err);
 							return;
@@ -881,13 +945,17 @@ async function streamViaRovoDev({
 				}, port);
 
 				if (signal) {
-					const onAbort = () => {
+					onAbort = () => {
 						streamHandle.abort();
+						// Cancel the RovoDev turn to prevent stale sessions
+						// that cause 409 for the next caller on this port
+						cancelChat(port, { timeoutMs: 3_000 }).catch(() => {});
 						resolve();
 					};
 
 					if (signal.aborted) {
 						streamHandle.abort();
+						cancelChat(port, { timeoutMs: 3_000 }).catch(() => {});
 						resolve();
 					} else {
 						signal.addEventListener("abort", onAbort, { once: true });
@@ -895,40 +963,106 @@ async function streamViaRovoDev({
 				}
 			});
 
-		try {
-			const { aborted } = await retryChatInProgress(
-				() => attempt(handle.port),
-				{
-					signal,
-					onRetry,
-					onRetryProgress,
-					logPrefix: "streamViaRovoDev",
-					timeoutMs,
-					cancelOnConflict,
-					cancelAfterMs,
-					port: handle.port,
+		if (waitForTurn) {
+			// Single attempt with one bounded retry for transient 409.
+			// The pool's acquire/release already serializes access; a transient
+			// 409 can occur when RovoDev is still finalizing the prior turn.
+			let lastError = null;
+			for (let retryCount = 0; retryCount <= WAIT_FOR_TURN_409_MAX_RETRIES; retryCount++) {
+				try {
+					await attempt(handle.port);
+					lastError = null;
+					break;
+				} catch (err) {
+					if (!isChatInProgressError(err)) {
+						throw err;
+					}
+					lastError = err;
+					if (retryCount < WAIT_FOR_TURN_409_MAX_RETRIES) {
+						console.warn(
+							`[streamViaRovoDev] Port ${handle.port} transient 409 — retrying in ${WAIT_FOR_TURN_409_RETRY_DELAY_MS}ms (attempt ${retryCount + 1}/${WAIT_FOR_TURN_409_MAX_RETRIES + 1})`
+						);
+						await sleep(WAIT_FOR_TURN_409_RETRY_DELAY_MS);
+					}
 				}
-			);
-			if (aborted) {
-				return;
 			}
-		} catch (err) {
-			if (isChatInProgressError(err)) {
-				throw createChatInProgressTimeoutError(timeoutMs, {
-					logPrefix: "streamViaRovoDev",
-					retryCount:
-						typeof err?.chatInProgressRetryCount === "number"
-							? err.chatInProgressRetryCount
-							: undefined,
-					elapsedMs:
-						typeof err?.chatInProgressElapsedMs === "number"
-							? err.chatInProgressElapsedMs
-							: undefined,
-				});
+			if (lastError) {
+				portStuck = true;
+				console.error(
+					`[streamViaRovoDev] Port ${handle.port} stuck (409) — cancelling turn, draining queue, marking unhealthy`
+				);
+				try {
+					await cancelChat(handle.port, { timeoutMs: 3_000 });
+				} catch {}
+				if (
+					_pool &&
+					typeof _pool.drainIndexedWaiters === "function" &&
+					typeof portIndex === "number" &&
+					portIndex >= 0
+				) {
+					const drained = _pool.drainIndexedWaiters(portIndex);
+					if (drained > 0) {
+						console.info(
+							`[streamViaRovoDev] Drained ${drained} queued request(s) for port index ${portIndex}`
+						);
+					}
+				}
+				if (_pool) {
+					handle.releaseAsUnhealthy();
+				} else {
+					handle.release();
+				}
+				throw createPortStuckError(handle.port, portIndex);
 			}
-			throw err;
+		} else {
+			// Cancel-and-retry mode for background tasks
+			try {
+				const { aborted } = await retryChatInProgress(
+					() => attempt(handle.port),
+					{
+						signal,
+						onRetry,
+						onRetryProgress,
+						logPrefix: "streamViaRovoDev",
+						timeoutMs: resolvedTimeoutMs,
+						cancelOnConflict: true,
+						port: handle.port,
+					}
+				);
+				if (aborted) {
+					return;
+				}
+			} catch (err) {
+				if (isChatInProgressError(err)) {
+					throw createChatInProgressTimeoutError(resolvedTimeoutMs, {
+						logPrefix: "streamViaRovoDev",
+						retryCount:
+							typeof err?.chatInProgressRetryCount === "number"
+								? err.chatInProgressRetryCount
+								: undefined,
+						elapsedMs:
+							typeof err?.chatInProgressElapsedMs === "number"
+								? err.chatInProgressElapsedMs
+								: undefined,
+					});
+				}
+				throw err;
+			}
 		}
 	} finally {
+		// Run post-stream callback (e.g. suggestion generation) while
+		// we still hold the port handle — avoids re-acquisition contention.
+		// Skip if port is stuck — no point generating suggestions on a broken port.
+		if (!portStuck && typeof onComplete === "function") {
+			try {
+				await onComplete(handle.port);
+			} catch (onCompleteErr) {
+				console.warn(
+					"[streamViaRovoDev] onComplete callback error:",
+					onCompleteErr?.message || onCompleteErr
+				);
+			}
+		}
 		handle.release();
 	}
 }
@@ -957,7 +1091,9 @@ async function generateTextViaRovoDev({
 	conflictPolicy = "cancel-and-retry",
 	timeoutMs,
 	signal,
+	port,
 	portIndex,
+	excludePinnedPorts,
 }) {
 	throwIfAborted(signal, "RovoDev text generation aborted");
 
@@ -976,11 +1112,43 @@ async function generateTextViaRovoDev({
 	}
 	fullMessage += prompt;
 
+	const hasExplicitPort = typeof port === "number" && port > 0;
+	const shouldExcludePinned = !hasExplicitPort && (excludePinnedPorts === true || (typeof portIndex !== "number" && _pinnedPortCount > 0));
+	const wantsExcludePinned = shouldExcludePinned;
 	const handle = await acquirePort({
 		timeoutMs: waitForTurn ? WAIT_FOR_TURN_TIMEOUT_MS : RETRY_TIMEOUT_MS,
-		...(typeof portIndex === "number" ? { portIndex } : { excludePinnedPorts: true }),
+		...(hasExplicitPort
+			? { port }
+			: typeof portIndex === "number"
+				? { portIndex }
+				: { excludePinnedPorts: shouldExcludePinned }),
 		signal,
 	});
+
+	// Detect if this background task fell back to a pinned port (all non-pinned
+	// ports were busy/unhealthy). Use a shorter retry timeout so we don't block
+	// interactive chat panels for minutes.
+	const isBackgroundOnPinnedPort =
+		wantsExcludePinned &&
+		_pool &&
+		typeof handle.port === "number" &&
+		(() => {
+			const poolStatus = _pool.getStatus?.();
+			if (!poolStatus || !Array.isArray(poolStatus.ports)) {
+				return false;
+			}
+			const portIndex = poolStatus.ports.findIndex((p) => p.port === handle.port);
+			return portIndex >= 0 && portIndex < _pinnedPortCount;
+		})();
+	const effectiveRetryTimeoutMs = isBackgroundOnPinnedPort
+		? Math.min(retryTimeoutMs, BACKGROUND_ON_PINNED_PORT_TIMEOUT_MS)
+		: retryTimeoutMs;
+
+	if (isBackgroundOnPinnedPort) {
+		console.info(
+			`[generateTextViaRovoDev] Background task fell back to pinned port ${handle.port} — using ${Math.ceil(effectiveRetryTimeoutMs / 1000)}s timeout`
+		);
+	}
 
 	let portKnownStuck = false;
 
@@ -994,84 +1162,118 @@ async function generateTextViaRovoDev({
 		if (_pool) {
 			throwIfAborted(signal, "RovoDev text generation aborted");
 
-			// Pool-exclusive port: cancel any lingering session, then send.
-			//
-			// IMPORTANT: Do NOT retry on the same port after a 409.
-			// Each sendMessageSync call queues a message via set_chat_message,
-			// compounding the stuck state and making the port unrecoverable.
-			// Instead, throw immediately and let the finally block's async
-			// recovery hold the port until it clears. Subsequent callers
-			// waiting in acquirePort will get the port once it's released.
-			const poolCancelOpts = { timeoutMs: 3_000 };
+			if (waitForTurn) {
+				// Single attempt with one bounded retry for transient 409.
+				let lastError = null;
+				for (let retryCount = 0; retryCount <= WAIT_FOR_TURN_409_MAX_RETRIES; retryCount++) {
+					try {
+						const value = await sendMessageSync(fullMessage, syncOptions);
+						return typeof value === "string" ? value : "";
+					} catch (error) {
+						if (!isChatInProgressError(error)) {
+							throw error;
+						}
+						lastError = error;
+						if (retryCount < WAIT_FOR_TURN_409_MAX_RETRIES) {
+							console.warn(
+								`[generateTextViaRovoDev] Port ${handle.port} transient 409 — retrying in ${WAIT_FOR_TURN_409_RETRY_DELAY_MS}ms (attempt ${retryCount + 1}/${WAIT_FOR_TURN_409_MAX_RETRIES + 1})`
+							);
+							await sleep(WAIT_FOR_TURN_409_RETRY_DELAY_MS);
+						}
+					}
+				}
+				if (lastError) {
+					portKnownStuck = true;
+					console.error(
+						`[generateTextViaRovoDev] Port ${handle.port} stuck (409) — marking unhealthy`
+					);
+					if (
+						typeof portIndex === "number" &&
+						portIndex >= 0 &&
+						typeof _pool.drainIndexedWaiters === "function"
+					) {
+						const drained = _pool.drainIndexedWaiters(portIndex);
+						if (drained > 0) {
+							console.info(
+								`[generateTextViaRovoDev] Drained ${drained} queued request(s) for port index ${portIndex}`
+							);
+						}
+					}
+					throw createPortStuckError(handle.port, portIndex);
+				}
+			}
 
-			// Pre-cancel to clear any stale session from a previous caller.
-			try { await cancelChat(handle.port, poolCancelOpts); } catch {}
-			await sleep(200, signal);
-
+			// Cancel-and-retry mode for background tasks
 			try {
-				const value = await sendMessageSync(fullMessage, syncOptions);
+				const { value, aborted } = await retryChatInProgress(
+					() => sendMessageSync(fullMessage, syncOptions),
+					{
+						signal,
+						logPrefix: "generateTextViaRovoDev",
+						timeoutMs: effectiveRetryTimeoutMs,
+						cancelOnConflict: true,
+						port: handle.port,
+					}
+				);
+
+				if (aborted) {
+					throw createAbortError("RovoDev text generation aborted");
+				}
+
 				return typeof value === "string" ? value : "";
-			} catch (err) {
-				if (isChatInProgressError(err)) {
+			} catch (error) {
+				if (isChatInProgressError(error)) {
 					portKnownStuck = true;
 				}
-				throw err;
+				throw error;
 			}
 		}
 
-		// No pool — fall back to retry-on-409 + queue behavior
-		const runGenerate = async () => {
-			throwIfAborted(signal, "RovoDev text generation aborted");
-			try {
-				return await sendMessageSync(fullMessage, syncOptions);
-			} catch (err) {
-				if (isChatInProgressError(err)) {
-					try {
-							const { value, aborted } = await retryChatInProgress(
-								() => sendMessageSync(fullMessage, syncOptions),
-								{
-									signal,
-									logPrefix: "generateTextViaRovoDev",
-									timeoutMs: retryTimeoutMs,
-									cancelOnConflict: !waitForTurn,
-									port: handle.port,
-								}
-							);
-						if (aborted) {
-							throw createAbortError("RovoDev text generation aborted");
-						}
-						return typeof value === "string" ? value : "";
-					} catch (retryError) {
-						if (waitForTurn && isChatInProgressError(retryError)) {
-							throw createChatInProgressTimeoutError(retryTimeoutMs, {
-								logPrefix: "generateTextViaRovoDev",
-								retryCount:
-									typeof retryError?.chatInProgressRetryCount === "number"
-										? retryError.chatInProgressRetryCount
-										: undefined,
-								elapsedMs:
-									typeof retryError?.chatInProgressElapsedMs === "number"
-										? retryError.chatInProgressElapsedMs
-										: undefined,
-							});
-						}
-						throw retryError;
-					}
-				}
-				throw err;
-			}
-		};
-
-		if (conflictPolicy === "wait-for-turn") {
+		// No pool — single port fallback
+		if (waitForTurn) {
+			// Serialize via global queue (single port → global = per-port)
+			// Single attempt, fail fast on 409
 			return await enqueueTextGeneration(async () => {
 				throwIfAborted(signal, "RovoDev text generation aborted");
-				return runGenerate();
+				try {
+					return await sendMessageSync(fullMessage, syncOptions);
+				} catch (err) {
+					if (isChatInProgressError(err)) {
+						throw createPortStuckError(handle.port, portIndex);
+					}
+					throw err;
+				}
 			}, {
 				logPrefix: "generateTextViaRovoDev",
 			});
 		}
 
-		return await runGenerate();
+		// No pool, cancel-and-retry mode
+		try {
+			return await sendMessageSync(fullMessage, syncOptions);
+		} catch (err) {
+			if (isChatInProgressError(err)) {
+				try {
+					const { value, aborted } = await retryChatInProgress(
+						() => sendMessageSync(fullMessage, syncOptions),
+						{
+							signal,
+							logPrefix: "generateTextViaRovoDev",
+							timeoutMs: retryTimeoutMs,
+							cancelOnConflict: true,
+							port: handle.port,
+						}
+					);
+					if (aborted) {
+						throw createAbortError("RovoDev text generation aborted");
+					}
+					return typeof value === "string" ? value : "";
+				} catch (retryError) {
+					throw retryError;
+				}
+			}
+			throw err;
+		}
 	} finally {
 		// Cancel any lingering session before releasing the port back to the pool.
 		// IMPORTANT: No _recoverPort() calls here — process kills are too aggressive
@@ -1101,23 +1303,22 @@ async function generateTextViaRovoDev({
 				// Just release normally — if the session is still active,
 				// the next caller's conflict-policy retry handles it.
 				handle.release();
+			} else if (waitForTurn) {
+				// In wait-for-turn mode the request completed naturally; avoid
+				// extra cancellation churn and release the port immediately.
+				handle.release();
 			} else {
 				// Normal completion — cancel any lingering session and release.
-				let cancelSucceeded = false;
 				try {
 					await cancelChat(handle.port, { timeoutMs: 3_000 });
-					cancelSucceeded = true;
-				} catch {}
-
-				if (cancelSucceeded) {
-					handle.release();
-				} else {
-					const stuckPort = handle.port;
+				} catch (error) {
 					console.warn(
-						`[generateTextViaRovoDev] port ${stuckPort} cancel failed — marking unhealthy`
+						`[generateTextViaRovoDev] port ${handle.port} cancel failed during cleanup: ${
+							error instanceof Error ? error.message : String(error)
+						}`
 					);
-					handle.releaseAsUnhealthy();
 				}
+				handle.release();
 			}
 		} else {
 			handle.release();
@@ -1131,6 +1332,7 @@ module.exports = {
 	isChatInProgressError,
 	retryChatInProgress,
 	shouldCancelConflictingTurn,
+	createPortStuckError,
 	isGenericIntegrationWrapperToolName,
 	resolveToolNameForToolEvent,
 	getThinkingActivityFromToolName,

@@ -7,6 +7,16 @@ import {
 	type RovoRenderableUIMessage,
 } from "@/lib/rovo-ui-messages";
 import { useDynamicThinkingLabel } from "@/components/templates/shared/hooks/use-dynamic-thinking-label";
+import {
+	useReasoningPhase,
+	getReasoningPropsForPhase,
+	type ReasoningPhase,
+	type ReasoningPhaseProps,
+} from "@/components/templates/shared/hooks/use-reasoning-phase";
+import {
+	resolveThinkingLabelForSurface,
+	SIDEBAR_THINKING_LABEL,
+} from "@/components/templates/shared/lib/thinking-label-policy";
 
 interface UseThinkingStatusOptions {
 	messages: RovoRenderableUIMessage[];
@@ -26,6 +36,8 @@ interface ThinkingStatusResult {
 	hasThinkingDetails: boolean;
 	streamingReasoningKey: string;
 	lastMessage: RovoRenderableUIMessage | undefined;
+	reasoningPhase: ReasoningPhase;
+	reasoningPhaseProps: ReasoningPhaseProps;
 }
 
 export function useThinkingStatus({
@@ -97,10 +109,11 @@ export function useThinkingStatus({
 		]
 	);
 
-	const { label: resolvedThinkingLabel } = useDynamicThinkingLabel({
-		baseLabel: thinkingStatusPart?.data.label ?? "Thinking",
+	const { label: dynamicThinkingLabel } = useDynamicThinkingLabel({
+		baseLabel: thinkingStatusPart?.data.label ?? SIDEBAR_THINKING_LABEL,
 		isStreaming: shouldShowThinking,
 		updateSignal: thinkingStatusUpdateSignal,
+		fallbackLabel: SIDEBAR_THINKING_LABEL,
 	});
 
 	const resolvedReasoningContent = hasAssistantThinkingStatus
@@ -121,8 +134,34 @@ export function useThinkingStatus({
 	const hasThinkingDetails = hasReasoningContent || hasThinkingToolCalls;
 	const streamingReasoningKey = lastMessage?.id ?? "stream";
 
+	const hasMessageText =
+		hasAssistantThinkingStatus ||
+		(hasMessages &&
+			lastMessage?.role === "assistant" &&
+			getMessageText(lastMessage) !== "");
+
+	const { phase: reasoningPhase, duration: reasoningDuration } =
+		useReasoningPhase({
+			isStreaming: isRequestInFlight,
+			hasMessageText,
+			responseKey: streamingReasoningKey,
+			autoIdle: true,
+		});
+	const resolvedThinkingLabel = resolveThinkingLabelForSurface({
+		baseLabel: dynamicThinkingLabel,
+		surface: "sidebar",
+		reasoningPhase,
+	});
+
+	const reasoningPhaseProps = getReasoningPropsForPhase(
+		reasoningPhase,
+		reasoningDuration,
+		hasThinkingDetails
+	);
+
 	return {
-		shouldShowThinking,
+		shouldShowThinking:
+			shouldShowThinking || (reasoningPhase === "completed" && !hasInlineThinkingStatus),
 		isAssistantAwaitingOutput,
 		hasInlineThinkingStatus,
 		resolvedThinkingLabel,
@@ -133,5 +172,7 @@ export function useThinkingStatus({
 		hasThinkingDetails,
 		streamingReasoningKey,
 		lastMessage,
+		reasoningPhase,
+		reasoningPhaseProps,
 	};
 }

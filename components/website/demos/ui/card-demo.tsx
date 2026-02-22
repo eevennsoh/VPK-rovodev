@@ -1,18 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { CaptionsIcon, PlusIcon } from "lucide-react";
 import Image from "next/image";
-import CalendarIcon from "@atlaskit/icon/core/calendar";
-import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { ConfluenceLogo } from "@/components/ui/logo";
-import { Tile } from "@/components/ui/tile";
 
 export default function CardDemo() {
 	return (
@@ -322,123 +316,6 @@ export function CardDemoWithImage() {
 					Button
 				</Button>
 			</CardFooter>
-		</Card>
-	);
-}
-
-export function CardDemoGenerativeCard() {
-	const [expanded, setExpanded] = useState(true);
-
-	return (
-		<Card className="mx-auto w-full max-w-[380px] gap-0 p-0">
-			<CardHeader className={cn("px-4 py-3", expanded && "border-b")}>
-				<div className="flex min-w-0 items-center gap-3">
-					<Tile label="Google Calendar" size="medium" variant="transparent" isInset={false}>
-						<Image src="/3p/google-calendar/32.svg" alt="" width={32} height={32} />
-					</Tile>
-					<div className="min-w-0 flex-1">
-						<CardTitle className="truncate text-sm leading-5 font-semibold">Schedule meeting</CardTitle>
-						<CardDescription className="line-clamp-2 text-xs leading-4">Google Calendar</CardDescription>
-					</div>
-				</div>
-				<CardAction className="self-center">
-					<Button variant="ghost" size="icon" className="text-text-subtle" aria-label={expanded ? "Collapse card details" : "Expand card details"} onClick={() => setExpanded((prev) => !prev)}>
-						<span className="transition-transform duration-200 ease-in-out" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
-							<ChevronDownIcon label="" size="small" />
-						</span>
-					</Button>
-				</CardAction>
-			</CardHeader>
-			<div className="grid transition-[grid-template-rows] duration-200 ease-in-out" style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}>
-				<div className="overflow-hidden">
-					<CardContent className="px-4 py-4">
-						<div className="flex h-[298px] w-full items-center justify-center overflow-hidden rounded-md bg-surface p-3 text-xs text-text-subtlest">Generated content preview</div>
-					</CardContent>
-					<CardFooter className="h-16 justify-end px-4 py-4">
-						<Button variant="outline" className="h-8 min-w-[117px]">
-							Open preview
-						</Button>
-					</CardFooter>
-				</div>
-			</div>
-		</Card>
-	);
-}
-
-export function CardDemoGenerativeCard1p() {
-	const [expanded, setExpanded] = useState(true);
-
-	return (
-		<Card className="mx-auto w-full max-w-[380px] gap-0 p-0">
-			<CardHeader className={cn("px-4 py-3", expanded && "border-b")}>
-				<div className="flex min-w-0 items-center gap-3">
-					<Tile label="Confluence" size="medium" variant="transparent" isInset={false} hasBorder>
-						<ConfluenceLogo size="small" />
-					</Tile>
-					<div className="min-w-0 flex-1">
-						<CardTitle className="truncate text-sm leading-5 font-semibold">Confluence</CardTitle>
-						<CardDescription className="line-clamp-2 text-xs leading-4">Document collaboration</CardDescription>
-					</div>
-				</div>
-				<CardAction className="self-center">
-					<Button variant="ghost" size="icon" className="text-text-subtle" aria-label={expanded ? "Collapse card details" : "Expand card details"} onClick={() => setExpanded((prev) => !prev)}>
-						<span className="transition-transform duration-200 ease-in-out" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
-							<ChevronDownIcon label="" size="small" />
-						</span>
-					</Button>
-				</CardAction>
-			</CardHeader>
-			<div className="grid transition-[grid-template-rows] duration-200 ease-in-out" style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}>
-				<div className="overflow-hidden">
-					<CardContent className="px-4 py-4">
-						<div className="flex h-[298px] w-full items-center justify-center overflow-hidden rounded-md bg-surface p-3 text-xs text-text-subtlest">Generated content preview</div>
-					</CardContent>
-					<CardFooter className="h-16 justify-end px-4 py-4">
-						<Button variant="outline" className="h-8 min-w-[117px]">
-							Open preview
-						</Button>
-					</CardFooter>
-				</div>
-			</div>
-		</Card>
-	);
-}
-
-export function CardDemoGenerativeCardIcon() {
-	const [expanded, setExpanded] = useState(true);
-
-	return (
-		<Card className="mx-auto w-full max-w-[380px] gap-0 p-0">
-			<CardHeader className={cn("px-4 py-3", expanded && "border-b")}>
-				<div className="flex min-w-0 items-center gap-3">
-					<Tile label="Calendar" size="medium" variant="blueSubtle">
-						<CalendarIcon label="" />
-					</Tile>
-					<div className="min-w-0 flex-1">
-						<CardTitle className="truncate text-sm leading-5 font-semibold">Team calendar</CardTitle>
-						<CardDescription className="line-clamp-2 text-xs leading-4">View upcoming events</CardDescription>
-					</div>
-				</div>
-				<CardAction className="self-center">
-					<Button variant="ghost" size="icon" className="text-text-subtle" aria-label={expanded ? "Collapse card details" : "Expand card details"} onClick={() => setExpanded((prev) => !prev)}>
-						<span className="transition-transform duration-200 ease-in-out" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
-							<ChevronDownIcon label="" size="small" />
-						</span>
-					</Button>
-				</CardAction>
-			</CardHeader>
-			<div className="grid transition-[grid-template-rows] duration-200 ease-in-out" style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}>
-				<div className="overflow-hidden">
-					<CardContent className="px-4 py-4">
-						<div className="flex h-[298px] w-full items-center justify-center overflow-hidden rounded-md bg-surface p-3 text-xs text-text-subtlest">Generated content preview</div>
-					</CardContent>
-					<CardFooter className="h-16 justify-end px-4 py-4">
-						<Button variant="outline" className="h-8 min-w-[117px]">
-							Open preview
-						</Button>
-					</CardFooter>
-				</div>
-			</div>
 		</Card>
 	);
 }

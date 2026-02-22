@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, type ComponentType } from "react";
+import { Suspense, createElement, type ComponentType } from "react";
 import { token } from "@/lib/tokens";
-import type { DemoLayout, ExampleDefinition } from "@/app/data/component-detail-types";
+import type { ExampleDefinition } from "@/app/data/component-detail-types";
 import { getVariantDemoComponent } from "@/components/website/registry";
 import { Lozenge } from "@/components/ui/lozenge";
-import { DocSection } from "./doc-section";
+import { AnchorLinkButton, DocSection } from "./doc-section";
+import { DemoPreviewShell } from "./demo-preview-shell";
 
 /** Map example badge variant (Badge-style names) to Lozenge variant. */
 const badgeVariantToLozenge: Record<string, "neutral" | "success" | "danger" | "information" | "discovery" | "warning"> = {
@@ -19,7 +20,6 @@ const badgeVariantToLozenge: Record<string, "neutral" | "success" | "danger" | "
 	default: "neutral",
 	info: "information",
 };
-import { AnchorLinkButton } from "./doc-section";
 
 function slugify(name: string) {
 	return name.replace(/\s+/g, "-").toLowerCase();
@@ -28,7 +28,6 @@ function slugify(name: string) {
 interface DocExamplesProps {
 	examples: ExampleDefinition[];
 	category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual";
-	demoLayout?: DemoLayout;
 }
 
 function ExampleSkeleton() {
@@ -36,9 +35,10 @@ function ExampleSkeleton() {
 		<div
 			style={{
 				display: "flex",
+				width: "100%",
 				alignItems: "center",
 				justifyContent: "center",
-				minHeight: 80,
+				minHeight: 120,
 			}}
 		>
 			<div
@@ -104,27 +104,11 @@ function ExampleItem({
 					</p>
 				)}
 			</div>
-			<div
-				style={{
-					display: "flex",
-					alignItems: "center",
-					padding: token("space.300"),
-					border: `1px solid ${token("color.border")}`,
-					borderRadius: token("radius.large"),
-					backgroundColor: token("elevation.surface"),
-				}}
-			>
-				<div
-					style={{
-						width: "100%",
-						maxWidth: "100%",
-					}}
-				>
-					<Suspense fallback={<ExampleSkeleton />}>
-						<Demo />
-					</Suspense>
-				</div>
-			</div>
+			<DemoPreviewShell>
+				<Suspense fallback={<ExampleSkeleton />}>
+					{createElement(Demo)}
+				</Suspense>
+			</DemoPreviewShell>
 		</div>
 	);
 }

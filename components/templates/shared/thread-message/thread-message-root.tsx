@@ -15,6 +15,7 @@ import {
 	isMessageTextStreaming,
 	type RovoRenderableUIMessage,
 } from "@/lib/rovo-ui-messages";
+import type { ReasoningPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
 import {
 	Message as UiMessage,
 } from "@/components/ui-ai/message";
@@ -26,6 +27,7 @@ import {
 	sanitizeMarkdownArtifactMarkers,
 	suppressToolJsonTrace,
 } from "../lib/message-text-utils";
+import { resolveThinkingLabelForSurface } from "../lib/thinking-label-policy";
 import { UserMessageBubble } from "../components/user-message-bubble";
 import { ThreadMessageContext, type ThreadMessageContextValue } from "./thread-message-context";
 
@@ -71,10 +73,22 @@ function useThreadMessageDerived(
 	const isThinkingStatusActive =
 		Boolean(thinkingStatusPart) &&
 		!(isRetryThinkingStatus && !isStreaming);
-	const { label: resolvedThinkingStatusLabel } = useDynamicThinkingLabel({
+	const hasRawMessageText = rawMessageText.trim().length > 0;
+	const thinkingStatusReasoningPhase: ReasoningPhase = (() => {
+		if (!isThinkingStatusActive) return "idle";
+		if (!hasRawMessageText) return "thinking";
+		if (isStreaming) return "streaming";
+		return "completed";
+	})();
+	const { label: dynamicThinkingStatusLabel } = useDynamicThinkingLabel({
 		baseLabel: thinkingStatusPart?.data.label ?? "Thinking",
 		isStreaming: isStreaming && isThinkingStatusActive,
 		updateSignal: thinkingStatusUpdateSignal,
+	});
+	const resolvedThinkingStatusLabel = resolveThinkingLabelForSurface({
+		baseLabel: dynamicThinkingStatusLabel,
+		surface,
+		reasoningPhase: thinkingStatusReasoningPhase,
 	});
 
 	// ---------- widget data ----------
@@ -145,10 +159,15 @@ function useThreadMessageDerived(
 		Boolean(isPlanWidgetFlow) &&
 		isCreatePlanSkillFlow &&
 		assistantStreamingRenderMode !== "text-first";
+	const hasWidgetPayload = Boolean(widgetDataPart);
+	// GenUI payload can arrive before the trailing loading=false event.
+	// Keep the card renderable when payload exists to avoid "stuck spinner" regressions.
+	const shouldRenderWidgetWhileLoading =
+		widgetType === "genui-preview" && hasWidgetPayload;
 	const renderedWidget =
 		shouldShowWidgetSections &&
 		widgetDataPart &&
-		!isWidgetLoading &&
+		(!isWidgetLoading || shouldRenderWidgetWhileLoading) &&
 		(widgetType !== "plan" || !isStreaming)
 			? renderWidget?.(
 					{
@@ -158,8 +177,10 @@ function useThreadMessageDerived(
 					message
 				) ?? null
 			: null;
+	const shouldHideLoadingWidget =
+		widgetType === "genui-preview" && hasWidgetPayload;
 	const loadingWidgetNode =
-		shouldShowWidgetSections && isWidgetLoading
+		shouldShowWidgetSections && isWidgetLoading && !shouldHideLoadingWidget
 			? renderLoadingWidget?.(widgetType) ?? null
 			: null;
 	const shouldRenderPlanWidgetFirst = widgetType === "plan";
@@ -191,6 +212,7 @@ function useThreadMessageDerived(
 			allThinkingStatusParts,
 			resolvedThinkingStatusLabel,
 			isThinkingStatusActive,
+			thinkingStatusReasoningPhase,
 			thinkingToolCallsForStatus,
 			sources,
 			toolParts,
@@ -207,7 +229,15 @@ function useThreadMessageDerived(
 			shouldRenderPlainTextWhileStreaming,
 		}),
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- stable key fields
-		[message.id, isStreaming, messageText, widgetType, isWidgetLoading, suggestedQuestions.length]
+		[
+			message.id,
+			surface,
+			isStreaming,
+			messageText,
+			widgetType,
+			isWidgetLoading,
+			suggestedQuestions.length,
+		]
 	);
 }
 

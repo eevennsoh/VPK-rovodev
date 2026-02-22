@@ -53,6 +53,7 @@ import {
 } from "../lib/thread-api";
 
 type AgentTeamPlanningPhase = "awaiting-plan" | "retrying-missing-plan";
+const AGENT_TEAM_PLAN_MODE_SOURCE = "agents-team-toggle" as const;
 
 interface AgentTeamPlanningSession {
 	requestId: string;
@@ -542,6 +543,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				await sendPrompt(nextPrompt, {
 					contextDescription: AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
 					planMode: true,
+					planModeSource: AGENT_TEAM_PLAN_MODE_SOURCE,
 					planRequestId: requestId,
 					creationMode: activeCreationMode ?? undefined,
 				});
@@ -632,6 +634,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		void sendPrompt(AGENT_TEAM_MODE_PLAN_RETRY_PROMPT, {
 			contextDescription: AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION,
 			planMode: true,
+			planModeSource: AGENT_TEAM_PLAN_MODE_SOURCE,
 			planRequestId: retryRequestId,
 			messageMetadata: {
 				visibility: "hidden",
@@ -657,6 +660,9 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 					? AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION
 					: undefined,
 				planMode: isPlanMode || undefined,
+				planModeSource: isPlanMode
+					? AGENT_TEAM_PLAN_MODE_SOURCE
+					: undefined,
 				planRequestId: agentTeamPlanningSession?.requestId,
 				clarification,
 				messageMetadata: {

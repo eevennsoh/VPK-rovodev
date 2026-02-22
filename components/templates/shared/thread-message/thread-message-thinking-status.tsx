@@ -8,6 +8,7 @@ import {
 	ReasoningSection,
 	ReasoningText,
 } from "@/components/ui-ai/reasoning";
+import { getReasoningPropsForPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
 import { ThreadMessageContext } from "./thread-message-context";
 import { AssistantThinkingToolsSection } from "../components/assistant-thinking-tools-section";
 import { AssistantToolsSection } from "../components/assistant-tools-section";
@@ -16,8 +17,8 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 	const {
 		message,
 		reasoning,
-		isStreaming,
 		isThinkingStatusActive,
+		thinkingStatusReasoningPhase,
 		thinkingStatusPart,
 		allThinkingStatusParts,
 		resolvedThinkingStatusLabel,
@@ -39,16 +40,28 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 	const hasTools = hasToolParts || hasThinkingToolCalls;
 	const hasDetails = hasThinkingText || hasTools;
 
+	const phaseProps = getReasoningPropsForPhase(
+		thinkingStatusReasoningPhase,
+		undefined,
+		hasDetails
+	);
+
 	return (
 		<div className={reasoning ? "pt-2" : undefined}>
 			<Reasoning
 				className="mb-0"
-				defaultOpen={hasDetails}
-				isStreaming={isStreaming}
+				defaultOpen={phaseProps.defaultOpen ?? hasDetails}
+				isStreaming={phaseProps.isStreaming}
+				streamingWave={phaseProps.streamingWave}
+				streamingWaveGradientColor={
+					phaseProps.streamingWaveGradientColor
+				}
+				animatedDots={phaseProps.animatedDots}
 			>
 				<AdsReasoningTrigger
 					label={resolvedThinkingStatusLabel}
 					showChevron={hasDetails}
+					streaming={phaseProps.triggerStreaming}
 				/>
 				{hasDetails ? (
 					<ReasoningContent>

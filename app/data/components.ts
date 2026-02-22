@@ -101,6 +101,7 @@ export const AI_COMPONENTS: ComponentEntry[] = [
 	aiComponent("edge"),
 	aiComponent("environment-variables", "Environment Variables"),
 	aiComponent("file-tree", "File Tree"),
+	aiComponent("generative-card", "Generative Card"),
 	aiComponent("image"),
 	aiComponent("inline-citation", "Inline Citation"),
 	aiComponent("jsx-preview", "JSX Preview"),
@@ -284,6 +285,7 @@ export const TEMPLATE_COMPONENTS: ComponentEntry[] = [
 ] as const;
 
 export const UTILITY_COMPONENTS: ComponentEntry[] = [
+	utilityComponent("gui", "GUI"),
 	utilityComponent("image-generation", "Image Generation"),
 	utilityComponent("multiports", "Multiports"),
 	utilityComponent("sound-generation", "Sound Generation"),
@@ -293,7 +295,7 @@ export const UTILITY_COMPONENTS: ComponentEntry[] = [
 
 export const VISUAL_COMPONENTS: ComponentEntry[] = [
 	visualComponent("typography", "Typography", "@/lib/tokens"),
-	visualComponent("color", "Color", "@/app/shadcn-theme.css"),
+	visualComponent("color", "Color", "@/app/tailwind-theme.css\n@/app/shadcn-theme.css"),
 	visualComponent("shadow", "Shadow", "@/lib/tokens"),
 ] as const;
 

@@ -52,6 +52,12 @@ function Section({ title, children }: Readonly<SectionProps>) {
 }
 
 const SCALE_STEPS = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"] as const;
+const ROVO_SWATCHES = [
+	{ label: "blue-600", className: "bg-blue-600" },
+	{ label: "orange-300", className: "bg-orange-300" },
+	{ label: "purple-500", className: "bg-purple-500" },
+	{ label: "lime-400", className: "bg-lime-400" },
+] as const;
 
 interface ScaleRowProps {
 	title: string;
@@ -79,7 +85,7 @@ function ScaleRow({ title, swatches }: Readonly<ScaleRowProps>) {
 export default function ColorDemo() {
 	return (
 		<div className="flex flex-col w-full" style={{ gap: token("space.500") }}>
-			{/* ── Semantic Colors (shadcn-theme.css) ── */}
+			{/* ── Semantic Colors (tailwind-theme.css + shadcn-theme.css) ── */}
 			<div className="flex flex-col" style={{ gap: token("space.400") }}>
 				<h2 className="text-text text-sm font-semibold" style={{ borderBottom: `1px solid ${token("color.border")}`, paddingBottom: token("space.100") }}>
 					Semantic Colors
@@ -306,6 +312,12 @@ export default function ColorDemo() {
 				<h2 className="text-text text-sm font-semibold" style={{ borderBottom: `1px solid ${token("color.border")}`, paddingBottom: token("space.100") }}>
 					Accent Color Scales
 				</h2>
+
+				<Section title="Rovo">
+					{ROVO_SWATCHES.map((swatch) => (
+						<Swatch key={swatch.label} label={swatch.label} className={swatch.className} type="bg" />
+					))}
+				</Section>
 
 				<ScaleRow title="Blue" swatches={[
 					"bg-blue-50", "bg-blue-100", "bg-blue-200", "bg-blue-300", "bg-blue-400",

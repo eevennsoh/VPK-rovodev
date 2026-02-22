@@ -39,6 +39,7 @@ export interface SendPromptOptions {
 	clarification?: unknown;
 	approval?: unknown;
 	planMode?: boolean;
+	planModeSource?: "agents-team-toggle";
 	planRequestId?: string;
 	creationMode?: "skill" | "agent";
 	smartGeneration?: {
@@ -61,6 +62,7 @@ type RovoUIMessagePart = RovoUIMessage["parts"][number];
 const INLINE_DATA_PLACEHOLDER = "[inline data omitted]";
 const CHAT_REQUEST_MAX_BYTES = 4 * 1024 * 1024;
 const CHAT_REQUEST_MIN_MESSAGES = 8;
+const EXPLICIT_CANCEL_DEBOUNCE_MS = 2_000;
 
 function buildSendMessageBody(
 	options: SendPromptOptions | undefined,
@@ -72,6 +74,7 @@ function buildSendMessageBody(
 		clarification: options?.clarification,
 		approval: options?.approval,
 		planMode: options?.planMode,
+		planModeSource: options?.planModeSource,
 		planRequestId: options?.planRequestId,
 		creationMode: options?.creationMode,
 		smartGeneration: options?.smartGeneration,
@@ -386,6 +389,8 @@ export function RovoChatProvider({
 	const isDispatchingPromptRef = useRef(false);
 	const isCancellingRef = useRef(false);
 	const cancelStreamPromiseRef = useRef<Promise<void> | null>(null);
+	const lastExplicitCancelAtRef = useRef(0);
+	const lastExplicitCancelKeyRef = useRef("");
 	const isSubmitPendingRef = useRef(false);
 	const shouldFinalizeActivePromptRef = useRef(false);
 	const hasTurnCompleteSignalRef = useRef(false);
@@ -1000,6 +1005,15 @@ export function RovoChatProvider({
 			return;
 		}
 
+		// Skip cancel if no stream is active — avoids sending HTTP requests to
+		// RovoDev Serve during startup before the instances are ready.
+		if (!isStreamingRef.current) {
+			try {
+				await stop();
+			} catch {}
+			return;
+		}
+
 		const cancelPromise = (async () => {
 			try {
 				await stop();
@@ -1011,11 +1025,22 @@ export function RovoChatProvider({
 			// stream. The primary cancellation path is req.on("close") → AbortSignal,
 			// but this handles edge cases where the SSE close event is delayed.
 			try {
-				const cancelEndpoint =
-					typeof portIndex === "number"
-						? `${API_ENDPOINTS.CHAT_CANCEL}?portIndex=${encodeURIComponent(String(portIndex))}`
-						: API_ENDPOINTS.CHAT_CANCEL;
-				await fetch(cancelEndpoint, { method: "POST" });
+				const cancelKey =
+					typeof portIndex === "number" ? `port:${portIndex}` : "default";
+				const now = Date.now();
+				const recentlyCancelledSameTarget =
+					lastExplicitCancelKeyRef.current === cancelKey &&
+					now - lastExplicitCancelAtRef.current < EXPLICIT_CANCEL_DEBOUNCE_MS;
+
+				if (!recentlyCancelledSameTarget) {
+					lastExplicitCancelKeyRef.current = cancelKey;
+					lastExplicitCancelAtRef.current = now;
+					const cancelEndpoint =
+						typeof portIndex === "number"
+							? `${API_ENDPOINTS.CHAT_CANCEL}?portIndex=${encodeURIComponent(String(portIndex))}`
+							: API_ENDPOINTS.CHAT_CANCEL;
+					await fetch(cancelEndpoint, { method: "POST" });
+				}
 			} catch {
 				// Ignore cancel endpoint errors — the stream may have already ended.
 			}

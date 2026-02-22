@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, type ReactNode } from "react";
+import type { ReasoningPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
 import type {
 	RovoDataPart,
 	RovoRenderableUIMessage,
@@ -44,6 +45,8 @@ export interface ThreadMessageContextValue {
 	 * Computed from data only — independent of consumer composition choice.
 	 */
 	isThinkingStatusActive: boolean;
+	/** Reasoning phase for the thinking-status indicator. */
+	thinkingStatusReasoningPhase: ReasoningPhase;
 	/** Tool call summaries to show in the thinking-status section (empty array if standalone tools are shown instead). */
 	thinkingToolCallsForStatus: ThinkingToolCallSummary[];
 

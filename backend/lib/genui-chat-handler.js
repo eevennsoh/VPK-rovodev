@@ -364,6 +364,7 @@ async function generateAssistantText({
 			const chunks = [];
 			await streamViaRovoDev({
 				message: combinedMessage,
+				conflictPolicy: "wait-for-turn",
 				onTextDelta: (delta) => {
 					chunks.push(delta);
 					onTextDelta(delta);

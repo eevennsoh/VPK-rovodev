@@ -3,19 +3,16 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import type { Spec } from "@json-render/react";
-import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import CrossIcon from "@atlaskit/icon/core/cross";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+	GenerativeCard,
+	GenerativeCardBody,
+	GenerativeCardContent,
+	GenerativeCardFooter,
+	GenerativeCardHeader,
+} from "@/components/ui-ai/generative-card";
 import {
 	Dialog,
 	DialogClose,
@@ -282,76 +279,47 @@ function GenerativeWidgetCardShell({
 	primaryActionLabel,
 	onStateChange,
 }: Readonly<GenerativeWidgetCardShellProps>): ReactNode {
-	const [expanded, setExpanded] = useState(true);
 	const contentTypeLabel = formatContentTypeLabel(metadata.contentType);
 
 	return (
-		<Card className={cn("w-full gap-0 p-0", className)}>
-			<CardHeader className={cn("p-4", expanded && "border-b")}>
-				<div className="flex min-w-0 items-center gap-3">
-					<ContentTypeTile contentType={metadata.contentType} label={contentTypeLabel} />
-					<div className="min-w-0 flex-1">
-						<CardTitle className="truncate text-sm leading-5 font-semibold">
-							{metadata.title}
-						</CardTitle>
-						<CardDescription className="line-clamp-2 text-xs leading-4">
-							{metadata.description}
-						</CardDescription>
-					</div>
-				</div>
-				<CardAction className="self-center">
+		<GenerativeCard className={className}>
+			<GenerativeCardHeader
+				className="p-4"
+				leading={<ContentTypeTile contentType={metadata.contentType} label={contentTypeLabel} />}
+				title={metadata.title}
+				description={metadata.description}
+			/>
+			<GenerativeCardBody>
+				<GenerativeCardContent className="p-4">
+					{renderWidgetBody(
+						bodyWidget,
+						previewMode,
+						true,
+						onOpenPreview,
+						onStateChange,
+						!previewMode,
+					)}
+				</GenerativeCardContent>
+				<GenerativeCardFooter className="gap-2">
 					<Button
-						variant="ghost"
-						size="icon"
-						className="text-text-subtle"
-						aria-label={expanded ? "Collapse card details" : "Expand card details"}
-						onClick={() => setExpanded((prev) => !prev)}
+						variant="outline"
+						className="h-8 min-w-[117px]"
+						disabled={previewMode}
+						onClick={previewMode ? undefined : onOpenPreview}
 					>
-						<span
-							className="transition-transform duration-200 ease-in-out"
-							style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
-						>
-							<ChevronDownIcon label="" size="small" />
-						</span>
+						Open preview
 					</Button>
-				</CardAction>
-			</CardHeader>
-			<div
-				className="grid transition-[grid-template-rows] duration-200 ease-in-out"
-				style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}
-			>
-				<div className="overflow-hidden">
-					<CardContent className="p-4">
-						{renderWidgetBody(
-							bodyWidget,
-							previewMode,
-							true,
-							onOpenPreview,
-							onStateChange,
-							!previewMode,
-						)}
-					</CardContent>
-					<CardFooter className="h-16 justify-end gap-2 px-4 py-4">
+					{showPrimaryAction && primaryActionLabel ? (
 						<Button
-							variant="outline"
 							className="h-8 min-w-[117px]"
-							disabled={previewMode}
-							onClick={previewMode ? undefined : onOpenPreview}
+							onClick={onPrimaryAction}
 						>
-							Open preview
+							{primaryActionLabel}
 						</Button>
-						{showPrimaryAction && primaryActionLabel ? (
-							<Button
-								className="h-8 min-w-[117px]"
-								onClick={onPrimaryAction}
-							>
-								{primaryActionLabel}
-							</Button>
-						) : null}
-					</CardFooter>
-				</div>
-			</div>
-		</Card>
+					) : null}
+				</GenerativeCardFooter>
+			</GenerativeCardBody>
+		</GenerativeCard>
 	);
 }
 

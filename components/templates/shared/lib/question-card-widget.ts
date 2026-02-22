@@ -50,6 +50,7 @@ const DEFAULT_MAX_ROUNDS = 3;
 const DEFAULT_TITLE = "Help me clarify this";
 const DEFAULT_PLACEHOLDER = "Tell Rovo what to do...";
 const MAX_GENERATED_OPTIONS = 4;
+const MAX_LABEL_LENGTH = 120;
 
 function isStringRecord(value: unknown): value is StringRecord {
 	return typeof value === "object" && value !== null;
@@ -132,26 +133,8 @@ function normalizeQuestionOptions(value: unknown): ParsedQuestionCardOption[] {
 	return options.slice(0, MAX_GENERATED_OPTIONS);
 }
 
-function createFallbackQuestionOptions(
-	questionLabel: string
-): ParsedQuestionCardOption[] {
-	return [
-		{
-			id: "option-1",
-			label: "Quick recommendation",
-			description: `Give a fast direction for "${questionLabel}".`,
-		},
-		{
-			id: "option-2",
-			label: "Balanced approach",
-			description: "Trade off speed and quality.",
-		},
-		{
-			id: "option-3",
-			label: "Detailed plan",
-			description: "Prioritize completeness and depth.",
-		},
-	];
+function createFallbackQuestionOptions(): ParsedQuestionCardOption[] {
+	return [];
 }
 
 function getUniqueQuestionId(baseId: string, seenQuestionIds: Set<string>): string {
@@ -202,7 +185,10 @@ export function parseQuestionCardPayload(
 			getNonEmptyString(question.text);
 		if (!questionLabel) continue;
 
-		const normalizedLabel = questionLabel.toLowerCase();
+		const truncatedLabel = questionLabel.length > MAX_LABEL_LENGTH
+			? questionLabel.slice(0, MAX_LABEL_LENGTH - 1) + "\u2026"
+			: questionLabel;
+		const normalizedLabel = truncatedLabel.toLowerCase();
 		if (seenLabels.has(normalizedLabel)) continue;
 		seenLabels.add(normalizedLabel);
 
@@ -210,13 +196,13 @@ export function parseQuestionCardPayload(
 		const options =
 			parsedOptions.length > 0
 				? parsedOptions
-				: createFallbackQuestionOptions(questionLabel);
+				: createFallbackQuestionOptions();
 		const baseQuestionId = getNonEmptyString(question.id) ?? `q-${index + 1}`;
 		const questionId = getUniqueQuestionId(baseQuestionId, seenQuestionIds);
 
 		questions.push({
 			id: questionId,
-			label: questionLabel,
+			label: truncatedLabel,
 			header: getNonEmptyString(question.header) ?? undefined,
 			description: getNonEmptyString(question.description) ?? undefined,
 			required: question.required !== false,

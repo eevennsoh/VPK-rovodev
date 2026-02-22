@@ -267,7 +267,7 @@ const ShimmerComponent = ({
 					} as CSSProperties
 				}
 			>
-				<span className="inline-flex items-baseline whitespace-pre">
+				<span className="inline-flex items-baseline whitespace-pre [transform-style:preserve-3d]">
 					{characters.map((character, index) => {
 						const delay =
 							(index * resolvedDuration * (1 / Math.max(resolvedSpread, 1))) /

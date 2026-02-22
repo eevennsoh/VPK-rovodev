@@ -10,6 +10,8 @@ const HEADER_ONLY_PATTERN =
 const DEFAULT_MAX_QUESTIONS = 4;
 const MIN_QUESTION_COUNT = 2;
 const DEFAULT_MAX_ROUNDS = 3;
+const MAX_LABEL_LENGTH = 120;
+const URL_ONLY_PATTERN = /^https?:\/\/\S+$/i;
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -55,9 +57,14 @@ function parseQuestionCardQuestionText(rawQuestionText) {
 		return null;
 	}
 
+	// Reject text that is just a URL (e.g. a Figma link)
+	if (URL_ONLY_PATTERN.test(normalizedText)) {
+		return null;
+	}
+
 	const questionMarkIndex = normalizedText.indexOf("?");
 	if (questionMarkIndex !== -1) {
-		const label = normalizedText.slice(0, questionMarkIndex + 1).trim();
+		let label = normalizedText.slice(0, questionMarkIndex + 1).trim();
 		const description = normalizeQuestionCardText(
 			normalizedText
 				.slice(questionMarkIndex + 1)
@@ -65,6 +72,11 @@ function parseQuestionCardQuestionText(rawQuestionText) {
 		);
 		if (!label) {
 			return null;
+		}
+
+		// Truncate overly long labels
+		if (label.length > MAX_LABEL_LENGTH) {
+			label = label.slice(0, MAX_LABEL_LENGTH - 1) + "\u2026";
 		}
 
 		return {
@@ -75,6 +87,14 @@ function parseQuestionCardQuestionText(rawQuestionText) {
 
 	if (!INTERROGATIVE_PATTERN.test(normalizedText)) {
 		return null;
+	}
+
+	// Truncate overly long labels without a question mark
+	if (normalizedText.length > MAX_LABEL_LENGTH) {
+		return {
+			label: normalizedText.slice(0, MAX_LABEL_LENGTH - 1) + "\u2026",
+			description: undefined,
+		};
 	}
 
 	return {
@@ -263,4 +283,5 @@ module.exports = {
 	resolveFallbackQuestionCardState,
 	normalizeQuestionCardText,
 	parseQuestionCardQuestionText,
+	MAX_LABEL_LENGTH,
 };

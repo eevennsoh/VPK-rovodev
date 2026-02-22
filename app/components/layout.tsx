@@ -8,7 +8,7 @@ import { buildNavItems, UI_GROUPS, BLOCK_GROUPS } from "@/app/data/nav-utils";
 import { getAdsDisplayInfo } from "@/app/data/ads-equivalents";
 
 const staticPages = [{ name: "Home", href: "/" }];
-const ADS_AI_SLUGS = new Set(["animated-dots", "animated-rovo", "chain-of-thought", "code-block", "conversation", "message", "plan", "prompt-input", "queue", "reasoning", "shimmer", "sources", "speech-input", "suggestion", "task"]);
+const ADS_AI_SLUGS = new Set(["animated-dots", "animated-rovo", "chain-of-thought", "code-block", "conversation", "generative-card", "message", "plan", "prompt-input", "queue", "reasoning", "shimmer", "sources", "speech-input", "suggestion", "task"]);
 const ADS_UI_DISCOVERY_SLUGS = new Set(["skill-card"]);
 const ADS_BLOCK_SLUGS = new Set([
 	"agent-grid",

@@ -9,7 +9,15 @@ interface DocInstallationProps {
 }
 
 export function DocInstallation({ importPath, name }: Readonly<DocInstallationProps>) {
-	const importStatement = `import { ${name.replace(/\s+/g, "")} } from "${importPath}";`;
+	const componentName = name.replace(/\s+/g, "");
+	const importPaths = importPath
+		.split("\n")
+		.map(path => path.trim())
+		.filter(Boolean);
+	const importStatement =
+		importPaths.length > 1
+			? importPaths.map(path => `import "${path}";`).join("\n")
+			: `import { ${componentName} } from "${importPaths[0] ?? importPath}";`;
 
 	return (
 		<DocSection id="installation" title="Import">

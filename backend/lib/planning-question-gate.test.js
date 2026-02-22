@@ -169,6 +169,22 @@ test("shouldGatePlanningQuestionCard does not gate acknowledgements in plan mode
 	}
 });
 
+test("shouldGatePlanningQuestionCard does not gate non-planning prompts in plan mode", () => {
+	const shouldGate = shouldGatePlanningQuestionCard({
+		messages: [],
+		planMode: true,
+		latestVisibleUserMessage: {
+			text: "Can you explain what this endpoint does?",
+			source: null,
+		},
+		latestUserMessageSource: null,
+		planningGateSkipSources: PLANNING_GATE_SKIP_SOURCES,
+		detectPlanningIntent: () => false,
+	});
+
+	assert.equal(shouldGate, false);
+});
+
 test("shouldGatePlanningQuestionCard still gates task-like messages that start with greetings in plan mode", () => {
 	const taskMessages = [
 		"hey can you help me build a deployment plan",
