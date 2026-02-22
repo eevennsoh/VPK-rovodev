@@ -27,6 +27,7 @@ export default function RovoView() {
 		selectedReasoning,
 		setSelectedReasoning,
 		handleClarificationSubmit,
+		handleClarificationDismiss,
 		webResultsEnabled,
 		setWebResultsEnabled,
 		companyKnowledgeEnabled,
@@ -48,8 +49,12 @@ export default function RovoView() {
 		uiMessages,
 		enabled: isChatMode,
 	});
-	const { shouldShowQuestionCard: shouldShowQuestionCardRaw, activeQuestionCardKey, dismissQuestionCard } =
-		useDismissibleCards({ activeQuestionCard, activePlanWidget: null });
+	const { shouldShowQuestionCard: shouldShowQuestionCardRaw, activeQuestionCardKey, hideQuestionCard, dismissQuestionCard } =
+		useDismissibleCards({
+			activeQuestionCard,
+			activePlanWidget: null,
+			onDismissQuestionCard: handleClarificationDismiss,
+		});
 	const shouldShowQuestionCard = !isRequestInFlight && shouldShowQuestionCardRaw;
 
 	return (
@@ -96,6 +101,8 @@ export default function RovoView() {
 								scrollSpacerRef={scrollSpacerRef}
 								isStreaming={isStreaming}
 								isSubmitPending={isSubmitPending}
+								showAwaitingIndicator={shouldShowQuestionCard && activeQuestionCard !== null}
+								awaitingIndicatorLabel="Awaiting user response"
 							/>
 						</div>
 					</div>
@@ -108,7 +115,7 @@ export default function RovoView() {
 									questionCard={activeQuestionCard}
 									onSubmit={(answers) => {
 										void handleClarificationSubmit(answers);
-										dismissQuestionCard();
+										hideQuestionCard();
 									}}
 									onDismiss={dismissQuestionCard}
 								/>

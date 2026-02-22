@@ -7,6 +7,7 @@ import type {
 	RovoRenderableUIMessage,
 	RovoSourcePart,
 	RovoToolPart,
+	RouteDecisionMeta,
 	ThinkingToolCallSummary,
 	ToolFirstWarningData,
 } from "@/lib/rovo-ui-messages";
@@ -85,6 +86,12 @@ export interface ThreadMessageContextValue {
 	shouldRenderMessageText: boolean;
 	/** Whether to render plain text instead of markdown while streaming. */
 	shouldRenderPlainTextWhileStreaming: boolean;
+
+	// ---------- route decision ----------
+	/** Route decision metadata from the output routing layer (null if not present). */
+	routeDecision: RouteDecisionMeta | null;
+	/** Whether GenUI failed and the response fell back to text. */
+	isFallbackTextRoute: boolean;
 }
 
 export const ThreadMessageContext = createContext<ThreadMessageContextValue | null>(null);

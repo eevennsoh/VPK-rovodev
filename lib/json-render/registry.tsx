@@ -209,9 +209,9 @@ const GAP_CLASSES: Record<string, string> = {
 // ── Grid column class mapping ─────────────────────────────────
 const GRID_COL_CLASSES: Record<string, string> = {
 	"1": "grid-cols-1",
-	"2": "grid-cols-1 md:grid-cols-2",
-	"3": "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
-	"4": "grid-cols-1 md:grid-cols-2 lg:grid-cols-4",
+	"2": "grid-cols-1 @[480px]/grid:grid-cols-2",
+	"3": "grid-cols-1 @[480px]/grid:grid-cols-2 @[640px]/grid:grid-cols-3",
+	"4": "grid-cols-1 @[480px]/grid:grid-cols-2 @[768px]/grid:grid-cols-4",
 };
 
 function normalizeHeadingLevel(rawLevel: unknown): "h1" | "h2" | "h3" | "h4" {
@@ -248,24 +248,26 @@ export const { registry, handlers } = defineRegistry(catalog, {
 						: "flex-row"
 					: "flex-col";
 			return (
-				<div
-					className={cn(
-						"@container/stack flex",
-						directionClass,
-						GAP_CLASSES[gap ?? "md"],
-						align === "center" && "items-center",
-						align === "start" && "items-start",
-						align === "end" && "items-end",
-						align === "stretch" && "items-stretch",
-						justify === "center" && "justify-center",
-						justify === "start" && "justify-start",
-						justify === "end" && "justify-end",
-						justify === "between" && "justify-between",
-						className,
-					)}
-					style={{ padding: padding ? `${padding * 4}px` : undefined }}
-				>
-					{children}
+				<div className="@container/stack">
+					<div
+						className={cn(
+							"flex",
+							directionClass,
+							GAP_CLASSES[gap ?? "md"],
+							align === "center" && "items-center",
+							align === "start" && "items-start",
+							align === "end" && "items-end",
+							align === "stretch" && "items-stretch",
+							justify === "center" && "justify-center",
+							justify === "start" && "justify-start",
+							justify === "end" && "justify-end",
+							justify === "between" && "justify-between",
+							className,
+						)}
+						style={{ padding: padding ? `${padding * 4}px` : undefined }}
+					>
+						{children}
+					</div>
 				</div>
 			);
 		},
@@ -289,7 +291,11 @@ export const { registry, handlers } = defineRegistry(catalog, {
 
 		Grid: ({ props, children }) => {
 			const { columns = "2", gap = "md", className } = props;
-			return <div className={cn("grid", GRID_COL_CLASSES[columns ?? "2"], GAP_CLASSES[gap ?? "md"], className)}>{children}</div>;
+			return (
+				<div className="@container/grid">
+					<div className={cn("grid", GRID_COL_CLASSES[columns ?? "2"], GAP_CLASSES[gap ?? "md"], className)}>{children}</div>
+				</div>
+			);
 		},
 
 		// ── Typography ─────────────────────────────────
@@ -586,6 +592,23 @@ export const { registry, handlers } = defineRegistry(catalog, {
 						<AccordionItem key={i} value={`item-${i}`}>
 							<AccordionTrigger>{toSafeText(item.title)}</AccordionTrigger>
 							<AccordionContent>{toSafeText(item.content)}</AccordionContent>
+						</AccordionItem>
+					))}
+				</Accordion>
+			);
+		},
+
+		AccordionForm: ({ props, children }) => {
+			const { items, defaultOpenValues } = props;
+			const childArray = Children.toArray(children);
+			return (
+				<Accordion defaultValue={defaultOpenValues ?? undefined}>
+					{items.map((item: { value: string; title: string }, i: number) => (
+						<AccordionItem key={item.value} value={item.value}>
+							<AccordionTrigger>{toSafeText(item.title)}</AccordionTrigger>
+							<AccordionContent>
+								{childArray[i] ?? null}
+							</AccordionContent>
 						</AccordionItem>
 					))}
 				</Accordion>
@@ -909,10 +932,16 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		Slider: ({ props, bindings }) => {
 			const { min = 0, max = 100, step = 1, label } = props;
 			const [value, setValue] = useBoundProp<number>(nu(props.value), bindings?.value);
+			const displayValue = value ?? min ?? 0;
 			return (
 				<div className="space-y-2">
-					{label ? <Label>{toSafeText(label)}</Label> : null}
-					<SliderPrimitive value={[value ?? min ?? 0]} onValueChange={(v) => setValue(Array.isArray(v) ? v[0] : v)} min={nu(min)} max={nu(max)} step={nu(step)} />
+					{label ? (
+						<div className="flex items-center justify-between">
+							<Label>{toSafeText(label)}</Label>
+							<span className="text-xs tabular-nums text-text-subtle">{displayValue}</span>
+						</div>
+					) : null}
+					<SliderPrimitive value={[displayValue]} onValueChange={(v) => setValue(Array.isArray(v) ? v[0] : v)} min={nu(min)} max={nu(max)} step={nu(step)} />
 				</div>
 			);
 		},

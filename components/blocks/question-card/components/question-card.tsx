@@ -261,6 +261,7 @@ function QuestionCard({
 			data-testid="question-card"
 			tabIndex={0}
 			role="dialog"
+			aria-modal="true"
 			aria-label={`Question ${safeQuestionIndex + 1} of ${totalQuestions}: ${currentQuestion.label}`}
 			onKeyDown={handleKeyDown}
 			className={cn("mx-auto w-full max-w-[776px] overflow-hidden rounded-xl border border-border bg-surface shadow-[0_-2px_50px_8px_rgba(30,31,33,0.08)] outline-none", className)}

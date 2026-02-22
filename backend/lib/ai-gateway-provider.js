@@ -276,6 +276,7 @@ function createAIGatewayProvider(options = {}) {
 				messages: normalizeMessages(messages),
 				maxOutputTokens,
 				temperature,
+				signal,
 				onTextDelta,
 				onFile,
 			});
@@ -306,7 +307,6 @@ function createAIGatewayProvider(options = {}) {
 			);
 
 			const fallbackResult = await streamGoogleGatewayManualSse({
-				// streamGoogleGatewayManualSse currently does not accept AbortSignal.
 				gatewayUrl: resolvedGatewayUrl,
 				envVars,
 				model: getModelId(resolvedGatewayUrl),
@@ -315,6 +315,7 @@ function createAIGatewayProvider(options = {}) {
 				messages: normalizeMessages(messages),
 				maxOutputTokens,
 				temperature,
+				signal,
 				onTextDelta,
 				onFile,
 			});

@@ -10,6 +10,8 @@ const {
 	generateTextViaRovoDev,
 	retryChatInProgress,
 	shouldCancelConflictingTurn,
+	parseToolCallArgsInput,
+	resolveToolCallInput,
 } = require("./rovodev-gateway");
 
 test("isGenericIntegrationWrapperToolName detects wrapper tool names", () => {
@@ -88,6 +90,53 @@ test("buildThinkingStatusFromToolEvent returns user-facing labels and metadata",
 	assert.equal(errorStatus.label, "Result generation failed");
 	assert.equal(errorStatus.activity, "results");
 	assert.equal(errorStatus.source, "backend");
+});
+
+test("parseToolCallArgsInput returns object only when JSON args are complete", () => {
+	assert.deepEqual(
+		parseToolCallArgsInput('{"questions":[{"question":"Which space?","options":["Engineering"]}]}'),
+		{
+			questions: [
+				{
+					question: "Which space?",
+					options: ["Engineering"],
+				},
+			],
+		}
+	);
+
+	assert.equal(
+		parseToolCallArgsInput('{"questions":[{"question":"Incomplete"}'),
+		null
+	);
+	assert.equal(parseToolCallArgsInput(""), null);
+});
+
+test("resolveToolCallInput prefers merged args payload and falls back to start input", () => {
+	const merged = resolveToolCallInput({
+		initialInput: {
+			tool_name: "request_user_input",
+		},
+		argsBuffer:
+			'{"questions":[{"question":"Which page type?","choices":["Status update","Project brief"]}]}',
+	});
+	assert.deepEqual(merged, {
+		tool_name: "request_user_input",
+		questions: [
+			{
+				question: "Which page type?",
+				choices: ["Status update", "Project brief"],
+			},
+		],
+	});
+
+	const fallback = resolveToolCallInput({
+		initialInput: { questions: [{ question: "Which page type?" }] },
+		argsBuffer: "{not-json",
+	});
+	assert.deepEqual(fallback, {
+		questions: [{ question: "Which page type?" }],
+	});
 });
 
 test("isChatInProgressError detects RovoDev 409 conflicts from structured metadata", () => {

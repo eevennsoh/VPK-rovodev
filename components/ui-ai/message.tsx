@@ -40,11 +40,9 @@ import {
 import type { LinkSafetyConfig } from "streamdown";
 import { Streamdown } from "streamdown";
 
-import { renderLinkSafetyModal } from "@/components/ui-ai/link-safety-dialog";
-
 const linkSafetyConfig: LinkSafetyConfig = {
 	enabled: true,
-	renderModal: renderLinkSafetyModal,
+	onLinkCheck: () => true,
 };
 
 export interface MessageProps extends HTMLAttributes<HTMLDivElement> {
@@ -76,7 +74,7 @@ export function MessageContent({
 	return (
 		<div
 			className={cn(
-				"is-user:dark flex w-fit min-w-0 max-w-full break-words [overflow-wrap:anywhere] flex-col gap-2 overflow-hidden text-sm",
+				"is-user:dark flex w-fit min-w-0 max-w-full break-words [overflow-wrap:anywhere] flex-col gap-2 group-[.is-user]:overflow-hidden text-sm",
 				"group-[.is-user]:rounded-xl group-[.is-user]:rounded-br-sm group-[.is-user]:bg-primary group-[.is-user]:px-3 group-[.is-user]:py-2 group-[.is-user]:text-primary-foreground",
 				"group-[.is-assistant]:text-foreground",
 				className,

@@ -48,11 +48,16 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		hasChatStarted,
 		activeQuestionCard,
 		handleClarificationSubmit,
+		handleClarificationDismiss,
 		stopStreaming,
 	} = useRovoChatPanel({ product });
 	const isRequestInFlight = isStreaming || isSubmitPending;
-	const { shouldShowQuestionCard: shouldShowQuestionCardRaw, activeQuestionCardKey, dismissQuestionCard } =
-		useDismissibleCards({ activeQuestionCard, activePlanWidget: null });
+	const { shouldShowQuestionCard: shouldShowQuestionCardRaw, activeQuestionCardKey, hideQuestionCard, dismissQuestionCard } =
+		useDismissibleCards({
+			activeQuestionCard,
+			activePlanWidget: null,
+			onDismissQuestionCard: handleClarificationDismiss,
+		});
 	const shouldShowQuestionCard = !isRequestInFlight && shouldShowQuestionCardRaw;
 
 	const isFloating = variant === "floating";
@@ -95,6 +100,8 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				scrollSpacerRef={scrollSpacerRef}
 				isStreaming={isStreaming}
 				isSubmitPending={isSubmitPending}
+				showAwaitingIndicator={shouldShowQuestionCard && activeQuestionCard !== null}
+				awaitingIndicatorLabel="Awaiting user response"
 			/>
 
 			{shouldShowQuestionCard && activeQuestionCard ? (
@@ -104,7 +111,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 						questionCard={activeQuestionCard}
 						onSubmit={(answers) => {
 							void handleClarificationSubmit(answers);
-							dismissQuestionCard();
+							hideQuestionCard();
 						}}
 						onDismiss={dismissQuestionCard}
 					/>

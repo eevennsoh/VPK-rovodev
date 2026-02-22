@@ -14,6 +14,7 @@ import {
 	getMessageToolParts,
 	isMessageTextStreaming,
 	type RovoRenderableUIMessage,
+	type RouteDecisionMeta,
 } from "@/lib/rovo-ui-messages";
 import type { ReasoningPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
 import {
@@ -105,6 +106,11 @@ function useThreadMessageDerived(
 		widgetErrorPart?.data.type;
 	const isWidgetLoading = widgetLoadingPart?.data.loading ?? false;
 
+	// ---------- route decision ----------
+	const routeDecisionPart = getLatestDataPart(message, "data-route-decision");
+	const routeDecision: RouteDecisionMeta | null = routeDecisionPart?.data ?? null;
+	const isFallbackTextRoute = routeDecision?.reason === "fallback_ui_failed";
+
 	// ---------- message text processing ----------
 	const normalizedWidgetText = widgetType
 		? removeLeadingSingleCharacterFragment(rawMessageText)
@@ -193,7 +199,7 @@ function useThreadMessageDerived(
 		(shouldShowWidgetSections &&
 			widgetType === "question-card" &&
 			!isStreaming) ||
-		(shouldShowWidgetSections && widgetType === "genui-preview");
+		(shouldShowWidgetSections && widgetType === "genui-preview" && !isFallbackTextRoute);
 	const shouldRenderMessageText =
 		Boolean(messageText) && !shouldSuppressTextForWidget;
 	const shouldRenderPlainTextWhileStreaming =
@@ -227,8 +233,10 @@ function useThreadMessageDerived(
 			hasRenderedWidget,
 			shouldRenderMessageText,
 			shouldRenderPlainTextWhileStreaming,
+			routeDecision,
+			isFallbackTextRoute,
 		}),
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- stable key fields
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- stable key fields + thinking signals for progressive streaming
 		[
 			message.id,
 			surface,
@@ -237,6 +245,9 @@ function useThreadMessageDerived(
 			widgetType,
 			isWidgetLoading,
 			suggestedQuestions.length,
+			routeDecision?.reason,
+			thinkingStatusUpdateSignal,
+			resolvedThinkingStatusLabel,
 		]
 	);
 }

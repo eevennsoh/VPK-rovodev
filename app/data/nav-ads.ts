@@ -1,0 +1,55 @@
+import { getAdsDisplayInfo } from "@/app/data/ads-equivalents";
+
+const ADS_UI_DISCOVERY_SLUGS = new Set(["skill-card"]);
+
+const ADS_AI_SLUGS = new Set([
+	"animated-dots",
+	"animated-rovo",
+	"chain-of-thought",
+	"code-block",
+	"conversation",
+	"generative-card",
+	"message",
+	"plan",
+	"prompt-input",
+	"queue",
+	"reasoning",
+	"shimmer",
+	"sources",
+	"speech-input",
+	"suggestion",
+	"task",
+]);
+
+const ADS_BLOCK_SLUGS = new Set([
+	"agent-grid",
+	"agent-progress",
+	"agent-summary",
+	"top-navigation",
+	"prompt-gallery",
+	"shared-ui",
+	"product-sidebar",
+	"sidebar-rail",
+	"work-item-widget",
+	"question-card",
+	"approval-card",
+]);
+
+export function resolveUiAdsPackage(slug: string) {
+	if (ADS_UI_DISCOVERY_SLUGS.has(slug)) {
+		return "Atlassian Design System";
+	}
+	return getAdsDisplayInfo(slug)?.displayText ?? (slug === "switch" ? "Atlassian Design System" : undefined);
+}
+
+export function resolveUiAdsTagVariant(slug: string): "discovery" | undefined {
+	return ADS_UI_DISCOVERY_SLUGS.has(slug) ? "discovery" : undefined;
+}
+
+export function resolveAiAdsPackage(slug: string) {
+	return ADS_AI_SLUGS.has(slug) ? "Atlassian Design System" : undefined;
+}
+
+export function resolveBlockAdsPackage(slug: string) {
+	return ADS_BLOCK_SLUGS.has(slug) ? "Atlassian Design System" : undefined;
+}

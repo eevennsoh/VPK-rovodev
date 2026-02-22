@@ -51,6 +51,11 @@ const DEFAULT_TITLE = "Help me clarify this";
 const DEFAULT_PLACEHOLDER = "Tell Rovo what to do...";
 const MAX_GENERATED_OPTIONS = 4;
 const MAX_LABEL_LENGTH = 120;
+const QUESTION_KINDS: ReadonlySet<QuestionKind> = new Set([
+	"single-select",
+	"multi-select",
+	"text",
+]);
 
 function isStringRecord(value: unknown): value is StringRecord {
 	return typeof value === "object" && value !== null;
@@ -94,6 +99,15 @@ function normalizeAnswerValue(value: unknown): ClarificationAnswerValue | null {
 		.map((item) => (typeof item === "string" ? item.trim() : ""))
 		.filter((item) => item.length > 0);
 	return normalizedValues.length > 0 ? normalizedValues : null;
+}
+
+function normalizeQuestionKind(value: unknown): QuestionKind {
+	if (typeof value !== "string") {
+		return "single-select";
+	}
+
+	const normalizedValue = value.trim().toLowerCase() as QuestionKind;
+	return QUESTION_KINDS.has(normalizedValue) ? normalizedValue : "single-select";
 }
 
 function normalizeQuestionOptions(value: unknown): ParsedQuestionCardOption[] {
@@ -206,7 +220,7 @@ export function parseQuestionCardPayload(
 			header: getNonEmptyString(question.header) ?? undefined,
 			description: getNonEmptyString(question.description) ?? undefined,
 			required: question.required !== false,
-			kind: "single-select",
+			kind: normalizeQuestionKind(question.kind),
 			options,
 			placeholder: DEFAULT_PLACEHOLDER,
 		});
@@ -356,6 +370,21 @@ export function adaptAnswersForToolContract(
 		},
 		{}
 	);
+}
+
+/**
+ * Builds a system-level message to notify RovoDev that the user skipped/dismissed
+ * a clarification question card. RovoDev can then decide how to respond (e.g.,
+ * "I need more context" or proceed with caveats).
+ */
+export function buildClarificationDismissPrompt(
+	questionCard: ParsedQuestionCardPayload
+): string {
+	return [
+		`The user skipped the clarification questions for "${questionCard.title}".`,
+		"They chose not to answer. Please proceed with whatever context you have,",
+		"or let them know what information you still need.",
+	].join(" ");
 }
 
 export function getLatestQuestionCardPayload(

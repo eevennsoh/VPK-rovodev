@@ -361,6 +361,7 @@ async function streamGoogleGatewayManualSse({
 	responseModalities,
 	onTextDelta,
 	onFile,
+	signal,
 }) {
 	const token = await getAuthToken();
 
@@ -400,6 +401,7 @@ async function streamGoogleGatewayManualSse({
 		method: "POST",
 		headers: getGatewayHeaders(envVars, token, true),
 		body: JSON.stringify(payload),
+		signal,
 	});
 
 	if (!response.ok) {

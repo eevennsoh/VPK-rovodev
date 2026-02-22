@@ -150,7 +150,10 @@ function AssistantThreadMessageBubble({
 		toolParts,
 		thinkingToolCalls,
 		widgetDataPart,
+		routeDecision,
 	} = processed;
+
+	const isFallbackTextRoute = routeDecision?.reason === "fallback_ui_failed";
 
 	const thinkingToolCallsForStatus = toolParts.length > 0 ? [] : thinkingToolCalls;
 	const shouldShowToolsSection = showToolsSection ?? true;
@@ -189,7 +192,7 @@ function AssistantThreadMessageBubble({
 		shouldSuppressStreamingText ||
 		(widgetType === "plan" && isCreatePlanSkillFlow && isWidgetLoading) ||
 		(shouldShowWidgetSections && widgetType === "question-card" && !isStreaming) ||
-		(shouldShowWidgetSections && widgetType === "genui-preview");
+		(shouldShowWidgetSections && widgetType === "genui-preview" && !isFallbackTextRoute);
 	const shouldRenderMessageText = Boolean(messageText) && !shouldSuppressTextForWidget;
 	const showFeedback = shouldShowFeedbackActions && !isStreaming && shouldRenderMessageText && !hasRenderedWidget;
 	const showSuggestions = shouldShowFollowUpSuggestions && !isStreaming && suggestedQuestions.length > 0 && !hasRenderedWidget;

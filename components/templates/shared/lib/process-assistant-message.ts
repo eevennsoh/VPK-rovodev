@@ -11,6 +11,7 @@ import {
 	isMessageTextStreaming,
 	type RovoDataPart,
 	type RovoRenderableUIMessage,
+	type RouteDecisionMeta,
 } from "@/lib/rovo-ui-messages";
 import {
 	extractPlanRenderableText,
@@ -38,6 +39,7 @@ export interface MessageProcessingResult {
 	thinkingStatusPart: RovoDataPart<"thinking-status"> | null;
 	thinkingEventParts: RovoDataPart<"thinking-event">[];
 	widgetDataPart: RovoDataPart<"widget-data"> | null;
+	routeDecision: RouteDecisionMeta | null;
 }
 
 export function processAssistantMessage(
@@ -52,6 +54,8 @@ export function processAssistantMessage(
 	const widgetDataPart = getLatestDataPart(message, "data-widget-data");
 	const widgetErrorPart = getLatestDataPart(message, "data-widget-error");
 	const suggestedQuestionsPart = getLatestDataPart(message, "data-suggested-questions");
+	const routeDecisionPart = getLatestDataPart(message, "data-route-decision");
+	const routeDecision = routeDecisionPart?.data ?? null;
 
 	const widgetType =
 		widgetDataPart?.data.type ??
@@ -110,5 +114,6 @@ export function processAssistantMessage(
 		thinkingStatusPart,
 		thinkingEventParts,
 		widgetDataPart,
+		routeDecision,
 	};
 }

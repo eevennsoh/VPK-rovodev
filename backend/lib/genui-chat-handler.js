@@ -846,4 +846,111 @@ async function genuiChatHandler(req, res, options = {}) {
 	}
 }
 
-module.exports = { genuiChatHandler };
+/**
+ * Generate a GenUI spec from RovoDev's completed text response.
+ *
+ * This is the core of the two-step GenUI flow:
+ *   1. RovoDev processes the user query (with tools) and produces a text response.
+ *   2. This function takes that response, sends it to the GenUI LLM with the
+ *      catalog system prompt, and parses/validates the resulting spec.
+ *
+ * The function is designed to be called from the chat-sdk handler in server.js
+ * after tool usage has been detected in the RovoDev stream.
+ *
+ * @param {object} options
+ * @param {string} options.rovodevResponseText - RovoDev's full text response (including tool context).
+ * @param {Array<{role: string, content: string}>} options.conversationMessages - The conversation
+ *   history as role/content pairs (user + assistant messages leading up to this turn).
+ * @param {object} [options.layoutContext] - Layout context for responsive prompt rules
+ *   (surface, containerWidthPx, viewportWidthPx, widthClass).
+ * @param {boolean} [options.rovoDevAvailable] - Whether RovoDev Serve is available for the
+ *   GenUI LLM call. Defaults to true.
+ * @param {boolean} [options.fallbackEnabled] - Whether AI Gateway fallback is enabled.
+ *   Defaults to false.
+ * @param {object} [options.aiGatewayProvider] - AI Gateway provider instance for fallback.
+ *
+ * @returns {Promise<{success: boolean, spec?: object, rawText: string, narrative?: string, error?: string}>}
+ */
+async function generateGenuiFromRovodevResponse({
+	rovodevResponseText,
+	conversationMessages,
+	layoutContext = null,
+	rovoDevAvailable = true,
+	fallbackEnabled = false,
+	aiGatewayProvider,
+}) {
+	if (typeof rovodevResponseText !== "string" || rovodevResponseText.trim().length === 0) {
+		return {
+			success: false,
+			rawText: "",
+			error: "Empty RovoDev response text",
+		};
+	}
+
+	const systemPrompt = getGenuiSystemPrompt({
+		strict: true,
+		layoutContext,
+	});
+
+	// Build the messages for the GenUI LLM call.
+	// Include the original conversation history plus RovoDev's response as the
+	// final assistant message so the GenUI LLM has full context.
+	const normalizedConversation = normalizeMessages(conversationMessages);
+	const messagesForGenui = [
+		...normalizedConversation,
+		{ role: "assistant", content: rovodevResponseText },
+		{
+			role: "user",
+			content:
+				"Generate an interactive visual UI spec for the data above. Use the most appropriate components from the catalog: Table for lists of items, Card for grouped content, Timeline for chronological activity, Lozenge for statuses, Tag for labels, Avatar for people, Metric for counts, and Charts for numeric trends. Output exactly one ```spec block.",
+		},
+	];
+
+	try {
+		const rawText = await generateAssistantText({
+			systemPrompt,
+			messages: messagesForGenui,
+			rovoDevAvailable,
+			fallbackEnabled,
+			aiGatewayProvider: aiGatewayProvider || DEFAULT_AI_GATEWAY_PROVIDER,
+		});
+
+		const analysis = analyzeGeneratedText(rawText);
+		const bestSpec = pickBestSpec(analysis);
+
+		if (bestSpec) {
+			return {
+				success: true,
+				spec: bestSpec,
+				rawText,
+				narrative: normalizeNarrative(rawText),
+			};
+		}
+
+		console.warn("[GENUI-TWO-STEP] No renderable spec from GenUI LLM", {
+			patchCount: analysis.patchCount,
+			renderable: analysis.renderable,
+			fixedRenderable: analysis.fixedRenderable,
+			synthesizedRenderable: analysis.synthesizedRenderable,
+		});
+
+		return {
+			success: false,
+			rawText,
+			error: analysis.patchCount === 0
+				? "No spec patches detected in GenUI LLM output"
+				: "GenUI LLM produced a malformed spec",
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.error("[GENUI-TWO-STEP] GenUI LLM call failed:", message);
+
+		return {
+			success: false,
+			rawText: "",
+			error: message,
+		};
+	}
+}
+
+module.exports = { genuiChatHandler, generateGenuiFromRovodevResponse };

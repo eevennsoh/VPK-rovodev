@@ -122,6 +122,7 @@ async function synthesizeSound({
 	model,
 	provider,
 	responseFormat,
+	signal,
 } = {}) {
 	const normalizedInput = getNonEmptyString(input);
 	if (!normalizedInput) {
@@ -217,6 +218,7 @@ async function synthesizeSound({
 		method: "POST",
 		headers: getGatewayHeaders(envVars, token),
 		body: JSON.stringify(speechPayload),
+		signal,
 	});
 
 	if (!gatewayResponse.ok) {

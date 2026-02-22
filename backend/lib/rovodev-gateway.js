@@ -737,6 +737,49 @@ function buildThinkingEventFromToolEvent({
 	return event;
 }
 
+function parseToolCallArgsInput(argsBuffer) {
+	if (typeof argsBuffer !== "string") {
+		return null;
+	}
+
+	const trimmedArgsBuffer = argsBuffer.trim();
+	if (!trimmedArgsBuffer) {
+		return null;
+	}
+
+	try {
+		const parsedValue = JSON.parse(trimmedArgsBuffer);
+		return parsedValue && typeof parsedValue === "object" && !Array.isArray(parsedValue)
+			? parsedValue
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+function resolveToolCallInput({
+	initialInput,
+	argsBuffer,
+}) {
+	const parsedArgsInput = parseToolCallArgsInput(argsBuffer);
+	if (parsedArgsInput && initialInput && typeof initialInput === "object") {
+		return {
+			...initialInput,
+			...parsedArgsInput,
+		};
+	}
+
+	if (parsedArgsInput) {
+		return parsedArgsInput;
+	}
+
+	if (initialInput && typeof initialInput === "object") {
+		return initialInput;
+	}
+
+	return null;
+}
+
 /**
  * Streams a message through RovoDev Serve, calling `onTextDelta` for each
  * text chunk — matching the same callback interface as
@@ -756,6 +799,7 @@ function buildThinkingEventFromToolEvent({
  * @param {function} [params.onThinkingStatus] - Called when Rovo emits tool events that map to thinking status labels/content
  * @param {function} [params.onThinkingEvent] - Called with structured tool timeline events
  * @param {function} [params.onToolCallStart] - Called with structured tool-call details when a tool starts
+ * @param {function} [params.onToolCallInputResolved] - Called with merged tool input once args deltas are complete or a start payload fallback is available
  * @param {function} [params.onRetry] - Called when a 409 retry is about to happen (for UI indicators)
  * @param {function} [params.onRetryProgress] - Called for each 409 retry progress update
  * @param {"cancel-and-retry" | "wait-for-turn"} [params.conflictPolicy] - Conflict resolution policy
@@ -772,6 +816,7 @@ async function streamViaRovoDev({
 	onThinkingStatus,
 	onThinkingEvent,
 	onToolCallStart,
+	onToolCallInputResolved,
 	onRetry,
 	onRetryProgress,
 	conflictPolicy = "cancel-and-retry",
@@ -815,6 +860,78 @@ async function streamViaRovoDev({
 
 				let onAbort = null;
 				const toolNameByCallId = new Map();
+				const toolInputByCallId = new Map();
+				const toolArgsBufferByCallId = new Map();
+				const resolvedToolInputCallIds = new Set();
+
+				const emitResolvedToolInputIfAvailable = ({
+					toolCallId,
+					reportedToolName,
+					fallbackWithoutArgs = false,
+				}) => {
+					if (typeof onToolCallInputResolved !== "function") {
+						return;
+					}
+
+					const normalizedToolCallId =
+						typeof toolCallId === "string" && toolCallId.trim()
+							? toolCallId.trim()
+							: null;
+					if (normalizedToolCallId && resolvedToolInputCallIds.has(normalizedToolCallId)) {
+						return;
+					}
+
+					const rememberedToolName = normalizedToolCallId
+						? toolNameByCallId.get(normalizedToolCallId) ?? null
+						: null;
+					const resolvedToolName = resolveToolNameForToolEvent({
+						reportedToolName,
+						rememberedToolName,
+					});
+
+					const mergedToolInput = normalizedToolCallId
+						? resolveToolCallInput({
+							initialInput: toolInputByCallId.get(normalizedToolCallId) ?? null,
+							argsBuffer: toolArgsBufferByCallId.get(normalizedToolCallId) ?? "",
+						})
+						: null;
+					if (!mergedToolInput) {
+						if (!fallbackWithoutArgs) {
+							return;
+						}
+
+						const fallbackInput = resolveToolCallInput({
+							initialInput:
+								normalizedToolCallId
+									? toolInputByCallId.get(normalizedToolCallId) ?? null
+									: null,
+							argsBuffer: "",
+						});
+						if (!fallbackInput) {
+							return;
+						}
+
+						onToolCallInputResolved({
+							toolName: resolvedToolName,
+							toolCallId: normalizedToolCallId,
+							toolInput: fallbackInput,
+						});
+						if (normalizedToolCallId) {
+							resolvedToolInputCallIds.add(normalizedToolCallId);
+						}
+						return;
+					}
+
+					onToolCallInputResolved({
+						toolName: resolvedToolName,
+						toolCallId: normalizedToolCallId,
+						toolInput: mergedToolInput,
+					});
+					if (normalizedToolCallId) {
+						resolvedToolInputCallIds.add(normalizedToolCallId);
+					}
+				};
+
 				const streamHandle = sendMessageStreaming(message, {
 					onChunk: (chunk) => {
 						if (chunk.type === "text" && chunk.text) {
@@ -826,6 +943,9 @@ async function streamViaRovoDev({
 							const resolvedToolName = normalizeToolName(chunk.toolName);
 							if (chunk.toolCallId && resolvedToolName) {
 								toolNameByCallId.set(chunk.toolCallId, resolvedToolName);
+							}
+							if (chunk.toolCallId && chunk.toolInput && typeof chunk.toolInput === "object") {
+								toolInputByCallId.set(chunk.toolCallId, chunk.toolInput);
 							}
 
 							if (typeof onToolCallStart === "function") {
@@ -862,10 +982,53 @@ async function streamViaRovoDev({
 									onThinkingEvent(thinkingEvent);
 								}
 							}
+
+							if (!chunk.toolCallId && chunk.toolInput && typeof chunk.toolInput === "object") {
+								emitResolvedToolInputIfAvailable({
+									toolCallId: null,
+									reportedToolName: resolvedToolName,
+									fallbackWithoutArgs: true,
+								});
+							}
+							return;
+						}
+
+						if (chunk.type === "tool_call_args") {
+							const normalizedToolCallId =
+								typeof chunk.toolCallId === "string" && chunk.toolCallId.trim()
+									? chunk.toolCallId.trim()
+									: null;
+							if (!normalizedToolCallId) {
+								return;
+							}
+
+							const argsDelta =
+								typeof chunk.text === "string" ? chunk.text : "";
+							if (!argsDelta) {
+								return;
+							}
+
+							const previousBuffer =
+								toolArgsBufferByCallId.get(normalizedToolCallId) ?? "";
+							toolArgsBufferByCallId.set(
+								normalizedToolCallId,
+								previousBuffer + argsDelta
+							);
+
+							emitResolvedToolInputIfAvailable({
+								toolCallId: normalizedToolCallId,
+								reportedToolName: chunk.toolName,
+							});
 							return;
 						}
 
 						if (chunk.type === "tool_result" || chunk.type === "tool_error") {
+							emitResolvedToolInputIfAvailable({
+								toolCallId: chunk.toolCallId,
+								reportedToolName: chunk.toolName,
+								fallbackWithoutArgs: true,
+							});
+
 							const rememberedToolName = chunk.toolCallId
 								? toolNameByCallId.get(chunk.toolCallId) ?? null
 								: null;
@@ -887,6 +1050,9 @@ async function streamViaRovoDev({
 
 							if (chunk.toolCallId) {
 								toolNameByCallId.delete(chunk.toolCallId);
+								toolInputByCallId.delete(chunk.toolCallId);
+								toolArgsBufferByCallId.delete(chunk.toolCallId);
+								resolvedToolInputCallIds.delete(chunk.toolCallId);
 							}
 
 							if (typeof onThinkingStatus === "function") {
@@ -1309,6 +1475,8 @@ module.exports = {
 	resolveToolNameForToolEvent,
 	getThinkingActivityFromToolName,
 	buildThinkingStatusFromToolEvent,
+	parseToolCallArgsInput,
+	resolveToolCallInput,
 	initPool,
 	setPinnedPortCount,
 	WAIT_FOR_TURN_TIMEOUT_MS,

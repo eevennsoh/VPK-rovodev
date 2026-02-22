@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import type { ParsedQuestionCardPayload } from "@/components/templates/shared/lib/question-card-widget";
 
 interface UseDismissibleCardsOptions {
 	activeQuestionCard: ParsedQuestionCardPayload | null;
 	activePlanWidget: ParsedPlanWidgetPayload | null;
+	/** Called when a question card is dismissed/skipped. Use to notify the backend. */
+	onDismissQuestionCard?: (questionCard: ParsedQuestionCardPayload) => void;
 }
 
 interface UseDismissibleCardsReturn {
@@ -15,6 +17,9 @@ interface UseDismissibleCardsReturn {
 	hasBottomOverlayCard: boolean;
 	activeQuestionCardKey: string | null;
 	activePlanKey: string | null;
+	/** Hides the question card without triggering the dismiss callback (for submit — user answered). */
+	hideQuestionCard: () => void;
+	/** Dismisses the question card AND triggers the dismiss callback (for skip/escape — user did NOT answer). */
 	dismissQuestionCard: () => void;
 	dismissApprovalCard: () => void;
 }
@@ -32,6 +37,7 @@ function derivePlanKey(plan: ParsedPlanWidgetPayload | null): string | null {
 export function useDismissibleCards({
 	activeQuestionCard,
 	activePlanWidget,
+	onDismissQuestionCard,
 }: Readonly<UseDismissibleCardsOptions>): UseDismissibleCardsReturn {
 	const [dismissedQuestionCardKey, setDismissedQuestionCardKey] = useState<string | null>(
 		null
@@ -53,13 +59,20 @@ export function useDismissibleCards({
 
 	const hasBottomOverlayCard = shouldShowQuestionCard || shouldShowApprovalCard;
 
-	function dismissQuestionCard() {
+	const hideQuestionCard = useCallback(() => {
 		setDismissedQuestionCardKey(activeQuestionCardKey);
-	}
+	}, [activeQuestionCardKey]);
 
-	function dismissApprovalCard() {
+	const dismissQuestionCard = useCallback(() => {
+		setDismissedQuestionCardKey(activeQuestionCardKey);
+		if (activeQuestionCard) {
+			onDismissQuestionCard?.(activeQuestionCard);
+		}
+	}, [activeQuestionCardKey, activeQuestionCard, onDismissQuestionCard]);
+
+	const dismissApprovalCard = useCallback(() => {
 		setDismissedApprovalCardKey(activePlanKey);
-	}
+	}, [activePlanKey]);
 
 	return {
 		shouldShowQuestionCard,
@@ -67,6 +80,7 @@ export function useDismissibleCards({
 		hasBottomOverlayCard,
 		activeQuestionCardKey,
 		activePlanKey,
+		hideQuestionCard,
 		dismissQuestionCard,
 		dismissApprovalCard,
 	};
