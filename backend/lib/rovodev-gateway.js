@@ -31,8 +31,6 @@ const WAIT_FOR_TURN_TIMEOUT_MS = 600_000;
  *  behind the panel's interactive turn), but bounded so they don't hold
  *  pinned ports indefinitely. */
 const BACKGROUND_ON_PINNED_PORT_TIMEOUT_MS = 120_000;
-const WAIT_FOR_TURN_409_MAX_RETRIES = 1;
-const WAIT_FOR_TURN_409_RETRY_DELAY_MS = 500;
 
 // ─── Pool integration ───────────────────────────────────────────────────────
 
@@ -964,55 +962,41 @@ async function streamViaRovoDev({
 			});
 
 		if (waitForTurn) {
-			// Single attempt with one bounded retry for transient 409.
-			// The pool's acquire/release already serializes access; a transient
-			// 409 can occur when RovoDev is still finalizing the prior turn.
-			let lastError = null;
-			for (let retryCount = 0; retryCount <= WAIT_FOR_TURN_409_MAX_RETRIES; retryCount++) {
-				try {
-					await attempt(handle.port);
-					lastError = null;
-					break;
-				} catch (err) {
-					if (!isChatInProgressError(err)) {
-						throw err;
+			// Single attempt — no retry. 409 means the port is terminally
+			// stuck and must be restarted (retrying won't help). The caller
+			// catches ROVODEV_PORT_STUCK and triggers restartRovoDevPort.
+			try {
+				await attempt(handle.port);
+			} catch (err) {
+				if (isChatInProgressError(err)) {
+					portStuck = true;
+					console.error(
+						`[streamViaRovoDev] Port ${handle.port} stuck (409) — cancelling turn, draining queue, marking unhealthy`
+					);
+					try {
+						await cancelChat(handle.port, { timeoutMs: 3_000 });
+					} catch {}
+					if (
+						_pool &&
+						typeof _pool.drainIndexedWaiters === "function" &&
+						typeof portIndex === "number" &&
+						portIndex >= 0
+					) {
+						const drained = _pool.drainIndexedWaiters(portIndex);
+						if (drained > 0) {
+							console.info(
+								`[streamViaRovoDev] Drained ${drained} queued request(s) for port index ${portIndex}`
+							);
+						}
 					}
-					lastError = err;
-					if (retryCount < WAIT_FOR_TURN_409_MAX_RETRIES) {
-						console.warn(
-							`[streamViaRovoDev] Port ${handle.port} transient 409 — retrying in ${WAIT_FOR_TURN_409_RETRY_DELAY_MS}ms (attempt ${retryCount + 1}/${WAIT_FOR_TURN_409_MAX_RETRIES + 1})`
-						);
-						await sleep(WAIT_FOR_TURN_409_RETRY_DELAY_MS);
+					if (_pool) {
+						handle.releaseAsUnhealthy();
+					} else {
+						handle.release();
 					}
+					throw createPortStuckError(handle.port, portIndex);
 				}
-			}
-			if (lastError) {
-				portStuck = true;
-				console.error(
-					`[streamViaRovoDev] Port ${handle.port} stuck (409) — cancelling turn, draining queue, marking unhealthy`
-				);
-				try {
-					await cancelChat(handle.port, { timeoutMs: 3_000 });
-				} catch {}
-				if (
-					_pool &&
-					typeof _pool.drainIndexedWaiters === "function" &&
-					typeof portIndex === "number" &&
-					portIndex >= 0
-				) {
-					const drained = _pool.drainIndexedWaiters(portIndex);
-					if (drained > 0) {
-						console.info(
-							`[streamViaRovoDev] Drained ${drained} queued request(s) for port index ${portIndex}`
-						);
-					}
-				}
-				if (_pool) {
-					handle.releaseAsUnhealthy();
-				} else {
-					handle.release();
-				}
-				throw createPortStuckError(handle.port, portIndex);
+				throw err;
 			}
 		} else {
 			// Cancel-and-retry mode for background tasks
@@ -1163,43 +1147,31 @@ async function generateTextViaRovoDev({
 			throwIfAborted(signal, "RovoDev text generation aborted");
 
 			if (waitForTurn) {
-				// Single attempt with one bounded retry for transient 409.
-				let lastError = null;
-				for (let retryCount = 0; retryCount <= WAIT_FOR_TURN_409_MAX_RETRIES; retryCount++) {
-					try {
-						const value = await sendMessageSync(fullMessage, syncOptions);
-						return typeof value === "string" ? value : "";
-					} catch (error) {
-						if (!isChatInProgressError(error)) {
-							throw error;
+				// Single attempt — no retry. 409 is terminal (see streamViaRovoDev).
+				try {
+					const value = await sendMessageSync(fullMessage, syncOptions);
+					return typeof value === "string" ? value : "";
+				} catch (error) {
+					if (isChatInProgressError(error)) {
+						portKnownStuck = true;
+						console.error(
+							`[generateTextViaRovoDev] Port ${handle.port} stuck (409) — marking unhealthy`
+						);
+						if (
+							typeof portIndex === "number" &&
+							portIndex >= 0 &&
+							typeof _pool.drainIndexedWaiters === "function"
+						) {
+							const drained = _pool.drainIndexedWaiters(portIndex);
+							if (drained > 0) {
+								console.info(
+									`[generateTextViaRovoDev] Drained ${drained} queued request(s) for port index ${portIndex}`
+								);
+							}
 						}
-						lastError = error;
-						if (retryCount < WAIT_FOR_TURN_409_MAX_RETRIES) {
-							console.warn(
-								`[generateTextViaRovoDev] Port ${handle.port} transient 409 — retrying in ${WAIT_FOR_TURN_409_RETRY_DELAY_MS}ms (attempt ${retryCount + 1}/${WAIT_FOR_TURN_409_MAX_RETRIES + 1})`
-							);
-							await sleep(WAIT_FOR_TURN_409_RETRY_DELAY_MS);
-						}
+						throw createPortStuckError(handle.port, portIndex);
 					}
-				}
-				if (lastError) {
-					portKnownStuck = true;
-					console.error(
-						`[generateTextViaRovoDev] Port ${handle.port} stuck (409) — marking unhealthy`
-					);
-					if (
-						typeof portIndex === "number" &&
-						portIndex >= 0 &&
-						typeof _pool.drainIndexedWaiters === "function"
-					) {
-						const drained = _pool.drainIndexedWaiters(portIndex);
-						if (drained > 0) {
-							console.info(
-								`[generateTextViaRovoDev] Drained ${drained} queued request(s) for port index ${portIndex}`
-							);
-						}
-					}
-					throw createPortStuckError(handle.port, portIndex);
+					throw error;
 				}
 			}
 
