@@ -8,6 +8,10 @@ import { jiraBoardSpec } from "./jira-board";
 import { teamProfileSpec } from "./team-profile";
 import { settingsFormSpec } from "./settings-form";
 import { confluencePageSpec } from "./confluence-page";
+import { totalCompensationSpec } from "./total-compensation";
+import { onboardingMilestonesSpec } from "./onboarding-milestones";
+import { flexWalletSpec } from "./flex-wallet";
+import { financialPlanSpec } from "./financial-plan";
 
 export interface ExampleSpec {
 	id: string;
@@ -70,5 +74,29 @@ export const EXAMPLE_SPECS: ExampleSpec[] = [
 		name: "Confluence Page",
 		description: "Documentation page with code block, table, accordion, and comments",
 		spec: confluencePageSpec,
+	},
+	{
+		id: "total-compensation",
+		name: "Total Compensation (Q1)",
+		description: "Tabbed compensation breakdown with charts and tables",
+		spec: totalCompensationSpec,
+	},
+	{
+		id: "onboarding-milestones",
+		name: "Onboarding Milestones (Q2)",
+		description: "Timeline of first 90 days onboarding and benefits milestones",
+		spec: onboardingMilestonesSpec,
+	},
+	{
+		id: "flex-wallet",
+		name: "Flex Wallet (Q3)",
+		description: "Calculator with sliders, radios, and checkboxes for benefit allocation",
+		spec: flexWalletSpec,
+	},
+	{
+		id: "financial-plan",
+		name: "Financial Plan (Q4)",
+		description: "Accordion-form with mixed inputs for first-year financial planning",
+		spec: financialPlanSpec,
 	},
 ];

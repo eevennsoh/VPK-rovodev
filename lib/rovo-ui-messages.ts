@@ -10,6 +10,88 @@ import {
 	type UIMessage,
 } from "ai";
 
+// ---------------------------------------------------------------------------
+// FND-001: Canonical output experience enum and response envelope
+// ---------------------------------------------------------------------------
+
+/**
+ * Canonical output experience types for the output routing layer.
+ * Each chat response is classified into exactly one experience.
+ */
+export type OutputExperience =
+	| "generative_ui"
+	| "question_card"
+	| "image"
+	| "audio"
+	| "text";
+
+/**
+ * Discriminated response envelope carrying the routed experience and its
+ * associated payload. The `experience` field acts as the discriminator.
+ *
+ * - `generative_ui`: payload is a json-render spec object
+ * - `question_card`: payload is a question-card widget definition
+ * - `image`: payload is an image generation result
+ * - `audio`: payload is an audio generation result
+ * - `text`: payload is the streamed text (may be absent for pure streaming)
+ */
+export type OutputRouteEnvelope =
+	| Readonly<{
+			experience: "generative_ui";
+			payload: Readonly<{ spec: Record<string, unknown>; summary?: string; source?: string }>;
+			reason: RouteDecisionReason;
+			fallbackText?: string;
+	  }>
+	| Readonly<{
+			experience: "question_card";
+			payload: Readonly<{ type: "question-card"; [key: string]: unknown }>;
+			reason: RouteDecisionReason;
+	  }>
+	| Readonly<{
+			experience: "image";
+			payload: Readonly<{ images: ReadonlyArray<{ url: string; alt?: string }> }>;
+			reason: RouteDecisionReason;
+	  }>
+	| Readonly<{
+			experience: "audio";
+			payload: Readonly<{ audioUrl: string; durationMs?: number; mimeType?: string }>;
+			reason: RouteDecisionReason;
+	  }>
+	| Readonly<{
+			experience: "text";
+			payload?: undefined;
+			reason: RouteDecisionReason;
+	  }>;
+
+// ---------------------------------------------------------------------------
+// FND-003: Route-decision reason codes for observability
+// ---------------------------------------------------------------------------
+
+/**
+ * Reason codes attached to every routed response for analytics and debugging.
+ * Each code explains *why* a particular experience was selected.
+ */
+export type RouteDecisionReason =
+	| "intent_media_image"
+	| "intent_media_audio"
+	| "intent_task_toolable"
+	| "intent_text_default"
+	| "intent_clarification"
+	| "intent_clarification_skip"
+	| "fallback_ui_failed";
+
+/**
+ * Metadata attached to the routing decision for observability/logging.
+ */
+export interface RouteDecisionMeta {
+	readonly reason: RouteDecisionReason;
+	readonly experience: OutputExperience;
+	readonly timestamp: string;
+	readonly toolsDetected?: boolean;
+	readonly classifierIntent?: string;
+	readonly fallbackCause?: string;
+}
+
 export type AgentExecutionStatus = "working" | "completed" | "failed";
 
 export interface AgentExecutionUpdate {
@@ -106,6 +188,7 @@ export type RovoDataParts = {
 	"turn-complete": {
 		timestamp: string;
 	};
+	"route-decision": RouteDecisionMeta;
 };
 
 export type RovoDataPart<KEY extends keyof RovoDataParts & string> = {

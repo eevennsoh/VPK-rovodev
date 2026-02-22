@@ -35,6 +35,7 @@ import UploadIcon from "@atlaskit/icon/core/upload";
 interface ChatComposerProps {
 	prompt: string;
 	isStreaming: boolean;
+	hasInFlightTurn: boolean;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => void;
@@ -42,13 +43,18 @@ interface ChatComposerProps {
 	onRemoveQueuedPrompt: (id: string) => void;
 }
 
-export default function ChatComposer({ prompt, isStreaming, queuedPrompts, onPromptChange, onSubmit, onStop, onRemoveQueuedPrompt }: Readonly<ChatComposerProps>): React.ReactElement {
+export default function ChatComposer({ prompt, isStreaming, hasInFlightTurn, queuedPrompts, onPromptChange, onSubmit, onStop, onRemoveQueuedPrompt }: Readonly<ChatComposerProps>): React.ReactElement {
 	const [selectedReasoning, setSelectedReasoning] = useState("deep-research");
 	const [webResultsEnabled, setWebResultsEnabled] = useState(false);
 	const [companyKnowledgeEnabled, setCompanyKnowledgeEnabled] = useState(true);
 	const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 	const [isCustomizeMenuOpen, setIsCustomizeMenuOpen] = useState(false);
 	const hasQueuedPrompts = queuedPrompts.length > 0;
+	const submitStatus = isStreaming
+		? "streaming"
+		: hasInFlightTurn
+			? "submitted"
+			: "ready";
 
 	const handleSpeechTranscription = (text: string) => {
 		const trimmedTranscription = text.trim();
@@ -159,7 +165,7 @@ export default function ChatComposer({ prompt, isStreaming, queuedPrompts, onPro
 
 						<div className="flex items-center gap-1">
 							<SpeechInput aria-label="Voice" onTranscriptionChange={handleSpeechTranscription} size="icon" />
-							<PromptInputSubmit aria-label="Submit" disabled={!isStreaming && !prompt.trim()} onStop={onStop} size="icon-sm" status={isStreaming ? "streaming" : "ready"}>
+							<PromptInputSubmit aria-label="Submit" disabled={!hasInFlightTurn && !prompt.trim()} onStop={onStop} size="icon-sm" status={submitStatus}>
 								<ArrowUpIcon label="" />
 							</PromptInputSubmit>
 						</div>

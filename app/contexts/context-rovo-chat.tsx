@@ -293,6 +293,7 @@ interface RovoChatContextType {
 	resetChat: () => void;
 	replaceMessages: (messages: ReadonlyArray<RovoUIMessage>) => void;
 	isStreaming: boolean;
+	hasInFlightTurn: boolean;
 	isSubmitPending: boolean;
 	pendingSubmitStartedAt: number | null;
 	pendingPrompt: string | null;
@@ -1123,6 +1124,10 @@ export function RovoChatProvider({
 	);
 
 	const queueCount = queuedPrompts.length;
+	const hasInFlightTurn =
+		isSubmitPending ||
+		isStreaming ||
+		activePrompt !== null;
 
 	return (
 		<RovoChatContext
@@ -1137,6 +1142,7 @@ export function RovoChatProvider({
 				resetChat,
 				replaceMessages,
 				isStreaming,
+				hasInFlightTurn,
 				isSubmitPending,
 				pendingSubmitStartedAt,
 				pendingPrompt,

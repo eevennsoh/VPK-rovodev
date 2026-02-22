@@ -79,10 +79,11 @@ const AUTO_CLOSE_DELAY = 1000;
 const MS_IN_S = 1000;
 const DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS = 5;
 const TIMELINE_STATUS_LINE_REGEX =
-	/^(?:used|using|invoking|completed|running|calling|tool call failed|failed)\b/i;
+	/^(?:used|using|invoking|completed|running|calling|tool call failed|failed|detected intent)\b/i;
 const TIMELINE_TOOL_ACTION_LINE_REGEX =
 	/^(used|using|invoking|completed|running|calling)\s+(.+)$/i;
 const TIMELINE_TOOL_FAILURE_LINE_REGEX = /^(tool call failed|failed):\s*(.+)$/i;
+const TIMELINE_INTENT_LINE_REGEX = /^(detected intent):?\s+(.+)$/i;
 
 interface TimelineEntry {
 	id: string;
@@ -136,6 +137,15 @@ function parseTimelineToolLabel(label: string): TimelineToolLabelParts | null {
 			return null;
 		}
 		return { prefix, toolName };
+	}
+
+	const intentMatch = normalizedLabel.match(TIMELINE_INTENT_LINE_REGEX);
+	if (intentMatch?.[1] && intentMatch[2]) {
+		const prefix = intentMatch[1].trim();
+		const toolName = intentMatch[2].trim();
+		if (toolName.length > 0) {
+			return { prefix, toolName };
+		}
 	}
 
 	return null;
@@ -340,16 +350,10 @@ const ROVO_COOKING_SHIMMER_PROPS = {
 	rotateYDistance: 0,
 	transition: { ease: "easeInOut", repeatDelay: 0.1 },
 } as const;
-const REASONING_ANIMATED_ROVO_PROPS = {
-	size: 16,
-	streaming: false,
-	fullSpinProbability: 0.6,
-	danceDistancePercent: 8,
-	transition: {
-		type: "tween",
-		duration: 2,
-		ease: "linear",
-	},
+const REASONING_ANIMATED_ROVO_TRANSITION = {
+	type: "tween",
+	duration: 2,
+	ease: "linear",
 } as const;
 
 /** Strip trailing dots/ellipsis from a label since animated dots are appended separately. */
@@ -367,6 +371,7 @@ const isCompletedStatusLabel = (label: ReactNode) => {
 
 function StreamingReasoningLabel({
 	label,
+	streaming,
 	streamingWave,
 	animatedDots,
 	streamingWaveGradientColor,
@@ -385,7 +390,12 @@ function StreamingReasoningLabel({
 
 		return (
 			<>
-				<AnimatedRovo.Root {...REASONING_ANIMATED_ROVO_PROPS} />
+				<AnimatedRovo.Root
+				size={16}
+				streaming={streaming}
+				{...(streaming ? {} : { fullSpinProbability: 0.35, danceDistancePercent: 0 })}
+				transition={REASONING_ANIMATED_ROVO_TRANSITION}
+			/>
 				<span className="flex min-w-0 items-baseline">
 				<Shimmer
 					baseGradientColor={streamingWaveGradientColor}

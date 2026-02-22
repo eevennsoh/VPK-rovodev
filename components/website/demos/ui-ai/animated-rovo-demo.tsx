@@ -36,7 +36,12 @@ export default function AnimatedRovoDemo() {
 	);
 
 	const config = useMemo(
-		() => ({ size, streaming, fullSpinProbability, danceDistancePercent, transition }),
+		() => ({
+			size,
+			streaming,
+			...(streaming ? {} : { fullSpinProbability, danceDistancePercent }),
+			transition,
+		}),
 		[size, streaming, fullSpinProbability, danceDistancePercent, transition],
 	);
 
@@ -71,29 +76,33 @@ export default function AnimatedRovoDemo() {
 					checked={streaming}
 					onChange={setStreaming}
 				/>
-				<GUI.Control
-					id="rovo-full-spin-probability"
-					label="Full spin probability"
-					description="Chance that the next sporadic spin is a full 360-degree rotation."
-					value={fullSpinProbability}
-					defaultValue={0.35}
-					min={0}
-					max={1}
-					step={0.01}
-					onChange={setFullSpinProbability}
-				/>
-				<GUI.Control
-					id="rovo-dance-distance-percent"
-					label="Dance distance"
-					description="How far the logo dances vertically from its origin as a percentage of size."
-					value={danceDistancePercent}
-					defaultValue={8}
-					min={0}
-					max={100}
-					step={1}
-					unit="%"
-					onChange={setDanceDistancePercent}
-				/>
+				{!streaming ? (
+					<>
+						<GUI.Control
+							id="rovo-full-spin-probability"
+							label="Full spin probability"
+							description="Chance that the next sporadic spin is a full 360-degree rotation."
+							value={fullSpinProbability}
+							defaultValue={0.35}
+							min={0}
+							max={1}
+							step={0.01}
+							onChange={setFullSpinProbability}
+						/>
+						<GUI.Control
+							id="rovo-dance-distance-percent"
+							label="Dance distance"
+							description="How far the logo dances vertically from its origin as a percentage of size."
+							value={danceDistancePercent}
+							defaultValue={8}
+							min={0}
+							max={100}
+							step={1}
+							unit="%"
+							onChange={setDanceDistancePercent}
+						/>
+					</>
+				) : null}
 				<GUI.Select
 					id="rovo-type"
 					label="Transition type"

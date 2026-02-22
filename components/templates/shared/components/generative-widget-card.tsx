@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import type { Spec } from "@json-render/react";
 import CrossIcon from "@atlaskit/icon/core/cross";
+import WarningIcon from "@atlaskit/icon/core/warning";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -139,7 +140,7 @@ function GenuiBody({
 	return (
 		<div
 			className={cn(
-				"overflow-hidden rounded-md bg-surface [&>[data-slot=card]]:gap-0 [&>[data-slot=card]]:py-0 [&>[data-slot=card]>[data-slot=card-content]]:p-0 [&>[data-slot=card]>[data-slot=card-content]>div]:!p-0",
+				"rounded-md bg-surface [&>[data-slot=card]]:gap-0 [&>[data-slot=card]]:py-0 [&>[data-slot=card]>[data-slot=card-content]]:p-0 [&>[data-slot=card]>[data-slot=card-content]>div]:!p-0",
 				previewMode && "max-h-[65vh] overflow-auto",
 			)}
 		>
@@ -157,9 +158,25 @@ function AudioBody({
 	transcript?: string;
 	withContainer: boolean;
 }>): ReactNode {
+	const [audioError, setAudioError] = useState(false);
+
+	if (audioError) {
+		return (
+			<div className={withContainer ? "rounded-md bg-surface" : undefined}>
+				<MediaErrorState message="Failed to load audio" />
+			</div>
+		);
+	}
+
 	const content = (
 		<>
-			<AudioPlayerElement controls preload="metadata" src={audioUrl} className="w-full" />
+			<AudioPlayerElement
+				controls
+				preload="metadata"
+				src={audioUrl}
+				className="w-full"
+				onError={() => setAudioError(true)}
+			/>
 			{transcript ? (
 				<p className={cn("text-xs text-text-subtle", withContainer ? "mt-2" : "mt-3")}>
 					{transcript}
@@ -175,6 +192,17 @@ function AudioBody({
 	);
 }
 
+function MediaErrorState({ message }: Readonly<{ message: string }>): ReactNode {
+	return (
+		<div className="flex flex-col items-center justify-center gap-2 rounded-md bg-bg-neutral-subtle p-6 text-center">
+			<span className="text-icon-danger">
+				<WarningIcon label="Error" />
+			</span>
+			<p className="text-sm text-text-subtle">{message}</p>
+		</div>
+	);
+}
+
 function ImageBody({
 	images,
 	withContainer,
@@ -184,21 +212,41 @@ function ImageBody({
 	withContainer: boolean;
 	onImageClick?: () => void;
 }>): ReactNode {
+	const [loadStates, setLoadStates] = useState<Record<number, "loading" | "loaded" | "error">>({});
+
 	return (
 		<div className="grid place-items-center gap-2 sm:grid-cols-2">
 			{images.map((image, index) => {
+				const loadState = loadStates[index] ?? "loading";
 				const imageEl = (
-					<Image
-						src={image.url}
-						alt={`Generated image ${index + 1}`}
-						width={960}
-						height={960}
-						unoptimized
-						className="size-full object-cover"
-					/>
+					<>
+						{loadState === "loading" ? (
+							<div className="absolute inset-0 flex items-center justify-center bg-bg-neutral-subtle">
+								<div className="size-6 animate-spin rounded-full border-2 border-border border-t-transparent" />
+							</div>
+						) : null}
+						{loadState === "error" ? (
+							<div className="absolute inset-0">
+								<MediaErrorState message="Failed to load image" />
+							</div>
+						) : null}
+						<Image
+							src={image.url}
+							alt={`Generated image ${index + 1}`}
+							width={960}
+							height={960}
+							unoptimized
+							className={cn(
+								"size-full object-cover transition-opacity",
+								loadState === "loaded" ? "opacity-100" : "opacity-0",
+							)}
+							onLoad={() => setLoadStates((prev) => ({ ...prev, [index]: "loaded" }))}
+							onError={() => setLoadStates((prev) => ({ ...prev, [index]: "error" }))}
+						/>
+					</>
 				);
 				const containerClass = cn(
-					"block overflow-hidden rounded-md aspect-square w-full",
+					"relative block overflow-hidden rounded-md aspect-square w-full",
 					withContainer && "bg-surface"
 				);
 
@@ -280,9 +328,10 @@ function GenerativeWidgetCardShell({
 	onStateChange,
 }: Readonly<GenerativeWidgetCardShellProps>): ReactNode {
 	const contentTypeLabel = formatContentTypeLabel(metadata.contentType);
+	const shouldAnimateGenuiCard = !previewMode && bodyWidget.type === "genui-preview";
 
 	return (
-		<GenerativeCard className={className}>
+		<GenerativeCard className={className} animate={shouldAnimateGenuiCard}>
 			<GenerativeCardHeader
 				className="p-4"
 				leading={<ContentTypeTile contentType={metadata.contentType} label={contentTypeLabel} />}
@@ -300,10 +349,10 @@ function GenerativeWidgetCardShell({
 						!previewMode,
 					)}
 				</GenerativeCardContent>
-				<GenerativeCardFooter className="gap-2">
+				<GenerativeCardFooter className="flex-wrap gap-2">
 					<Button
 						variant="outline"
-						className="h-8 min-w-[117px]"
+						className="h-8 min-w-0 flex-shrink-0 px-3 text-sm sm:min-w-[117px]"
 						disabled={previewMode}
 						onClick={previewMode ? undefined : onOpenPreview}
 					>
@@ -311,7 +360,7 @@ function GenerativeWidgetCardShell({
 					</Button>
 					{showPrimaryAction && primaryActionLabel ? (
 						<Button
-							className="h-8 min-w-[117px]"
+							className="h-8 min-w-0 flex-shrink-0 px-3 text-sm sm:min-w-[117px]"
 							onClick={onPrimaryAction}
 						>
 							{primaryActionLabel}
@@ -401,7 +450,7 @@ export function GenerativeWidgetCard({
 					onStateChange={handleGenuiStateChange}
 				/>
 				<DialogContent className="max-h-[90vh] overflow-hidden gap-0 p-0 sm:max-w-5xl" size="xl" showCloseButton={false}>
-					<DialogHeader className="mx-0 mt-0 flex-row items-center border-b p-6">
+					<DialogHeader className="mx-0 mt-0 flex-row items-center border-b p-4 sm:p-6">
 						<div className="flex min-w-0 flex-1 items-center gap-3">
 							<ContentTypeTile contentType={metadata.contentType} label={contentTypeLabel} />
 							<div className="min-w-0 flex-1 space-y-1">
@@ -417,7 +466,7 @@ export function GenerativeWidgetCard({
 							<CrossIcon label="Close" />
 						</DialogClose>
 					</DialogHeader>
-					<div className="max-h-[65vh] overflow-y-auto p-6">
+					<div className="max-h-[65vh] overflow-y-auto p-4 sm:p-6">
 						{bodyWidget ? renderWidgetBody(
 							bodyWidget,
 							false,

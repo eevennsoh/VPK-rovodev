@@ -22,6 +22,30 @@ const REQUEST_USER_INPUT_INSTRUCTION = [
 ].join("\n");
 
 /**
+ * System message sent to RovoDev when the user skips/dismisses a
+ * Question Card without providing answers. RovoDev can then decide
+ * whether to ask differently, proceed with caveats, or explain why
+ * more context is needed.
+ *
+ * @param {string} [questionTitle] - The title of the dismissed Question Card.
+ * @returns {string} The skip notification message.
+ */
+function buildQuestionCardSkipNotification(questionTitle) {
+	const titleContext = questionTitle
+		? ` (titled "${questionTitle}")`
+		: "";
+	return [
+		"[Question Card Dismissed]",
+		`The user skipped the clarification question card${titleContext} without providing answers.`,
+		"You may either:",
+		"1. Explain what specific information you need and why it matters, then offer a simpler way to provide it.",
+		"2. Proceed with reasonable default assumptions and clearly state what assumptions you are making.",
+		"Choose the approach that best serves the user's original request.",
+		"[End Question Card Dismissed]",
+	].join("\n");
+}
+
+/**
  * Formats user message with conversation history for RovoDev.
  * RovoDev handles all system prompts and widget protocol.
  */
@@ -40,4 +64,5 @@ function buildUserMessage(message, conversationHistory, contextDescription) {
 
 module.exports = {
 	buildUserMessage,
+	buildQuestionCardSkipNotification,
 };

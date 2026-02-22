@@ -10,23 +10,9 @@ import { WebsitePreview } from "@/components/website/website-preview";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, TEMPLATE_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS } from "./data/components";
 import { buildNavItems, UI_GROUPS, BLOCK_GROUPS } from "./data/nav-utils";
+import { resolveAiAdsPackage, resolveBlockAdsPackage, resolveUiAdsPackage, resolveUiAdsTagVariant } from "./data/nav-ads";
 
 export type HomeCategory = "ui" | "ui-ai" | "blocks" | "templates" | "utility" | "visual";
-
-const ADS_BLOCK_SLUGS = new Set([
-	"agent-grid",
-	"agent-summary",
-	"top-navigation",
-	"prompt-gallery",
-	"shared-ui",
-	"product-sidebar",
-	"sidebar-rail",
-	"work-item-widget",
-	"question-card",
-	"approval-card",
-]);
-const blockAdsResolver = (slug: string) => ADS_BLOCK_SLUGS.has(slug) ? "Atlassian Design System" : undefined;
-const ADS_AI_SLUGS = new Set(["code-block", "message", "plan", "prompt-input", "queue", "reasoning"]);
 
 const staticPages = [{ name: "Home", href: "/" }];
 
@@ -34,7 +20,7 @@ const sections = [
 	{
 		title: "UI",
 		defaultOpen: false,
-		items: buildNavItems(UI_COMPONENTS, "/components/ui/", UI_GROUPS),
+		items: buildNavItems(UI_COMPONENTS, "/components/ui/", UI_GROUPS, resolveUiAdsPackage, resolveUiAdsTagVariant),
 	},
 	{
 		title: "UI — AI",
@@ -42,13 +28,13 @@ const sections = [
 		items: AI_COMPONENTS.map((c) => ({
 			name: c.name,
 			href: `/components/ui-ai/${c.slug}`,
-			adsPackage: ADS_AI_SLUGS.has(c.slug) ? "Atlassian Design System" : undefined,
+			adsPackage: resolveAiAdsPackage(c.slug),
 		})),
 	},
 	{
 		title: "Blocks",
 		defaultOpen: false,
-		items: buildNavItems(BLOCK_COMPONENTS, "/components/blocks/", BLOCK_GROUPS, blockAdsResolver),
+		items: buildNavItems(BLOCK_COMPONENTS, "/components/blocks/", BLOCK_GROUPS, resolveBlockAdsPackage),
 	},
 	{
 		title: "Templates",

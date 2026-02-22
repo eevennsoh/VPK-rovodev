@@ -235,7 +235,7 @@ function AnimatedRovoRoot({
 				transformOrigin: "50% -50%",
 			}}
 			animate={
-				streaming
+				streaming || danceOffset === 0
 					? { rotate: 0, y: 0 }
 					: {
 							rotate: [15, -15, 15],
@@ -243,7 +243,7 @@ function AnimatedRovoRoot({
 						}
 			}
 			transition={
-				streaming
+				streaming || danceOffset === 0
 					? { duration: 0.3, ease: "easeOut" }
 					: { duration: 2, ease: "easeInOut", repeat: Infinity }
 			}

@@ -180,6 +180,29 @@ export function useQuestionCard({
 
 			const isCustomInputFocused = document.activeElement === customInputRef.current;
 			switch (event.key) {
+				case "Tab": {
+					// Trap focus within the question card.
+					// Tab moves to the custom input if available; Shift+Tab moves back to the card.
+					if (showCustomInput) {
+						if (event.shiftKey && isCustomInputFocused) {
+							event.preventDefault();
+							cardRef.current?.focus();
+						} else if (!event.shiftKey && !isCustomInputFocused) {
+							event.preventDefault();
+							customInputRef.current?.focus();
+							setFocusedIndex(customOptionIndex);
+						} else if (!event.shiftKey && isCustomInputFocused) {
+							// Wrap around to the card itself
+							event.preventDefault();
+							cardRef.current?.focus();
+							setFocusedIndex(0);
+						}
+					} else {
+						// No custom input — keep focus on the card
+						event.preventDefault();
+					}
+					break;
+				}
 				case "ArrowUp": {
 					event.preventDefault();
 					if (isCustomInputFocused) {
@@ -244,6 +267,7 @@ export function useQuestionCard({
 		},
 		[
 			isSubmitting,
+			showCustomInput,
 			totalOptionSlots,
 			focusedIndex,
 			visibleOptionCount,

@@ -14,6 +14,7 @@ interface UseChatSubmitReturn {
 	abort: () => void;
 	uiMessages: RovoUIMessage[];
 	isStreaming: boolean;
+	hasInFlightTurn: boolean;
 	isSubmitPending: boolean;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	removeQueuedPrompt: (id: string) => void;
@@ -33,6 +34,7 @@ export function useChatSubmit({
 		sendPrompt,
 		stopStreaming,
 		isStreaming,
+		hasInFlightTurn,
 		isSubmitPending,
 		queuedPrompts,
 		removeQueuedPrompt,
@@ -73,6 +75,7 @@ export function useChatSubmit({
 		abort,
 		uiMessages,
 		isStreaming,
+		hasInFlightTurn,
 		isSubmitPending,
 		queuedPrompts,
 		removeQueuedPrompt,

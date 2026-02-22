@@ -13,10 +13,12 @@ import {
 	getMessageText,
 } from "@/lib/rovo-ui-messages";
 import {
+	buildClarificationDismissPrompt,
 	buildClarificationSummaryPrompt,
 	createClarificationSubmission,
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
+	type ParsedQuestionCardPayload,
 } from "@/components/templates/shared/lib/question-card-widget";
 import {
 	buildGenerativeWidgetSubmitPrompt,
@@ -124,6 +126,7 @@ export default function ChatPanel({
 		abort,
 		uiMessages,
 		isStreaming,
+		hasInFlightTurn,
 		isSubmitPending,
 		queuedPrompts,
 		removeQueuedPrompt,
@@ -141,8 +144,27 @@ export default function ChatPanel({
 		() => getLatestQuestionCardPayload(rawUiMessages),
 		[rawUiMessages]
 	);
-	const { shouldShowQuestionCard: shouldShowQuestionCardRaw, activeQuestionCardKey, dismissQuestionCard } =
-		useDismissibleCards({ activeQuestionCard, activePlanWidget: null });
+	const handleClarificationDismiss = useCallback(
+		(questionCard: ParsedQuestionCardPayload) => {
+			const dismissPrompt = buildClarificationDismissPrompt(questionCard);
+			void sendPrompt(dismissPrompt, {
+				...resolvedSendPromptOptions,
+				messageMetadata: {
+					...(resolvedSendPromptOptions?.messageMetadata ?? {}),
+					source: "clarification-submit",
+					visibility: "hidden",
+				},
+			});
+		},
+		[resolvedSendPromptOptions, sendPrompt]
+	);
+
+	const { shouldShowQuestionCard: shouldShowQuestionCardRaw, activeQuestionCardKey, hideQuestionCard, dismissQuestionCard } =
+		useDismissibleCards({
+			activeQuestionCard,
+			activePlanWidget: null,
+			onDismissQuestionCard: handleClarificationDismiss,
+		});
 	const shouldShowQuestionCard = !isRequestInFlight && shouldShowQuestionCardRaw;
 
 	const {
@@ -299,7 +321,7 @@ export default function ChatPanel({
 								questionCard={activeQuestionCard}
 								onSubmit={(answers) => {
 									handleClarificationSubmit(answers);
-									dismissQuestionCard();
+									hideQuestionCard();
 								}}
 								onDismiss={dismissQuestionCard}
 							/>
@@ -310,6 +332,7 @@ export default function ChatPanel({
 					<ChatComposer
 						prompt={prompt}
 						isStreaming={isRequestInFlight}
+						hasInFlightTurn={hasInFlightTurn}
 						queuedPrompts={queuedPrompts}
 						onPromptChange={setPrompt}
 						onSubmit={handleSubmit}

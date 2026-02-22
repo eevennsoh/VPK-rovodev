@@ -8,10 +8,12 @@ import { useUrlParams } from "./use-url-params";
 import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scroll-anchoring";
 import type { PanelVariant, Product } from "../types";
 import {
+	buildClarificationDismissPrompt,
 	buildClarificationSummaryPrompt,
 	createClarificationSubmission,
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
+	type ParsedQuestionCardPayload,
 } from "@/components/templates/shared/lib/question-card-widget";
 import {
 	buildGenerativeWidgetSubmitPrompt,
@@ -136,6 +138,20 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		[activeQuestionCard, buildSendOptions, sendPrompt]
 	);
 
+	const handleClarificationDismiss = useCallback(
+		(questionCard: ParsedQuestionCardPayload) => {
+			const dismissPrompt = buildClarificationDismissPrompt(questionCard);
+			void sendPrompt(dismissPrompt, {
+				...buildSendOptions(),
+				messageMetadata: {
+					source: "clarification-submit",
+					visibility: "hidden",
+				},
+			});
+		},
+		[buildSendOptions, sendPrompt]
+	);
+
 	const hasChatStarted = uiMessages.some(
 		(message) => message.role === "assistant" || message.role === "user"
 	);
@@ -171,6 +187,7 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 		hasChatStarted,
 		activeQuestionCard,
 		handleClarificationSubmit,
+		handleClarificationDismiss,
 		stopStreaming,
 	};
 }

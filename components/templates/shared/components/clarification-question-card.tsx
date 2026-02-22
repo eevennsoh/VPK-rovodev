@@ -12,5 +12,12 @@ interface ClarificationQuestionCardProps {
 }
 
 export function ClarificationQuestionCard({ questionCard, isSubmitting, onSubmit, onDismiss }: Readonly<ClarificationQuestionCardProps>): React.ReactElement {
-	return <QuestionCard questions={questionCard.questions} isSubmitting={isSubmitting} onSubmit={onSubmit as (answers: QuestionCardAnswers) => void} onDismiss={onDismiss} />;
+	return (
+		<section
+			aria-label="Clarification questions — answer or skip to continue chatting"
+			aria-live="assertive"
+		>
+			<QuestionCard questions={questionCard.questions} isSubmitting={isSubmitting} onSubmit={onSubmit as (answers: QuestionCardAnswers) => void} onDismiss={onDismiss} />
+		</section>
+	);
 }

@@ -1,23 +1,88 @@
-const SMART_GENERATION_INTENTS = new Set(["normal", "genui", "audio", "image", "both"]);
+const SMART_GENERATION_INTENTS = new Set(["normal", "audio", "image"]);
 
-const CLASSIFIER_SYSTEM_PROMPT = `You are an intent router for a chat assistant.
+const CLASSIFIER_SYSTEM_PROMPT = `You are an intent router for a chat assistant. Your only job is to detect media generation requests.
 
 Classify the latest user request into exactly one intent:
-- normal: regular conversation, Q&A, or discussion with no generation action
-- genui: request to generate/build/create UI, interface, layout, component, page, dashboard, mockup, JSON UI spec, or visual surface
-- audio: request to generate voice/audio narration, read aloud, spoken version, TTS, or sound output
+- normal: regular conversation, Q&A, discussion, or any request that is NOT media generation
+- audio: request to generate voice/audio narration, read aloud, spoken version, TTS, sound effect, or sound output
 - image: request to generate/create/draw an image, illustration, photo, icon, logo, or visual asset
-- both: request that explicitly needs both UI generation and audio generation in the same turn
 
 Rules:
-- Prefer genui when the request can reasonably be represented as a simple dynamic UI (charts, tables, dashboards, forms, timelines, lists, or structured summaries).
-- Choose normal when the request requires fetching, querying, or accessing real data from external services or tools (e.g., Google Calendar events, Jira issues, Confluence pages, Slack messages, Google Drive files, email). These requests need tool access that genui does not provide.
-- Choose normal when plain text clearly serves better (greetings, short conversational exchanges, opinion-only discussion, or simple direct Q&A with no structure).
-- If the user asks for both kinds of output, choose both.
+- Choose audio when the user explicitly asks for sound, audio, voice narration, or TTS output.
+- Choose image when the user explicitly asks to generate, create, or draw a visual asset (image, illustration, photo, icon, logo).
+- Choose normal for everything else, including: UI generation, dashboards, data queries, tool-backed tasks, greetings, conversation, Q&A, and structured summaries.
+- When in doubt, choose normal.
 - Ignore previous assistant capabilities; classify only user intent.
 
 Return strict JSON only:
-{"intent":"normal|genui|audio|image|both","confidence":0.0,"reason":"short reason"}`;
+{"intent":"normal|audio|image","confidence":0.0,"reason":"short reason"}`;
+
+/**
+ * Regex patterns for lightweight pre-classification of obvious media intents.
+ * These run BEFORE the LLM classifier to avoid unnecessary round-trips for
+ * clear-cut cases like "generate an image of..." or "create a sound of...".
+ */
+const IMAGE_PRE_PATTERNS = [
+	/\b(?:generate|create|make|draw|design|produce|render)\b.*\b(?:image|picture|photo|illustration|icon|logo|artwork|portrait|poster|banner|thumbnail)\b/i,
+	/\b(?:image|picture|photo|illustration|icon|logo|artwork|portrait|poster|banner|thumbnail)\b.*\b(?:of|for|showing|depicting|with)\b/i,
+	/\b(?:generate|create|make|draw|design|produce|render)\b\s+(?:a|an|the|some|me)\s+\b\w+\s*(?:image|picture|photo|illustration|icon|logo)\b/i,
+];
+
+const AUDIO_PRE_PATTERNS = [
+	/\b(?:generate|create|make|produce|render|synthesize)\b.*\b(?:sound|audio|voice|narration|speech|tts|sound\s*effect|sfx|music|tone|jingle)\b/i,
+	/\b(?:sound|audio|voice|narration|speech|tts|sound\s*effect|sfx)\b.*\b(?:of|for|that|like)\b/i,
+	/\b(?:read|speak|narrate|say)\b.*\b(?:aloud|out\s*loud|this|that|it)\b/i,
+	/\b(?:text[\s-]*to[\s-]*speech|tts)\b/i,
+];
+
+/**
+ * Negative patterns that indicate the user is NOT requesting media generation
+ * even if media keywords appear (e.g., "find me an image", "what image format").
+ */
+const MEDIA_NEGATIVE_PATTERNS = [
+	/\b(?:find|search|look\s*up|show\s*me|get|fetch|retrieve|download|upload|link|url|format|size|resolution|edit|crop|resize|compress)\b/i,
+	/\b(?:what|how|why|where|when|which|explain|describe|tell\s*me\s*about)\b.*\b(?:image|picture|photo|sound|audio)\b/i,
+];
+
+/**
+ * Lightweight regex/keyword pre-classification for obvious media intents.
+ * Runs synchronously before the LLM classifier to skip the round-trip
+ * for clear-cut media requests.
+ *
+ * @param {string} message - The user's latest message text.
+ * @returns {{ intent: "audio" | "image" | null, confidence: number, reason: string }}
+ *   Returns intent=null when pre-classification is inconclusive (fall through to LLM).
+ */
+function preClassifyMediaIntent(message) {
+	const text = getNonEmptyString(message);
+	if (!text) {
+		return { intent: null, confidence: 0, reason: "empty-input" };
+	}
+
+	// Check negative patterns first — if the message looks like a query about
+	// media rather than a generation request, skip pre-classification.
+	for (const pattern of MEDIA_NEGATIVE_PATTERNS) {
+		if (pattern.test(text)) {
+			return { intent: null, confidence: 0, reason: "negative-pattern-match" };
+		}
+	}
+
+	// Check image patterns.
+	for (const pattern of IMAGE_PRE_PATTERNS) {
+		if (pattern.test(text)) {
+			return { intent: "image", confidence: 0.95, reason: "keyword-match-image" };
+		}
+	}
+
+	// Check audio patterns.
+	for (const pattern of AUDIO_PRE_PATTERNS) {
+		if (pattern.test(text)) {
+			return { intent: "audio", confidence: 0.95, reason: "keyword-match-audio" };
+		}
+	}
+
+	return { intent: null, confidence: 0, reason: "no-keyword-match" };
+}
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -38,12 +103,6 @@ function normalizeIntent(value) {
 		return normalized;
 	}
 
-	if (normalized.includes("both")) {
-		return "both";
-	}
-	if (normalized.includes("genui") || normalized.includes("ui")) {
-		return "genui";
-	}
 	if (
 		normalized.includes("image") ||
 		normalized.includes("photo") ||
@@ -53,7 +112,12 @@ function normalizeIntent(value) {
 	) {
 		return "image";
 	}
-	if (normalized.includes("audio") || normalized.includes("voice") || normalized.includes("speech")) {
+	if (
+		normalized.includes("audio") ||
+		normalized.includes("voice") ||
+		normalized.includes("speech") ||
+		normalized.includes("sound")
+	) {
 		return "audio";
 	}
 	return "normal";
@@ -199,6 +263,19 @@ async function classifySmartGenerationIntent({
 		};
 	}
 
+	// Try lightweight pre-classification first to skip LLM round-trip.
+	const preResult = preClassifyMediaIntent(prompt);
+	if (preResult.intent) {
+		return {
+			intent: preResult.intent,
+			confidence: preResult.confidence,
+			reason: preResult.reason,
+			rawOutput: null,
+			error: null,
+			timedOut: false,
+		};
+	}
+
 	try {
 		const rawOutput = await withTimeout(
 			({ signal }) =>
@@ -238,4 +315,5 @@ module.exports = {
 	parseClassification,
 	buildClassifierPrompt,
 	classifySmartGenerationIntent,
+	preClassifyMediaIntent,
 };

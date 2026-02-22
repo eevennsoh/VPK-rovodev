@@ -5,10 +5,12 @@ import { useRovoChat } from "@/app/contexts";
 import { useSpeechRecognition } from "./use-speech-recognition";
 import { useUrlParams } from "./use-url-params";
 import {
+	buildClarificationDismissPrompt,
 	buildClarificationSummaryPrompt,
 	createClarificationSubmission,
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
+	type ParsedQuestionCardPayload,
 } from "@/components/templates/shared/lib/question-card-widget";
 import {
 	buildGenerativeWidgetSubmitPrompt,
@@ -125,6 +127,20 @@ export function useRovoViewChat() {
 		[activeQuestionCard, buildSendOptions, sendPrompt]
 	);
 
+	const handleClarificationDismiss = useCallback(
+		(questionCard: ParsedQuestionCardPayload) => {
+			const dismissPrompt = buildClarificationDismissPrompt(questionCard);
+			void sendPrompt(dismissPrompt, {
+				...buildSendOptions(),
+				messageMetadata: {
+					source: "clarification-submit",
+					visibility: "hidden",
+				},
+			});
+		},
+		[buildSendOptions, sendPrompt]
+	);
+
 	// Handle pending prompt from external navigation
 	useEffect(() => {
 		if (hasProcessedPendingPrompt.current) return;
@@ -170,6 +186,7 @@ export function useRovoViewChat() {
 		isStreaming,
 		isSubmitPending,
 		handleClarificationSubmit,
+		handleClarificationDismiss,
 		stopStreaming,
 	};
 }

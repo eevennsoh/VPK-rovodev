@@ -610,6 +610,26 @@ export const catalog = defineCatalog(schema, {
 			description: "Collapsible accordion sections for organizing detailed content",
 			example: { items: [{ title: "Overview", content: "A brief introduction to the topic." }] },
 		},
+		AccordionForm: {
+			props: z.object({
+				items: z.array(
+					z.object({
+						value: z.string(),
+						title: z.string(),
+					}),
+				),
+				defaultOpenValues: z.array(z.string()).nullable(),
+			}),
+			slots: ["default"],
+			description: "Interactive accordion with children slots. Each child corresponds to a section's content. Use for forms, inputs, and mixed interactive content inside collapsible sections.",
+			example: {
+				items: [
+					{ value: "section-1", title: "Personal Info" },
+					{ value: "section-2", title: "Preferences" },
+				],
+				defaultOpenValues: ["section-1"],
+			},
+		},
 		Timeline: {
 			props: z.object({
 				items: z.array(

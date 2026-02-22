@@ -30,7 +30,7 @@ const VPK_CUSTOM_RULES = [
 	"Only use 3D components (Scene3D, Group3D, Box, Sphere, Cylinder, Cone, Torus, Plane, Ring, AmbientLight, PointLight, DirectionalLight, Stars, Label3D) when the user explicitly asks for 3D scenes, models, or visualizations.",
 
 	// Atlassian context
-	"You can generate UIs for Atlassian product scenarios: Jira (issues, boards, sprints), Confluence (pages, spaces), Trello (boards, lists, cards), Bitbucket (repos, PRs, pipelines), Loom (video listings). Use Lozenge for statuses (e.g. \"In Progress\", \"Done\"), Tag for labels/categories, Avatar for people, Badge for counts.",
+	"When the response contains data from Atlassian products (Jira issues, Confluence pages, Trello cards, Bitbucket PRs, Loom videos), you MUST generate a visual UI spec. Use Table for lists of items with columns, Card for grouped details, Timeline for chronological events, Lozenge for statuses (e.g. \"In Progress\", \"Done\"), Tag for labels/categories, Avatar for people, Badge for counts, and Metric for summary statistics.",
 
 	// Output quality
 	"Output exactly one ```spec block per response. Keep the ```spec block machine-parseable: no markdown bullets, no prose, no comments inside the fence.",
@@ -89,6 +89,21 @@ const COMPANION_EXAMPLES = [
 {"op":"add","path":"/elements/areaChart","value":{"type":"AreaChart","props":{"title":"Weekly Traffic","data":[{"week":"W1","visitors":1200},{"week":"W2","visitors":1800},{"week":"W3","visitors":1500},{"week":"W4","visitors":2200}],"xKey":"week","yKey":"visitors","color":"#6366f1"}}}
 {"op":"add","path":"/elements/tabProgress","value":{"type":"TabContent","props":{"value":"progress"},"children":["tracker"]}}
 {"op":"add","path":"/elements/tracker","value":{"type":"ProgressTracker","props":{"steps":[{"label":"Planning","state":"done"},{"label":"Development","state":"done"},{"label":"Testing","state":"current"},{"label":"Release","state":"todo"}]}}}
+\`\`\``,
+
+	// Work Activity Summary
+	`Example — work activity summary with issue table and recent activity:
+\`\`\`spec
+{"op":"add","path":"/root","value":"main"}
+{"op":"add","path":"/elements/main","value":{"type":"Stack","props":{"gap":"lg"},"children":["heading","metrics","issueTable","activityHeading","activity"]}}
+{"op":"add","path":"/elements/heading","value":{"type":"Heading","props":{"level":"h2","text":"Work Summary — Last 7 Days"}}}
+{"op":"add","path":"/elements/metrics","value":{"type":"Grid","props":{"columns":"3","gap":"md"},"children":["m1","m2","m3"]}}
+{"op":"add","path":"/elements/m1","value":{"type":"Metric","props":{"label":"Issues Updated","value":"12","trend":"up"}}}
+{"op":"add","path":"/elements/m2","value":{"type":"Metric","props":{"label":"Pages Edited","value":"5","trend":"up"}}}
+{"op":"add","path":"/elements/m3","value":{"type":"Metric","props":{"label":"PRs Merged","value":"3","trend":"up"}}}
+{"op":"add","path":"/elements/issueTable","value":{"type":"Table","props":{"columns":[{"key":"key","label":"Key"},{"key":"summary","label":"Summary"},{"key":"status","label":"Status"},{"key":"updated","label":"Updated"}],"rows":[{"key":"PROJ-101","summary":"Fix login timeout","status":"Done","updated":"2d ago"},{"key":"PROJ-98","summary":"Add search filters","status":"In Progress","updated":"1d ago"}]}}}
+{"op":"add","path":"/elements/activityHeading","value":{"type":"Heading","props":{"level":"h3","text":"Recent Activity"}}}
+{"op":"add","path":"/elements/activity","value":{"type":"Timeline","props":{"items":[{"title":"Updated PROJ-101","description":"Moved to Done","timestamp":"Feb 21"},{"title":"Edited Design Spec page","description":"Confluence · Design Space","timestamp":"Feb 20"},{"title":"Merged PR #387","description":"Bitbucket · main branch","timestamp":"Feb 19"}]}}}
 \`\`\``,
 
 	// Notification Feed
