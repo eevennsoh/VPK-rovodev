@@ -5,10 +5,16 @@ export interface ParsedGenerativeWidgetSource {
 	logoSrc?: string;
 }
 
+export interface GenerativeWidgetActionItem {
+	label: string;
+	href?: string;
+}
+
 interface ParsedGenerativeWidgetBase {
 	title?: string;
 	description?: string;
 	primaryActionLabel?: string;
+	actions?: GenerativeWidgetActionItem[];
 	source: ParsedGenerativeWidgetSource | null;
 	contentTypeHint?: string;
 }
@@ -45,6 +51,8 @@ export interface GenerativeWidgetMetadata {
 	title: string;
 	description: string;
 	primaryActionLabel?: string;
+	actions?: GenerativeWidgetActionItem[];
+	actionLabels?: string[];
 	source: ParsedGenerativeWidgetSource | null;
 	iconHintText?: string;
 }
@@ -228,6 +236,39 @@ const PRIMARY_ACTION_PREFERRED_LABEL_PATTERN =
 const PRIMARY_ACTION_DEPRIORITIZED_LABEL_PATTERN =
 	/\b(cancel|close|back|dismiss|reset|clear)\b/i;
 const PRIMARY_ACTION_EXCLUDED_LABEL_PATTERN = /\bopen\s+preview\b/i;
+const ACTION_LABEL_OBJECT_KEYS = [
+	"label",
+	"text",
+	"title",
+] as const;
+const ACTION_LABEL_ROOT_KEYS = [
+	"primaryLabel",
+	"secondaryLabel",
+	"tertiaryLabel",
+	"actionLabel",
+	"submitLabel",
+	"ctaLabel",
+	"viewLabel",
+] as const;
+const ACTION_LABEL_NESTED_KEYS = [
+	"primary",
+	"secondary",
+	"tertiary",
+	"actions",
+	"buttons",
+	"items",
+] as const;
+const ACTION_HREF_KEYS = [
+	"href",
+	"url",
+	"link",
+	"externalUrl",
+	"webUrl",
+	"pageUrl",
+	"viewUrl",
+	"editUrl",
+] as const;
+const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
@@ -324,6 +365,225 @@ function readFirstNonEmptyString(record: Record<string, unknown>, keys: string[]
 	return undefined;
 }
 
+function readActionHref(record: Record<string, unknown>, keys = [...ACTION_HREF_KEYS]): string | undefined {
+	const href = readFirstNonEmptyString(record, keys);
+	if (!href) {
+		return undefined;
+	}
+
+	const normalized = href.trim();
+	if (!normalized || normalized.toLowerCase().startsWith("javascript:")) {
+		return undefined;
+	}
+
+	return normalized;
+}
+
+function mergeActionItems(items: readonly GenerativeWidgetActionItem[]): GenerativeWidgetActionItem[] {
+	const mergedItems: GenerativeWidgetActionItem[] = [];
+	const itemIndexByLabel = new Map<string, number>();
+
+	for (const item of items) {
+		const label = getNonEmptyString(item.label);
+		if (!label || PRIMARY_ACTION_EXCLUDED_LABEL_PATTERN.test(label)) {
+			continue;
+		}
+
+		const href = getNonEmptyString(item.href);
+		const normalizedLabel = label.toLowerCase();
+		const existingIndex = itemIndexByLabel.get(normalizedLabel);
+		if (existingIndex === undefined) {
+			mergedItems.push({ label, ...(href ? { href } : {}) });
+			itemIndexByLabel.set(normalizedLabel, mergedItems.length - 1);
+			continue;
+		}
+
+		const existingItem = mergedItems[existingIndex];
+		if (!existingItem.href && href) {
+			mergedItems[existingIndex] = { ...existingItem, href };
+		}
+	}
+
+	return mergedItems;
+}
+
+function extractActionItemFromRecord(record: Record<string, unknown>): GenerativeWidgetActionItem | null {
+	const label = readFirstNonEmptyString(record, [...ACTION_LABEL_OBJECT_KEYS]);
+	if (!label) {
+		return null;
+	}
+
+	const href = readActionHref(record);
+	return { label, ...(href ? { href } : {}) };
+}
+
+function collectActionItemsFromActionsValue(value: unknown): GenerativeWidgetActionItem[] {
+	if (!isObjectRecord(value)) {
+		return [];
+	}
+
+	const items: GenerativeWidgetActionItem[] = [];
+
+	for (const labelKey of ACTION_LABEL_ROOT_KEYS) {
+		const label = getNonEmptyString(value[labelKey]);
+		if (!label) {
+			continue;
+		}
+
+		const actionHint = labelKey
+			.replace(/Label$/i, "")
+			.toLowerCase();
+		const href = readActionHref(value, [
+			`${actionHint}Href`,
+			`${actionHint}Url`,
+			...ACTION_HREF_KEYS,
+		]);
+
+		items.push({ label, ...(href ? { href } : {}) });
+	}
+
+	for (const nestedKey of ACTION_LABEL_NESTED_KEYS) {
+		const nestedValue = value[nestedKey];
+		if (Array.isArray(nestedValue)) {
+			for (const entry of nestedValue) {
+				if (!isObjectRecord(entry)) {
+					continue;
+				}
+				const item = extractActionItemFromRecord(entry);
+				if (item) {
+					items.push(item);
+				}
+			}
+			continue;
+		}
+
+		if (!isObjectRecord(nestedValue)) {
+			continue;
+		}
+
+		const item = extractActionItemFromRecord(nestedValue);
+		if (item) {
+			items.push(item);
+		}
+	}
+
+	return mergeActionItems(items);
+}
+
+function mapFallbackHrefForLabel(label: string, source: Record<string, unknown>): string | undefined {
+	const isEditAction = /\bedit\b/i.test(label);
+	const isViewAction = /\bview\b|\bopen\b/i.test(label);
+
+	if (isEditAction) {
+		return readActionHref(source, [
+			"editUrl",
+			"editHref",
+			"pageEditUrl",
+			...ACTION_HREF_KEYS,
+		]);
+	}
+
+	if (isViewAction) {
+		return readActionHref(source, [
+			"viewUrl",
+			"viewHref",
+			"pageUrl",
+			"externalUrl",
+			...ACTION_HREF_KEYS,
+		]);
+	}
+
+	return undefined;
+}
+
+function extractUrlsFromString(value: string): string[] {
+	const matches = value.match(URL_PATTERN);
+	if (!matches) {
+		return [];
+	}
+
+	return matches
+		.map((url) => url.replace(/[),.;]+$/g, "").trim())
+		.filter((url) => url.length > 0);
+}
+
+function collectUrlCandidates(value: unknown): string[] {
+	const queue: unknown[] = [value];
+	const visited = new Set<unknown>();
+	const collectedUrls: string[] = [];
+	let processedNodes = 0;
+
+	while (queue.length > 0 && processedNodes < 500) {
+		const current = queue.shift();
+		processedNodes += 1;
+
+		if (typeof current === "string") {
+			collectedUrls.push(...extractUrlsFromString(current));
+			continue;
+		}
+
+		if (Array.isArray(current)) {
+			for (const item of current) {
+				queue.push(item);
+			}
+			continue;
+		}
+
+		if (!isObjectRecord(current)) {
+			continue;
+		}
+
+		if (visited.has(current)) {
+			continue;
+		}
+
+		visited.add(current);
+		for (const entry of Object.values(current)) {
+			queue.push(entry);
+		}
+	}
+
+	return Array.from(new Set(collectedUrls));
+}
+
+function selectBestUrlForAction(label: string, candidates: readonly string[]): string | undefined {
+	if (candidates.length === 0) {
+		return undefined;
+	}
+
+	const wantsEdit = /\bedit\b/i.test(label);
+	const wantsView = /\bview\b|\bopen\b|\bpage\b/i.test(label);
+	let bestCandidate: { url: string; score: number; index: number } | null = null;
+
+	for (const [index, url] of candidates.entries()) {
+		const normalizedUrl = url.toLowerCase();
+		const looksLikeEditUrl = /\/edit\b|[?&]mode=edit\b|\/edit\//.test(normalizedUrl);
+		let score = 0;
+
+		if (/confluence|\/wiki\//.test(normalizedUrl)) {
+			score += 20;
+		}
+
+		if (wantsEdit && looksLikeEditUrl) {
+			score += 50;
+		}
+
+		if (wantsView && !looksLikeEditUrl) {
+			score += 35;
+		}
+
+		if (wantsView && looksLikeEditUrl) {
+			score -= 15;
+		}
+
+		if (!bestCandidate || score > bestCandidate.score) {
+			bestCandidate = { url, score, index };
+		}
+	}
+
+	return bestCandidate?.url ?? candidates[0];
+}
+
 function clipText(text: string, maxLength: number): string {
 	if (text.length <= maxLength) {
 		return text;
@@ -394,6 +654,11 @@ function parseGenerativeWidgetBase(payload: Record<string, unknown>): ParsedGene
 		"ctaLabel",
 	]);
 	const actionsValue = payload.actions;
+	const parsedActions = mergeActionItems([
+		...collectActionItemsFromActionsValue(actionsValue),
+		...collectActionItemsFromActionsValue(payload),
+	]);
+	const payloadUrlCandidates = collectUrlCandidates(payload);
 	if (!primaryActionLabel && isObjectRecord(actionsValue)) {
 		const nestedPrimary = actionsValue.primary;
 		if (isObjectRecord(nestedPrimary)) {
@@ -412,6 +677,37 @@ function parseGenerativeWidgetBase(payload: Record<string, unknown>): ParsedGene
 			]);
 		}
 	}
+	const actionsWithFallbackLinks = mergeActionItems(
+		parsedActions.map((actionItem) => {
+			if (actionItem.href) {
+				return actionItem;
+			}
+
+			const href =
+				mapFallbackHrefForLabel(actionItem.label, payload) ??
+				(isObjectRecord(actionsValue)
+					? mapFallbackHrefForLabel(actionItem.label, actionsValue)
+					: undefined) ??
+				selectBestUrlForAction(actionItem.label, payloadUrlCandidates);
+
+			return { ...actionItem, ...(href ? { href } : {}) };
+		})
+	);
+	const primaryActionHref = primaryActionLabel
+		? mapFallbackHrefForLabel(primaryActionLabel, payload) ??
+			selectBestUrlForAction(primaryActionLabel, payloadUrlCandidates)
+		: undefined;
+	const resolvedActions =
+		actionsWithFallbackLinks.length > 0
+			? actionsWithFallbackLinks
+			: primaryActionLabel
+				? [{
+					label: primaryActionLabel,
+					...(primaryActionHref
+						? { href: primaryActionHref }
+						: {}),
+				}]
+				: [];
 
 	const contentTypeHint = readFirstNonEmptyString(payload, [
 		...GENERATIVE_CONTENT_TYPE_HINT_KEYS,
@@ -421,6 +717,9 @@ function parseGenerativeWidgetBase(payload: Record<string, unknown>): ParsedGene
 		...(title ? { title } : {}),
 		...(description ? { description } : {}),
 		...(primaryActionLabel ? { primaryActionLabel } : {}),
+		...(resolvedActions.length > 0
+			? { actions: resolvedActions }
+			: {}),
 		...(contentTypeHint ? { contentTypeHint } : {}),
 		source: parseExplicitSource(payload),
 	};
@@ -805,7 +1104,7 @@ function resolveGenuiPrimaryActionLabelFromSpec(
 			continue;
 		}
 
-		const label = getNonEmptyString(props.label);
+		const label = readFirstNonEmptyString(props, [...ACTION_LABEL_OBJECT_KEYS]);
 		if (!label) {
 			continue;
 		}
@@ -834,6 +1133,62 @@ function resolveGenuiPrimaryActionLabelFromSpec(
 	}
 
 	return undefined;
+}
+
+function resolveActionHrefFromPress(pressValue: unknown): string | undefined {
+	if (!isObjectRecord(pressValue)) {
+		return undefined;
+	}
+
+	const directHref = readActionHref(pressValue);
+	if (directHref) {
+		return directHref;
+	}
+
+	const paramsValue = pressValue.params;
+	if (!isObjectRecord(paramsValue)) {
+		return undefined;
+	}
+
+	return readActionHref(paramsValue);
+}
+
+function resolveGenuiActionsFromSpec(
+	widget: ParsedGenuiPreviewWidget
+): GenerativeWidgetActionItem[] {
+	const traversalKeys = getSpecTraversalKeys(widget.spec);
+	const actions: GenerativeWidgetActionItem[] = [];
+
+	for (const key of traversalKeys) {
+		const element = widget.spec.elements[key];
+		if (!isObjectRecord(element)) {
+			continue;
+		}
+
+		if (getNonEmptyString(element.type) !== "Button") {
+			continue;
+		}
+
+		const props = getElementProps(element);
+		if (!props) {
+			continue;
+		}
+
+		const label = readFirstNonEmptyString(props, [...ACTION_LABEL_OBJECT_KEYS]);
+		if (!label) {
+			continue;
+		}
+
+		const href =
+			readActionHref(props) ??
+			(isObjectRecord(element.on)
+				? resolveActionHrefFromPress(element.on.press)
+				: undefined);
+
+		actions.push({ label, ...(href ? { href } : {}) });
+	}
+
+	return mergeActionItems(actions);
 }
 
 const CONTENT_TYPE_FALLBACK_TITLES: Partial<Record<GenerativeContentType, string>> = {
@@ -935,6 +1290,61 @@ function resolvePrimaryActionLabel(
 	return undefined;
 }
 
+function resolveActions(
+	widget: ParsedGenerativeWidget,
+	primaryActionLabel: string | undefined,
+	derivedGenuiActions: GenerativeWidgetActionItem[] = []
+): GenerativeWidgetActionItem[] | undefined {
+	if (widget.type !== "genui-preview") {
+		return undefined;
+	}
+
+	const mergedActions = mergeActionItems([
+		...(primaryActionLabel ? [{ label: primaryActionLabel }] : []),
+		...(widget.actions ?? []),
+		...derivedGenuiActions,
+	]);
+	const knownHrefs = Array.from(new Set(
+		mergedActions
+			.map((actionItem) => getNonEmptyString(actionItem.href))
+			.filter((href): href is string => Boolean(href))
+	));
+	const additionalCandidates =
+		widget.type === "genui-preview"
+			? collectUrlCandidates(widget.spec)
+			: [];
+	const allCandidates = Array.from(new Set([...knownHrefs, ...additionalCandidates]));
+	const hydratedActions = mergedActions.map((actionItem) => {
+		if (actionItem.href) {
+			return actionItem;
+		}
+
+		const shouldInheritHref = /\b(view|edit|open|page)\b/i.test(actionItem.label);
+		if (!shouldInheritHref || allCandidates.length === 0) {
+			return actionItem;
+		}
+
+		if (knownHrefs.length === 1) {
+			return { ...actionItem, href: knownHrefs[0] };
+		}
+
+		return {
+			...actionItem,
+			href: selectBestUrlForAction(actionItem.label, allCandidates),
+		};
+	});
+	const resolvedActions = hydratedActions.map((actionItem) => ({
+		...actionItem,
+		label: clipText(actionItem.label, 40),
+	}));
+
+	if (resolvedActions.length === 0) {
+		return undefined;
+	}
+
+	return resolvedActions;
+}
+
 export function resolveGenerativeWidgetMetadata(
 	widget: ParsedGenerativeWidget
 ): GenerativeWidgetMetadata {
@@ -951,10 +1361,20 @@ export function resolveGenerativeWidgetMetadata(
 		widget.type === "genui-preview"
 			? resolveGenuiPrimaryActionLabelFromSpec(widget)
 			: undefined;
+	const derivedGenuiActions =
+		widget.type === "genui-preview"
+			? resolveGenuiActionsFromSpec(widget)
+			: [];
 	const primaryActionLabel = resolvePrimaryActionLabel(
 		widget,
 		derivedGenuiPrimaryActionLabel
 	);
+	const actions = resolveActions(
+		widget,
+		primaryActionLabel,
+		derivedGenuiActions
+	);
+	const actionLabels = actions?.map((actionItem) => actionItem.label);
 	const iconHintText = [
 		widget.title,
 		widget.description,
@@ -974,6 +1394,8 @@ export function resolveGenerativeWidgetMetadata(
 		source: widget.source,
 		...(iconHintText ? { iconHintText } : {}),
 		...(primaryActionLabel ? { primaryActionLabel } : {}),
+		...(actions ? { actions } : {}),
+		...(actionLabels ? { actionLabels } : {}),
 	};
 }
 
@@ -1354,11 +1776,30 @@ function pruneUnreachableElements(
 	return pruned;
 }
 
+function collectActionButtonKeysFromSpec(spec: Spec): Set<string> {
+	const buttonKeys = new Set<string>();
+
+	for (const [key, element] of Object.entries(spec.elements ?? {})) {
+		if (!isObjectRecord(element)) {
+			continue;
+		}
+
+		if (getNonEmptyString(element.type) !== "Button") {
+			continue;
+		}
+
+		buttonKeys.add(key);
+	}
+
+	return buttonKeys;
+}
+
 export function createBodyOnlySpec(widget: ParsedGenuiPreviewWidget): Spec {
 	const titleSource = findTitleSourceInSpec(widget);
 	const descSource = findDescriptionSourceInSpec(widget);
+	const actionButtonKeys = collectActionButtonKeysFromSpec(widget.spec);
 
-	if (!titleSource && !descSource) {
+	if (!titleSource && !descSource && actionButtonKeys.size === 0) {
 		return widget.spec;
 	}
 
@@ -1375,6 +1816,11 @@ export function createBodyOnlySpec(widget: ParsedGenuiPreviewWidget): Spec {
 	const keysToRemove = new Set<string>();
 
 	for (const [key, element] of Object.entries(widget.spec.elements)) {
+		if (actionButtonKeys.has(key)) {
+			keysToRemove.add(key);
+			continue;
+		}
+
 		if (!propsToStrip.has(key)) {
 			newElements[key] = element;
 			continue;

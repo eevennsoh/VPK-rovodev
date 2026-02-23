@@ -9,16 +9,6 @@ const PORT_COUNT = 3;
 
 const MULTIPORTS_GENERATIVE_CARD_ANIMATION: GenerativeCardAnimationProps = {
 	distortion: false,
-	animateDuration: 2400,
-	animateDistortionScale: 50,
-	animateBlur: 12,
-	animateRadius: 0.6,
-	animateEdgeSafeX: 0,
-	animateSpeed: 1.35,
-	animateScaleSmoothing: 0.5,
-	animateSweepSmoothing: 0.5,
-	distortionTintEnabled: false,
-	innerGlow: false,
 };
 
 export default function MultiportsDemo(): React.ReactElement {

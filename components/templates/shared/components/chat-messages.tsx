@@ -195,7 +195,10 @@ export function ChatMessages({
 								marginTop:
 									message.role === "assistant" &&
 									messageIndex > 0 &&
-									turn[messageIndex - 1]?.role === "user"
+									(
+										turn[messageIndex - 1]?.role === "user" ||
+										turn[messageIndex - 1]?.role === "assistant"
+									)
 										? "24px"
 										: "0",
 							};
@@ -260,7 +263,7 @@ export function ChatMessages({
 					/>
 				) : null}
 				{!indicator.shouldShowPreloader && !indicator.shouldShowThinkingStatus && showAwaitingIndicator ? (
-					<div className="flex justify-start">
+					<div className="mt-6 flex justify-start">
 						<Message from="assistant" className="max-w-full">
 							<Reasoning className="mb-0" isStreaming>
 								<AdsReasoningTrigger label={awaitingIndicatorLabel} showChevron={false} streaming />

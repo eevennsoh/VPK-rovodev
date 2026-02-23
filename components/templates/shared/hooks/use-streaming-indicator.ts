@@ -102,8 +102,8 @@ export function useStreamingIndicatorState(
 	const shouldShowFromStream =
 		isStreaming &&
 		sourceMessages.length > 0 &&
-		(lastSource?.role === "user" || isAwaitingOutput) &&
-		!hasInlineThinkingStatus;
+		!hasInlineThinkingStatus &&
+		(lastSource?.role === "user" || isAwaitingOutput || hasBackendThinkingStarted);
 	const shouldShow = shouldShowFromStream || isSubmitPending;
 	const isThinkingStreaming = isStreaming && hasBackendThinkingStarted;
 

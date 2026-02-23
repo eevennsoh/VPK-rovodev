@@ -151,6 +151,7 @@ export function ContentTypeTile({
 	title,
 	description,
 	sourceName,
+	sourceLogoSrc,
 	hintText,
 }: Readonly<{
 	contentType: GenerativeContentType;
@@ -159,8 +160,13 @@ export function ContentTypeTile({
 	title?: string;
 	description?: string;
 	sourceName?: string;
+	sourceLogoSrc?: string;
 	hintText?: string;
 }>): ReactNode {
+	const normalizedSourceLogoSrc =
+		typeof sourceLogoSrc === "string" && sourceLogoSrc.trim().length > 0
+			? sourceLogoSrc.trim()
+			: null;
 	const matchedGreetingSuggestion = resolveGreetingSuggestion({
 		contentType,
 		title,
@@ -169,9 +175,19 @@ export function ContentTypeTile({
 		hintText,
 	});
 
-	const icon = matchedGreetingSuggestion
-		? renderGreetingSuggestionIcon(matchedGreetingSuggestion) ?? renderContentTypeIcon(contentType)
-		: renderContentTypeIcon(contentType);
+	const icon = normalizedSourceLogoSrc
+		? (
+			<Image
+				src={normalizedSourceLogoSrc}
+				alt={sourceName || label}
+				width={16}
+				height={16}
+				className="size-4 object-contain"
+			/>
+		)
+		: matchedGreetingSuggestion
+			? renderGreetingSuggestionIcon(matchedGreetingSuggestion) ?? renderContentTypeIcon(contentType)
+			: renderContentTypeIcon(contentType);
 
 	return (
 		<Tile label={label} size={size} variant="transparent" hasBorder className="text-icon-subtle [&_img]:!size-4 [&_span]:!size-4 [&_svg]:!size-4">

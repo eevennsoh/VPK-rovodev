@@ -17,9 +17,8 @@ const REQUEST_USER_INPUT_INSTRUCTION = [
 	"When you need to ask the user clarifying questions before proceeding (e.g. to gather requirements, preferences, or missing details), you MUST use the `ask_user_questions` tool instead of writing questions as plain text.",
 	"The tool renders an interactive question card in the UI. Provide 2–4 questions, each with a short label, description, and 1–3 predefined options. The UI automatically appends a free-text option.",
 	"Each option must be a specific, concrete answer to its question (e.g. site names, technologies, team names) — never generic labels like \"Quick\", \"Balanced\", or \"Detailed\".",
-	"For translation requests, if either the source text or target language is missing, use the tool to gather those inputs instead of asking in plain text.",
-	"Skip the tool for deterministic requests only when all required inputs are already present (e.g. rewrite, summarization, formatting, or translation with source text and target language).",
-	"Only use the tool when missing details genuinely block completion, or when asking a single simple yes/no follow-up or making a casual conversational remark.",
+	"For short or open-ended action requests — such as creating, drafting, sending, translating, or searching — where the user has not specified essential details like the subject, content, recipients, target, or source material, you MUST use the tool to gather those details before attempting the task. Do not guess or proceed with fabricated inputs.",
+	"Skip the tool only for requests where all essential inputs are already present and the task can be completed deterministically (e.g. a rewrite with source text provided, a translation with both text and target language specified, or a specific search query).",
 	"[End Clarification Protocol]",
 ].join("\n");
 
@@ -41,9 +40,10 @@ const LAST_7_DAYS_WORK_INSTRUCTION = [
 	"[End Tool Guardrail]",
 	"",
 	"[Tool Requirement]",
-	"You MUST search BOTH Jira AND Confluence for this request. Do not skip either source.",
-	"Always call Jira search tools AND Confluence search tools, even if one returns empty results.",
-	"Present results from both sources in your response.",
+	"Use exactly 2 tool calls for this request:",
+	"1. One `search_jira_using_jql` call for Jira issues assigned to or updated by the current user in the last 7 days.",
+	"2. One `search_confluence_using_cql` call using `contributor = currentUser()` to cover both created and edited pages in a single query.",
+	"Do not make additional tool calls beyond these two. Present results from both sources in your response.",
 	"[End Tool Requirement]",
 ].join("\n");
 

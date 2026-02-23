@@ -462,6 +462,8 @@ const TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY = "soft-retry";
 const TOOL_FIRST_DEFAULT_MAX_RETRIES = 1;
 const TOOL_FIRST_DEFAULT_RETRY_BACKOFF_MS = [750, 1500];
 const TOOL_FIRST_DEFAULT_MAX_RETRY_WINDOW_MS = 3000;
+const TOOL_FIRST_GOOGLE_CALENDAR_DOMAIN_ID = "google-calendar";
+const TOOL_FIRST_DEFAULT_CALENDAR_WINDOW_DAYS = 7;
 const TOOL_FIRST_TEAMWORK_GRAPH_DOMAIN_ID = "teamwork-graph";
 const TOOL_FIRST_TEAMWORK_GRAPH_FALLBACK_RELEVANCE_DOMAINS = [
 	"jira",
@@ -619,6 +621,23 @@ function toIsoSeconds(value) {
 	return value.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+function resolveGoogleCalendarDefaultWindow({
+	now = new Date(),
+	windowDays = TOOL_FIRST_DEFAULT_CALENDAR_WINDOW_DAYS,
+} = {}) {
+	const safeWindowDays =
+		typeof windowDays === "number" && Number.isFinite(windowDays) && windowDays > 0
+			? Math.floor(windowDays)
+			: TOOL_FIRST_DEFAULT_CALENDAR_WINDOW_DAYS;
+	const end = new Date(now.getTime() + safeWindowDays * 24 * 60 * 60 * 1000);
+
+	return {
+		windowDays: safeWindowDays,
+		startIso: toIsoSeconds(now),
+		endIso: toIsoSeconds(end),
+	};
+}
+
 function parseRelativeWindowDays(prompt) {
 	const normalizedPrompt = getNonEmptyString(prompt);
 	if (!normalizedPrompt) {
@@ -765,6 +784,23 @@ function resolveToolFirstPolicy({ prompt } = {}) {
 				? `- Use this canonical UTC range unless the user overrides it: ${resolvedRange}.`
 				: "- Normalize relative dates into explicit UTC start/end timestamps before querying.",
 			"- If Teamwork Graph/Cypher returns datetime, semantic, permission, or no-result failures, fallback in the same turn to Jira JQL and Confluence CQL for the same date range."
+		);
+	}
+	if (domains.includes(TOOL_FIRST_GOOGLE_CALENDAR_DOMAIN_ID)) {
+		const calendarWindow = resolveGoogleCalendarDefaultWindow();
+		const calendarRange =
+			calendarWindow.startIso && calendarWindow.endIso
+				? `${calendarWindow.startIso} to ${calendarWindow.endIso}`
+				: null;
+		instructionLines.push(
+			"- Google Calendar event listing calls must use `google_google_calendar_atlassian_calendar_get_events`.",
+			"- Always include required params: `calendarId`, `timeMin`, and `timeMax`.",
+			"- If the user does not specify a calendar, default to `calendarId: \"primary\"`.",
+			calendarRange
+				? `- If the user does not provide a date range, default to the next ${calendarWindow.windowDays} days using this UTC range: ${calendarRange}.`
+				: `- If the user does not provide a date range, default to the next ${calendarWindow.windowDays} days and emit UTC ISO 8601 timestamps for both bounds.`,
+			"- Interpret relative dates in the user's local timezone, then convert to UTC ISO 8601 (`YYYY-MM-DDTHH:mm:ssZ`) for tool args.",
+			"- Do not call bash/date shell tools to compute date params; compute and pass timestamps directly in tool arguments."
 		);
 	}
 	const instruction = instructionLines.join("\n");
@@ -1039,6 +1075,16 @@ function buildToolFirstRetryInstruction({
 			? `If this attempt still fails, report the exact tool error and required IDs/URLs or re-authentication steps. Remaining retries after this attempt: ${retriesRemaining}.`
 			: "If this attempt fails, report the exact tool error and required IDs/URLs or re-authentication steps.",
 	];
+	const hasGoogleCalendarDomain = Array.isArray(policy?.domains)
+		&& policy.domains.includes(TOOL_FIRST_GOOGLE_CALENDAR_DOMAIN_ID);
+	if (hasGoogleCalendarDomain && execution?.lastRelevantErrorCategory === "validation") {
+		retryLines.push(
+			"- Google Calendar validation retry directive:",
+			"- Re-check the tool schema once, then retry `google_google_calendar_atlassian_calendar_get_events`.",
+			"- Ensure `calendarId`, `timeMin`, and `timeMax` are present; use `calendarId: \"primary\"` when unspecified.",
+			"- `timeMin` and `timeMax` must be strict UTC ISO 8601 timestamps (`YYYY-MM-DDTHH:mm:ssZ`)."
+		);
+	}
 
 	const teamworkGraphTimeWindow = policy?.teamworkGraphTimeWindow;
 	if (teamworkGraphTimeWindow?.enabled) {
@@ -1134,6 +1180,8 @@ function buildToolFirstTextFallback({
 	const scopedDomains = domainLabels.length > 0
 		? domainLabels.join(", ")
 		: "the requested tool domain";
+	const hasGoogleCalendarDomain = Array.isArray(policy?.domains)
+		&& policy.domains.includes(TOOL_FIRST_GOOGLE_CALENDAR_DOMAIN_ID);
 
 	const attemptCount =
 		typeof execution?.attempts === "number" && execution.attempts > 0
@@ -1169,6 +1217,9 @@ function buildToolFirstTextFallback({
 			message += " Check integration permissions/scopes for the requested resource, then retry.";
 		} else if (category === "validation") {
 			message += " The request failed due to query/date validation. Use strict ISO 8601 date-time values (YYYY-MM-DDTHH:mm:ssZ).";
+			if (hasGoogleCalendarDomain) {
+				message += " For Google Calendar list-events requests, call `google_google_calendar_atlassian_calendar_get_events` with `calendarId`, `timeMin`, and `timeMax` (UTC ISO 8601), defaulting `calendarId` to `primary` when missing.";
+			}
 			if (policy?.teamworkGraphTimeWindow?.enabled) {
 				message += " Then fallback to Jira JQL and Confluence CQL for the same date window.";
 			}

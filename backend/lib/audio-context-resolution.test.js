@@ -67,6 +67,31 @@ test("resolveReferencedAudioText resolves the best contextual candidate", () => 
 	assert.ok(result.candidates.length >= 1);
 });
 
+test("resolveReferencedAudioText keeps strict mode non-referential by default", () => {
+	const messages = [
+		createTextMessage("assistant-1", "assistant", [
+			"Silicon Dreams",
+			"In circuits deep where electrons dance, a mind unfolds.",
+		].join("\n")),
+	];
+
+	const strictResult = resolveReferencedAudioText({
+		latestUserMessage: 'generate an audio about "Silicon Dreams"',
+		messages,
+	});
+	assert.equal(strictResult.status, "not-referential");
+	assert.equal(strictResult.referential, false);
+
+	const implicitResult = resolveReferencedAudioText({
+		latestUserMessage: 'generate an audio about "Silicon Dreams"',
+		messages,
+		allowImplicitReference: true,
+	});
+	assert.equal(implicitResult.status, "resolved");
+	assert.equal(implicitResult.referential, true);
+	assert.match(implicitResult.voiceInput || "", /In circuits deep/);
+});
+
 test("buildAudioContextClarificationPayload creates a single-select question card", () => {
 	const latestUserMessage = "make a voice clip for the poem above";
 	const candidates = [

@@ -89,6 +89,77 @@ test("buildToolObservationStructuredFallback falls back to text lines when paylo
 	assert.match(serializedSpec, /line three/);
 });
 
+test("buildToolObservationStructuredFallback removes tool-definition/schema noise from Slack create message results", () => {
+	const result = buildToolObservationStructuredFallback({
+		prompt: "Send Slack message",
+		observations: [
+			{
+				phase: "result",
+				toolName: "slack_slack_atlassian_channel_create_message",
+				text: [
+					"<tool>slack_slack_atlassian_channel_create_message(channelId: string, text: string): Send a message to a channel in Slack.</tool> { \"type\": \"object\", \"properties\": { \"channelId\": { \"type\": \"string\" } } }",
+					"<tool>slack_slack_atlassian_channel_create_message(channelId: string, text: string): Send a message to a channel in Slack.</tool>",
+				].join("\n"),
+			},
+		],
+	});
+
+	assert.ok(result);
+	const serializedSpec = JSON.stringify(result.spec);
+	assert.doesNotMatch(serializedSpec, /<tool>/i);
+	assert.doesNotMatch(serializedSpec, /channelId/i);
+	assert.doesNotMatch(serializedSpec, /Send a message to a channel in Slack/i);
+	assert.match(serializedSpec, /Slack message sent\./i);
+});
+
+test("buildToolObservationStructuredFallback uses concise Slack success fallback when only schema payload remains", () => {
+	const result = buildToolObservationStructuredFallback({
+		prompt: "Send Slack message",
+		observations: [
+			{
+				phase: "result",
+				toolName: "slack_slack_atlassian_channel_create_message",
+				rawOutput: {
+					type: "object",
+					properties: {
+						channelId: { type: "string" },
+						text: { type: "string" },
+					},
+					required: ["channelId", "text"],
+				},
+				text: "{\"type\":\"object\",\"properties\":{\"channelId\":{\"type\":\"string\"}}}",
+			},
+		],
+	});
+
+	assert.ok(result);
+	const serializedSpec = JSON.stringify(result.spec);
+	assert.match(serializedSpec, /Slack message sent\./i);
+	assert.doesNotMatch(serializedSpec, /channelId/i);
+});
+
+test("buildToolObservationStructuredFallback removes wrapper/schema lines while preserving non-slack meaningful text", () => {
+	const result = buildToolObservationStructuredFallback({
+		observations: [
+			{
+				phase: "result",
+				toolName: "mcp__integrations__invoke_tool",
+				text: [
+					"<tool>google_google_calendar_atlassian_calendar_list_events(...)</tool>",
+					"{\"type\":\"object\",\"properties\":{\"calendarId\":{\"type\":\"string\"}}}",
+					"Fetched 2 calendar events for today.",
+				].join("\n"),
+			},
+		],
+	});
+
+	assert.ok(result);
+	const serializedSpec = JSON.stringify(result.spec);
+	assert.match(serializedSpec, /Fetched 2 calendar events for today\./i);
+	assert.doesNotMatch(serializedSpec, /<tool>/i);
+	assert.doesNotMatch(serializedSpec, /calendarId/i);
+});
+
 test("buildToolObservationStructuredFallback reports omitted groups and events when limits apply", () => {
 	const result = buildToolObservationStructuredFallback({
 		observations: [
@@ -159,6 +230,31 @@ test("buildToolObservationStructuredFallback marks error-only payloads with retr
 	assert.ok(result);
 	const serializedSpec = JSON.stringify(result.spec);
 	assert.match(serializedSpec, /No successful tool results were returned/i);
+});
+
+test("buildToolObservationStructuredFallback uses result-focused description when mixed result and error observations exist", () => {
+	const result = buildToolObservationStructuredFallback({
+		observations: [
+			{
+				phase: "result",
+				toolName: "mcp__google_calendar__list_events",
+				text: "Returned one event",
+			},
+			{
+				phase: "error",
+				toolName: "mcp__google_calendar__list_events",
+				text: "Timeout while fetching extended fields",
+			},
+		],
+	});
+
+	assert.ok(result);
+	const serializedSpec = JSON.stringify(result.spec);
+	assert.match(serializedSpec, /Generated from tool execution results\./i);
+	assert.doesNotMatch(
+		serializedSpec,
+		/Generated from tool execution results and errors\./i
+	);
 });
 
 test("buildToolObservationStructuredFallback returns null when no usable observations exist", () => {

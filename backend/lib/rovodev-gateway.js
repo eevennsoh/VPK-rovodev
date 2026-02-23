@@ -581,9 +581,9 @@ function getThinkingLabelForActivity(activity, phase) {
 		return "Generated audio";
 	}
 	if (activity === "ui") {
-		if (phase === "start") return "Generating UI";
-		if (phase === "error") return "UI generation failed";
-		return "Generated UI";
+		if (phase === "start") return "Generating results";
+		if (phase === "error") return "Results generation failed";
+		return "Generated results";
 	}
 	if (activity === "data") {
 		if (phase === "start") return "Thinking";
@@ -865,6 +865,82 @@ async function streamViaRovoDev({
 				const toolInputByCallId = new Map();
 				const toolArgsBufferByCallId = new Map();
 				const resolvedToolInputCallIds = new Set();
+				const activeToolCallIdsByName = new Map();
+				const activeToolCallOrder = [];
+
+				const rememberActiveToolCall = ({ toolCallId, toolName }) => {
+					const normalizedToolCallId =
+						typeof toolCallId === "string" && toolCallId.trim()
+							? toolCallId.trim()
+							: null;
+					if (!normalizedToolCallId) {
+						return;
+					}
+
+					const normalizedToolName = normalizeToolName(toolName);
+					if (normalizedToolName) {
+						const existingIds = activeToolCallIdsByName.get(normalizedToolName) ?? [];
+						if (!existingIds.includes(normalizedToolCallId)) {
+							existingIds.push(normalizedToolCallId);
+							activeToolCallIdsByName.set(normalizedToolName, existingIds);
+						}
+					}
+
+					if (!activeToolCallOrder.includes(normalizedToolCallId)) {
+						activeToolCallOrder.push(normalizedToolCallId);
+					}
+				};
+
+				const forgetActiveToolCall = (toolCallId) => {
+					const normalizedToolCallId =
+						typeof toolCallId === "string" && toolCallId.trim()
+							? toolCallId.trim()
+							: null;
+					if (!normalizedToolCallId) {
+						return;
+					}
+
+					const orderIndex = activeToolCallOrder.indexOf(normalizedToolCallId);
+					if (orderIndex >= 0) {
+						activeToolCallOrder.splice(orderIndex, 1);
+					}
+
+					for (const [toolName, ids] of activeToolCallIdsByName.entries()) {
+						const nextIds = ids.filter((id) => id !== normalizedToolCallId);
+						if (nextIds.length === 0) {
+							activeToolCallIdsByName.delete(toolName);
+							continue;
+						}
+						activeToolCallIdsByName.set(toolName, nextIds);
+					}
+				};
+
+				const resolveCorrelatedToolCallId = ({
+					toolCallId,
+					reportedToolName,
+				}) => {
+					const normalizedToolCallId =
+						typeof toolCallId === "string" && toolCallId.trim()
+							? toolCallId.trim()
+							: null;
+					if (normalizedToolCallId) {
+						return normalizedToolCallId;
+					}
+
+					const normalizedToolName = normalizeToolName(reportedToolName);
+					if (normalizedToolName) {
+						const idsForTool = activeToolCallIdsByName.get(normalizedToolName);
+						if (Array.isArray(idsForTool) && idsForTool.length > 0) {
+							return idsForTool[idsForTool.length - 1];
+						}
+					}
+
+					if (activeToolCallOrder.length > 0) {
+						return activeToolCallOrder[activeToolCallOrder.length - 1];
+					}
+
+					return null;
+				};
 
 				const emitResolvedToolInputIfAvailable = ({
 					toolCallId,
@@ -949,6 +1025,12 @@ async function streamViaRovoDev({
 							if (chunk.toolCallId && chunk.toolInput && typeof chunk.toolInput === "object") {
 								toolInputByCallId.set(chunk.toolCallId, chunk.toolInput);
 							}
+							if (chunk.toolCallId) {
+								rememberActiveToolCall({
+									toolCallId: chunk.toolCallId,
+									toolName: resolvedToolName ?? chunk.toolName,
+								});
+							}
 
 							if (typeof onToolCallStart === "function") {
 								onToolCallStart({
@@ -1025,8 +1107,12 @@ async function streamViaRovoDev({
 						}
 
 						if (chunk.type === "tool_result" || chunk.type === "tool_error") {
-							emitResolvedToolInputIfAvailable({
+							const correlatedToolCallId = resolveCorrelatedToolCallId({
 								toolCallId: chunk.toolCallId,
+								reportedToolName: chunk.toolName,
+							});
+							emitResolvedToolInputIfAvailable({
+								toolCallId: correlatedToolCallId,
 								reportedToolName: chunk.toolName,
 								fallbackWithoutArgs: true,
 							});
@@ -1035,10 +1121,7 @@ async function streamViaRovoDev({
 								chunk.type === "tool_result" &&
 								typeof onToolCallResult === "function"
 							) {
-								const normalizedToolCallId =
-									typeof chunk.toolCallId === "string" && chunk.toolCallId.trim()
-										? chunk.toolCallId.trim()
-										: null;
+								const normalizedToolCallId = correlatedToolCallId;
 								const resolvedToolName = resolveToolNameForToolEvent({
 									reportedToolName: chunk.toolName,
 									rememberedToolName: normalizedToolCallId
@@ -1065,8 +1148,8 @@ async function streamViaRovoDev({
 								});
 							}
 
-							const rememberedToolName = chunk.toolCallId
-								? toolNameByCallId.get(chunk.toolCallId) ?? null
+							const rememberedToolName = correlatedToolCallId
+								? toolNameByCallId.get(correlatedToolCallId) ?? null
 								: null;
 							const resolvedToolName = resolveToolNameForToolEvent({
 								reportedToolName: chunk.toolName,
@@ -1084,11 +1167,12 @@ async function streamViaRovoDev({
 									? chunk.outputBytes
 									: toPreview(chunk.text).bytes;
 
-							if (chunk.toolCallId) {
-								toolNameByCallId.delete(chunk.toolCallId);
-								toolInputByCallId.delete(chunk.toolCallId);
-								toolArgsBufferByCallId.delete(chunk.toolCallId);
-								resolvedToolInputCallIds.delete(chunk.toolCallId);
+							if (correlatedToolCallId) {
+								toolNameByCallId.delete(correlatedToolCallId);
+								toolInputByCallId.delete(correlatedToolCallId);
+								toolArgsBufferByCallId.delete(correlatedToolCallId);
+								resolvedToolInputCallIds.delete(correlatedToolCallId);
+								forgetActiveToolCall(correlatedToolCallId);
 							}
 
 							if (typeof onThinkingStatus === "function") {
@@ -1103,7 +1187,7 @@ async function streamViaRovoDev({
 								const isToolError = chunk.type === "tool_error";
 								const thinkingEvent = buildThinkingEventFromToolEvent({
 									toolName: resolvedToolName,
-									toolCallId: chunk.toolCallId,
+									toolCallId: correlatedToolCallId,
 									phase: isToolError ? "error" : "result",
 									output: !isToolError ? outputPreview : undefined,
 									outputPreview,

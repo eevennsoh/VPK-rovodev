@@ -7,6 +7,25 @@ const DEFAULT_MAX_LINE_CHARS = 220;
 const DEFAULT_MAX_LINKS_PER_EVENT = 4;
 const MAX_SCAN_NODES = 1800;
 const URL_PATTERN = /https?:\/\/[^\s<>"')\]}]+/gi;
+const TOOL_TAG_BLOCK_PATTERN = /<tool\b[^>]*>[\s\S]*?<\/tool>/gi;
+const TOOL_TAG_PATTERN = /<\/?tool\b[^>]*>/gi;
+const TOOL_SIGNATURE_PATTERN = /\b[a-z0-9]+(?:_[a-z0-9]+){2,}\s*\([^)]*\)\s*:/i;
+const JSON_PUNCTUATION_LINE_PATTERN = /^[\s[\]{}:,."']+$/;
+const SLACK_CREATE_MESSAGE_TOOL_KEY = "slack_slack_atlassian_channel_create_message";
+const SCHEMA_ROOT_KEYS = new Set([
+	"type",
+	"properties",
+	"required",
+	"items",
+	"additionalproperties",
+	"oneof",
+	"anyof",
+	"allof",
+	"definitions",
+	"$defs",
+	"$schema",
+	"patternproperties",
+]);
 
 function isObjectRecord(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -79,6 +98,150 @@ function normalizeToolName(toolName) {
 		.replace(/[_:/.-]+/g, " ")
 		.replace(/\s+/g, " ")
 		.trim();
+}
+
+function normalizeToolKey(toolName) {
+	const normalized = getNonEmptyString(toolName);
+	if (!normalized) {
+		return "";
+	}
+
+	return normalized
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "_")
+		.replace(/^_+|_+$/g, "")
+		.trim();
+}
+
+function isSlackCreateMessageTool(toolName) {
+	return normalizeToolKey(toolName) === SLACK_CREATE_MESSAGE_TOOL_KEY;
+}
+
+function stripToolDefinitionMarkup(value) {
+	if (typeof value !== "string") {
+		return "";
+	}
+
+	return value
+		.replace(TOOL_TAG_BLOCK_PATTERN, " ")
+		.replace(TOOL_TAG_PATTERN, " ");
+}
+
+function countSchemaTokens(value) {
+	if (typeof value !== "string" || !value.trim()) {
+		return 0;
+	}
+
+	return [...value.matchAll(
+		/"(?:type|properties|required|items|additionalProperties|oneOf|anyOf|allOf|definitions|\$defs|patternProperties)"\s*:/gi
+	)].length;
+}
+
+function isLikelySchemaNoiseLine(value) {
+	const text = getNonEmptyString(value);
+	if (!text) {
+		return false;
+	}
+
+	const tokenCount = countSchemaTokens(text);
+	if (tokenCount >= 2) {
+		return true;
+	}
+
+	if (
+		tokenCount >= 1 &&
+		/"type"\s*:\s*"object"/i.test(text) &&
+		/"properties"\s*:/i.test(text)
+	) {
+		return true;
+	}
+
+	if (
+		JSON_PUNCTUATION_LINE_PATTERN.test(text) &&
+		/[{}\[\]]/.test(text)
+	) {
+		return true;
+	}
+
+	return false;
+}
+
+function isLikelyToolDefinitionLine(value) {
+	const text = getNonEmptyString(value);
+	if (!text) {
+		return false;
+	}
+
+	if (/<\/?tool\b/i.test(text)) {
+		return true;
+	}
+
+	if (TOOL_SIGNATURE_PATTERN.test(text) && /\btool\b/i.test(text)) {
+		return true;
+	}
+
+	return false;
+}
+
+function sanitizeObservationLine(value, maxChars = DEFAULT_MAX_LINE_CHARS) {
+	const withoutToolMarkup = stripToolDefinitionMarkup(value)
+		.replace(/\s+/g, " ")
+		.trim();
+	if (!withoutToolMarkup) {
+		return null;
+	}
+
+	if (
+		isLikelyToolDefinitionLine(withoutToolMarkup) ||
+		isLikelySchemaNoiseLine(withoutToolMarkup)
+	) {
+		return null;
+	}
+
+	return clipText(withoutToolMarkup, maxChars);
+}
+
+function sanitizeObservationLines(
+	lines,
+	{
+		maxLines = DEFAULT_MAX_DETAIL_LINES_PER_EVENT,
+		maxChars = DEFAULT_MAX_LINE_CHARS,
+		toolName,
+		phase = "result",
+	} = {}
+) {
+	const values = Array.isArray(lines) ? lines : [];
+	const cleanedLines = [];
+	const seen = new Set();
+
+	for (const line of values) {
+		if (cleanedLines.length >= maxLines) {
+			break;
+		}
+
+		const cleanedLine = sanitizeObservationLine(line, maxChars);
+		if (!cleanedLine) {
+			continue;
+		}
+
+		const dedupeKey = cleanedLine.toLowerCase();
+		if (seen.has(dedupeKey)) {
+			continue;
+		}
+
+		seen.add(dedupeKey);
+		cleanedLines.push(cleanedLine);
+	}
+
+	if (
+		cleanedLines.length === 0 &&
+		phase === "result" &&
+		isSlackCreateMessageTool(toolName)
+	) {
+		cleanedLines.push("Slack message sent.");
+	}
+
+	return cleanedLines.slice(0, maxLines);
 }
 
 function extractUrlsFromString(value) {
@@ -243,6 +406,32 @@ function collectLinksFromObservation(observation, maxLinks = DEFAULT_MAX_LINKS_P
 	return links;
 }
 
+function isLikelyToolSchemaPayload(payload) {
+	if (!isObjectRecord(payload)) {
+		return false;
+	}
+
+	const keys = Object.keys(payload);
+	if (keys.length === 0) {
+		return false;
+	}
+
+	const normalizedKeys = keys.map((key) => key.toLowerCase());
+	const schemaKeyCount = normalizedKeys.reduce(
+		(count, key) => count + (SCHEMA_ROOT_KEYS.has(key) ? 1 : 0),
+		0
+	);
+	const hasSchemaCoreKeys =
+		normalizedKeys.includes("type") &&
+		(normalizedKeys.includes("properties") || normalizedKeys.includes("items"));
+
+	if (hasSchemaCoreKeys) {
+		return true;
+	}
+
+	return schemaKeyCount >= 2 && schemaKeyCount >= normalizedKeys.length - 1;
+}
+
 function collectDetailLinesFromObservation(
 	observation,
 	{
@@ -250,24 +439,39 @@ function collectDetailLinesFromObservation(
 		maxChars = DEFAULT_MAX_LINE_CHARS,
 	} = {}
 ) {
+	const phase =
+		observation?.phase === "error" || observation?.phase === "result"
+			? observation.phase
+			: "result";
+	const toolName = getNonEmptyString(observation?.toolName) || "";
 	const rawOutput =
 		toStructuredPayload(observation?.rawOutput) ||
 		toStructuredPayload(observation?.text);
-	if (rawOutput) {
-		return collectDetailLinesFromStructuredPayload(rawOutput, maxLines, maxChars);
+	if (rawOutput && !isLikelyToolSchemaPayload(rawOutput)) {
+		const structuredLines = collectDetailLinesFromStructuredPayload(
+			rawOutput,
+			maxLines,
+			maxChars
+		);
+		const sanitizedStructuredLines = sanitizeObservationLines(structuredLines, {
+			maxLines,
+			maxChars,
+			toolName,
+			phase,
+		});
+		if (sanitizedStructuredLines.length > 0) {
+			return sanitizedStructuredLines;
+		}
 	}
 
 	const previewText = getNonEmptyString(observation?.text);
-	if (!previewText) {
-		return [];
-	}
-
-	const lines = previewText
-		.split(/\r?\n/)
-		.map((line) => clipText(line, maxChars))
-		.filter(Boolean);
-
-	return lines.slice(0, maxLines);
+	const rawLines = previewText ? previewText.split(/\r?\n/) : [];
+	return sanitizeObservationLines(rawLines, {
+		maxLines,
+		maxChars,
+		toolName,
+		phase,
+	});
 }
 
 function toRenderableObservation(observation, index, options) {
@@ -275,12 +479,27 @@ function toRenderableObservation(observation, index, options) {
 		observation?.phase === "error" || observation?.phase === "result"
 			? observation.phase
 			: "result";
-	const toolName = normalizeToolName(observation?.toolName);
-	const preview = clipText(observation?.text || "", options.maxPreviewChars);
+	const rawToolName = getNonEmptyString(observation?.toolName) || "Tool";
+	const toolName = normalizeToolName(rawToolName);
 	const detailLines = collectDetailLinesFromObservation(observation, {
 		maxLines: options.maxDetailLines,
 		maxChars: options.maxLineChars,
 	});
+	const previewCandidates = sanitizeObservationLines(
+		typeof observation?.text === "string"
+			? observation.text.split(/\r?\n/)
+			: [],
+		{
+			maxLines: 1,
+			maxChars: options.maxPreviewChars,
+			toolName: rawToolName,
+			phase,
+		}
+	);
+	const preview =
+		previewCandidates[0] ||
+		detailLines[0] ||
+		(phase === "error" ? "Tool execution failed." : "Tool completed successfully.");
 	const links = collectLinksFromObservation(observation, options.maxLinks);
 
 	return {
@@ -604,7 +823,7 @@ function resolveFallbackDescription(description, { errorsOnly = false } = {}) {
 		return "No successful tool results were returned. Showing error context and retry guidance.";
 	}
 
-	return "Generated from tool execution results and errors.";
+	return "Generated from tool execution results.";
 }
 
 function buildToolObservationStructuredFallback({

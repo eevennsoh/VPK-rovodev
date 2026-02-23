@@ -18,7 +18,6 @@ import { AssistantToolsSection } from "../components/assistant-tools-section";
 export function ThreadMessageThinkingStatus(): ReactNode {
 	const {
 		message,
-		reasoning,
 		isThinkingStatusActive,
 		thinkingStatusReasoningPhase,
 		thinkingStatusDuration,
@@ -52,7 +51,7 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 	);
 
 	return (
-		<div className={reasoning ? "pt-2" : undefined}>
+		<div>
 			<Reasoning
 				className="mb-0"
 				autoExpandOnDetails

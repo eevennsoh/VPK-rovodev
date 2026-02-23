@@ -39,188 +39,6 @@ const CHART_COMPONENT_TYPES = new Set([
 	"RadarChart",
 ]);
 
-function parseMetricNumber(value) {
-	if (typeof value === "number" && Number.isFinite(value)) {
-		return value;
-	}
-
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const normalized = value.replace(/,/g, "");
-	const match = normalized.match(/-?\d+(?:\.\d+)?/);
-	if (!match) {
-		return null;
-	}
-
-	const parsed = Number.parseFloat(match[0]);
-	return Number.isFinite(parsed) ? parsed : null;
-}
-
-function findMetricValueByLabel(spec, labelPattern) {
-	if (!spec?.elements || typeof spec.elements !== "object") {
-		return null;
-	}
-
-	for (const element of Object.values(spec.elements)) {
-		if (!element || typeof element !== "object" || element.type !== "Metric") {
-			continue;
-		}
-
-		const props = element.props;
-		if (!props || typeof props !== "object") {
-			continue;
-		}
-
-		const label = typeof props.label === "string" ? props.label : "";
-		if (!labelPattern.test(label)) {
-			continue;
-		}
-
-		const value = parseMetricNumber(props.value);
-		if (value !== null) {
-			return value;
-		}
-	}
-
-	return null;
-}
-
-function getUniqueElementKey(elements, baseKey) {
-	if (!elements[baseKey]) {
-		return baseKey;
-	}
-
-	let counter = 2;
-	while (elements[`${baseKey}-${counter}`]) {
-		counter += 1;
-	}
-	return `${baseKey}-${counter}`;
-}
-
-function findSummaryChartInsertionIndex(spec) {
-	const elements = spec?.elements;
-	if (!elements || typeof elements !== "object") {
-		return -1;
-	}
-
-	const rootElement =
-		typeof spec?.root === "string" ? elements[spec.root] : null;
-	const rootChildren = Array.isArray(rootElement?.children)
-		? rootElement.children
-		: null;
-	if (!rootChildren) {
-		return -1;
-	}
-
-	const tabsIndex = rootChildren.findIndex((childKey) => {
-		const child = elements[childKey];
-		return child && typeof child === "object" && child.type === "Tabs";
-	});
-	if (tabsIndex > 0) {
-		return tabsIndex;
-	}
-
-	const gridIndex = rootChildren.findIndex((childKey) => {
-		const child = elements[childKey];
-		return child && typeof child === "object" && child.type === "Grid";
-	});
-	if (gridIndex >= 0) {
-		return gridIndex + 1;
-	}
-
-	return rootChildren.length;
-}
-
-function maybeInjectWorkSummaryChart(spec) {
-	if (!spec || !spec.elements || typeof spec.elements !== "object") {
-		return { spec, injected: false };
-	}
-
-	if (hasChartComponent(spec)) {
-		return { spec, injected: false };
-	}
-
-	const jiraIssuesCount = findMetricValueByLabel(spec, /\bwork\s+items\b/i);
-	const confluencePagesCount = findMetricValueByLabel(
-		spec,
-		/\bpages\b/i,
-	);
-	if (jiraIssuesCount === null || confluencePagesCount === null) {
-		return { spec, injected: false };
-	}
-
-	const elements = spec.elements;
-	const rootElement =
-		typeof spec.root === "string" ? elements[spec.root] : null;
-	const rootChildren = Array.isArray(rootElement?.children)
-		? rootElement.children
-		: null;
-	if (!rootChildren) {
-		return { spec, injected: false };
-	}
-
-	const insertIndex = findSummaryChartInsertionIndex(spec);
-	if (insertIndex < 0) {
-		return { spec, injected: false };
-	}
-
-	const chartKey = getUniqueElementKey(elements, "activity-breakdown-chart");
-	elements[chartKey] = {
-		type: "BarChart",
-		props: {
-			title: "Work Items vs Pages Activity",
-			data: [
-				{ source: "Work Items", count: jiraIssuesCount },
-				{ source: "Pages", count: confluencePagesCount },
-			],
-			xKey: "source",
-			yKey: "count",
-			aggregate: null,
-			color: "var(--color-chart-1)",
-			height: 220,
-		},
-	};
-
-	rootChildren.splice(insertIndex, 0, chartKey);
-	return { spec, injected: true };
-}
-
-const WORK_SUMMARY_DATE_TEXT_PATTERN = /\b(?:Created|Updated|Last\s+updated)\b/i;
-
-function maybeNormalizeWorkSummaryDateTextSize(spec) {
-	if (!spec?.elements || typeof spec.elements !== "object") {
-		return { spec, normalized: false };
-	}
-
-	let normalized = false;
-	for (const element of Object.values(spec.elements)) {
-		if (!element || typeof element !== "object" || element.type !== "Text") {
-			continue;
-		}
-
-		const props = element.props;
-		if (!props || typeof props !== "object") {
-			continue;
-		}
-		if (props.muted !== true) {
-			continue;
-		}
-
-		const content = typeof props.content === "string" ? props.content : "";
-		if (!WORK_SUMMARY_DATE_TEXT_PATTERN.test(content)) {
-			continue;
-		}
-
-		if (props.size !== "xs") {
-			props.size = "xs";
-			normalized = true;
-		}
-	}
-
-	return { spec, normalized };
-}
 
 function stripMetaPrefix(text) {
 	if (typeof text !== "string" || !text.startsWith(GENUI_META_PREFIX)) {
@@ -1085,7 +903,7 @@ async function generateGenuiFromRovodevResponse({
 		{
 			role: "user",
 			content:
-				"Generate an interactive visual UI spec for the data above. NEVER output the data as plain text paragraphs. Structure rules: For Jira work items, use Card with item key + summary as title, Lozenge for status (Done→success, In Progress→information, To Do→neutral, Blocked→danger), Badge for priority, Tag for item type, Text for dates/assignee. For multiple items, use individual Cards in a Stack (not a Table). For activity feeds, use Timeline. For summaries, use Metric in a Grid for counts (label Jira data as 'Work Items', Confluence data as 'Pages') and add a BarChart that compares Work Items and Pages when both counts are present. Use Tabs to organize sections when there are multiple data types. Never use the word 'Issues' in labels. Output exactly one ```spec block.",
+				"Generate an interactive visual UI spec for the data above. NEVER output the data as plain text paragraphs. For work summaries containing Jira items and Confluence pages, use a single WorkSummary component. Set jiraItems to an array of objects with key, summary, status, statusCategory (done|inprogress|todo|blocked), priority, type, url, updated. Set confluencePages to an array of objects with title, space, url, lastModified. Do not compose Metric, BarChart, or Tabs manually for work summaries — WorkSummary handles all layout. For other data: For activity feeds, use Timeline. For individual Jira work items without a summary context, use Card with item key + summary as title, Lozenge for status (Done→success, In Progress→information, To Do→neutral, Blocked→danger), Badge for priority, Tag for item type, Text for dates/assignee. For multiple items, use individual Cards in a Stack (not a Table). Never use the word 'Issues' in labels. Output exactly one ```spec block.",
 		},
 	];
 
@@ -1102,18 +920,9 @@ async function generateGenuiFromRovodevResponse({
 		const bestSpec = pickBestSpec(analysis);
 
 		if (bestSpec) {
-			const chartInjectionResult = maybeInjectWorkSummaryChart(bestSpec);
-			const dateTextNormalizationResult = maybeNormalizeWorkSummaryDateTextSize(chartInjectionResult.spec);
-			if (chartInjectionResult.injected) {
-				console.info("[GENUI-TWO-STEP] Injected work summary comparison chart");
-			}
-			if (dateTextNormalizationResult.normalized) {
-				console.info("[GENUI-TWO-STEP] Normalized work summary date text to size xs");
-			}
-
 			return {
 				success: true,
-				spec: dateTextNormalizationResult.spec,
+				spec: bestSpec,
 				rawText,
 				narrative: normalizeNarrative(rawText),
 			};
@@ -1148,6 +957,4 @@ async function generateGenuiFromRovodevResponse({
 module.exports = {
 	genuiChatHandler,
 	generateGenuiFromRovodevResponse,
-	maybeInjectWorkSummaryChart,
-	maybeNormalizeWorkSummaryDateTextSize,
 };

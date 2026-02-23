@@ -1,12 +1,11 @@
 const {
 	clipToMaxChars,
-	normalizeSpeechPayload,
 } = require("./audio-input-extractor");
 
-const AUDIO_CONTEXT_CLARIFICATION_SESSION_PREFIX = "audio-context-clarification-";
-const AUDIO_CONTEXT_QUESTION_ID = "audio_source";
-const AUDIO_CONTEXT_LITERAL_OPTION_ID = "audio-context-literal-request";
-const AUDIO_CONTEXT_OPTION_PREFIX = "audio-context-option-";
+const IMAGE_CONTEXT_CLARIFICATION_SESSION_PREFIX = "image-context-clarification-";
+const IMAGE_CONTEXT_QUESTION_ID = "image_context";
+const IMAGE_CONTEXT_LITERAL_OPTION_ID = "image-context-literal-request";
+const IMAGE_CONTEXT_OPTION_PREFIX = "image-context-option-";
 
 const DEFAULT_CONTEXT_WINDOW_SIZE = 16;
 const DEFAULT_CANDIDATE_LIMIT = 24;
@@ -16,19 +15,21 @@ const DEFAULT_AMBIGUITY_THRESHOLD = 0.08;
 const DEFAULT_MIN_SUBSTANTIVE_CHARS = 24;
 
 const QUOTED_SEGMENT_PATTERN =
-	/"([^"\n]{2,200})"|“([^”\n]{2,200})”|`([^`\n]{2,200})`|'([^'\n]{2,200})'/gu;
+	/"([^"\n]{2,200})"|"([^"\n]{2,200})"|`([^`\n]{2,200})`|'([^'\n]{2,200})'/gu;
 
 const CONTEXT_REFERENTIAL_PATTERNS = [
 	/\b(?:above|earlier|previous|prior|same|entire|full|whole)\b/i,
 	/\b(?:in|from)\s+(?:the\s+)?(?:above\s+)?(?:chat|conversation)\b/i,
 	/\b(?:last|previous)\s+(?:response|message|reply)\b/i,
-	/\b(?:that|this|it)\s+(?:poem|story|article|summary|text|response|message)\b/i,
-	/\b(?:poem|story|article|summary|text|response|message)\b[\s\S]{0,24}\b(?:above|previous|earlier|entire|full|whole|that|this|it)\b/i,
+	/\b(?:that|this|it)\s+(?:poem|story|article|summary|text|response|message|character|scene|description)\b/i,
+	/\b(?:poem|story|article|summary|text|response|message|character|scene|description)\b[\s\S]{0,24}\b(?:above|previous|earlier|entire|full|whole|that|this|it)\b/i,
+	/\b(?:draw|illustrate|picture|image|depict|visualize|sketch)\b[\s\S]{0,32}\b(?:that|this|it|above|earlier|previous|what\s+we\s+discussed)\b/i,
+	/\b(?:based\s+on|from)\b[\s\S]{0,32}\b(?:above|earlier|previous|prior|conversation|chat|discussion)\b/i,
 ];
 
 const REFERENCE_PHRASE_PATTERNS = [
-	/\b(?:for|about|from|of)\s+(?:the\s+)?([a-z0-9][a-z0-9\s'-]{2,80})\s+(?:poem|story|article|summary|response|message|text)\b/giu,
-	/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,5})\s+(?:poem|story|article|summary|response|message|text)\b/gu,
+	/\b(?:for|about|from|of)\s+(?:the\s+)?([a-z0-9][a-z0-9\s'-]{2,80})\s+(?:poem|story|article|summary|response|message|text|character|scene|description)\b/giu,
+	/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,5})\s+(?:poem|story|article|summary|response|message|text|character|scene|description)\b/gu,
 ];
 
 const STOPWORDS = new Set([
@@ -42,13 +43,16 @@ const STOPWORDS = new Set([
 	"but",
 	"by",
 	"can",
-	"clip",
 	"create",
+	"depict",
 	"do",
+	"draw",
 	"for",
 	"from",
 	"generate",
 	"i",
+	"illustrate",
+	"image",
 	"in",
 	"is",
 	"it",
@@ -56,19 +60,17 @@ const STOPWORDS = new Set([
 	"of",
 	"on",
 	"or",
+	"photo",
+	"picture",
 	"please",
-	"read",
-	"say",
-	"speak",
-	"speech",
-	"tell",
-	"text",
+	"render",
+	"show",
+	"sketch",
 	"that",
 	"the",
 	"this",
 	"to",
-	"tts",
-	"voice",
+	"visualize",
 	"with",
 ]);
 
@@ -110,7 +112,7 @@ function buildCandidateOptionId({
 	const sourceToken = messageId
 		? sanitizeOptionToken(messageId)
 		: `idx-${messageIndex}`;
-	return `${AUDIO_CONTEXT_OPTION_PREFIX}${sourceToken}-${candidateKindToken}`;
+	return `${IMAGE_CONTEXT_OPTION_PREFIX}${sourceToken}-${candidateKindToken}`;
 }
 
 function clipText(value, maxChars = 120) {
@@ -232,7 +234,7 @@ function extractReferencePhrases(latestUserMessage) {
 	return phrases;
 }
 
-function isContextReferentialAudioRequest(latestUserMessage) {
+function isContextReferentialImageRequest(latestUserMessage) {
 	const normalizedMessage = getNonEmptyString(latestUserMessage);
 	if (!normalizedMessage) {
 		return false;
@@ -346,7 +348,7 @@ function isSubstantiveCandidate(text) {
 	return wordCount >= 6;
 }
 
-function collectAudioTextCandidates(messages, {
+function collectImageContextCandidates(messages, {
 	windowSize = DEFAULT_CONTEXT_WINDOW_SIZE,
 	latestUserMessage,
 	candidateLimit = DEFAULT_CANDIDATE_LIMIT,
@@ -407,28 +409,44 @@ function collectAudioTextCandidates(messages, {
 			}
 
 			const widgetType = getNonEmptyString(part?.data?.type);
-			if (widgetType !== "audio-preview") {
-				continue;
+
+			if (widgetType === "image-preview") {
+				const prompt = getNonEmptyString(part?.data?.payload?.prompt);
+				if (isSubstantiveCandidate(prompt)) {
+					candidates.push({
+						optionId: buildCandidateOptionId({
+							messageId: getNonEmptyString(message.id),
+							messageIndex: index,
+							candidateKind: "image-prompt",
+						}),
+						text: prompt,
+						preview: clipText(prompt, 112),
+						messageId: getNonEmptyString(message.id),
+						messageRole: role,
+						messageIndex: index,
+						candidateKind: "image-prompt",
+					});
+				}
 			}
 
-			const transcript = getNonEmptyString(part?.data?.payload?.transcript);
-			if (!isSubstantiveCandidate(transcript)) {
-				continue;
+			if (widgetType === "genui-preview") {
+				const summary = getNonEmptyString(part?.data?.payload?.summary);
+				if (isSubstantiveCandidate(summary)) {
+					candidates.push({
+						optionId: buildCandidateOptionId({
+							messageId: getNonEmptyString(message.id),
+							messageIndex: index,
+							candidateKind: "genui-description",
+						}),
+						text: summary,
+						preview: clipText(summary, 112),
+						messageId: getNonEmptyString(message.id),
+						messageRole: role,
+						messageIndex: index,
+						candidateKind: "genui-description",
+					});
+				}
 			}
-
-			candidates.push({
-				optionId: buildCandidateOptionId({
-					messageId: getNonEmptyString(message.id),
-					messageIndex: index,
-					candidateKind: "audio-transcript",
-				}),
-				text: transcript,
-				preview: clipText(transcript, 112),
-				messageId: getNonEmptyString(message.id),
-				messageRole: role,
-				messageIndex: index,
-				candidateKind: "audio-transcript",
-			});
 		}
 	}
 
@@ -453,50 +471,47 @@ function collectAudioTextCandidates(messages, {
 	}));
 }
 
-function resolveReferencedAudioText({
+function resolveReferencedImageContext({
 	latestUserMessage,
 	messages,
 	maxChars = 4000,
 	windowSize = DEFAULT_CONTEXT_WINDOW_SIZE,
 	confidenceThreshold = DEFAULT_CONFIDENCE_THRESHOLD,
 	ambiguityThreshold = DEFAULT_AMBIGUITY_THRESHOLD,
-	allowImplicitReference = false,
 } = {}) {
 	const normalizedLatestUserMessage = getNonEmptyString(latestUserMessage);
 	if (!normalizedLatestUserMessage) {
 		return {
 			status: "not-found",
 			referential: false,
-			voiceInput: null,
+			contextText: null,
 			confidence: 0,
 			candidateCount: 0,
 			candidates: [],
 		};
 	}
 
-	const referential = isContextReferentialAudioRequest(normalizedLatestUserMessage);
-	const implicitReferenceEnabled = allowImplicitReference === true;
-	const hasReferenceSignal = referential || implicitReferenceEnabled;
-	if (!hasReferenceSignal) {
+	const referential = isContextReferentialImageRequest(normalizedLatestUserMessage);
+	if (!referential) {
 		return {
 			status: "not-referential",
 			referential: false,
-			voiceInput: null,
+			contextText: null,
 			confidence: 0,
 			candidateCount: 0,
 			candidates: [],
 		};
 	}
 
-	const candidates = collectAudioTextCandidates(messages, {
+	const candidates = collectImageContextCandidates(messages, {
 		windowSize,
 		latestUserMessage: normalizedLatestUserMessage,
 	});
 	if (candidates.length === 0) {
 		return {
 			status: "not-found",
-			referential: hasReferenceSignal,
-			voiceInput: null,
+			referential: true,
+			contextText: null,
 			confidence: 0,
 			candidateCount: 0,
 			candidates: [],
@@ -515,24 +530,6 @@ function resolveReferencedAudioText({
 				totalCandidates: candidates.length,
 			})
 		)
-		.map((candidate) => {
-			if (referential) {
-				return candidate;
-			}
-
-			const hasStrongTitleSignal =
-				candidate.titleLineMatchScore >= 0.18 ||
-				candidate.phraseMatchScore >= 0.18;
-			if (hasStrongTitleSignal) {
-				return candidate;
-			}
-
-			const adjustedScore = Math.max(0, candidate.score - 0.06);
-			return {
-				...candidate,
-				score: Number(adjustedScore.toFixed(4)),
-			};
-		})
 		.sort((left, right) => right.score - left.score);
 
 	const topCandidate = scoredCandidates[0] || null;
@@ -548,8 +545,8 @@ function resolveReferencedAudioText({
 	if (isConfident) {
 		return {
 			status: "resolved",
-			referential: hasReferenceSignal,
-			voiceInput: clipToMaxChars(topCandidate.text, maxChars),
+			referential: true,
+			contextText: clipToMaxChars(topCandidate.text, maxChars),
 			confidence: topScore,
 			candidateCount: scoredCandidates.length,
 			candidates: scoredCandidates,
@@ -560,8 +557,8 @@ function resolveReferencedAudioText({
 
 	return {
 		status: "ambiguous",
-		referential: hasReferenceSignal,
-		voiceInput: null,
+		referential: true,
+		contextText: null,
 		confidence: topScore,
 		candidateCount: scoredCandidates.length,
 		candidates: scoredCandidates,
@@ -570,21 +567,24 @@ function resolveReferencedAudioText({
 	};
 }
 
-function createAudioContextClarificationSessionId() {
-	return `${AUDIO_CONTEXT_CLARIFICATION_SESSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function createImageContextClarificationSessionId() {
+	return `${IMAGE_CONTEXT_CLARIFICATION_SESSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function getCandidateSourceDescription(candidate) {
 	const roleLabel = candidate.messageRole === "assistant"
 		? "assistant response"
 		: "user message";
-	const transcriptSuffix = candidate.candidateKind === "audio-transcript"
-		? " transcript"
-		: "";
-	return `From a previous ${roleLabel}${transcriptSuffix}.`;
+	const kindSuffix =
+		candidate.candidateKind === "image-prompt"
+			? " (image prompt)"
+			: candidate.candidateKind === "genui-description"
+				? " (UI summary)"
+				: "";
+	return `From a previous ${roleLabel}${kindSuffix}.`;
 }
 
-function buildAudioContextClarificationPayload({
+function buildImageContextClarificationPayload({
 	latestUserMessage,
 	candidates,
 	sessionId,
@@ -607,9 +607,9 @@ function buildAudioContextClarificationPayload({
 
 	if (normalizedLatestUserMessage) {
 		options.push({
-			id: AUDIO_CONTEXT_LITERAL_OPTION_ID,
+			id: IMAGE_CONTEXT_LITERAL_OPTION_ID,
 			label: clipText(normalizedLatestUserMessage, 96),
-			description: "Use your latest request text exactly as typed.",
+			description: "Use your latest request text as the image prompt.",
 			recommended: false,
 		});
 	}
@@ -622,34 +622,34 @@ function buildAudioContextClarificationPayload({
 		type: "question-card",
 		sessionId:
 			getNonEmptyString(sessionId) ||
-			createAudioContextClarificationSessionId(),
+			createImageContextClarificationSessionId(),
 		round: 1,
 		maxRounds: 1,
-		title: "Choose text for the audio clip",
+		title: "Choose context for the image",
 		description:
-			"I found multiple possible passages in this chat. Pick one, or type the exact text to read aloud.",
+			"I found multiple possible contexts in this chat. Pick one, or describe what to illustrate.",
 		questions: [
 			{
-				id: AUDIO_CONTEXT_QUESTION_ID,
-				label: "Which text should I read aloud?",
+				id: IMAGE_CONTEXT_QUESTION_ID,
+				label: "Which context should I use for the image?",
 				description: "Choose one option, or use the custom input field below.",
 				required: true,
 				kind: "single-select",
 				options,
-				placeholder: "Paste exact text to read aloud...",
+				placeholder: "Describe what to illustrate...",
 			},
 		],
 	};
 }
 
-function isAudioContextClarificationSession(sessionId) {
+function isImageContextClarificationSession(sessionId) {
 	const normalizedSessionId = getNonEmptyString(sessionId);
 	if (!normalizedSessionId) {
 		return false;
 	}
 
 	return normalizedSessionId.startsWith(
-		AUDIO_CONTEXT_CLARIFICATION_SESSION_PREFIX
+		IMAGE_CONTEXT_CLARIFICATION_SESSION_PREFIX
 	);
 }
 
@@ -667,7 +667,7 @@ function getSelectionValueFromClarification(clarificationSubmission) {
 		return null;
 	}
 
-	const preferredValue = answers[AUDIO_CONTEXT_QUESTION_ID];
+	const preferredValue = answers[IMAGE_CONTEXT_QUESTION_ID];
 	if (typeof preferredValue === "string") {
 		return getNonEmptyString(preferredValue);
 	}
@@ -696,16 +696,16 @@ function getSelectionValueFromClarification(clarificationSubmission) {
 	return null;
 }
 
-function resolveAudioContextVoiceInputFromClarification({
+function resolveImageContextFromClarification({
 	clarificationSubmission,
 	messages,
 	latestVisibleUserMessage,
 	maxChars = 4000,
 	windowSize = DEFAULT_CONTEXT_WINDOW_SIZE,
 } = {}) {
-	if (!isAudioContextClarificationSession(clarificationSubmission?.sessionId)) {
+	if (!isImageContextClarificationSession(clarificationSubmission?.sessionId)) {
 		return {
-			voiceInput: null,
+			contextText: null,
 			source: null,
 			selectedValue: null,
 		};
@@ -714,22 +714,22 @@ function resolveAudioContextVoiceInputFromClarification({
 	const selectedValue = getSelectionValueFromClarification(clarificationSubmission);
 	if (!selectedValue) {
 		return {
-			voiceInput: null,
+			contextText: null,
 			source: null,
 			selectedValue: null,
 		};
 	}
 
-	if (selectedValue === AUDIO_CONTEXT_LITERAL_OPTION_ID) {
-		const literalInput = normalizeSpeechPayload(latestVisibleUserMessage);
+	if (selectedValue === IMAGE_CONTEXT_LITERAL_OPTION_ID) {
+		const literalInput = getNonEmptyString(latestVisibleUserMessage);
 		return {
-			voiceInput: literalInput ? clipToMaxChars(literalInput, maxChars) : null,
+			contextText: literalInput ? clipToMaxChars(literalInput, maxChars) : null,
 			source: "clarification-literal",
 			selectedValue,
 		};
 	}
 
-	const candidates = collectAudioTextCandidates(messages, {
+	const candidates = collectImageContextCandidates(messages, {
 		windowSize,
 		latestUserMessage: latestVisibleUserMessage,
 	});
@@ -738,36 +738,36 @@ function resolveAudioContextVoiceInputFromClarification({
 	);
 	if (selectedCandidate) {
 		return {
-			voiceInput: clipToMaxChars(selectedCandidate.text, maxChars),
+			contextText: clipToMaxChars(selectedCandidate.text, maxChars),
 			source: "context-reference",
 			selectedValue,
 		};
 	}
 
-	if (selectedValue.startsWith(AUDIO_CONTEXT_OPTION_PREFIX)) {
+	if (selectedValue.startsWith(IMAGE_CONTEXT_OPTION_PREFIX)) {
 		return {
-			voiceInput: null,
+			contextText: null,
 			source: null,
 			selectedValue,
 		};
 	}
 
-	const customInput = normalizeSpeechPayload(selectedValue);
+	const customInput = getNonEmptyString(selectedValue);
 	return {
-		voiceInput: customInput ? clipToMaxChars(customInput, maxChars) : null,
-		source: "clarification-custom-script",
+		contextText: customInput ? clipToMaxChars(customInput, maxChars) : null,
+		source: "clarification-custom-description",
 		selectedValue,
 	};
 }
 
 module.exports = {
-	AUDIO_CONTEXT_CLARIFICATION_SESSION_PREFIX,
-	AUDIO_CONTEXT_QUESTION_ID,
-	AUDIO_CONTEXT_LITERAL_OPTION_ID,
-	collectAudioTextCandidates,
-	isContextReferentialAudioRequest,
-	resolveReferencedAudioText,
-	buildAudioContextClarificationPayload,
-	isAudioContextClarificationSession,
-	resolveAudioContextVoiceInputFromClarification,
+	IMAGE_CONTEXT_CLARIFICATION_SESSION_PREFIX,
+	IMAGE_CONTEXT_QUESTION_ID,
+	IMAGE_CONTEXT_LITERAL_OPTION_ID,
+	collectImageContextCandidates,
+	isContextReferentialImageRequest,
+	resolveReferencedImageContext,
+	buildImageContextClarificationPayload,
+	isImageContextClarificationSession,
+	resolveImageContextFromClarification,
 };

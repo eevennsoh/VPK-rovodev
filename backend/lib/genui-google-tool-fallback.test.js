@@ -49,8 +49,15 @@ test("buildGoogleStructuredFallback renders top 10 Google Calendar events", () =
 	assert.ok(result);
 	assert.equal(result.source, "tool-observation-google-calendar-structured");
 	assert.match(result.summary, /Rendered 10 Google Calendar events/);
-	assert.ok(result.spec.elements["calendar-event-9"]);
-	assert.equal(result.spec.elements["calendar-event-10"], undefined);
+	assert.equal(result.spec.elements["calendar-events-timeline"]?.type, "Timeline");
+	assert.equal(
+		result.spec.elements["calendar-events-timeline"]?.props?.items?.length,
+		10
+	);
+	assert.equal(
+		result.spec.elements["calendar-events-timeline"]?.props?.items?.[0]?.title,
+		"Event 0"
+	);
 });
 
 test("buildGoogleStructuredFallback renders Google Calendar info when no events exist", () => {
@@ -146,4 +153,62 @@ test("buildGoogleStructuredFallback parses stringified JSON raw output", () => {
 	assert.ok(result);
 	assert.equal(result.source, "tool-observation-google-calendar-structured");
 	assert.match(result.summary, /Rendered 1 Google Calendar event/);
+});
+
+test("buildGoogleStructuredFallback replaces generic tool metadata with Google Calendar defaults", () => {
+	const result = buildGoogleStructuredFallback({
+		prompt: "List Google Calendar events",
+		title: "Tool results",
+		description: "Generated from tool execution results and errors.",
+		observations: [
+			{
+				phase: "result",
+				toolName: "mcp__google_calendar__list_events",
+				rawOutput: {
+					events: [buildCalendarEvent(1)],
+				},
+			},
+			{
+				phase: "error",
+				toolName: "mcp__google_calendar__list_events",
+				text: "Transient timeout",
+			},
+		],
+	});
+
+	assert.ok(result);
+	assert.equal(result.spec.elements["summary-card"]?.props?.title, "Google Calendar");
+	assert.equal(
+		result.spec.elements["summary-card"]?.props?.description,
+		"Upcoming events from Google Calendar."
+	);
+});
+
+test("buildGoogleStructuredFallback replaces generic tool metadata with Google Drive defaults", () => {
+	const result = buildGoogleStructuredFallback({
+		prompt: "List Google Drive files",
+		title: "Tool results",
+		description: "Generated from successful integration tool calls.",
+		observations: [
+			{
+				phase: "result",
+				toolName: "mcp__google_drive__list_files",
+				rawOutput: {
+					files: [buildDriveFile(1)],
+				},
+			},
+			{
+				phase: "error",
+				toolName: "mcp__google_drive__list_files",
+				text: "Temporary auth refresh failure",
+			},
+		],
+	});
+
+	assert.ok(result);
+	assert.equal(result.spec.elements["summary-card"]?.props?.title, "Google Drive");
+	assert.equal(
+		result.spec.elements["summary-card"]?.props?.description,
+		"Files from Google Drive."
+	);
 });

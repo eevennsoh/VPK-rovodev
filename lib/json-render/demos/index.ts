@@ -12,6 +12,7 @@ import { totalCompensationSpec } from "./total-compensation";
 import { onboardingMilestonesSpec } from "./onboarding-milestones";
 import { flexWalletSpec } from "./flex-wallet";
 import { financialPlanSpec } from "./financial-plan";
+import { googleCalendarSpec } from "./google-calendar";
 
 export interface ExampleSpec {
 	id: string;
@@ -98,5 +99,11 @@ export const EXAMPLE_SPECS: ExampleSpec[] = [
 		name: "Financial Plan (Q4)",
 		description: "Accordion-form with mixed inputs for first-year financial planning",
 		spec: financialPlanSpec,
+	},
+	{
+		id: "google-calendar",
+		name: "Google Calendar",
+		description: "Calendar events card with timeline visual and day tabs",
+		spec: googleCalendarSpec,
 	},
 ];

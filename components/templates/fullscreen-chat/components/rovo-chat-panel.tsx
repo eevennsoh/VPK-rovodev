@@ -99,9 +99,10 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				userName={userName ?? undefined}
 				conversationContextRef={conversationContextRef}
 				scrollSpacerRef={scrollSpacerRef}
+				contentBottomPadding={shouldShowQuestionCard && activeQuestionCard !== null ? "24px" : undefined}
 				isStreaming={isStreaming}
 				isSubmitPending={isSubmitPending}
-				showAwaitingIndicator={shouldShowQuestionCard && activeQuestionCard !== null}
+				showAwaitingIndicator={shouldShowQuestionCardRaw && activeQuestionCard !== null}
 				awaitingIndicatorLabel={getAwaitingUserResponseLabel()}
 			/>
 

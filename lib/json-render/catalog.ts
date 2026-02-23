@@ -48,6 +48,9 @@ export const schema = defineSchema(
 			'CRITICAL: The "repeat" field belongs on the element object, never inside props.',
 			"When using $state, $bindState, $bindItem, $item, $index, or repeat, include matching /state patches so bindings resolve.",
 			'For two-way form values, use { "$bindState": "/path" } or { "$bindItem": "field" } on the natural value prop (value, checked, pressed).',
+			"Calendar and meeting agendas should render as a single ordered timeline, not one Card per meeting.",
+			"Prefer Timeline for calendar event lists; if days are grouped, render one Timeline per day section/tab and keep meeting rows inside that Timeline.",
+			"Calendar timeline items should include the start time in the date field and keep location/status in description text.",
 		],
 	},
 );
@@ -133,7 +136,7 @@ export const catalog = defineCatalog(schema, {
 				className: z.string().nullable(),
 			}),
 			slots: [],
-			description: "Section heading element",
+			description: "Section heading element. Do not append colons or punctuation to heading text.",
 			example: { text: "Project Overview", level: "h2" },
 		},
 			Text: {
@@ -431,6 +434,35 @@ export const catalog = defineCatalog(schema, {
 			},
 		},
 
+		// ── Compound ──────────────────────────────────────
+		WorkSummary: {
+			props: z.object({
+				jiraItems: z.array(
+					z.object({
+						key: z.string(),
+						summary: z.string(),
+						status: z.string(),
+						statusCategory: z.enum(["done", "inprogress", "todo", "blocked"]).nullable(),
+						priority: z.string().nullable(),
+						type: z.string().nullable(),
+						url: z.string().nullable(),
+						updated: z.string().nullable(),
+					}),
+				),
+				confluencePages: z.array(
+					z.object({
+						title: z.string(),
+						space: z.string().nullable(),
+						url: z.string().nullable(),
+						lastModified: z.string().nullable(),
+					}),
+				),
+			}),
+			slots: [],
+			description:
+				"Work summary dashboard. Renders metrics grid, bar chart comparing Work Items vs Pages, and tabbed detail lists. Use for 'last N days of work' summaries.",
+		},
+
 		// ── Charts ─────────────────────────────────────────
 		BarChart: {
 			props: z.object({
@@ -649,6 +681,28 @@ export const catalog = defineCatalog(schema, {
 				items: [
 					{ title: "Planning", description: "Define requirements", date: "Jan 2025", status: "completed" },
 					{ title: "Development", description: "Build features", date: "Feb 2025", status: "current" },
+				],
+			},
+		},
+		CalendarTimeline: {
+			props: z.object({
+				events: z.array(
+					z.object({
+						time: z.string(),
+						title: z.string(),
+						duration: z.string().nullable(),
+						location: z.string().nullable(),
+						color: z.enum(["blue", "green", "red", "purple", "yellow", "teal"]).nullable(),
+						status: z.enum(["past", "current", "upcoming"]).nullable(),
+					}),
+				),
+			}),
+			slots: [],
+			description: "Vertical timeline of calendar events with colored time indicators and connecting lines between meetings",
+			example: {
+				events: [
+					{ time: "9:00 AM", title: "Daily Standup", duration: "30 min", location: "Zoom", color: "blue", status: "past" },
+					{ time: "10:00 AM", title: "Sprint Planning", duration: "1 hr", location: "Room 3A", color: "green", status: "current" },
 				],
 			},
 		},

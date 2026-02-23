@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
 	resolveToolFirstWidgetContentType,
+	resolveToolFirstWidgetSource,
 } = require("./tool-first-widget-content-type");
 
 test("prefers explicit tool-first domain mapping for translation", () => {
@@ -57,3 +58,45 @@ test("returns null when no known content type signal is present", () => {
 	assert.equal(contentType, null);
 });
 
+test("maps Google Calendar domain to branded source metadata", () => {
+	const source = resolveToolFirstWidgetSource({
+		primaryDomains: ["google-calendar"],
+		prompt: "List Google Calendar events",
+	});
+
+	assert.deepEqual(source, {
+		name: "Google Calendar",
+		logoSrc: "/3p/google-calendar/16-borderless.svg",
+	});
+});
+
+test("maps Slack domain to branded source metadata", () => {
+	const source = resolveToolFirstWidgetSource({
+		primaryDomains: ["slack"],
+		prompt: "Send Slack message",
+	});
+
+	assert.deepEqual(source, {
+		name: "Slack",
+		logoSrc: "/3p/slack/16-borderless.svg",
+	});
+});
+
+test("falls back to prompt inference for Figma source metadata", () => {
+	const source = resolveToolFirstWidgetSource({
+		prompt: "Get Figma design context",
+	});
+
+	assert.deepEqual(source, {
+		name: "Figma",
+		logoSrc: "/3p/figma/16.svg",
+	});
+});
+
+test("returns null when no known source branding signal exists", () => {
+	const source = resolveToolFirstWidgetSource({
+		prompt: "Tell me a joke",
+	});
+
+	assert.equal(source, null);
+});

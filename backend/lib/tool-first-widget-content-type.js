@@ -6,6 +6,12 @@ const DOMAIN_CONTENT_TYPE_MAP = new Map([
 	["jira", "work-item"],
 ]);
 
+const DOMAIN_SOURCE_MAP = new Map([
+	["google-calendar", { name: "Google Calendar", logoSrc: "/3p/google-calendar/16-borderless.svg" }],
+	["slack", { name: "Slack", logoSrc: "/3p/slack/16-borderless.svg" }],
+	["figma", { name: "Figma", logoSrc: "/3p/figma/16.svg" }],
+]);
+
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
 		return null;
@@ -32,6 +38,65 @@ function resolveContentTypeFromDomains(domains) {
 		if (mappedContentType) {
 			return mappedContentType;
 		}
+	}
+
+	return null;
+}
+
+function resolveSourceFromDomains(domains) {
+	if (!Array.isArray(domains)) {
+		return null;
+	}
+
+	for (const domain of domains) {
+		const normalizedDomain = getNonEmptyString(domain);
+		if (!normalizedDomain) {
+			continue;
+		}
+
+		const mappedSource = DOMAIN_SOURCE_MAP.get(normalizedDomain.toLowerCase());
+		if (mappedSource) {
+			return {
+				name: mappedSource.name,
+				logoSrc: mappedSource.logoSrc,
+			};
+		}
+	}
+
+	return null;
+}
+
+function resolveSourceFromText(text) {
+	const normalizedText = getNonEmptyString(text);
+	if (!normalizedText) {
+		return null;
+	}
+
+	const searchText = normalizedText
+		.toLowerCase()
+		.replace(/[_:/.-]+/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+
+	if (/\bfigma\b/.test(searchText)) {
+		return {
+			name: "Figma",
+			logoSrc: "/3p/figma/16.svg",
+		};
+	}
+
+	if (/\bgoogle\s*calendar\b|\bgcal\b/.test(searchText)) {
+		return {
+			name: "Google Calendar",
+			logoSrc: "/3p/google-calendar/16-borderless.svg",
+		};
+	}
+
+	if (/\bslack\b|\bchannel\b|\bdm\b|\bdirect\s+message\b/.test(searchText)) {
+		return {
+			name: "Slack",
+			logoSrc: "/3p/slack/16-borderless.svg",
+		};
 	}
 
 	return null;
@@ -128,7 +193,22 @@ function resolveToolFirstWidgetContentType({
 	);
 }
 
+function resolveToolFirstWidgetSource({
+	primaryDomains,
+	relevanceDomains,
+	lastRelevantToolName,
+	prompt,
+} = {}) {
+	return (
+		resolveSourceFromDomains(primaryDomains) ||
+		resolveSourceFromDomains(relevanceDomains) ||
+		resolveSourceFromText(lastRelevantToolName) ||
+		resolveSourceFromText(prompt) ||
+		null
+	);
+}
+
 module.exports = {
 	resolveToolFirstWidgetContentType,
+	resolveToolFirstWidgetSource,
 };
-

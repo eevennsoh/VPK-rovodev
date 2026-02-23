@@ -32,6 +32,22 @@ test("resolveToolFirstPolicy matches integration-domain prompts", () => {
 	assert.equal(policy.enforcement.maxRelevantRetries, 1);
 });
 
+test("resolveToolFirstPolicy adds Google Calendar required-args guidance", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: "List Google Calendar events",
+	});
+
+	assert.equal(policy.matched, true);
+	assert.ok(policy.domains.includes("google-calendar"));
+	assert.match(policy.instruction, /google_google_calendar_atlassian_calendar_get_events/i);
+	assert.match(policy.instruction, /calendarId/i);
+	assert.match(policy.instruction, /timeMin/i);
+	assert.match(policy.instruction, /timeMax/i);
+	assert.match(policy.instruction, /next 7 days/i);
+	assert.match(policy.instruction, /local timezone/i);
+	assert.match(policy.instruction, /UTC ISO 8601/i);
+});
+
 test("resolveToolFirstPolicy ignores casual prompts", () => {
 	const policy = resolveToolFirstPolicy({
 		prompt: "Hey, can you tell me a joke?",
@@ -237,6 +253,32 @@ test("buildToolFirstRetryInstruction adds TWG fallback guidance for work-summary
 	assert.match(instruction, /validation error/i);
 });
 
+test("buildToolFirstRetryInstruction adds Google Calendar validation retry guidance", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: "List Google Calendar events",
+	});
+	const state = createToolFirstExecutionState(policy);
+	recordToolThinkingEvent(state, {
+		phase: "error",
+		toolName: "google_google_calendar_atlassian_calendar_get_events",
+		errorText: "Expected ISO 8601 date-time for timeMin",
+	});
+
+	const instruction = buildToolFirstRetryInstruction({
+		policy,
+		attemptNumber: 2,
+		remainingRetries: 0,
+		execution: state,
+	});
+
+	assert.match(instruction, /Google Calendar validation retry directive/i);
+	assert.match(instruction, /google_google_calendar_atlassian_calendar_get_events/i);
+	assert.match(instruction, /calendarId/i);
+	assert.match(instruction, /timeMin/i);
+	assert.match(instruction, /timeMax/i);
+	assert.match(instruction, /UTC ISO 8601/i);
+});
+
 test("getToolFirstRetryDelayMs returns configured backoff values", () => {
 	const policy = resolveToolFirstPolicy({
 		prompt: "Find Confluence page updates",
@@ -287,6 +329,31 @@ test("buildToolFirstWarningPayload returns structured warning metadata", () => {
 	assert.equal(warning.lastRelevantToolName, "mcp__google_calendar__list_events");
 	assert.equal(warning.lastRelevantErrorCategory, "permission");
 	assert.equal(warning.rovoDevFallback, false);
+});
+
+test("buildToolFirstTextFallback adds Google Calendar required-field validation hints", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: "List Google Calendar events",
+	});
+	const state = createToolFirstExecutionState(policy);
+	recordToolFirstAttempt(state);
+	recordToolThinkingEvent(state, {
+		phase: "error",
+		toolName: "google_google_calendar_atlassian_calendar_get_events",
+		errorText: "Invalid datetime format for timeMin",
+	});
+
+	const message = buildToolFirstTextFallback({
+		policy,
+		execution: state,
+		rovoDevFallback: false,
+	});
+
+	assert.match(message, /google_google_calendar_atlassian_calendar_get_events/i);
+	assert.match(message, /calendarId/i);
+	assert.match(message, /timeMin/i);
+	assert.match(message, /timeMax/i);
+	assert.match(message, /UTC ISO 8601/i);
 });
 
 test("stripToolFirstFailureNarrative removes fallback warning paragraph", () => {

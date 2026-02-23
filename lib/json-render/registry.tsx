@@ -474,6 +474,160 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			);
 		},
 
+		// ── Compound ──────────────────────────────────
+		WorkSummary: ({ props }) => {
+			const { jiraItems, confluencePages } = props;
+			const workItemsCount = jiraItems.length;
+			const pagesCount = confluencePages.length;
+			const totalCount = workItemsCount + pagesCount;
+
+			const STATUS_CATEGORY_VARIANT: Record<string, LozengeProps["variant"]> = {
+				done: "success",
+				inprogress: "information",
+				todo: "neutral",
+				blocked: "danger",
+			};
+
+			const [activeTab, setActiveTab] = useState("work-items");
+
+			return (
+				<div className="flex flex-col gap-4">
+					{/* Metrics row */}
+					<div className="@container/grid">
+						<div className="grid grid-cols-1 gap-3 @[480px]/grid:grid-cols-3">
+							<Card>
+								<CardContent className="flex flex-col gap-1">
+									<p className="text-xs text-text-subtlest">Work Items</p>
+									<p className="text-2xl font-semibold text-text">{workItemsCount}</p>
+								</CardContent>
+							</Card>
+							<Card>
+								<CardContent className="flex flex-col gap-1">
+									<p className="text-xs text-text-subtlest">Pages</p>
+									<p className="text-2xl font-semibold text-text">{pagesCount}</p>
+								</CardContent>
+							</Card>
+							<Card>
+								<CardContent className="flex flex-col gap-1">
+									<p className="text-xs text-text-subtlest">Total Activity</p>
+									<p className="text-2xl font-semibold text-text">{totalCount}</p>
+								</CardContent>
+							</Card>
+						</div>
+					</div>
+
+					{/* Bar chart */}
+					{workItemsCount > 0 && pagesCount > 0 ? (
+						<ChartContainer
+							config={{
+								count: { label: "Count", color: "var(--color-chart-1)" },
+							}}
+							className="min-h-[200px] w-full"
+							style={{ height: 220 }}
+						>
+							<RechartsBarChart
+								data={[
+									{ source: "Work Items", count: workItemsCount },
+									{ source: "Pages", count: pagesCount },
+								]}
+							>
+								<CartesianGrid strokeDasharray="3 3" />
+								<XAxis dataKey="source" tick={{ fontSize: 12 }} />
+								<YAxis tick={{ fontSize: 12 }} />
+								<ChartTooltip content={<ChartTooltipContent />} />
+								<Bar dataKey="count" fill="var(--color-chart-1)" radius={[4, 4, 0, 0]} />
+							</RechartsBarChart>
+						</ChartContainer>
+					) : null}
+
+					{/* Tabbed detail lists */}
+					<Tabs value={activeTab} onValueChange={setActiveTab}>
+						<TabsList className="w-full overflow-x-auto">
+							<TabsTrigger value="work-items">Work Items</TabsTrigger>
+							<TabsTrigger value="pages">Pages</TabsTrigger>
+						</TabsList>
+						<TabsContent value="work-items">
+							{jiraItems.length === 0 ? (
+								<div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-text-subtle">
+									No work items in this period.
+								</div>
+							) : (
+								<div className="flex flex-col gap-2">
+									{jiraItems.map((item, i) => {
+										const lozengeVariant = item.statusCategory
+											? STATUS_CATEGORY_VARIANT[item.statusCategory] ?? "neutral"
+											: "neutral";
+										return (
+											<Card key={item.key || i} className={item.url ? "no-underline transition-colors hover:bg-surface-hovered" : undefined}>
+												<CardContent className="flex flex-col gap-1.5">
+													<div className="flex items-start justify-between gap-2">
+														<div className="flex-1">
+															{item.url ? (
+																<a href={item.url} className="text-sm font-medium text-link hover:underline" target="_blank" rel="noopener noreferrer">
+																	{item.key} — {item.summary}
+																</a>
+															) : (
+																<p className="text-sm font-medium text-text">
+																	{item.key} — {item.summary}
+																</p>
+															)}
+														</div>
+														<Lozenge variant={lozengeVariant} isBold>
+															{item.status}
+														</Lozenge>
+													</div>
+													<div className="flex flex-wrap items-center gap-2">
+														{item.priority ? <Badge variant="secondary">{item.priority}</Badge> : null}
+														{item.type ? (
+															<TagPrimitive color="blue">{item.type}</TagPrimitive>
+														) : null}
+														{item.updated ? (
+															<span className="text-xs text-text-subtlest">Updated {item.updated}</span>
+														) : null}
+													</div>
+												</CardContent>
+											</Card>
+										);
+									})}
+								</div>
+							)}
+						</TabsContent>
+						<TabsContent value="pages">
+							{confluencePages.length === 0 ? (
+								<div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-text-subtle">
+									No pages in this period.
+								</div>
+							) : (
+								<div className="flex flex-col gap-2">
+									{confluencePages.map((page, i) => (
+										<Card key={page.title || i} className={page.url ? "no-underline transition-colors hover:bg-surface-hovered" : undefined}>
+											<CardContent className="flex flex-col gap-1.5">
+												{page.url ? (
+													<a href={page.url} className="text-sm font-medium text-link hover:underline" target="_blank" rel="noopener noreferrer">
+														{page.title}
+													</a>
+												) : (
+													<p className="text-sm font-medium text-text">{page.title}</p>
+												)}
+												<div className="flex flex-wrap items-center gap-2">
+													{page.space ? (
+														<TagPrimitive color="teal">{page.space}</TagPrimitive>
+													) : null}
+													{page.lastModified ? (
+														<span className="text-xs text-text-subtlest">Modified {page.lastModified}</span>
+													) : null}
+												</div>
+											</CardContent>
+										</Card>
+									))}
+								</div>
+							)}
+						</TabsContent>
+					</Tabs>
+				</div>
+			);
+		},
+
 		// ── Charts ─────────────────────────────────────
 		BarChart: ({ props }) => {
 			const { xKey, yKey, aggregate, color, height } = props;
@@ -666,6 +820,64 @@ export const { registry, handlers } = defineRegistry(catalog, {
 							</div>
 						</div>
 					))}
+				</div>
+			);
+		},
+
+		CalendarTimeline: ({ props }) => {
+			const { events } = props;
+			const colorMap: Record<string, { dot: string; bar: string; bg: string }> = {
+				blue: { dot: "bg-blue-500", bar: "bg-blue-500/30", bg: "bg-blue-500/8" },
+				green: { dot: "bg-green-500", bar: "bg-green-500/30", bg: "bg-green-500/8" },
+				red: { dot: "bg-red-500", bar: "bg-red-500/30", bg: "bg-red-500/8" },
+				purple: { dot: "bg-purple-500", bar: "bg-purple-500/30", bg: "bg-purple-500/8" },
+				yellow: { dot: "bg-yellow-500", bar: "bg-yellow-500/30", bg: "bg-yellow-500/8" },
+				teal: { dot: "bg-teal-500", bar: "bg-teal-500/30", bg: "bg-teal-500/8" },
+			};
+			return (
+				<div className="flex flex-col">
+					{events.map((event, i) => {
+						const c = colorMap[toSafeText(event.color)] ?? colorMap.blue;
+						const isCurrent = event.status === "current";
+						const isPast = event.status === "past";
+						return (
+							<div key={i} className="flex gap-3">
+								{/* Time column */}
+								<div className="flex w-16 shrink-0 justify-end pt-2.5">
+									<span className={cn("text-xs font-medium tabular-nums", isPast ? "text-text-subtlest" : "text-text-subtle")}>
+										{toSafeText(event.time)}
+									</span>
+								</div>
+								{/* Timeline rail */}
+								<div className="flex flex-col items-center">
+									<div className="flex h-8 shrink-0 items-center justify-center">
+										<div
+											className={cn(
+												"rounded-full transition-all",
+												isCurrent ? "h-3 w-3 ring-2 ring-offset-1 ring-offset-surface" : "h-2 w-2",
+												isCurrent ? cn(c.dot, "ring-blue-500/40") : isPast ? "bg-text-subtlest" : c.dot,
+											)}
+										/>
+									</div>
+									{i < events.length - 1 ? <div className={cn("w-px flex-1", isPast ? "bg-border" : c.bar)} /> : null}
+								</div>
+								{/* Event card */}
+								<div className={cn("mb-2 flex-1 rounded-lg border px-3 py-2", isCurrent ? cn("border-blue-500/30", c.bg) : "border-border bg-surface")}>
+									<p className={cn("text-sm font-medium", isPast ? "text-text-subtle" : "text-text")}>
+										{toSafeText(event.title)}
+									</p>
+									<div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+										{event.duration ? (
+											<span className="text-xs text-text-subtlest">{toSafeText(event.duration)}</span>
+										) : null}
+										{event.location ? (
+											<span className="text-xs text-text-subtlest">{toSafeText(event.location)}</span>
+										) : null}
+									</div>
+								</div>
+							</div>
+						);
+					})}
 				</div>
 			);
 		},

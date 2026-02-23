@@ -7,7 +7,7 @@ import CrossIcon from "@atlaskit/icon/core/cross";
 import WarningIcon from "@atlaskit/icon/core/warning";
 import { cn } from "@/lib/utils";
 import { MessageResponse } from "@/components/ui-ai/message";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
 	GenerativeCard,
 	GenerativeCardBody,
@@ -40,6 +40,7 @@ import { JsonRenderView } from "@/lib/json-render/renderer";
 import { useProgressiveSpec } from "@/lib/json-render/use-progressive-spec";
 import type { DistortionTintMode } from "@/components/ui-ai/generative-card-bulge-canvas";
 import {
+	type GenerativeWidgetActionItem,
 	type GenerativeWidgetPrimaryActionPayload,
 	parseGenerativeWidget,
 	resolveGenerativeWidgetMetadata,
@@ -130,9 +131,8 @@ interface GenerativeWidgetCardShellProps {
 	className?: string;
 	previewMode?: boolean;
 	onOpenPreview?: () => void;
-	onPrimaryAction?: () => Promise<void> | void;
-	showPrimaryAction?: boolean;
-	primaryActionLabel?: string;
+	onAction?: (actionLabel: string) => Promise<void> | void;
+	actions?: GenerativeWidgetActionItem[];
 	onStateChange?: (path: string, value: unknown) => void;
 	cardAnimation?: GenerativeCardAnimationProps;
 }
@@ -604,9 +604,8 @@ function GenerativeWidgetCardShell({
 	className,
 	previewMode = false,
 	onOpenPreview,
-	onPrimaryAction,
-	showPrimaryAction = false,
-	primaryActionLabel,
+	onAction,
+	actions = [],
 	onStateChange,
 	cardAnimation,
 }: Readonly<GenerativeWidgetCardShellProps>): ReactNode {
@@ -644,6 +643,7 @@ function GenerativeWidgetCardShell({
 						title={metadata.title}
 						description={metadata.description}
 						sourceName={metadata.source?.name}
+						sourceLogoSrc={metadata.source?.logoSrc}
 						hintText={metadata.iconHintText}
 					/>
 				}
@@ -670,14 +670,40 @@ function GenerativeWidgetCardShell({
 					>
 						Open preview
 					</Button>
-					{showPrimaryAction && primaryActionLabel ? (
-						<Button
-							className="h-8 min-w-0 flex-shrink-0 px-3 text-sm sm:min-w-[117px]"
-							onClick={onPrimaryAction}
-						>
-							{primaryActionLabel}
-						</Button>
-					) : null}
+					{actions.map((actionItem, index) => (
+						actionItem.href ? (
+							<a
+								key={`${actionItem.label}:${index}`}
+								href={actionItem.href}
+								target="_blank"
+								rel="noopener noreferrer"
+								className={cn(
+									buttonVariants({ variant: index === 0 ? "default" : "outline" }),
+									"h-8 min-w-0 flex-shrink-0 px-3 text-sm sm:min-w-[117px]"
+								)}
+							>
+								{actionItem.label}
+							</a>
+						) : (
+							<Button
+								key={`${actionItem.label}:${index}`}
+								variant={index === 0 ? "default" : "outline"}
+								className="h-8 min-w-0 flex-shrink-0 px-3 text-sm sm:min-w-[117px]"
+								disabled={
+									typeof onAction !== "function" ||
+									/\b(view|edit|open)\b/i.test(actionItem.label)
+								}
+								onClick={
+									typeof onAction === "function" &&
+									!/\b(view|edit|open)\b/i.test(actionItem.label)
+										? () => onAction(actionItem.label)
+										: undefined
+								}
+							>
+								{actionItem.label}
+							</Button>
+						)
+					))}
 				</GenerativeCardFooter>
 			</GenerativeCardBody>
 		</GenerativeCard>
@@ -741,15 +767,19 @@ export function GenerativeWidgetCard({
 		[]
 	);
 
-	const shouldShowPrimaryAction =
+	const footerActions =
+		parsedWidget?.type === "genui-preview"
+			? (metadata?.actions ?? [])
+			: [];
+	const shouldShowFooterActions =
 		parsedWidget?.type === "genui-preview" &&
-		Boolean(metadata?.primaryActionLabel) &&
-		typeof onPrimaryAction === "function";
+		footerActions.length > 0;
 
-	const handlePrimaryAction = useCallback(() => {
+	const handleAction = useCallback((actionLabel: string) => {
 		if (
 			parsedWidget?.type !== "genui-preview" ||
-			!metadata?.primaryActionLabel ||
+			!actionLabel ||
+			!metadata ||
 			!metadata.title ||
 			!metadata.description ||
 			typeof onPrimaryAction !== "function"
@@ -759,7 +789,7 @@ export function GenerativeWidgetCard({
 
 		void onPrimaryAction({
 			widgetType: "genui-preview",
-			actionLabel: metadata.primaryActionLabel,
+			actionLabel,
 			title: metadata.title,
 			description: metadata.description,
 			formState: genuiState,
@@ -776,9 +806,8 @@ export function GenerativeWidgetCard({
 						metadata={metadata}
 						cardAnimation={cardAnimation}
 						onOpenPreview={() => setPreviewOpen(true)}
-						onPrimaryAction={handlePrimaryAction}
-						showPrimaryAction={shouldShowPrimaryAction}
-						primaryActionLabel={metadata.primaryActionLabel}
+						onAction={handleAction}
+						actions={shouldShowFooterActions ? footerActions : []}
 						onStateChange={handleGenuiStateChange}
 				/>
 				<DialogContent className="max-h-[90vh] overflow-hidden gap-0 p-0 sm:max-w-5xl" size="xl" showCloseButton={false}>
@@ -790,6 +819,7 @@ export function GenerativeWidgetCard({
 									title={metadata.title}
 									description={metadata.description}
 									sourceName={metadata.source?.name}
+									sourceLogoSrc={metadata.source?.logoSrc}
 									hintText={metadata.iconHintText}
 								/>
 							<div className="min-w-0 flex-1 space-y-1">

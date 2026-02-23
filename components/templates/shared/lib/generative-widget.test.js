@@ -458,3 +458,141 @@ test("explicit widgetContentType hint takes precedence for message cards", () =>
 	const metadata = resolveGenerativeWidgetMetadata(widget);
 	assert.equal(metadata.contentType, "message");
 });
+
+test("resolveGenerativeWidgetMetadata includes generated button labels for footer actions", () => {
+	const widget = parseGenerativeWidget("genui-preview", {
+		primaryActionLabel: "Edit in Confluence",
+		actions: {
+			primary: {
+				label: "Edit in Confluence",
+				href: "https://example.atlassian.net/wiki/spaces/TEST/pages/123/edit",
+			},
+			secondary: {
+				label: "View Page",
+				href: "https://example.atlassian.net/wiki/spaces/TEST/pages/123",
+			},
+		},
+		spec: {
+			root: "root",
+			elements: {
+				root: {
+					type: "Stack",
+					props: { direction: "vertical", gap: "md" },
+					children: ["content", "actions"],
+				},
+				content: {
+					type: "Text",
+					props: { content: "Page created successfully." },
+				},
+				actions: {
+					type: "Stack",
+					props: { direction: "horizontal", gap: "sm" },
+					children: ["edit-button", "view-button"],
+				},
+				"edit-button": {
+					type: "Button",
+					props: { label: "Edit in Confluence", variant: "default" },
+				},
+				"view-button": {
+					type: "Button",
+					props: { label: "View Page", variant: "outline" },
+				},
+			},
+		},
+	});
+
+	assert.ok(widget);
+	const metadata = resolveGenerativeWidgetMetadata(widget);
+	assert.equal(metadata.primaryActionLabel, "Edit in Confluence");
+	assert.deepEqual(metadata.actions, [
+		{
+			label: "Edit in Confluence",
+			href: "https://example.atlassian.net/wiki/spaces/TEST/pages/123/edit",
+		},
+		{
+			label: "View Page",
+			href: "https://example.atlassian.net/wiki/spaces/TEST/pages/123",
+		},
+	]);
+	assert.deepEqual(metadata.actionLabels, ["Edit in Confluence", "View Page"]);
+});
+
+test("resolveGenerativeWidgetMetadata hydrates view/edit links from a single known external URL", () => {
+	const widget = parseGenerativeWidget("genui-preview", {
+		primaryActionLabel: "Edit in Confluence",
+		externalUrl: "https://example.atlassian.net/wiki/spaces/TEST/pages/789",
+		spec: {
+			root: "root",
+			elements: {
+				root: {
+					type: "Stack",
+					props: { direction: "vertical", gap: "md" },
+					children: ["edit-button", "view-button"],
+				},
+				"edit-button": {
+					type: "Button",
+					props: { label: "Edit in Confluence", variant: "default" },
+				},
+				"view-button": {
+					type: "Button",
+					props: { label: "View Page", variant: "outline" },
+				},
+			},
+		},
+	});
+
+	assert.ok(widget);
+	const metadata = resolveGenerativeWidgetMetadata(widget);
+	assert.deepEqual(metadata.actions, [
+		{
+			label: "Edit in Confluence",
+			href: "https://example.atlassian.net/wiki/spaces/TEST/pages/789",
+		},
+		{
+			label: "View Page",
+			href: "https://example.atlassian.net/wiki/spaces/TEST/pages/789",
+		},
+	]);
+});
+
+test("createBodyOnlySpec removes generated action button stacks from card body", () => {
+	const spec = {
+		root: "root",
+		elements: {
+			root: {
+				type: "Stack",
+				props: { direction: "vertical", gap: "md" },
+				children: ["summary", "action-row"],
+			},
+			summary: {
+				type: "Text",
+				props: { content: "Ready." },
+			},
+			"action-row": {
+				type: "Stack",
+				props: { direction: "horizontal", gap: "sm" },
+				children: ["edit-button", "view-button"],
+			},
+			"edit-button": {
+				type: "Button",
+				props: { label: "Edit in Confluence", variant: "default" },
+			},
+			"view-button": {
+				type: "Button",
+				props: { label: "View Page", variant: "outline" },
+			},
+		},
+	};
+
+	const widget = {
+		type: "genui-preview",
+		spec,
+		source: null,
+	};
+
+	const result = createBodyOnlySpec(widget);
+	assert.deepEqual(result.elements.root.children, ["summary"]);
+	assert.equal(result.elements["action-row"], undefined);
+	assert.equal(result.elements["edit-button"], undefined);
+	assert.equal(result.elements["view-button"], undefined);
+});

@@ -35,6 +35,7 @@ import { DefaultChatTransport } from "ai";
 export interface SendPromptOptions {
 	contextDescription?: string;
 	userName?: string;
+	clientTimeZone?: string;
 	messageMetadata?: RovoMessageMetadata;
 	clarification?: unknown;
 	approval?: unknown;
@@ -63,6 +64,22 @@ const INLINE_DATA_PLACEHOLDER = "[inline data omitted]";
 const CHAT_REQUEST_MAX_BYTES = 4 * 1024 * 1024;
 const CHAT_REQUEST_MIN_MESSAGES = 8;
 const EXPLICIT_CANCEL_DEBOUNCE_MS = 2_000;
+const MEDIA_GENERATION_TIMEOUT_MS = 120_000;
+
+function resolveClientTimeZone(explicitTimeZone?: string): string | undefined {
+	if (typeof explicitTimeZone === "string" && explicitTimeZone.trim().length > 0) {
+		return explicitTimeZone.trim();
+	}
+
+	try {
+		const inferredTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		return typeof inferredTimeZone === "string" && inferredTimeZone.trim().length > 0
+			? inferredTimeZone.trim()
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
 
 function buildSendMessageBody(
 	options: SendPromptOptions | undefined,
@@ -71,6 +88,7 @@ function buildSendMessageBody(
 	return {
 		contextDescription: options?.contextDescription,
 		userName: options?.userName,
+		clientTimeZone: resolveClientTimeZone(options?.clientTimeZone),
 		clarification: options?.clarification,
 		approval: options?.approval,
 		planMode: options?.planMode,
@@ -293,6 +311,7 @@ interface RovoChatContextType {
 	resetChat: () => void;
 	replaceMessages: (messages: ReadonlyArray<RovoUIMessage>) => void;
 	isStreaming: boolean;
+	isMediaGenerating: boolean;
 	hasInFlightTurn: boolean;
 	isSubmitPending: boolean;
 	pendingSubmitStartedAt: number | null;
@@ -395,6 +414,9 @@ export function RovoChatProvider({
 	const isSubmitPendingRef = useRef(false);
 	const shouldFinalizeActivePromptRef = useRef(false);
 	const hasTurnCompleteSignalRef = useRef(false);
+	const isMediaGeneratingRef = useRef(false);
+	const mediaGenerationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [isMediaGenerating, setIsMediaGenerating] = useState(false);
 	const maybeFinalizeAndProcessRef = useRef<() => void>(() => {});
 	const processNextPromptRef = useRef<() => Promise<void>>(async () => {});
 
@@ -432,6 +454,17 @@ export function RovoChatProvider({
 		}
 		clearRetryCountdownInterval();
 	}, [clearRetryCountdownInterval]);
+
+	const clearMediaGenerating = useCallback(() => {
+		if (mediaGenerationTimeoutRef.current !== null) {
+			clearTimeout(mediaGenerationTimeoutRef.current);
+			mediaGenerationTimeoutRef.current = null;
+		}
+		if (isMediaGeneratingRef.current) {
+			isMediaGeneratingRef.current = false;
+			setIsMediaGenerating(false);
+		}
+	}, []);
 
 	const startRetryCountdown = useCallback(
 		(errorMessageId: string) => {
@@ -496,6 +529,7 @@ export function RovoChatProvider({
 	);
 
 	useEffect(() => cancelRetryTimer, [cancelRetryTimer]);
+	useEffect(() => clearMediaGenerating, [clearMediaGenerating]);
 
 	const queueTick = useCallback(() => {
 		Promise.resolve().then(() => {
@@ -770,6 +804,56 @@ export function RovoChatProvider({
 		}
 	}, [rawUiMessages, queueTick]);
 
+	// Watch for data-widget-loading parts on the last assistant message to track
+	// media generation (image/audio) independently from the SSE stream. If the
+	// stream drops before the backend emits loading:false, this ref keeps the
+	// queue blocked so the next message is not sent prematurely.
+	useEffect(() => {
+		for (let i = rawUiMessages.length - 1; i >= 0; i--) {
+			const msg = rawUiMessages[i];
+			if (msg.role !== "assistant") {
+				continue;
+			}
+
+			let latestMediaLoadingPart: { loading: boolean } | null = null;
+			for (const part of msg.parts) {
+				if (part.type !== "data-widget-loading") {
+					continue;
+				}
+				const partData = part as { data?: { type?: string; loading?: boolean } };
+				const widgetType = partData.data?.type;
+				if (widgetType === "image-preview" || widgetType === "audio-preview") {
+					latestMediaLoadingPart = { loading: !!partData.data?.loading };
+				}
+			}
+
+			if (!latestMediaLoadingPart) {
+				break;
+			}
+
+			if (latestMediaLoadingPart.loading && !isMediaGeneratingRef.current) {
+				isMediaGeneratingRef.current = true;
+				setIsMediaGenerating(true);
+
+				if (mediaGenerationTimeoutRef.current !== null) {
+					clearTimeout(mediaGenerationTimeoutRef.current);
+				}
+				mediaGenerationTimeoutRef.current = setTimeout(() => {
+					mediaGenerationTimeoutRef.current = null;
+					if (isMediaGeneratingRef.current) {
+						isMediaGeneratingRef.current = false;
+						setIsMediaGenerating(false);
+						queueTick();
+					}
+				}, MEDIA_GENERATION_TIMEOUT_MS);
+			} else if (!latestMediaLoadingPart.loading && isMediaGeneratingRef.current) {
+				clearMediaGenerating();
+				queueTick();
+			}
+			break;
+		}
+	}, [rawUiMessages, queueTick, clearMediaGenerating]);
+
 	const uiMessages = useMemo(() => {
 		if (!submissionErrorMessage) {
 			return rawUiMessages;
@@ -855,7 +939,8 @@ export function RovoChatProvider({
 		hasTurnCompleteSignalRef.current = false;
 		retryCountRef.current = 0;
 		lastPromptRef.current = null;
-	}, []);
+		clearMediaGenerating();
+	}, [clearMediaGenerating]);
 
 	const maybeFinalizeAndProcess = useCallback(() => {
 		const hasActivePrompt = activePromptRef.current !== null;
@@ -864,7 +949,9 @@ export function RovoChatProvider({
 			const canFinalizeFromStreamEnd =
 				hasTurnCompleteSignalRef.current && !isStreamingRef.current;
 			const canFinalizeFromError =
-				shouldFinalizeActivePromptRef.current && !isStreamingRef.current;
+				shouldFinalizeActivePromptRef.current &&
+				!isStreamingRef.current &&
+				!isMediaGeneratingRef.current;
 
 			if (
 				(canFinalizeFromStreamEnd || canFinalizeFromError) &&
@@ -893,6 +980,7 @@ export function RovoChatProvider({
 			isDispatchingPromptRef.current ||
 			isCancellingRef.current ||
 			isStreamingRef.current ||
+			isMediaGeneratingRef.current ||
 			retryTimerRef.current !== null
 		) {
 			return;
@@ -1060,6 +1148,7 @@ export function RovoChatProvider({
 			shouldFinalizeActivePromptRef.current = true;
 		}
 
+		clearMediaGenerating();
 		clearSubmitPending();
 		isCancellingRef.current = true;
 		try {
@@ -1068,11 +1157,12 @@ export function RovoChatProvider({
 			isCancellingRef.current = false;
 			queueTick();
 		}
-	}, [cancelCurrentStream, clearSubmitPending, queueTick]);
+	}, [cancelCurrentStream, clearMediaGenerating, clearSubmitPending, queueTick]);
 
 	const resetChat = useCallback(() => {
 		isCancellingRef.current = true;
 		cancelRetryTimer();
+		clearMediaGenerating();
 		clearSubmitPending();
 		retryCountRef.current = 0;
 		lastPromptRef.current = null;
@@ -1097,6 +1187,7 @@ export function RovoChatProvider({
 	}, [
 		cancelCurrentStream,
 		cancelRetryTimer,
+		clearMediaGenerating,
 		clearSubmitPending,
 		queueTick,
 		setMessages,
@@ -1106,6 +1197,7 @@ export function RovoChatProvider({
 		(messages: ReadonlyArray<RovoUIMessage>) => {
 			isCancellingRef.current = false;
 			cancelRetryTimer();
+			clearMediaGenerating();
 			clearSubmitPending();
 			retryCountRef.current = 0;
 			lastPromptRef.current = null;
@@ -1120,13 +1212,14 @@ export function RovoChatProvider({
 			setMessages(sanitizeRovoUiMessages([...messages]));
 			queueTick();
 		},
-		[cancelRetryTimer, clearSubmitPending, queueTick, setMessages]
+		[cancelRetryTimer, clearMediaGenerating, clearSubmitPending, queueTick, setMessages]
 	);
 
 	const queueCount = queuedPrompts.length;
 	const hasInFlightTurn =
 		isSubmitPending ||
 		isStreaming ||
+		isMediaGenerating ||
 		activePrompt !== null;
 
 	return (
@@ -1142,6 +1235,7 @@ export function RovoChatProvider({
 				resetChat,
 				replaceMessages,
 				isStreaming,
+				isMediaGenerating,
 				hasInFlightTurn,
 				isSubmitPending,
 				pendingSubmitStartedAt,

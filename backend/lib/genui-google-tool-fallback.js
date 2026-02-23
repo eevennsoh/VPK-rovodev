@@ -28,6 +28,60 @@ function clipText(value, maxLength = MAX_LABEL_LENGTH) {
 	return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
+function normalizeSentence(value) {
+	const text = getNonEmptyString(value);
+	if (!text) {
+		return "";
+	}
+
+	return text
+		.toLowerCase()
+		.replace(/[.!?]+$/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function isGenericToolTitle(value) {
+	const normalized = normalizeSentence(value);
+	return normalized === "tool results" || normalized === "tool result";
+}
+
+function isGenericToolDescription(value) {
+	const normalized = normalizeSentence(value);
+	return (
+		normalized === "generated from tool execution results and errors" ||
+		normalized === "generated from successful integration tool calls" ||
+		normalized === "generated from successful and failed tool executions" ||
+		normalized === "generated from tool executions"
+	);
+}
+
+function resolveCandidateTitle(title, fallbackTitle) {
+	const explicitTitle = clipText(title, 80);
+	if (explicitTitle && !isGenericToolTitle(explicitTitle)) {
+		return explicitTitle;
+	}
+
+	return fallbackTitle;
+}
+
+function resolveCandidateDescription(
+	description,
+	fallbackDescription,
+	{ resultCount = 0 } = {}
+) {
+	const explicitDescription = clipText(description, 140);
+	if (!explicitDescription) {
+		return fallbackDescription;
+	}
+
+	if (resultCount > 0 && isGenericToolDescription(explicitDescription)) {
+		return fallbackDescription;
+	}
+
+	return explicitDescription;
+}
+
 function parseMaybeJson(value) {
 	if (typeof value !== "string") {
 		return null;
@@ -469,6 +523,42 @@ function pushTextLine(elements, parentChildren, key, content, muted = false) {
 	};
 }
 
+function toCalendarTimelineStatus(rawStatus) {
+	const normalized = getNonEmptyString(rawStatus)?.toLowerCase() ?? "";
+	if (!normalized) {
+		return "upcoming";
+	}
+
+	if (/\b(cancelled|canceled|done|completed)\b/.test(normalized)) {
+		return "completed";
+	}
+	if (/\b(ongoing|in progress|active|tentative)\b/.test(normalized)) {
+		return "current";
+	}
+
+	return "upcoming";
+}
+
+function toCalendarTimelineItem(event) {
+	const detailSegments = [];
+	if (event.location) {
+		detailSegments.push(`Location: ${event.location}`);
+	}
+	if (event.status) {
+		detailSegments.push(`Status: ${event.status}`);
+	}
+	if (event.link) {
+		detailSegments.push(`Open: ${event.link}`);
+	}
+
+	return {
+		title: event.title,
+		description: detailSegments.length > 0 ? detailSegments.join(" · ") : null,
+		date: event.when ?? null,
+		status: toCalendarTimelineStatus(event.status),
+	};
+}
+
 function buildCalendarSpec({ title, description, data }) {
 	const elements = {};
 	const cardChildren = [];
@@ -510,46 +600,15 @@ function buildCalendarSpec({ title, description, data }) {
 			true
 		);
 
-		data.events.forEach((event, index) => {
-			const eventCardKey = `calendar-event-${index}`;
-			const eventChildKeys = [];
-			cardChildren.push(eventCardKey);
-			elements[eventCardKey] = {
-				type: "Card",
-				props: {
-					title: event.title,
-					description: event.when || undefined,
-				},
-				children: eventChildKeys,
-			};
-
-			pushTextLine(
-				elements,
-				eventChildKeys,
-				`${eventCardKey}-location`,
-				event.location ? `Location: ${event.location}` : null,
-				true
-			);
-			pushTextLine(
-				elements,
-				eventChildKeys,
-				`${eventCardKey}-status`,
-				event.status ? `Status: ${event.status}` : null,
-				true
-			);
-
-			if (event.link) {
-				const linkKey = `${eventCardKey}-link`;
-				eventChildKeys.push(linkKey);
-				elements[linkKey] = {
-					type: "Link",
-					props: {
-						text: "Open event",
-						href: event.link,
-					},
-				};
-			}
-		});
+		const timelineItems = data.events.map(toCalendarTimelineItem);
+		const timelineKey = "calendar-events-timeline";
+		cardChildren.push(timelineKey);
+		elements[timelineKey] = {
+			type: "Timeline",
+			props: {
+				items: timelineItems,
+			},
+		};
 
 		return { root: "root", elements };
 	}
@@ -774,16 +833,18 @@ function buildCalendarCandidate({
 		return null;
 	}
 
-	const resolvedTitle =
-		clipText(title, 80) || "Google Calendar";
-	const resolvedDescription =
-		clipText(description, 140) ||
-		(data.events.length > 0
-			? "Upcoming events from Google Calendar."
-			: "Calendar information from Google Calendar.");
-
 	const resultCount = observations.filter((entry) => entry.phase === "result").length;
 	const errorCount = observations.filter((entry) => entry.phase === "error").length;
+	const defaultDescription =
+		data.events.length > 0
+			? "Upcoming events from Google Calendar."
+			: "Calendar information from Google Calendar.";
+	const resolvedTitle = resolveCandidateTitle(title, "Google Calendar");
+	const resolvedDescription = resolveCandidateDescription(
+		description,
+		defaultDescription,
+		{ resultCount }
+	);
 
 	return {
 		domain: "calendar",
@@ -837,16 +898,18 @@ function buildDriveCandidate({
 		return null;
 	}
 
-	const resolvedTitle =
-		clipText(title, 80) || "Google Drive";
-	const resolvedDescription =
-		clipText(description, 140) ||
-		(data.files.length > 0
-			? "Files from Google Drive."
-			: "Drive account information from Google Drive.");
-
 	const resultCount = observations.filter((entry) => entry.phase === "result").length;
 	const errorCount = observations.filter((entry) => entry.phase === "error").length;
+	const defaultDescription =
+		data.files.length > 0
+			? "Files from Google Drive."
+			: "Drive account information from Google Drive.";
+	const resolvedTitle = resolveCandidateTitle(title, "Google Drive");
+	const resolvedDescription = resolveCandidateDescription(
+		description,
+		defaultDescription,
+		{ resultCount }
+	);
 
 	return {
 		domain: "drive",

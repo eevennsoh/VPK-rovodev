@@ -22,7 +22,6 @@ interface AssistantThinkingStatusSectionProps {
 	message: RovoRenderableUIMessage;
 	label: string;
 	isStreaming: boolean;
-	hasReasoning: boolean;
 	toolParts: ReturnType<typeof getMessageToolParts>;
 	thinkingToolCalls: ReturnType<typeof getThinkingToolCallSummaries>;
 	reasoningPhase?: ReasoningPhase;
@@ -47,7 +46,6 @@ export function AssistantThinkingStatusSection({
 	message,
 	label,
 	isStreaming,
-	hasReasoning,
 	toolParts,
 	thinkingToolCalls,
 	reasoningPhase,
@@ -70,7 +68,7 @@ export function AssistantThinkingStatusSection({
 			: undefined;
 
 	return (
-		<div className={hasReasoning ? "pt-2" : undefined}>
+		<div>
 			<Reasoning
 				className="mb-0"
 				autoExpandOnDetails

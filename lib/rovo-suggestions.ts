@@ -35,9 +35,10 @@ const LAST_7_DAYS_NO_TWG_CONTEXT = [
 	"[End Tool Guardrail]",
 	"",
 	"[Tool Requirement]",
-	"You MUST search BOTH Jira AND Confluence for this request. Do not skip either source.",
-	"Always call Jira search tools AND Confluence search tools, even if one returns empty results.",
-	"Present results from both sources in your response.",
+	"Use exactly 2 tool calls for this request:",
+	"1. One `search_jira_using_jql` call for Jira issues assigned to or updated by the current user in the last 7 days.",
+	"2. One `search_confluence_using_cql` call using `contributor = currentUser()` to cover both created and edited pages in a single query.",
+	"Do not make additional tool calls beyond these two. Present results from both sources in your response.",
 	"[End Tool Requirement]",
 ].join("\n");
 
@@ -48,6 +49,18 @@ const LAST_7_DAYS_NO_TWG_CONTEXT = [
  */
 const LAST_7_DAYS_PROMPT =
 	"Search for all work I have done in the last 7 days from Jira and Confluence";
+
+const GOOGLE_CALENDAR_LIST_EVENTS_PROMPT =
+	"List Google Calendar events for today";
+
+const GOOGLE_CALENDAR_LIST_EVENTS_CONTEXT = [
+	"[Tool Requirement]",
+	"For this request, use `google_google_calendar_atlassian_calendar_get_events`.",
+	"Always include required parameters: `calendarId`, `timeMin`, and `timeMax`.",
+	"If the user does not specify a calendar, use `calendarId: \"primary\"`.",
+	"`timeMin` and `timeMax` must be strict UTC ISO 8601 timestamps.",
+	"[End Tool Requirement]",
+].join("\n");
 
 /**
  * Default suggestions shown in the chat greeting
@@ -89,6 +102,8 @@ export const defaultSuggestions: RovoSuggestion[] = [
 	{
 		id: "list-google-calendar-events",
 		label: "List Google Calendar events",
+		prompt: GOOGLE_CALENDAR_LIST_EVENTS_PROMPT,
+		contextDescription: GOOGLE_CALENDAR_LIST_EVENTS_CONTEXT,
 		imageSrc: "/3p/google-calendar/16-borderless.svg",
 		type: "prompt",
 	},

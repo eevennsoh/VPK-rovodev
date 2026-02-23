@@ -50,6 +50,14 @@ const DEFAULT_TITLE = "Help me clarify this";
 const DEFAULT_PLACEHOLDER = "Tell Rovo what to do...";
 const MAX_GENERATED_OPTIONS = 8;
 const MAX_LABEL_LENGTH = 120;
+
+/**
+ * Matches options that just say the user will type/enter/provide their own answer,
+ * e.g. "I'll type the space name", "I will enter it myself", "Type my own".
+ * These are redundant when the custom input field is shown.
+ */
+const SELF_TYPE_OPTION_PATTERN =
+	/^i('ll| will) (type|enter|specify|provide|write|input)\b|^(type|enter|specify|provide|write) (my own|it myself|manually)/i;
 const QUESTION_KINDS: ReadonlySet<QuestionKind> = new Set([
 	"single-select",
 	"multi-select",
@@ -126,6 +134,10 @@ function normalizeQuestionOptions(value: unknown): ParsedQuestionCardOption[] {
 			getNonEmptyString(option.title) ??
 			getNonEmptyString(option.text);
 		if (!label) continue;
+
+		// Skip options that just tell the user to type their own answer —
+		// the custom input field already serves that purpose.
+		if (SELF_TYPE_OPTION_PATTERN.test(label)) continue;
 
 		const optionId = getNonEmptyString(option.id) ?? `option-${index + 1}`;
 		const normalizedLabel = label.toLowerCase();

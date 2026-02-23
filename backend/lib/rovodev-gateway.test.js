@@ -82,7 +82,7 @@ test("buildThinkingStatusFromToolEvent returns user-facing labels and metadata",
 		"google_google_calendar_atlassian_calendar_list_events",
 		"result"
 	);
-	assert.equal(resultStatus.label, "Gathered information");
+	assert.equal(resultStatus.label, "Thinking");
 	assert.equal(resultStatus.activity, "data");
 	assert.equal(resultStatus.source, "backend");
 

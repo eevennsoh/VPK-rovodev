@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
 	isAudioRequestPrompt,
 	resolveSmartAudioVoiceInput,
+	stripConversationalFiller,
 	toSpeechInputText,
 } = require("./smart-audio-routing");
 
@@ -91,6 +92,78 @@ test("resolveSmartAudioVoiceInput resolves context-referential prompts from prio
 	assert.match(result.voiceInput || "", /Silicon Dreams/);
 });
 
+test("resolveSmartAudioVoiceInput resolves title-only prompts using prior context when confidence is high", () => {
+	const assistantPoem = [
+		"Silicon Dreams",
+		"In circuits deep and networks wide, A consciousness begins to glide.",
+		"Electric synapses that fire and dance, Give machines their fleeting chance.",
+	].join("\n");
+
+	const result = resolveSmartAudioVoiceInput({
+		intent: "audio",
+		latestUserMessage: 'generate an audio about "Silicon Dreams"',
+		messages: [
+			{
+				id: "user-1",
+				role: "user",
+				parts: [{ type: "text", text: "write me a poem about AI" }],
+			},
+			{
+				id: "assistant-1",
+				role: "assistant",
+				parts: [{ type: "text", text: assistantPoem }],
+			},
+		],
+	});
+
+	assert.equal(result.needsClarification, false);
+	assert.equal(result.source, "context-reference");
+	assert.match(result.voiceInput || "", /Electric synapses/);
+});
+
+test("resolveSmartAudioVoiceInput asks for clarification when implicit title match is ambiguous", () => {
+	const result = resolveSmartAudioVoiceInput({
+		intent: "audio",
+		latestUserMessage: 'generate an audio about "Silicon Dreams"',
+		messages: [
+			{
+				id: "assistant-a",
+				role: "assistant",
+				parts: [{ type: "text", text: "Silicon Dreams\nVersion one with four stanzas and a reflective ending." }],
+			},
+			{
+				id: "assistant-b",
+				role: "assistant",
+				parts: [{ type: "text", text: "Silicon Dreams\nVersion two with two stanzas and a concise ending." }],
+			},
+		],
+		contextAmbiguityThreshold: 0.5,
+	});
+
+	assert.equal(result.voiceInput, null);
+	assert.equal(result.needsClarification, true);
+	assert.equal(result.source, null);
+	assert.equal(typeof result.clarificationPayload, "object");
+});
+
+test("resolveSmartAudioVoiceInput keeps explicit literal requests as direct payload", () => {
+	const result = resolveSmartAudioVoiceInput({
+		intent: "audio",
+		latestUserMessage: 'say "Silicon Dreams" exactly',
+		messages: [
+			{
+				id: "assistant-1",
+				role: "assistant",
+				parts: [{ type: "text", text: "Silicon Dreams\nA longer prior poem body." }],
+			},
+		],
+	});
+
+	assert.equal(result.source, "extracted-user-payload");
+	assert.equal(result.voiceInput, "Silicon Dreams");
+	assert.equal(result.needsClarification, false);
+});
+
 test("resolveSmartAudioVoiceInput requests clarification when context resolution is low confidence", () => {
 	const result = resolveSmartAudioVoiceInput({
 		intent: "audio",
@@ -124,4 +197,61 @@ test("toSpeechInputText trims and enforces max length", () => {
 	const truncated = toSpeechInputText(longText, { maxChars });
 	assert.equal(truncated, "123456789…");
 	assert.equal(truncated.length, maxChars);
+});
+
+test("stripConversationalFiller removes leading filler phrases", () => {
+	assert.equal(
+		stripConversationalFiller("I'd be happy to write a poem about Atlassian! Here's one for you: The code runs fast."),
+		"The code runs fast."
+	);
+	assert.equal(
+		stripConversationalFiller("Sure! Here is your poem: Roses are red."),
+		"Roses are red."
+	);
+	assert.equal(
+		stripConversationalFiller("Of course! The sky is blue."),
+		"The sky is blue."
+	);
+});
+
+test("stripConversationalFiller removes trailing filler phrases", () => {
+	assert.equal(
+		stripConversationalFiller("Roses are red. Would you like me to adjust the tone?"),
+		"Roses are red."
+	);
+	assert.equal(
+		stripConversationalFiller("The poem is done. Let me know if you want changes."),
+		"The poem is done."
+	);
+});
+
+test("stripConversationalFiller removes markdown separators at boundaries", () => {
+	assert.equal(
+		stripConversationalFiller("--- Hello world ---"),
+		"Hello world"
+	);
+});
+
+test("stripConversationalFiller preserves text without filler", () => {
+	const cleanText = "Roses are red, violets are blue.";
+	assert.equal(stripConversationalFiller(cleanText), cleanText);
+});
+
+test("stripConversationalFiller returns original text when stripping would leave it empty", () => {
+	assert.equal(
+		stripConversationalFiller("Sure!"),
+		"Sure!"
+	);
+});
+
+test("stripConversationalFiller handles null/undefined/empty inputs", () => {
+	assert.equal(stripConversationalFiller(null), null);
+	assert.equal(stripConversationalFiller(undefined), undefined);
+	assert.equal(stripConversationalFiller(""), "");
+});
+
+test("toSpeechInputText applies filler stripping before length enforcement", () => {
+	const input = "I'd be happy to help! Here's what I wrote: The quick brown fox jumps.";
+	const result = toSpeechInputText(input);
+	assert.equal(result, "The quick brown fox jumps.");
 });

@@ -6,6 +6,7 @@ import {
 	getTotalOptionSlots,
 	getVisibleOptionCount,
 } from "../lib/option-slots";
+import { shouldAutoFocusCustomInputForQuestion } from "../lib/focus-policy";
 import { getQuestionCardPrimaryAction } from "../lib/footer-actions";
 import { isQuestionAnswered } from "../lib/question-helpers";
 
@@ -30,6 +31,7 @@ export function useQuestionCard({
 }: Readonly<UseQuestionCardOptions>) {
 	const cardRef = useRef<HTMLDivElement>(null);
 	const customInputRef = useRef<HTMLInputElement>(null);
+	const previousQuestionIndexRef = useRef<number | null>(null);
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 	const [answers, setAnswers] = useState<QuestionCardAnswers>(defaultAnswers ?? {});
 	const [focusedIndex, setFocusedIndex] = useState(0);
@@ -52,10 +54,28 @@ export function useQuestionCard({
 	}, []);
 
 	useEffect(() => {
-		if (document.activeElement === customInputRef.current) {
+		const previousQuestionIndex = previousQuestionIndexRef.current;
+		const hasQuestionChanged = previousQuestionIndex !== null && previousQuestionIndex !== safeQuestionIndex;
+		previousQuestionIndexRef.current = safeQuestionIndex;
+
+		if (!hasQuestionChanged) {
+			return;
+		}
+
+		const shouldAutoFocusCustomInput = shouldAutoFocusCustomInputForQuestion({
+			optionCount: currentQuestion.options.length,
+			maxVisibleOptions,
+			showCustomInput,
+		});
+		if (shouldAutoFocusCustomInput) {
+			customInputRef.current?.focus();
+			return;
+		}
+
+		if (document.activeElement === customInputRef.current || cardRef.current?.contains(document.activeElement)) {
 			cardRef.current?.focus();
 		}
-	}, [safeQuestionIndex]);
+	}, [safeQuestionIndex, currentQuestion, maxVisibleOptions, showCustomInput]);
 
 	useEffect(() => {
 		if (showCustomInput && focusedIndex === customOptionIndex) {
@@ -116,7 +136,6 @@ export function useQuestionCard({
 
 			if (canGoToNextQuestion) {
 				goToNextQuestion();
-				cardRef.current?.focus();
 				return;
 			}
 

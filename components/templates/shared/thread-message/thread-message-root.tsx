@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import { useDynamicThinkingLabel } from "@/components/templates/shared/hooks/use-dynamic-thinking-label";
 import {
 	getAllDataParts,
@@ -99,9 +99,25 @@ function useThreadMessageDerived(
 		isRetryThinkingStatus,
 		isStreaming,
 	});
+
+	// Latch: prevent thinking-status flicker during streaming.
+	// Once active, hold it active while the response is in-flight.
+	// Parts can transiently disappear when the AI SDK reconstructs the message.
+	const thinkingStatusLatchRef = useRef(false);
+	if (isThinkingStatusActive) {
+		thinkingStatusLatchRef.current = true;
+	}
+	const isResponseInFlight = isStreaming || isThinkingLifecycleStreaming;
+	if (!isResponseInFlight) {
+		thinkingStatusLatchRef.current = false;
+	}
+	const effectiveIsThinkingStatusActive =
+		isThinkingStatusActive ||
+		(thinkingStatusLatchRef.current && isResponseInFlight);
+
 	const { label: dynamicThinkingStatusLabel } = useDynamicThinkingLabel({
 		baseLabel: thinkingStatusPart?.data.label ?? getDefaultThinkingLabel(),
-		isStreaming: isThinkingLifecycleStreaming && isThinkingStatusActive,
+		isStreaming: isThinkingLifecycleStreaming && effectiveIsThinkingStatusActive,
 		updateSignal: thinkingStatusUpdateSignal,
 	});
 
@@ -182,7 +198,7 @@ function useThreadMessageDerived(
 	const isThinkingStatusStreaming =
 		resolveThinkingStatusLifecycleStreaming({
 			isThinkingLifecycleStreaming,
-			isThinkingStatusActive,
+			isThinkingStatusActive: effectiveIsThinkingStatusActive,
 			hasBackendThinkingActivity,
 		});
 	const {
@@ -207,7 +223,7 @@ function useThreadMessageDerived(
 		isCreatePlanSkillFlow &&
 		assistantStreamingRenderMode !== "text-first";
 	const thinkingStatusReasoningPhase: ReasoningPhase = (() => {
-		if (!isThinkingStatusActive) return "idle";
+		if (!effectiveIsThinkingStatusActive) return "idle";
 		if (!hasBackendThinkingActivity) return isStreaming ? "preload" : "idle";
 		if (isPostToolsGenuiGeneration) return "thinking";
 		if (hasWidgetOutput) return "completed";
@@ -261,7 +277,7 @@ function useThreadMessageDerived(
 		shouldSuppressQuestionCardText ||
 		(
 			shouldShowWidgetSections &&
-			widgetType === "genui-preview" &&
+			(widgetType === "genui-preview" || widgetType === "audio-preview") &&
 			!isFallbackTextRoute &&
 			(hasWidgetPayload || isWidgetLoading)
 		);
@@ -282,7 +298,7 @@ function useThreadMessageDerived(
 			thinkingStatusPart,
 			allThinkingStatusParts,
 			resolvedThinkingStatusLabel,
-			isThinkingStatusActive,
+			isThinkingStatusActive: effectiveIsThinkingStatusActive,
 			thinkingStatusReasoningPhase,
 			thinkingStatusDuration,
 			isPostToolsGenuiGeneration,
@@ -311,7 +327,7 @@ function useThreadMessageDerived(
 			messageText,
 			widgetType,
 			isWidgetLoading,
-			isThinkingStatusActive,
+			effectiveIsThinkingStatusActive,
 			thinkingStatusReasoningPhase,
 			thinkingStatusDuration,
 			isPostToolsGenuiGeneration,

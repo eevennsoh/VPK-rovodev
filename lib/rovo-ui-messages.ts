@@ -509,6 +509,23 @@ export function getThinkingToolCallSummaries(
 				: summary.errorText);
 	}
 
+	if (hasTurnCompleteSignal(message)) {
+		for (const summary of summaries) {
+			if (summary.state !== "running") {
+				continue;
+			}
+
+			summary.state = "completed";
+			if (summary.output !== undefined || summary.outputPreview || summary.errorText) {
+				continue;
+			}
+
+			const completionNote = "Tool finished without an explicit result event.";
+			summary.output = completionNote;
+			summary.outputPreview = completionNote;
+		}
+	}
+
 	return summaries;
 }
 

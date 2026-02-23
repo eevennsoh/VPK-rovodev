@@ -47,6 +47,11 @@ export const chatStyles = {
 		paddingRight: token("space.150"),
 		marginTop: "24px",
 	},
+	awaitingContainer: {
+		paddingLeft: token("space.150"),
+		paddingRight: token("space.150"),
+		marginTop: "24px",
+	},
 	emptyState: {
 		display: "flex",
 		flexDirection: "column" as const,

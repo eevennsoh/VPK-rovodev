@@ -302,7 +302,10 @@ export default function ChatPanel({
 									marginTop:
 										message.role === "assistant" &&
 										messageIndex > 0 &&
-										turn[messageIndex - 1]?.role === "user"
+										(
+											turn[messageIndex - 1]?.role === "user" ||
+											turn[messageIndex - 1]?.role === "assistant"
+										)
 											? "24px"
 											: "0",
 								};
@@ -346,7 +349,7 @@ export default function ChatPanel({
 						/>
 					) : null}
 					{shouldShowAwaitingUserResponse ? (
-						<div style={chatStyles.thinkingContainer}>
+						<div style={chatStyles.awaitingContainer}>
 							<Message from="assistant" className="max-w-full">
 								<Reasoning className="mb-0" isStreaming>
 									<AdsReasoningTrigger
