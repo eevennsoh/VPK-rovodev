@@ -373,16 +373,28 @@ export function ThreadMessageRoot({
 		);
 	}
 
-	const hasRenderableContent =
-		contextValue.shouldRenderMessageText ||
-		Boolean(contextValue.reasoning) ||
-		contextValue.isThinkingStatusActive ||
-		contextValue.hasToolFirstWarning ||
-		contextValue.toolParts.length > 0 ||
-		contextValue.sources.length > 0 ||
-		contextValue.suggestedQuestions.length > 0 ||
+	const hasRenderableReasoning =
+		Boolean(contextValue.reasoning) &&
+		!contextValue.isThinkingStatusActive;
+	const hasRenderableTools =
+		contextValue.toolParts.length > 0 &&
+		!contextValue.isThinkingStatusActive;
+	const hasRenderableSuggestions =
+		!contextValue.isStreaming &&
+		contextValue.suggestedQuestions.length > 0 &&
+		!contextValue.hasRenderedWidget;
+	const hasRenderableWidget =
 		Boolean(contextValue.loadingWidgetNode) ||
 		contextValue.hasRenderedWidget;
+	const hasRenderableContent =
+		contextValue.shouldRenderMessageText ||
+		hasRenderableReasoning ||
+		contextValue.isThinkingStatusActive ||
+		contextValue.hasToolFirstWarning ||
+		hasRenderableTools ||
+		contextValue.sources.length > 0 ||
+		hasRenderableSuggestions ||
+		hasRenderableWidget;
 
 	if (!hasRenderableContent) {
 		return null;

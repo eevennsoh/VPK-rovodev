@@ -32,6 +32,7 @@ function buildToolFirstQuestionCardPayload({
 	unsatisfiedHints,
 	domainLabels,
 	sessionId,
+	directive,
 } = {}) {
 	if (!Array.isArray(unsatisfiedHints) || unsatisfiedHints.length === 0) {
 		return null;
@@ -51,7 +52,7 @@ function buildToolFirstQuestionCardPayload({
 			label: hint.label || `Question ${index + 1}`,
 			description: hint.description || undefined,
 			required: true,
-			kind: "single-select",
+			kind: hint.kind || "single-select",
 			options,
 		};
 	});
@@ -66,6 +67,7 @@ function buildToolFirstQuestionCardPayload({
 			title: `Before I use ${domainList}...`,
 			description: "Answer these so I can execute the right action.",
 			questions,
+			directive: directive || undefined,
 		},
 		{
 			sessionId: sessionId || `tool-first-clarification-${Date.now()}`,

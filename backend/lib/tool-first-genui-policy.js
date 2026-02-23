@@ -386,52 +386,27 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 		requiredContextHints: [
 			{
 				id: "figma-file",
-				label: "Which Figma file should I look at?",
+				label: "Paste the Figma URL",
 				description:
-					"Share the Figma URL or file key. If you have a node id, include it too.",
+					"e.g. https://figma.com/design/abc123/My-File?node-id=1-2",
 				satisfiedPatterns: [
 					/\bhttps?:\/\/(?:www\.)?figma\.com\/(?:design|file|board|proto|make)\/[A-Za-z0-9]+/i,
 					/\bfigma\.com\/[^\s]+/i,
 					/\bfile\s*key\s*[:=]\s*[A-Za-z0-9_-]{6,}\b/i,
 					/\bnode[-\s]?id\s*[:=]\s*\d+[:\-]\d+\b/i,
 				],
-				suggestedOptions: [
-					{ id: "paste-url", label: "I'll paste the Figma URL" },
-					{ id: "file-key", label: "I only have the file key" },
-				],
-			},
-			{
-				id: "figma-goal",
-				label: "What should I do with this design?",
-				description:
-					"Pick the expected outcome so I can gather the right Figma context.",
-				satisfiedPatterns: [
-					/\bextract\s+(?:design\s+)?specs?\b/i,
-					/\bgenerate\s+(?:implementation\s+)?code\b/i,
-					/\b(?:review|check)\s+(?:layout|spacing|alignment)\b/i,
-					/\bextract\s+(?:design\s+)?tokens?\b/i,
-					/\bimplement\b[\s\S]{0,30}\bfigma\b/i,
-				],
-				suggestedOptions: [
-					{
-						id: "extract-specs",
-						label: "Extract design specs",
-					},
-					{
-						id: "generate-code",
-						label: "Generate implementation code",
-					},
-					{
-						id: "review-layout",
-						label: "Review layout and spacing",
-					},
-					{
-						id: "extract-tokens",
-						label: "Extract design tokens",
-					},
-				],
+				kind: "text",
+				placeholder: "https://figma.com/design/...",
 			},
 		],
+		postClarificationDirective: [
+			"Use the provided Figma URL to call all three Figma tools in parallel:",
+			"1. get_design_context — Generate React + Tailwind code from the design (pass nodeId, clientLanguages, clientFrameworks)",
+			"2. get_screenshot — Capture a visual screenshot of the Figma node (pass nodeId, clientLanguages, clientFrameworks)",
+			"3. get_metadata — Extract structural metadata (frame dimensions, positions, node IDs) (pass nodeId, clientLanguages, clientFrameworks)",
+			"",
+			"Present the combined results in a generative UI card.",
+		].join("\n"),
 	},
 	{
 		id: "workspace-file-ops",
@@ -1364,11 +1339,27 @@ function resolveUnsatisfiedContextHints({ prompt, domains } = {}) {
 	return unsatisfied;
 }
 
+function getPostClarificationDirective(domains) {
+	if (!Array.isArray(domains)) {
+		return null;
+	}
+
+	for (const domainId of domains) {
+		const domain = TOOL_FIRST_DOMAIN_MAP.get(domainId);
+		if (domain?.postClarificationDirective) {
+			return domain.postClarificationDirective;
+		}
+	}
+
+	return null;
+}
+
 module.exports = {
 	TOOL_FIRST_DOMAIN_CONFIG,
 	TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY,
 	resolveToolFirstPolicy,
 	resolveUnsatisfiedContextHints,
+	getPostClarificationDirective,
 	isToolNameRelevant,
 	createToolFirstExecutionState,
 	recordToolFirstAttempt,

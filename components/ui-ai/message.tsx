@@ -19,6 +19,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { resolveImageRenderSrc } from "@/lib/image-proxy";
 import { cn } from "@/lib/utils";
 import { cjk } from "@streamdown/cjk";
 import { code as baseCodePlugin } from "@streamdown/code";
@@ -445,7 +446,37 @@ function MarkdownParagraph({
 	);
 }
 
-const streamdownComponents = { p: MarkdownParagraph };
+type MarkdownImageProps = ComponentProps<"img"> & { node?: unknown };
+
+function MarkdownImage({
+	src,
+	alt,
+	className,
+	node,
+	...props
+}: Readonly<MarkdownImageProps>) {
+	void node;
+	const resolvedSrc = resolveImageRenderSrc(src);
+	if (!resolvedSrc) {
+		return null;
+	}
+
+	return (
+		<img
+			{...props}
+			src={resolvedSrc}
+			alt={typeof alt === "string" ? alt : ""}
+			loading={props.loading ?? "lazy"}
+			referrerPolicy={props.referrerPolicy ?? "no-referrer"}
+			className={cn("h-auto max-w-full rounded-md", className)}
+		/>
+	);
+}
+
+const streamdownComponents = {
+	p: MarkdownParagraph,
+	img: MarkdownImage,
+};
 
 export const MessageResponse = memo(
 	function MessageResponse({ className, ...props }: Readonly<MessageResponseProps>) {

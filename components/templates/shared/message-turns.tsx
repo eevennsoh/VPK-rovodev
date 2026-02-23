@@ -96,17 +96,28 @@ export function MessageTurns<MESSAGE extends ThreadMessage>({
 						style={getTurnContainerStyle?.(turn, turnIndex, turns)}
 						{...latestTurnProps}
 					>
-						{turn.map((message, messageIndex) => (
-							<div
-								key={`turn-${turnIndex}-message-${messageIndex}-${message.id}`}
-								className={cn(
-									getMessageContainerClassName?.(message, messageIndex, turn)
-								)}
-								style={getMessageContainerStyle?.(message, messageIndex, turn)}
-							>
-								{renderMessage(message, messageIndex, turn)}
-							</div>
-						))}
+						{turn.map((message, messageIndex) => {
+							const renderedMessage = renderMessage(message, messageIndex, turn);
+							if (
+								renderedMessage === null ||
+								renderedMessage === undefined ||
+								renderedMessage === false
+							) {
+								return null;
+							}
+
+							return (
+								<div
+									key={`turn-${turnIndex}-message-${messageIndex}-${message.id}`}
+									className={cn(
+										getMessageContainerClassName?.(message, messageIndex, turn)
+									)}
+									style={getMessageContainerStyle?.(message, messageIndex, turn)}
+								>
+									{renderedMessage}
+								</div>
+							);
+						})}
 					</div>
 				);
 			})}

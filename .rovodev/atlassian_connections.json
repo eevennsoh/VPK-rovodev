@@ -7,10 +7,6 @@
 		{
 			"siteUrl": "https://product-fabric.atlassian.net",
 			"cloudId": "11017b7e-9387-4edc-894d-506c2344c4e6"
-		},
-		{
-			"siteUrl": "https://venn-test.atlassian.net",
-			"cloudId": "2a105513-2d26-4124-8c5e-206465986e12"
 		}
 	]
 }

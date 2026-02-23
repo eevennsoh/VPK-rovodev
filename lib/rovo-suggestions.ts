@@ -35,10 +35,10 @@ const LAST_7_DAYS_NO_TWG_CONTEXT = [
 	"[End Tool Guardrail]",
 	"",
 	"[Tool Requirement]",
-	"Use exactly 2 tool calls for this request:",
-	"1. One `search_jira_using_jql` call for Jira issues assigned to or updated by the current user in the last 7 days.",
-	"2. One `search_confluence_using_cql` call using `contributor = currentUser()` to cover both created and edited pages in a single query.",
-	"Do not make additional tool calls beyond these two. Present results from both sources in your response.",
+	"Make these 2 tool calls for this request:",
+	'1. One `search_jira_using_jql` call with `site_url: "https://product-fabric.atlassian.net"` for Jira issues assigned to or updated by the current user in the last 7 days.',
+	'2. One `search_confluence_using_cql` call with `site_url: "https://hello.atlassian.net"` using `contributor = currentUser()` to cover both created and edited pages in a single query.',
+	"If a tool call fails, retry it once. Do not use any other tools. Present results from both sources in your response.",
 	"[End Tool Requirement]",
 ].join("\n");
 

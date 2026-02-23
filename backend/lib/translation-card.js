@@ -7,6 +7,17 @@ const TARGET_LANGUAGE_PATTERN =
 const QUOTED_TEXT_PATTERN = /["“”`]\s*([^"“”`]{1,400}?)\s*["“”`]/;
 const MAX_VARIANTS = 3;
 const MAX_LINE_LENGTH = 200;
+const TRANSLATION_CLARIFICATION_SESSION_PREFIX = "translation-clarification-";
+const TRANSLATION_CLARIFICATION_LEGACY_SESSION_ID = "translation-clarification";
+const SOURCE_TEXT_QUESTION_ID = "source-text";
+const TARGET_LANGUAGE_QUESTION_ID = "target-language";
+const PROJECT_ID_QUESTION_ID = "gcp-project";
+const DEFAULT_TRANSLATION_CLARIFICATION_TITLE = "Help me translate this";
+const DEFAULT_TRANSLATION_CLARIFICATION_DESCRIPTION =
+	"Answer these so I can translate accurately.";
+const DEFAULT_TRANSLATION_CLARIFICATION_MAX_ROUNDS = 2;
+const GOOGLE_TRANSLATE_REQUIRED_TOOL_NAME =
+	"google_gcp_atlassian_translate_translate_text";
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -17,8 +28,78 @@ function getNonEmptyString(value) {
 	return trimmedValue.length > 0 ? trimmedValue : null;
 }
 
+function createTranslationClarificationSessionId() {
+	return `${TRANSLATION_CLARIFICATION_SESSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function isTranslationClarificationSession(sessionId) {
+	const normalizedSessionId = getNonEmptyString(sessionId);
+	if (!normalizedSessionId) {
+		return false;
+	}
+
+	return (
+		normalizedSessionId === TRANSLATION_CLARIFICATION_LEGACY_SESSION_ID ||
+		normalizedSessionId.startsWith(TRANSLATION_CLARIFICATION_SESSION_PREFIX)
+	);
+}
+
 function normalizeWhitespace(value) {
 	return value.replace(/\s+/g, " ").trim();
+}
+
+function getFirstAnswerString(value) {
+	if (typeof value === "string") {
+		return getNonEmptyString(value);
+	}
+
+	if (!Array.isArray(value)) {
+		return null;
+	}
+
+	for (const item of value) {
+		const normalizedItem = getNonEmptyString(item);
+		if (normalizedItem) {
+			return normalizedItem;
+		}
+	}
+
+	return null;
+}
+
+function getClarificationAnswer(answers, keys) {
+	if (!answers || typeof answers !== "object" || !Array.isArray(keys)) {
+		return null;
+	}
+
+	for (const key of keys) {
+		const normalizedKey = getNonEmptyString(key);
+		if (!normalizedKey) {
+			continue;
+		}
+
+		const value = getFirstAnswerString(answers[normalizedKey]);
+		if (value) {
+			return value;
+		}
+	}
+
+	return null;
+}
+
+function sanitizeProjectId(value) {
+	const text = getNonEmptyString(value);
+	if (!text) {
+		return null;
+	}
+
+	const normalized = text.trim();
+	// Allow common GCP project id chars while avoiding whitespace-heavy values.
+	if (!/^[a-z][a-z0-9-]{4,62}$/.test(normalized)) {
+		return null;
+	}
+
+	return normalized;
 }
 
 function clipText(value, maxLength = MAX_LINE_LENGTH) {
@@ -151,16 +232,323 @@ function resolveTranslationRequestState(prompt) {
 	const request = detectDirectTranslationRequest(prompt);
 	const sourceText = getNonEmptyString(request.sourceText);
 	const targetLanguage = sanitizeLanguageCandidate(request.targetLanguage);
+	const project = null;
 	const needsSourceText = request.isTranslationRequest && !sourceText;
 	const needsTargetLanguage = request.isTranslationRequest && !targetLanguage;
+	const needsProject = request.isTranslationRequest && !project;
 
 	return {
 		...request,
 		sourceText,
 		targetLanguage,
+		project,
 		needsSourceText,
 		needsTargetLanguage,
-		needsClarification: needsSourceText || needsTargetLanguage,
+		needsProject,
+		needsClarification: needsSourceText || needsTargetLanguage || needsProject,
+	};
+}
+
+function resolveTranslationRequestFromClarification({
+	clarificationSubmission,
+	latestVisibleUserMessage,
+} = {}) {
+	const fallbackState = resolveTranslationRequestState(latestVisibleUserMessage);
+	const answers =
+		clarificationSubmission && typeof clarificationSubmission === "object"
+			? clarificationSubmission.answers
+			: null;
+	const submittedSourceText = getClarificationAnswer(answers, [
+		SOURCE_TEXT_QUESTION_ID,
+		"sourceText",
+		"text",
+		"What text should I translate?",
+	]);
+	const submittedTargetLanguage = getClarificationAnswer(answers, [
+		TARGET_LANGUAGE_QUESTION_ID,
+		"targetLanguage",
+		"language",
+		"What language should I translate it to?",
+	]);
+	const submittedProject = getClarificationAnswer(answers, [
+		PROJECT_ID_QUESTION_ID,
+		"project",
+		"gcpProject",
+		"GCP project ID",
+	]);
+	const sourceText = getNonEmptyString(submittedSourceText) || fallbackState.sourceText;
+	const targetLanguage =
+		sanitizeLanguageCandidate(submittedTargetLanguage) || fallbackState.targetLanguage;
+	const project = sanitizeProjectId(submittedProject) || fallbackState.project;
+	const isTranslationRequest =
+		Boolean(fallbackState.isTranslationRequest) ||
+		isTranslationClarificationSession(clarificationSubmission?.sessionId);
+	const needsSourceText = isTranslationRequest && !sourceText;
+	const needsTargetLanguage = isTranslationRequest && !targetLanguage;
+	const needsProject = isTranslationRequest && !project;
+
+	return {
+		...fallbackState,
+		isTranslationRequest,
+		sourceText,
+		targetLanguage,
+		project,
+		needsSourceText,
+		needsTargetLanguage,
+		needsProject,
+		needsClarification: needsSourceText || needsTargetLanguage || needsProject,
+	};
+}
+
+function buildTranslationClarificationPayload({
+	sourceText,
+	targetLanguage,
+	project,
+	sessionId,
+	round = 1,
+	maxRounds = DEFAULT_TRANSLATION_CLARIFICATION_MAX_ROUNDS,
+} = {}) {
+	const normalizedSourceText = getNonEmptyString(sourceText);
+	const normalizedTargetLanguage = sanitizeLanguageCandidate(targetLanguage);
+	const normalizedProject = sanitizeProjectId(project);
+	const questions = [];
+
+	if (!normalizedSourceText) {
+		questions.push({
+			id: SOURCE_TEXT_QUESTION_ID,
+			label: "What text should I translate?",
+			description: "Paste the exact source text.",
+			required: true,
+			kind: "text",
+			options: [],
+			placeholder: "Paste text to translate...",
+		});
+	}
+
+	if (!normalizedTargetLanguage) {
+		questions.push({
+			id: TARGET_LANGUAGE_QUESTION_ID,
+			label: "What language should I translate it to?",
+			description: "Example: Spanish, Japanese, Portuguese (Brazil).",
+			required: true,
+			kind: "single-select",
+			options: [
+				{
+					id: "spanish",
+					label: "Spanish",
+					description: "Español",
+				},
+				{
+					id: "french",
+					label: "French",
+					description: "Français",
+				},
+				{
+					id: "mandarin-chinese",
+					label: "Mandarin Chinese",
+					description: "中文 (Mandarin)",
+				},
+			],
+			placeholder: "Type target language...",
+		});
+	}
+
+	if (!normalizedProject) {
+		questions.push({
+			id: PROJECT_ID_QUESTION_ID,
+			label: "What is the GCP project ID?",
+			description:
+				"Required for Google Translate tool execution.",
+			required: true,
+			kind: "text",
+			options: [],
+			placeholder: "your-gcp-project-id",
+		});
+	}
+
+	if (questions.length === 0) {
+		return null;
+	}
+
+	return {
+		type: "question-card",
+		title: DEFAULT_TRANSLATION_CLARIFICATION_TITLE,
+		description: DEFAULT_TRANSLATION_CLARIFICATION_DESCRIPTION,
+		sessionId: isTranslationClarificationSession(sessionId)
+			? sessionId
+			: createTranslationClarificationSessionId(),
+		round:
+			typeof round === "number" && Number.isFinite(round) && round > 0
+				? Math.floor(round)
+				: 1,
+		maxRounds:
+			typeof maxRounds === "number" && Number.isFinite(maxRounds) && maxRounds > 0
+				? Math.floor(maxRounds)
+				: DEFAULT_TRANSLATION_CLARIFICATION_MAX_ROUNDS,
+		questions,
+	};
+}
+
+function createTranslationToolExecutionPrompt({
+	sourceText,
+	targetLanguage,
+	project,
+} = {}) {
+	const source = getNonEmptyString(sourceText);
+	const target = sanitizeLanguageCandidate(targetLanguage);
+	const projectValue = sanitizeProjectId(project);
+	if (!source || !target || !projectValue) {
+		return null;
+	}
+
+	return [
+		"You must execute translation via integration tool call.",
+		"Use `mcp__integrations__invoke_tool` and call exactly this tool name:",
+		`- ${GOOGLE_TRANSLATE_REQUIRED_TOOL_NAME}`,
+		"",
+		"Tool-call requirements:",
+		`- \`project\` is REQUIRED and must be set to ${JSON.stringify(projectValue)}.`,
+		"- `contents` must be the exact source text.",
+		"- Resolve the user language request into `targetLanguageCode` (ISO-639-1/BCP-47).",
+		"- `sourceLanguageCode` is optional; omit it unless confident.",
+		"- Wait for tool result before final response.",
+		"",
+		"Return ONLY strict JSON (no markdown):",
+		"{",
+		'  "sourceText": "string",',
+		'  "sourceLanguage": "string",',
+		'  "targetLanguage": "string",',
+		'  "variants": [',
+		'    { "label": "Natural", "text": "string" }',
+		"  ]",
+		"}",
+		"",
+		`Source text: ${JSON.stringify(source)}`,
+		`Target language requested by user: ${JSON.stringify(target)}`,
+	].join("\n");
+}
+
+function decodeBasicHtmlEntities(value) {
+	return value
+		.replace(/&amp;/g, "&")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'");
+}
+
+function parseJsonObjectLike(value) {
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		return value;
+	}
+
+	if (typeof value !== "string") {
+		return null;
+	}
+
+	return parseJsonFromText(value);
+}
+
+function findObjectContainingAnyKey(value, keys, depth = 0) {
+	if (depth > 8 || !value || typeof value !== "object") {
+		return null;
+	}
+
+	if (!Array.isArray(value)) {
+		for (const key of keys) {
+			if (Object.prototype.hasOwnProperty.call(value, key)) {
+				return value;
+			}
+		}
+	}
+
+	const children = Array.isArray(value)
+		? value
+		: Object.values(value);
+	for (const child of children) {
+		if (!child || typeof child !== "object") {
+			continue;
+		}
+		const match = findObjectContainingAnyKey(child, keys, depth + 1);
+		if (match) {
+			return match;
+		}
+	}
+
+	return null;
+}
+
+function getTranslationTextFromRecord(record) {
+	if (!record || typeof record !== "object") {
+		return null;
+	}
+
+	const candidates = [
+		record.translatedText,
+		record.translation,
+		record.translated_text,
+		record.text,
+		record.value,
+	];
+	for (const candidate of candidates) {
+		const normalizedCandidate = getNonEmptyString(candidate);
+		if (normalizedCandidate) {
+			return decodeBasicHtmlEntities(normalizedCandidate);
+		}
+	}
+
+	return null;
+}
+
+function parseTranslationToolResult(rawOutput, defaults = {}) {
+	const sourceText = getNonEmptyString(defaults.sourceText);
+	const targetLanguage = sanitizeLanguageCandidate(defaults.targetLanguage);
+	if (!sourceText || !targetLanguage) {
+		return null;
+	}
+
+	const parsedOutput = parseJsonObjectLike(rawOutput);
+	if (!parsedOutput) {
+		return null;
+	}
+
+	const translationRecord =
+		findObjectContainingAnyKey(parsedOutput, [
+			"translatedText",
+			"translation",
+			"translated_text",
+		]) ||
+		findObjectContainingAnyKey(parsedOutput, ["translations"]);
+	const translationList = Array.isArray(translationRecord?.translations)
+		? translationRecord.translations
+		: null;
+	const translationText =
+		getTranslationTextFromRecord(translationRecord) ||
+		(translationList && translationList.length > 0
+			? getTranslationTextFromRecord(translationList[0])
+			: null);
+	if (!translationText) {
+		return null;
+	}
+
+	const sourceLanguage =
+		getNonEmptyString(translationRecord?.detectedLanguageCode) ||
+		getNonEmptyString(translationRecord?.sourceLanguageCode) ||
+		getNonEmptyString(parsedOutput?.detectedLanguageCode) ||
+		getNonEmptyString(parsedOutput?.sourceLanguageCode) ||
+		undefined;
+
+	return {
+		sourceText: clipText(sourceText, 240),
+		sourceLanguage,
+		targetLanguage,
+		variants: [
+			{
+				id: "natural",
+				label: "Natural",
+				text: clipText(translationText, 280),
+			},
+		],
 	};
 }
 
@@ -425,9 +813,17 @@ function buildTranslationGenuiSpec(payload) {
 }
 
 module.exports = {
+	GOOGLE_TRANSLATE_REQUIRED_TOOL_NAME,
+	TRANSLATION_CLARIFICATION_SESSION_PREFIX,
 	detectDirectTranslationRequest,
 	resolveTranslationRequestState,
+	resolveTranslationRequestFromClarification,
+	createTranslationClarificationSessionId,
+	isTranslationClarificationSession,
+	buildTranslationClarificationPayload,
+	createTranslationToolExecutionPrompt,
 	createTranslationGenerationPrompt,
+	parseTranslationToolResult,
 	parseTranslationModelOutput,
 	resolvePronunciationLabel,
 	buildTranslationTextSummary,

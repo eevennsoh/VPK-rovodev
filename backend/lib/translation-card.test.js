@@ -2,8 +2,16 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+	GOOGLE_TRANSLATE_REQUIRED_TOOL_NAME,
+	TRANSLATION_CLARIFICATION_SESSION_PREFIX,
 	detectDirectTranslationRequest,
 	resolveTranslationRequestState,
+	resolveTranslationRequestFromClarification,
+	createTranslationClarificationSessionId,
+	isTranslationClarificationSession,
+	buildTranslationClarificationPayload,
+	createTranslationToolExecutionPrompt,
+	parseTranslationToolResult,
 	createTranslationGenerationPrompt,
 	parseTranslationModelOutput,
 	resolvePronunciationLabel,
@@ -21,6 +29,91 @@ test("detectDirectTranslationRequest parses quoted text and target language", ()
 	assert.equal(parsed.sourceText, "Let's do this together");
 	assert.equal(parsed.targetLanguage, "mandarin");
 	assert.equal(parsed.needsTargetLanguage, false);
+});
+
+test("createTranslationClarificationSessionId creates prefixed session id", () => {
+	const sessionId = createTranslationClarificationSessionId();
+	assert.equal(sessionId.startsWith(TRANSLATION_CLARIFICATION_SESSION_PREFIX), true);
+	assert.equal(isTranslationClarificationSession(sessionId), true);
+});
+
+test("buildTranslationClarificationPayload asks for only missing fields", () => {
+	const payload = buildTranslationClarificationPayload({
+		sourceText: "Hello team",
+		targetLanguage: "",
+		sessionId: "translation-clarification-abc",
+	});
+
+	assert.equal(payload.type, "question-card");
+	assert.equal(payload.questions.length, 2);
+	assert.equal(payload.questions[0].id, "target-language");
+	assert.equal(payload.questions[0].kind, "single-select");
+	assert.equal(payload.questions[0].options.length, 3);
+	assert.equal(payload.questions[1].id, "gcp-project");
+});
+
+test("resolveTranslationRequestFromClarification uses clarification answers", () => {
+	const resolved = resolveTranslationRequestFromClarification({
+		latestVisibleUserMessage: "Translate this text",
+			clarificationSubmission: {
+				sessionId: "translation-clarification-123",
+				answers: {
+					"source-text": "How are you?",
+					"target-language": "Spanish",
+					"gcp-project": "my-gcp-project",
+				},
+			},
+		});
+
+	assert.equal(resolved.isTranslationRequest, true);
+	assert.equal(resolved.sourceText, "How are you?");
+	assert.equal(resolved.targetLanguage, "Spanish");
+	assert.equal(resolved.project, "my-gcp-project");
+	assert.equal(resolved.needsClarification, false);
+});
+
+test("createTranslationToolExecutionPrompt requires google translate tool", () => {
+	const prompt = createTranslationToolExecutionPrompt({
+		sourceText: "Hello",
+		targetLanguage: "Spanish",
+		project: "my-gcp-project",
+	});
+
+	assert.match(prompt, new RegExp(GOOGLE_TRANSLATE_REQUIRED_TOOL_NAME, "i"));
+	assert.match(prompt, /mcp__integrations__invoke_tool/i);
+	assert.match(prompt, /project.*REQUIRED/i);
+	assert.match(prompt, /my-gcp-project/i);
+});
+
+test("createTranslationToolExecutionPrompt returns null without project", () => {
+	const prompt = createTranslationToolExecutionPrompt({
+		sourceText: "Hello",
+		targetLanguage: "Spanish",
+	});
+
+	assert.equal(prompt, null);
+});
+
+test("parseTranslationToolResult normalizes translatedText payload", () => {
+	const parsed = parseTranslationToolResult(
+		{
+			translations: [
+				{
+					translatedText: "Hola, &iquest;c&oacute;mo est&aacute;s?",
+					detectedLanguageCode: "en",
+				},
+			],
+		},
+		{
+			sourceText: "Hello, how are you?",
+			targetLanguage: "Spanish",
+		}
+	);
+
+	assert.equal(parsed.sourceText, "Hello, how are you?");
+	assert.equal(parsed.targetLanguage, "Spanish");
+	assert.equal(parsed.sourceLanguage, "en");
+	assert.equal(parsed.variants[0].text, "Hola, &iquest;c&oacute;mo est&aacute;s?");
 });
 
 test("detectDirectTranslationRequest flags missing target language", () => {
@@ -54,7 +147,7 @@ test("resolveTranslationRequestState flags missing source text when only target 
 	assert.equal(parsed.needsClarification, true);
 });
 
-test("resolveTranslationRequestState does not require clarification when source and target are present", () => {
+test("resolveTranslationRequestState still requires clarification when project is missing", () => {
 	const parsed = resolveTranslationRequestState('Translate "Hello team" to Spanish');
 
 	assert.equal(parsed.isTranslationRequest, true);
@@ -62,7 +155,8 @@ test("resolveTranslationRequestState does not require clarification when source 
 	assert.equal(parsed.targetLanguage, "Spanish");
 	assert.equal(parsed.needsSourceText, false);
 	assert.equal(parsed.needsTargetLanguage, false);
-	assert.equal(parsed.needsClarification, false);
+	assert.equal(parsed.needsProject, true);
+	assert.equal(parsed.needsClarification, true);
 });
 
 test("detectDirectTranslationRequest identifies explicit tooling preference", () => {

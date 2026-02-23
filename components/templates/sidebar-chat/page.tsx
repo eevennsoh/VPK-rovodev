@@ -284,7 +284,7 @@ export default function ChatPanel({
 				initial={false}
 				targetScrollTop={getLatestTurnTargetTop}
 			>
-				<ConversationContent className="gap-6 p-0" style={messagesContainerStyle}>
+				<ConversationContent className="gap-0 p-0" style={messagesContainerStyle}>
 					{messages.length === 0 ? (
 						<div style={chatStyles.emptyState}>
 							<ChatGreeting onSuggestionClick={handleGreetingSuggestionClick} />
@@ -295,6 +295,9 @@ export default function ChatPanel({
 							getTurnContainerStyle={(_turn, turnIndex) => ({
 								marginTop: turnIndex > 0 ? "24px" : "0",
 							})}
+							getMessageContainerClassName={(message) =>
+								message.role === "assistant" ? "[&:empty]:hidden" : undefined
+							}
 							getMessageContainerStyle={(message, messageIndex, turn) => {
 								return {
 									paddingLeft: message.role === "assistant" ? "12px" : "0",

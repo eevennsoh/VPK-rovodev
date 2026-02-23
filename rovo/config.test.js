@@ -7,14 +7,14 @@ test("buildUserMessage adds Jira/Confluence non-TWG guardrail for last-7-days wo
 	const message = buildUserMessage("Last 7 days of work", [], undefined);
 
 	assert.match(message, /do not call any Teamwork Graph tools/i);
-	assert.match(message, /exactly 2 tool calls/i);
+	assert.match(message, /Make these 2 tool calls/i);
 });
 
 test("buildUserMessage does not add last-7-days guardrail for unrelated prompts", () => {
 	const message = buildUserMessage("Draft Confluence page", [], undefined);
 
 	assert.doesNotMatch(message, /do not call any Teamwork Graph tools/i);
-	assert.doesNotMatch(message, /exactly 2 tool calls/i);
+	assert.doesNotMatch(message, /Make these 2 tool calls/i);
 });
 
 test("buildUserMessage avoids duplicating the guardrail when context already includes it", () => {
@@ -24,7 +24,7 @@ test("buildUserMessage avoids duplicating the guardrail when context already inc
 		"[End Tool Guardrail]",
 		"",
 		"[Tool Requirement]",
-		"Use exactly 2 tool calls for this request:",
+		"Make these 2 tool calls for this request:",
 		"[End Tool Requirement]",
 	].join("\n");
 

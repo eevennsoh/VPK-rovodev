@@ -40,6 +40,7 @@ export interface ParsedQuestionCardPayload {
 	maxRounds: number;
 	title: string;
 	description?: string;
+	directive?: string;
 	requiredCount: number;
 	questions: ParsedQuestionCardQuestion[];
 }
@@ -247,6 +248,7 @@ export function parseQuestionCardPayload(
 		maxRounds: getPositiveInteger(record.maxRounds) ?? DEFAULT_MAX_ROUNDS,
 		title: getNonEmptyString(record.title) ?? DEFAULT_TITLE,
 		description: getNonEmptyString(record.description) ?? undefined,
+		directive: getNonEmptyString(record.directive) ?? undefined,
 		requiredCount,
 		questions,
 	};
@@ -345,13 +347,17 @@ export function buildClarificationSummaryPrompt(
 		return `Please continue with a best-effort plan for "${questionCard.title}".`;
 	}
 
+	const defaultDirective = [
+		"Use these details to generate the final plan tasks now.",
+		"If you still need more information, ask follow-up questions using the request_user_input tool so they render as question cards.",
+		"Use the create-plan skill and return a plan widget with concrete tasks.",
+	].join("\n");
+
 	return [
 		`Here are my clarification answers for "${questionCard.title}":`,
 		...answerSummaryLines,
 		"",
-		"Use these details to generate the final plan tasks now.",
-		"If you still need more information, ask follow-up questions using the request_user_input tool so they render as question cards.",
-		"Use the create-plan skill and return a plan widget with concrete tasks.",
+		questionCard.directive || defaultDirective,
 	].join("\n");
 }
 

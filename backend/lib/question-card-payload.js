@@ -234,6 +234,10 @@ function sanitizeQuestionCardPayload(payload, defaults = {}) {
 			getNonEmptyString(record.description) ||
 			defaults.description ||
 			undefined,
+		directive:
+			getNonEmptyString(record.directive) ||
+			defaults.directive ||
+			undefined,
 		requiredCount: questions.filter((question) => question.required).length,
 		questions,
 	};

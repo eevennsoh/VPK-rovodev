@@ -146,7 +146,7 @@ describe("shouldGateToolFirstQuestionCard", () => {
 		assert.ok(hintIds.includes("time"));
 	});
 
-	it("should gate for generic figma design-context request with missing file and goal", () => {
+	it("should gate for generic figma design-context request with missing file", () => {
 		const prompt = "Get Figma design context";
 		const policy = resolveToolFirstPolicy({ prompt });
 		const result = shouldGateToolFirstQuestionCard({
@@ -158,28 +158,11 @@ describe("shouldGateToolFirstQuestionCard", () => {
 		assert.equal(result.shouldGate, true);
 		const hintIds = result.unsatisfiedHints.map((h) => h.id);
 		assert.ok(hintIds.includes("figma-file"));
-		assert.ok(hintIds.includes("figma-goal"));
 	});
 
-	it("should gate for figma prompt when file is present but goal is missing", () => {
+	it("should NOT gate for figma prompt when file is present", () => {
 		const prompt =
 			"Get Figma design context from https://figma.com/design/abc123/My-File?node-id=1-2";
-		const policy = resolveToolFirstPolicy({ prompt });
-		const result = shouldGateToolFirstQuestionCard({
-			prompt,
-			toolFirstPolicy: policy,
-			latestUserMessageSource: "user",
-			gateSkipSources: SKIP_SOURCES,
-		});
-		assert.equal(result.shouldGate, true);
-		const hintIds = result.unsatisfiedHints.map((h) => h.id);
-		assert.ok(!hintIds.includes("figma-file"), "figma-file should be satisfied");
-		assert.ok(hintIds.includes("figma-goal"), "figma-goal should be unsatisfied");
-	});
-
-	it("should NOT gate figma prompt when file and goal are both present", () => {
-		const prompt =
-			"Generate implementation code from https://figma.com/design/abc123/My-File?node-id=1-2";
 		const policy = resolveToolFirstPolicy({ prompt });
 		const result = shouldGateToolFirstQuestionCard({
 			prompt,

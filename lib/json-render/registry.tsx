@@ -61,6 +61,26 @@ function toSafeOptionalText(value: unknown): string | undefined {
 	return text.length > 0 ? text : undefined;
 }
 
+function toPositiveDimension(value: unknown, fallbackValue: number): number {
+	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+		return Math.round(value);
+	}
+
+	if (typeof value === "string") {
+		const trimmedValue = value.trim();
+		if (!trimmedValue) {
+			return fallbackValue;
+		}
+
+		const parsedValue = Number.parseFloat(trimmedValue);
+		if (Number.isFinite(parsedValue) && parsedValue > 0) {
+			return Math.round(parsedValue);
+		}
+	}
+
+	return fallbackValue;
+}
+
 const MERMAID_FENCE_BLOCK_REGEX = /```mermaid\b[\s\S]*?```/i;
 
 function isMermaidLanguage(value: unknown): boolean {
@@ -110,6 +130,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { resolveImageRenderSrc } from "@/lib/image-proxy";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import type { BundledLanguage } from "shiki";
@@ -600,7 +621,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 											? STATUS_CATEGORY_VARIANT[item.statusCategory] ?? "neutral"
 											: "neutral";
 										return (
-											<Card key={item.key || i} className={item.url ? "no-underline transition-colors hover:bg-surface-hovered" : undefined}>
+											<Card key={item.key ? `${item.key}-${i}` : i} className={item.url ? "no-underline transition-colors hover:bg-surface-hovered" : undefined}>
 												<CardContent className="flex flex-col gap-1.5">
 													<div className="flex items-start justify-between gap-2">
 														<div className="flex-1">
@@ -642,7 +663,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 							) : (
 								<div className="flex flex-col gap-2">
 									{confluencePages.map((page, i) => (
-										<Card key={page.title || i} className={page.url ? "no-underline transition-colors hover:bg-surface-hovered" : undefined}>
+										<Card key={page.title ? `${page.title}-${i}` : i} className={page.url ? "no-underline transition-colors hover:bg-surface-hovered" : undefined}>
 											<CardContent className="flex flex-col gap-1.5">
 												{page.url ? (
 													<a href={page.url} className="text-sm font-medium text-link hover:underline" target="_blank" rel="noopener noreferrer">
@@ -1076,7 +1097,21 @@ export const { registry, handlers } = defineRegistry(catalog, {
 
 		Image: ({ props }) => {
 			const { src, alt, width, height } = props;
-			return <NextImage src={src} alt={toSafeText(alt)} width={width} height={height} className="rounded-md" />;
+			const resolvedSrc = resolveImageRenderSrc(src);
+			if (!resolvedSrc) {
+				return null;
+			}
+
+			return (
+				<NextImage
+					src={resolvedSrc}
+					alt={toSafeText(alt)}
+					width={toPositiveDimension(width, 960)}
+					height={toPositiveDimension(height, 540)}
+					unoptimized
+					className="rounded-md"
+				/>
+			);
 		},
 
 		Comment: ({ props }) => {

@@ -231,6 +231,56 @@ function resolveDateValue(rawValue) {
 	]);
 }
 
+function formatTime(isoString) {
+	const resolved = resolveDateValue(isoString);
+	if (!resolved) {
+		return null;
+	}
+
+	const parsed = new Date(resolved);
+	if (Number.isNaN(parsed.getTime())) {
+		return resolved;
+	}
+
+	const hours = parsed.getHours();
+	const minutes = parsed.getMinutes();
+	const period = hours >= 12 ? "PM" : "AM";
+	const displayHours = hours % 12 || 12;
+	const displayMinutes = minutes === 0 ? "" : `:${String(minutes).padStart(2, "0")}`;
+	return `${displayHours}${displayMinutes} ${period}`;
+}
+
+function computeDuration(startValue, endValue) {
+	const startResolved = resolveDateValue(startValue);
+	const endResolved = resolveDateValue(endValue);
+	if (!startResolved || !endResolved) {
+		return null;
+	}
+
+	const startDate = new Date(startResolved);
+	const endDate = new Date(endResolved);
+	if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+		return null;
+	}
+
+	const diffMs = endDate.getTime() - startDate.getTime();
+	if (diffMs <= 0) {
+		return null;
+	}
+
+	const totalMinutes = Math.round(diffMs / 60000);
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+
+	if (hours > 0 && minutes > 0) {
+		return `${hours} hr ${minutes} min`;
+	}
+	if (hours > 0) {
+		return `${hours} hr`;
+	}
+	return `${minutes} min`;
+}
+
 function formatDateRange(startValue, endValue) {
 	const start = resolveDateValue(startValue);
 	const end = resolveDateValue(endValue);
@@ -252,10 +302,11 @@ function normalizeCalendarEvent(rawEvent) {
 	}
 
 	const rawTitle = firstString(rawEvent, ["summary", "title", "name"]);
-	const when = formatDateRange(
-		rawEvent.start ?? rawEvent.startTime ?? rawEvent.begin,
-		rawEvent.end ?? rawEvent.endTime ?? rawEvent.finish
-	);
+	const rawStart = rawEvent.start ?? rawEvent.startTime ?? rawEvent.begin;
+	const rawEnd = rawEvent.end ?? rawEvent.endTime ?? rawEvent.finish;
+	const when = formatDateRange(rawStart, rawEnd);
+	const startTime = formatTime(rawStart);
+	const duration = computeDuration(rawStart, rawEnd);
 	const location = firstString(rawEvent, ["location"]);
 	const status = firstString(rawEvent, ["status"]);
 	const link = firstString(rawEvent, [
@@ -275,6 +326,8 @@ function normalizeCalendarEvent(rawEvent) {
 		id,
 		title: rawTitle || "Untitled event",
 		when,
+		startTime,
+		duration,
 		location,
 		status,
 		link,
@@ -530,7 +583,7 @@ function toCalendarTimelineStatus(rawStatus) {
 	}
 
 	if (/\b(cancelled|canceled|done|completed)\b/.test(normalized)) {
-		return "completed";
+		return "past";
 	}
 	if (/\b(ongoing|in progress|active|tentative)\b/.test(normalized)) {
 		return "current";
@@ -539,22 +592,15 @@ function toCalendarTimelineStatus(rawStatus) {
 	return "upcoming";
 }
 
-function toCalendarTimelineItem(event) {
-	const detailSegments = [];
-	if (event.location) {
-		detailSegments.push(`Location: ${event.location}`);
-	}
-	if (event.status) {
-		detailSegments.push(`Status: ${event.status}`);
-	}
-	if (event.link) {
-		detailSegments.push(`Open: ${event.link}`);
-	}
+const CALENDAR_COLORS = ["blue", "green", "purple", "teal", "yellow", "red"];
 
+function toCalendarTimelineItem(event, index) {
 	return {
+		time: event.startTime ?? event.when ?? "",
 		title: event.title,
-		description: detailSegments.length > 0 ? detailSegments.join(" · ") : null,
-		date: event.when ?? null,
+		duration: event.duration ?? null,
+		location: event.location ?? null,
+		color: CALENDAR_COLORS[index % CALENDAR_COLORS.length],
 		status: toCalendarTimelineStatus(event.status),
 	};
 }
@@ -600,13 +646,13 @@ function buildCalendarSpec({ title, description, data }) {
 			true
 		);
 
-		const timelineItems = data.events.map(toCalendarTimelineItem);
+		const timelineEvents = data.events.map(toCalendarTimelineItem);
 		const timelineKey = "calendar-events-timeline";
 		cardChildren.push(timelineKey);
 		elements[timelineKey] = {
-			type: "Timeline",
+			type: "CalendarTimeline",
 			props: {
-				items: timelineItems,
+				events: timelineEvents,
 			},
 		};
 
