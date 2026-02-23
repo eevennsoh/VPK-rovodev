@@ -16,17 +16,13 @@ import { Message } from "@/components/ui-ai/message";
 import {
 	AdsReasoningTrigger,
 	Reasoning,
-	ReasoningContent,
-	ReasoningSection,
-	ReasoningText,
 } from "@/components/ui-ai/reasoning";
-import { AssistantThinkingToolsSection } from "./assistant-thinking-tools-section";
 import { PreloadThinkingIndicator } from "./preload-thinking-indicator";
+import { StreamingThinkingIndicator } from "./streaming-thinking-indicator";
 import { useStreamingIndicatorState } from "@/components/templates/shared/hooks/use-streaming-indicator";
 import {
 	getAwaitingUserResponseLabel,
 	getDefaultThinkingLabel,
-	getReasoningSectionTitle,
 } from "@/components/templates/shared/lib/reasoning-labels";
 import styles from "./chat-messages.module.css";
 
@@ -249,55 +245,19 @@ export function ChatMessages({
 					</div>
 				) : null}
 				{indicator.shouldShowThinkingStatus ? (
-					<div className="flex justify-start">
-						<Message from="assistant" className="max-w-full">
-							<Reasoning
-								key={indicator.reasoningKey}
-								className="mb-0"
-								autoExpandOnDetails
-								hasDetails={indicator.hasDetails}
-								isStreaming={indicator.reasoningPhaseProps.isStreaming}
-								streamingWave={indicator.reasoningPhaseProps.streamingWave}
-								streamingWaveGradientColor={indicator.reasoningPhaseProps.streamingWaveGradientColor}
-								animatedDots={indicator.reasoningPhaseProps.animatedDots}
-								duration={indicator.reasoningPhaseProps.duration}
-								defaultOpen={indicator.reasoningPhaseProps.defaultOpen ?? (indicator.shouldUseExpanded && indicator.hasDetails)}
-							>
-								<AdsReasoningTrigger
-									label={indicator.resolvedLabel}
-									showChevron={
-										indicator.shouldUseExpanded &&
-										indicator.hasDetails
-									}
-									streaming={indicator.reasoningPhaseProps.triggerStreaming}
-								/>
-								{indicator.shouldUseExpanded && indicator.hasDetails ? (
-									<ReasoningContent>
-										<div className="space-y-4">
-											{indicator.hasContent ? (
-												<ReasoningSection title={getReasoningSectionTitle("thinking")}>
-													<ReasoningText
-														maxVisibleTimelineItems={6}
-														text={indicator.trimmedContent}
-														timelineMode="auto"
-													/>
-												</ReasoningSection>
-											) : null}
-											{indicator.hasToolCalls ? (
-												<ReasoningSection title={getReasoningSectionTitle("tools")}>
-													<AssistantThinkingToolsSection
-														defaultOpenMode="running"
-														idPrefix={indicator.lastSourceMessageId ?? "stream"}
-														thinkingToolCalls={indicator.thinkingToolCalls}
-													/>
-												</ReasoningSection>
-											) : null}
-										</div>
-									</ReasoningContent>
-								) : null}
-							</Reasoning>
-						</Message>
-					</div>
+					<StreamingThinkingIndicator
+						reasoningKey={indicator.reasoningKey}
+						label={indicator.resolvedLabel}
+						hasDetails={indicator.shouldUseExpanded && indicator.hasDetails}
+						hasReasoningContent={indicator.hasContent}
+						trimmedReasoningContent={indicator.trimmedContent}
+						hasThinkingToolCalls={indicator.hasToolCalls}
+						thinkingToolCalls={indicator.thinkingToolCalls}
+						allowAutoCollapse={indicator.allowAutoCollapse}
+						lastMessageId={indicator.lastSourceMessageId}
+						containerClassName="flex justify-start"
+						phaseProps={indicator.reasoningPhaseProps}
+					/>
 				) : null}
 				{!indicator.shouldShowPreloader && !indicator.shouldShowThinkingStatus && showAwaitingIndicator ? (
 					<div className="flex justify-start">

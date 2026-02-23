@@ -11,6 +11,13 @@ interface ResolveThinkingStatusLifecycleStreamingOptions {
 	hasBackendThinkingActivity: boolean;
 }
 
+interface ResolvePostToolsGenuiGenerationOptions {
+	widgetType: string | undefined;
+	isWidgetLoading: boolean;
+	hasAnyToolCalls: boolean;
+	hasRunningToolCalls: boolean;
+}
+
 export function isThinkingStatusActive({
 	hasThinkingStatusPart,
 	hasThinkingEvents,
@@ -38,5 +45,19 @@ export function isThinkingStatusLifecycleStreaming({
 		isThinkingLifecycleStreaming &&
 		isThinkingStatusActive &&
 		hasBackendThinkingActivity
+	);
+}
+
+export function isPostToolsGenuiGeneration({
+	widgetType,
+	isWidgetLoading,
+	hasAnyToolCalls,
+	hasRunningToolCalls,
+}: Readonly<ResolvePostToolsGenuiGenerationOptions>): boolean {
+	return (
+		widgetType === "genui-preview" &&
+		isWidgetLoading &&
+		hasAnyToolCalls &&
+		!hasRunningToolCalls
 	);
 }

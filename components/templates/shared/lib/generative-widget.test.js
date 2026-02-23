@@ -137,6 +137,57 @@ test("createBodyOnlySpec normalizes translation heading and body typography", ()
 	assert.equal(result.elements["translated-text"].props.text, "我想吃冰淇淋");
 });
 
+test("createBodyOnlySpec normalizes usage notes spacing to md gap", () => {
+	const spec = {
+		root: "root",
+		elements: {
+			root: {
+				type: "Stack",
+				props: { direction: "vertical", gap: "lg" },
+				children: ["translation-card", "usage-notes-card"],
+			},
+			"translation-card": {
+				type: "Card",
+				props: {
+					title: "English → Mandarin Chinese",
+				},
+				children: ["translation-text"],
+			},
+			"translation-text": {
+				type: "Text",
+				props: {
+					content: "生日快乐",
+					muted: null,
+				},
+			},
+			"usage-notes-card": {
+				type: "Card",
+				props: {
+					title: "Usage Notes",
+				},
+				children: ["usage-notes-text"],
+			},
+			"usage-notes-text": {
+				type: "Text",
+				props: {
+					content: "This is the standard birthday greeting in Mandarin.",
+					muted: null,
+				},
+			},
+		},
+	};
+
+	const widget = {
+		type: "genui-preview",
+		spec,
+		source: null,
+	};
+
+	const result = createBodyOnlySpec(widget);
+
+	assert.equal(result.elements.root.props.gap, "md");
+});
+
 test("createBodyOnlySpec keeps meaningful separators between remaining sections", () => {
 	const spec = {
 		root: "root",

@@ -45,6 +45,8 @@ export interface GenerativeWidgetMetadata {
 	title: string;
 	description: string;
 	primaryActionLabel?: string;
+	source: ParsedGenerativeWidgetSource | null;
+	iconHintText?: string;
 }
 
 export interface GenerativeWidgetPrimaryActionPayload {
@@ -953,11 +955,24 @@ export function resolveGenerativeWidgetMetadata(
 		widget,
 		derivedGenuiPrimaryActionLabel
 	);
+	const iconHintText = [
+		widget.title,
+		widget.description,
+		widget.type === "genui-preview" ? widget.summary : undefined,
+		derivedGenuiTitle,
+		derivedGenuiDescription,
+		widget.source?.name,
+	]
+		.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+		.join(" ")
+		.trim();
 
 	return {
 		contentType,
 		title: resolveTitle(widget, contentType, derivedGenuiTitle),
 		description: resolveDescription(widget, derivedGenuiDescription),
+		source: widget.source,
+		...(iconHintText ? { iconHintText } : {}),
 		...(primaryActionLabel ? { primaryActionLabel } : {}),
 	};
 }
@@ -1078,6 +1093,7 @@ function findDescriptionSourceInSpec(widget: ParsedGenuiPreviewWidget): SpecText
 const REMOVABLE_HEADER_TYPES = new Set(["PageHeader", "Heading", "Text"]);
 const COLLAPSIBLE_EMPTY_CONTAINER_TYPES = new Set(["Stack"]);
 const TRANSLATED_HEADING_PATTERN = /^translated\s*\(/i;
+const USAGE_NOTES_CARD_TITLE_PATTERN = /^usage\s+notes\b/i;
 
 function getLiveChildKeys(
 	children: unknown[],
@@ -1245,6 +1261,56 @@ function normalizeTranslationTypography(
 				},
 			};
 		}
+	}
+
+	return normalizedElements;
+}
+
+function normalizeUsageNotesGap(
+	elements: Record<string, unknown>
+): Record<string, unknown> {
+	const normalizedElements: Record<string, unknown> = { ...elements };
+
+	for (const [key, element] of Object.entries(normalizedElements)) {
+		if (!isObjectRecord(element) || getNonEmptyString(element.type) !== "Stack") {
+			continue;
+		}
+
+		if (!Array.isArray(element.children)) {
+			continue;
+		}
+
+		const childKeys = element.children.filter(
+			(childKey): childKey is string =>
+				typeof childKey === "string" && childKey.trim().length > 0
+		);
+		if (childKeys.length < 2) {
+			continue;
+		}
+
+		const hasUsageNotesCard = childKeys.some((childKey) => {
+			const childElement = normalizedElements[childKey];
+			if (!isObjectRecord(childElement) || getNonEmptyString(childElement.type) !== "Card") {
+				return false;
+			}
+
+			const childProps = getElementProps(childElement);
+			const childTitle = childProps ? getNonEmptyString(childProps.title) : undefined;
+			return Boolean(
+				childTitle && USAGE_NOTES_CARD_TITLE_PATTERN.test(childTitle)
+			);
+		});
+		if (!hasUsageNotesCard) {
+			continue;
+		}
+
+		normalizedElements[key] = {
+			...element,
+			props: {
+				...(getElementProps(element) ?? {}),
+				gap: "md",
+			},
+		};
 	}
 
 	return normalizedElements;
@@ -1437,6 +1503,8 @@ export function createBodyOnlySpec(widget: ParsedGenuiPreviewWidget): Spec {
 
 	return {
 		...widget.spec,
-		elements: normalizeTranslationTypography(prunedElements),
+		elements: normalizeUsageNotesGap(
+			normalizeTranslationTypography(prunedElements)
+		),
 	} as Spec;
 }

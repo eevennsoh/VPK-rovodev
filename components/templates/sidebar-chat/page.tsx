@@ -143,7 +143,8 @@ export default function ChatPanel({
 	} = useChatSubmit({
 		defaultPromptOptions: resolvedSendPromptOptions,
 	});
-	const isRequestInFlight = isStreaming || isSubmitPending;
+	const isStreamingLifecycleActive = isStreaming || isSubmitPending;
+	const isRequestInFlight = hasInFlightTurn;
 
 	const messages = useMemo(
 		() => uiMessages.filter(isRenderableRovoUIMessage),
@@ -194,7 +195,6 @@ export default function ChatPanel({
 	const thinking = useThinkingStatus({
 		messages,
 		isRequestInFlight,
-		isSubmitPending,
 	});
 
 	useEffect(() => {
@@ -314,7 +314,7 @@ export default function ChatPanel({
 								<MessageBubble
 									message={message}
 									isThinkingLifecycleStreaming={
-										isRequestInFlight &&
+										isStreamingLifecycleActive &&
 										message.id === lastAssistantMessageId
 									}
 									onSuggestionClick={handleFollowUpSuggestionClick}
@@ -332,14 +332,14 @@ export default function ChatPanel({
 					) : null}
 					{thinking.shouldShowThinkingStatus ? (
 						<StreamingThinkingIndicator
-							isStreaming={isRequestInFlight}
-							streamingReasoningKey={thinking.streamingReasoningKey}
-							resolvedThinkingLabel={thinking.resolvedThinkingLabel}
-							hasThinkingDetails={thinking.hasThinkingDetails}
+							reasoningKey={thinking.streamingReasoningKey}
+							label={thinking.resolvedThinkingLabel}
+							hasDetails={thinking.hasThinkingDetails}
 							hasReasoningContent={thinking.hasReasoningContent}
 							trimmedReasoningContent={thinking.trimmedReasoningContent}
 							hasThinkingToolCalls={thinking.hasThinkingToolCalls}
 							thinkingToolCalls={thinking.thinkingToolCalls}
+							allowAutoCollapse={thinking.allowAutoCollapse}
 							lastMessageId={thinking.lastMessage?.id}
 							containerStyle={chatStyles.thinkingContainer}
 							phaseProps={thinking.reasoningPhaseProps}
@@ -383,7 +383,7 @@ export default function ChatPanel({
 				) : (
 					<ChatComposer
 						prompt={prompt}
-						isStreaming={isRequestInFlight}
+						isStreaming={isStreamingLifecycleActive}
 						hasInFlightTurn={hasInFlightTurn}
 						queuedPrompts={queuedPrompts}
 						onPromptChange={setPrompt}

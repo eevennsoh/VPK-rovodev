@@ -8,7 +8,7 @@ import type { GenerativeCardAnimationProps } from "@/components/templates/shared
 const PORT_COUNT = 3;
 
 const MULTIPORTS_GENERATIVE_CARD_ANIMATION: GenerativeCardAnimationProps = {
-	distortion: true,
+	distortion: false,
 	animateDuration: 2400,
 	animateDistortionScale: 50,
 	animateBlur: 12,

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Image from "next/image";
 import type { Spec } from "@json-render/react";
 import CrossIcon from "@atlaskit/icon/core/cross";
 import WarningIcon from "@atlaskit/icon/core/warning";
 import { cn } from "@/lib/utils";
+import { MessageResponse } from "@/components/ui-ai/message";
 import { Button } from "@/components/ui/button";
 import {
 	GenerativeCard,
@@ -31,6 +32,10 @@ import {
 	AudioPlayerTimeDisplay,
 	AudioPlayerTimeRange,
 } from "@/components/ui-ai/audio-player";
+import {
+	Transcription,
+	TranscriptionSegment,
+} from "@/components/ui-ai/transcription";
 import { JsonRenderView } from "@/lib/json-render/renderer";
 import { useProgressiveSpec } from "@/lib/json-render/use-progressive-spec";
 import type { DistortionTintMode } from "@/components/ui-ai/generative-card-bulge-canvas";
@@ -56,6 +61,8 @@ const DEFAULT_INNER_GLOW_THICKNESS = 12;
 const DEFAULT_INNER_GLOW_SOFTNESS = 10;
 const DEFAULT_INNER_GLOW_SATURATION = 170;
 const DEFAULT_INNER_GLOW_INTENSITY = 1;
+const SUMMARY_STREAM_INTERVAL_MS = 24;
+const SUMMARY_STREAM_STEP_CHARS = 18;
 
 const INNER_GLOW_KEYFRAMES = `
 @property --gen-widget-card-inner-angle {
@@ -132,6 +139,7 @@ interface GenerativeWidgetCardShellProps {
 
 interface GenuiBodyProps {
 	spec: Spec;
+	summary?: string;
 	previewMode: boolean;
 	withContainer?: boolean;
 	onStateChange?: (path: string, value: unknown) => void;
@@ -192,6 +200,45 @@ function useInnerGlowStyles(enabled: boolean) {
 			styleEl.textContent = INNER_GLOW_KEYFRAMES;
 		}
 	}, [enabled]);
+}
+
+function StreamingSummaryPreview({ summary }: Readonly<{ summary: string }>): ReactNode {
+	const [cursor, setCursor] = useState(0);
+
+	useEffect(() => {
+		if (!summary) return;
+
+		const intervalId = window.setInterval(() => {
+			setCursor((previousCursor) => {
+				const nextCursor = Math.min(
+					summary.length,
+					previousCursor + SUMMARY_STREAM_STEP_CHARS,
+				);
+
+				if (nextCursor >= summary.length) {
+					window.clearInterval(intervalId);
+				}
+
+				return nextCursor;
+			});
+		}, SUMMARY_STREAM_INTERVAL_MS);
+
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	}, [summary]);
+
+	const streamedSummary = summary.slice(0, cursor);
+	const isStreamingSummary = cursor < summary.length;
+
+	return (
+		<MessageResponse
+			className="[&_p]:m-0 text-sm leading-6 text-text"
+			isAnimating={isStreamingSummary}
+		>
+			{streamedSummary}
+		</MessageResponse>
+	);
 }
 
 interface GenerativeCardInnerGlowShellProps {
@@ -258,14 +305,40 @@ function GenerativeCardInnerGlowShell({
 /*  Widget body renderers                                                     */
 /* -------------------------------------------------------------------------- */
 
+function estimateTranscriptSegments(
+	text: string,
+	duration: number,
+): Array<{ text: string; startSecond: number; endSecond: number }> {
+	const words = text.split(/\s+/).filter(Boolean);
+	if (words.length === 0 || duration <= 0) return [];
+
+	const totalChars = words.reduce((sum, w) => sum + w.length, 0);
+	let cursor = 0;
+
+	return words.map((word) => {
+		const fraction = word.length / totalChars;
+		const wordDuration = fraction * duration;
+		const segment = {
+			text: word,
+			startSecond: cursor,
+			endSecond: cursor + wordDuration,
+		};
+		cursor += wordDuration;
+		return segment;
+	});
+}
+
 function GenuiBody({
 	spec,
+	summary,
 	previewMode,
 	withContainer = true,
 	onStateChange,
 	progressive = false,
 }: Readonly<GenuiBodyProps>): ReactNode {
 	const { progressiveSpec, isProgressing } = useProgressiveSpec(spec, progressive);
+	const summaryText = summary?.trim() ?? "";
+	const shouldStreamSummary = progressive && isProgressing && summaryText.length > 0;
 
 	const content = (
 		<JsonRenderView
@@ -275,11 +348,39 @@ function GenuiBody({
 		/>
 	);
 
+	const summaryNode = shouldStreamSummary ? (
+		<StreamingSummaryPreview
+			key={`${spec.root}:${summaryText}`}
+			summary={summaryText}
+		/>
+	) : null;
+
 	if (!withContainer) {
+		if (shouldStreamSummary) {
+			return previewMode ? (
+				<div className="max-h-[65vh] overflow-auto">{summaryNode}</div>
+			) : (
+				summaryNode
+			);
+		}
+
 		return previewMode ? (
 			<div className="max-h-[65vh] overflow-auto">{content}</div>
 		) : (
 			content
+		);
+	}
+
+	if (shouldStreamSummary) {
+		return (
+			<div
+				className={cn(
+					"rounded-md bg-surface p-3 sm:p-4",
+					previewMode && "max-h-[65vh] overflow-auto",
+				)}
+			>
+				{summaryNode}
+			</div>
 		);
 	}
 
@@ -305,6 +406,14 @@ function AudioBody({
 	withContainer: boolean;
 }>): ReactNode {
 	const [audioError, setAudioError] = useState(false);
+	const audioRef = useRef<HTMLAudioElement>(null);
+	const [duration, setDuration] = useState(0);
+	const [currentTime, setCurrentTime] = useState(0);
+
+	const segments = useMemo(
+		() => (transcript && duration > 0 ? estimateTranscriptSegments(transcript, duration) : []),
+		[transcript, duration],
+	);
 
 	if (audioError) {
 		return (
@@ -316,11 +425,22 @@ function AudioBody({
 
 	return (
 		<div className={withContainer ? "rounded-md bg-surface" : undefined}>
-			<AudioPlayer>
+			<AudioPlayer className="block w-full [&_media-control-bar]:w-full [&_[data-slot=button-group]]:w-full! [&_media-time-range]:flex-1">
 				<AudioPlayerElement
+					ref={audioRef}
 					preload="metadata"
 					src={audioUrl}
 					onError={() => setAudioError(true)}
+					onLoadedMetadata={() => {
+						if (audioRef.current) {
+							setDuration(audioRef.current.duration);
+						}
+					}}
+					onTimeUpdate={() => {
+						if (audioRef.current) {
+							setCurrentTime(audioRef.current.currentTime);
+						}
+					}}
 				/>
 				<AudioPlayerControlBar>
 					<AudioPlayerPlayButton />
@@ -329,7 +449,22 @@ function AudioBody({
 					<AudioPlayerDurationDisplay />
 				</AudioPlayerControlBar>
 			</AudioPlayer>
-			{transcript ? (
+			{segments.length > 0 ? (
+				<Transcription
+					segments={segments}
+					currentTime={currentTime}
+					onSeek={(time) => {
+						if (audioRef.current) {
+							audioRef.current.currentTime = time;
+						}
+					}}
+					className={withContainer ? "mt-2" : "mt-3"}
+				>
+					{(segment, index) => (
+						<TranscriptionSegment key={index} segment={segment} index={index} />
+					)}
+				</Transcription>
+			) : transcript ? (
 				<p className={cn("text-xs text-text-subtle", withContainer ? "mt-2" : "mt-3")}>
 					{transcript}
 				</p>
@@ -427,6 +562,7 @@ function renderWidgetBody(
 		return (
 			<GenuiBody
 				spec={widget.spec}
+				summary={widget.summary}
 				previewMode={previewMode}
 				withContainer={withContainer}
 				onStateChange={onStateChange}
@@ -501,7 +637,16 @@ function GenerativeWidgetCardShell({
 		>
 			<GenerativeCardHeader
 				className="p-4"
-				leading={<ContentTypeTile contentType={metadata.contentType} label={contentTypeLabel} />}
+				leading={
+					<ContentTypeTile
+						contentType={metadata.contentType}
+						label={contentTypeLabel}
+						title={metadata.title}
+						description={metadata.description}
+						sourceName={metadata.source?.name}
+						hintText={metadata.iconHintText}
+					/>
+				}
 				title={metadata.title}
 				description={metadata.description}
 			/>
@@ -639,7 +784,14 @@ export function GenerativeWidgetCard({
 				<DialogContent className="max-h-[90vh] overflow-hidden gap-0 p-0 sm:max-w-5xl" size="xl" showCloseButton={false}>
 					<DialogHeader className="mx-0 mt-0 flex-row items-center border-b p-4 sm:p-6">
 						<div className="flex min-w-0 flex-1 items-center gap-3">
-							<ContentTypeTile contentType={metadata.contentType} label={contentTypeLabel} />
+								<ContentTypeTile
+									contentType={metadata.contentType}
+									label={contentTypeLabel}
+									title={metadata.title}
+									description={metadata.description}
+									sourceName={metadata.source?.name}
+									hintText={metadata.iconHintText}
+								/>
 							<div className="min-w-0 flex-1 space-y-1">
 								<DialogTitle className="truncate">
 									{metadata.title}

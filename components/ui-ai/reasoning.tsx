@@ -36,6 +36,10 @@ import { AnimatedRovo } from "./animated-rovo";
 import { CodeBlock } from "./code-block";
 import { Shimmer } from "./shimmer";
 import { shouldAutoExpandReasoning } from "./reasoning-open-state";
+import {
+	shouldScheduleCompletionAutoCollapse,
+	shouldScheduleTimelineAutoCollapse,
+} from "./lib/reasoning-auto-collapse";
 
 interface ReasoningContextValue {
 	isStreaming: boolean;
@@ -74,6 +78,7 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
 	duration?: number;
 	autoExpandOnDetails?: boolean;
 	hasDetails?: boolean;
+	allowAutoCollapse?: boolean;
 	autoCollapseAtCount?: number;
 	collapseDelayMs?: number;
 	maxVisibleTimelineItems?: number;
@@ -184,6 +189,7 @@ export const Reasoning = memo(
 		duration: durationProp,
 		autoExpandOnDetails = false,
 		hasDetails = false,
+		allowAutoCollapse = true,
 		autoCollapseAtCount = DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS,
 		collapseDelayMs = AUTO_CLOSE_DELAY,
 		maxVisibleTimelineItems = DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS,
@@ -266,10 +272,16 @@ export const Reasoning = memo(
 		]);
 
 		useEffect(() => {
-			if (!isStreaming || !isOpen || hasAutoCollapsedAtCountRef.current) {
-				return;
-			}
-			if (timelineEntryCount < autoCollapseAtCount) {
+			if (
+				!shouldScheduleTimelineAutoCollapse({
+					allowAutoCollapse,
+					isStreaming,
+					isOpen,
+					hasAutoCollapsedAtCount: hasAutoCollapsedAtCountRef.current,
+					timelineEntryCount,
+					autoCollapseAtCount,
+				})
+			) {
 				return;
 			}
 
@@ -281,6 +293,7 @@ export const Reasoning = memo(
 
 			return () => clearTimeout(timer);
 		}, [
+			allowAutoCollapse,
 			autoCollapseAtCount,
 			collapseDelayMs,
 			isOpen,
@@ -291,10 +304,13 @@ export const Reasoning = memo(
 
 		useEffect(() => {
 			if (
-				!hasEverStreamedRef.current ||
-				isStreaming ||
-				!isOpen ||
-				hasAutoCollapsedOnCompletionRef.current
+				!shouldScheduleCompletionAutoCollapse({
+					allowAutoCollapse,
+					hasEverStreamed: hasEverStreamedRef.current,
+					isStreaming,
+					isOpen,
+					hasAutoCollapsedOnCompletion: hasAutoCollapsedOnCompletionRef.current,
+				})
 			) {
 				return;
 			}
@@ -305,7 +321,7 @@ export const Reasoning = memo(
 			}, collapseDelayMs);
 
 			return () => clearTimeout(timer);
-		}, [collapseDelayMs, isOpen, isStreaming, setIsOpen]);
+		}, [allowAutoCollapse, collapseDelayMs, isOpen, isStreaming, setIsOpen]);
 
 		const handleOpenChange = useCallback(
 			(newOpen: boolean) => {

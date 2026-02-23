@@ -33,10 +33,14 @@ import {
 } from "../lib/message-text-utils";
 import { shouldSuppressQuestionCardMessageText } from "./lib/question-card-text-visibility";
 import { resolveThinkingLabelForSurface } from "../lib/thinking-label-policy";
-import { getDefaultThinkingLabel } from "../lib/reasoning-labels";
+import {
+	getDefaultThinkingLabel,
+	REASONING_LABELS,
+} from "../lib/reasoning-labels";
 import { UserMessageBubble } from "../components/user-message-bubble";
 import { ThreadMessageContext, type ThreadMessageContextValue } from "./thread-message-context";
 import {
+	isPostToolsGenuiGeneration as resolvePostToolsGenuiGeneration,
 	isThinkingStatusActive as resolveThinkingStatusActive,
 	isThinkingStatusLifecycleStreaming as resolveThinkingStatusLifecycleStreaming,
 } from "./lib/thinking-status-state";
@@ -148,6 +152,16 @@ function useThreadMessageDerived(
 	const toolFirstWarning = getToolFirstWarning(message);
 	const toolParts = getMessageToolParts(message);
 	const thinkingToolCalls = getThinkingToolCallSummaries(message);
+	const hasAnyThinkingToolCalls = thinkingToolCalls.length > 0;
+	const hasRunningThinkingToolCalls = thinkingToolCalls.some(
+		(toolCall) => toolCall.state === "running"
+	);
+	const isPostToolsGenuiGeneration = resolvePostToolsGenuiGeneration({
+		widgetType,
+		isWidgetLoading,
+		hasAnyToolCalls: hasAnyThinkingToolCalls,
+		hasRunningToolCalls: hasRunningThinkingToolCalls,
+	});
 	const hasToolExecutionEvidence =
 		Boolean(thinkingStatusPart) ||
 		toolParts.length > 0 ||
@@ -195,12 +209,15 @@ function useThreadMessageDerived(
 	const thinkingStatusReasoningPhase: ReasoningPhase = (() => {
 		if (!isThinkingStatusActive) return "idle";
 		if (!hasBackendThinkingActivity) return isStreaming ? "preload" : "idle";
+		if (isPostToolsGenuiGeneration) return "thinking";
 		if (hasWidgetOutput) return "completed";
-		if (isWidgetLoading && widgetType === "genui-preview") return "completed";
 		return thinkingStatusLifecyclePhase;
 	})();
+	const baseThinkingStatusLabel = isPostToolsGenuiGeneration
+		? REASONING_LABELS.trigger.generatingResults
+		: dynamicThinkingStatusLabel;
 	const resolvedThinkingStatusLabel = resolveThinkingLabelForSurface({
-		baseLabel: dynamicThinkingStatusLabel,
+		baseLabel: baseThinkingStatusLabel,
 		surface,
 		reasoningPhase: thinkingStatusReasoningPhase,
 	});
@@ -268,6 +285,7 @@ function useThreadMessageDerived(
 			isThinkingStatusActive,
 			thinkingStatusReasoningPhase,
 			thinkingStatusDuration,
+			isPostToolsGenuiGeneration,
 			thinkingToolCallsForStatus,
 			sources,
 			toolParts,
@@ -296,6 +314,7 @@ function useThreadMessageDerived(
 			isThinkingStatusActive,
 			thinkingStatusReasoningPhase,
 			thinkingStatusDuration,
+			isPostToolsGenuiGeneration,
 			hasToolFirstWarning,
 			suggestedQuestions.length,
 			routeDecision?.reason,

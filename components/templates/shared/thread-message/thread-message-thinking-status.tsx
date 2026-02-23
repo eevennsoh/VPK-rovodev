@@ -8,6 +8,7 @@ import {
 	ReasoningSection,
 	ReasoningText,
 } from "@/components/ui-ai/reasoning";
+import { hasTurnCompleteSignal } from "@/lib/rovo-ui-messages";
 import { getReasoningPropsForPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
 import { getReasoningSectionTitle } from "@/components/templates/shared/lib/reasoning-labels";
 import { ThreadMessageContext } from "./thread-message-context";
@@ -21,6 +22,7 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 		isThinkingStatusActive,
 		thinkingStatusReasoningPhase,
 		thinkingStatusDuration,
+		isPostToolsGenuiGeneration,
 		allThinkingStatusParts,
 		resolvedThinkingStatusLabel,
 		toolParts,
@@ -40,6 +42,8 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 	const hasThinkingToolCalls = thinkingToolCallsForStatus.length > 0;
 	const hasTools = hasToolParts || hasThinkingToolCalls;
 	const hasDetails = hasThinkingText || hasTools;
+	const allowAutoCollapse =
+		hasTurnCompleteSignal(message) || isPostToolsGenuiGeneration;
 
 	const phaseProps = getReasoningPropsForPhase(
 		thinkingStatusReasoningPhase,
@@ -61,6 +65,7 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 				}
 				animatedDots={phaseProps.animatedDots}
 				duration={thinkingStatusReasoningPhase === "completed" ? thinkingStatusDuration : undefined}
+				allowAutoCollapse={allowAutoCollapse}
 			>
 				<AdsReasoningTrigger
 					label={resolvedThinkingStatusLabel}

@@ -37,7 +37,7 @@ function SkillListItem({
 	onClick?: () => void;
 }>) {
 	const IconComponent = suggestion.icon;
-	const iconColor = suggestion.id === "draft-confluence-page"
+	const iconColor = suggestion.id === "work-last-7-days" || suggestion.id === "draft-confluence-page"
 		? token("color.icon.accent.blue")
 		: token("color.icon.subtlest");
 

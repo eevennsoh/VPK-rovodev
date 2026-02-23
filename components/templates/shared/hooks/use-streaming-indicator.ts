@@ -4,6 +4,7 @@ import {
 	getAllDataParts,
 	getMessageText,
 	getThinkingToolCallSummaries,
+	hasTurnCompleteSignal,
 	type RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
 import { useDynamicThinkingLabel } from "@/components/templates/shared/hooks/use-dynamic-thinking-label";
@@ -40,6 +41,7 @@ export interface StreamingIndicatorState {
 	hasContent: boolean;
 	hasToolCalls: boolean;
 	hasDetails: boolean;
+	allowAutoCollapse: boolean;
 	thinkingToolCalls: ReturnType<typeof getThinkingToolCallSummaries>;
 	lastSourceMessageId?: string;
 	reasoningPhase: ReasoningPhase;
@@ -86,6 +88,8 @@ export function useStreamingIndicatorState(
 	const hasToolCalls = thinkingToolCalls.length > 0;
 	const hasBackendThinkingStarted =
 		hasThinkingStatus || thinkingEventParts.length > 0 || hasToolCalls;
+	const hasTurnComplete =
+		isAssistantSource ? hasTurnCompleteSignal(lastSource) : false;
 
 	const hasInlineThinkingStatus =
 		Boolean(isAssistantSource) && Boolean(isLastAssistantMessage) && hasThinkingStatus;
@@ -172,6 +176,7 @@ export function useStreamingIndicatorState(
 		hasContent,
 		hasToolCalls,
 		hasDetails,
+		allowAutoCollapse: hasTurnComplete,
 		thinkingToolCalls,
 		lastSourceMessageId: lastSource?.id,
 		reasoningPhase,

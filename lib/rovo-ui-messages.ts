@@ -297,6 +297,18 @@ export function getAllDataParts<KEY extends keyof RovoDataParts & string>(
 	return result;
 }
 
+export function hasTurnCompleteSignal(
+	message: Pick<RovoUIMessage, "parts">
+): boolean {
+	for (let index = message.parts.length - 1; index >= 0; index--) {
+		if (message.parts[index].type === "data-turn-complete") {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 export function getMessageText(
 	message: Pick<RovoUIMessage, "parts">
 ): string {

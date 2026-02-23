@@ -63,15 +63,15 @@ export const defaultSuggestions: RovoSuggestion[] = [
 		type: "skill",
 	},
 	{
-		id: "translate-text",
-		label: "Translate this text",
-		icon: TranslateIcon,
-		type: "skill",
-	},
-	{
 		id: "draft-confluence-page",
 		label: "Draft Confluence page",
 		icon: EditIcon,
+		type: "skill",
+	},
+	{
+		id: "translate-text",
+		label: "Translate this text",
+		icon: TranslateIcon,
 		type: "skill",
 	},
 	{

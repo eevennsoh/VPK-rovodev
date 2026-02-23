@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import AngleBracketsIcon from "@atlaskit/icon/core/angle-brackets";
 import AudioIcon from "@atlaskit/icon/core/audio";
 import BoardIcon from "@atlaskit/icon/core/board";
@@ -19,7 +20,103 @@ import VideoIcon from "@atlaskit/icon/core/video";
 import WorkItemIcon from "@atlaskit/icon/core/work-item";
 import GenerativeIndicatorIcon from "@atlaskit/icon-lab/core/generative-indicator";
 import { Tile } from "@/components/ui/tile";
+import { token } from "@/lib/tokens";
+import { defaultSuggestions, type RovoSuggestion } from "@/lib/rovo-suggestions";
 import type { GenerativeContentType } from "@/components/templates/shared/lib/generative-widget";
+
+const SUGGESTION_BY_ID: ReadonlyMap<string, RovoSuggestion> = new Map(
+	defaultSuggestions.map((suggestion) => [suggestion.id, suggestion])
+);
+
+const BLUE_ICON_SUGGESTION_IDS = new Set(["work-last-7-days", "draft-confluence-page"]);
+
+function getSuggestionById(id: string): RovoSuggestion | null {
+	return SUGGESTION_BY_ID.get(id) ?? null;
+}
+
+function resolveSuggestionIconColor(suggestionId: string): string {
+	return BLUE_ICON_SUGGESTION_IDS.has(suggestionId)
+		? token("color.icon.accent.blue")
+		: token("color.icon.subtlest");
+}
+
+function resolveGreetingSuggestion({
+	contentType,
+	title,
+	description,
+	sourceName,
+	hintText,
+}: Readonly<{
+	contentType: GenerativeContentType;
+	title?: string;
+	description?: string;
+	sourceName?: string;
+	hintText?: string;
+}>): RovoSuggestion | null {
+	const searchText = [title, description, sourceName, hintText]
+		.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+		.join(" ")
+		.toLowerCase();
+
+	if (/\bfigma\b/.test(searchText)) {
+		return getSuggestionById("figma-design-context");
+	}
+
+	if (/\bslack\b/.test(searchText)) {
+		return getSuggestionById("send-slack-message");
+	}
+
+	if (/\bgoogle\s+calendar\b|\bcalendar\s+events?\b/.test(searchText)) {
+		return getSuggestionById("list-google-calendar-events");
+	}
+
+	if (contentType === "translation" || /\btranslate|translation\b/.test(searchText)) {
+		return getSuggestionById("translate-text");
+	}
+
+	if (
+		contentType === "work-item" &&
+		/\bwork\s*summary\b|\blast\s*7\s*days?\b|\brecent\s+work\b/.test(searchText)
+	) {
+		return getSuggestionById("work-last-7-days");
+	}
+
+	if (
+		contentType === "page" &&
+		/\bconfluence\b|\bdraft\b/.test(searchText)
+	) {
+		return getSuggestionById("draft-confluence-page");
+	}
+
+	return null;
+}
+
+function renderGreetingSuggestionIcon(suggestion: RovoSuggestion): ReactNode {
+	if (suggestion.imageSrc) {
+		return (
+			<Image
+				src={suggestion.imageSrc}
+				alt={suggestion.label}
+				width={16}
+				height={16}
+				className="size-4 object-contain"
+			/>
+		);
+	}
+
+	const IconComponent = suggestion.icon;
+	if (!IconComponent) {
+		return null;
+	}
+
+	return (
+		<IconComponent
+			label={suggestion.label}
+			color={resolveSuggestionIconColor(suggestion.id)}
+			size="small"
+		/>
+	);
+}
 
 export function renderContentTypeIcon(contentType: GenerativeContentType): ReactNode {
 	switch (contentType) {
@@ -51,14 +148,34 @@ export function ContentTypeTile({
 	contentType,
 	label,
 	size = "medium",
+	title,
+	description,
+	sourceName,
+	hintText,
 }: Readonly<{
 	contentType: GenerativeContentType;
 	label: string;
 	size?: "medium" | "large";
+	title?: string;
+	description?: string;
+	sourceName?: string;
+	hintText?: string;
 }>): ReactNode {
+	const matchedGreetingSuggestion = resolveGreetingSuggestion({
+		contentType,
+		title,
+		description,
+		sourceName,
+		hintText,
+	});
+
+	const icon = matchedGreetingSuggestion
+		? renderGreetingSuggestionIcon(matchedGreetingSuggestion) ?? renderContentTypeIcon(contentType)
+		: renderContentTypeIcon(contentType);
+
 	return (
-		<Tile label={label} size={size} variant="transparent" hasBorder className="text-icon-subtle [&_span]:!size-4 [&_svg]:!size-4">
-			{renderContentTypeIcon(contentType)}
+		<Tile label={label} size={size} variant="transparent" hasBorder className="text-icon-subtle [&_img]:!size-4 [&_span]:!size-4 [&_svg]:!size-4">
+			{icon}
 		</Tile>
 	);
 }

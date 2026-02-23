@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
 	isThinkingStatusActive,
 	isThinkingStatusLifecycleStreaming,
+	isPostToolsGenuiGeneration,
 } = require("./thinking-status-state.ts");
 
 test("keeps thinking status active when thinking events exist without a status part", () => {
@@ -45,6 +46,42 @@ test("tracks thinking lifecycle streaming only while the active turn is in-fligh
 			isThinkingLifecycleStreaming: false,
 			isThinkingStatusActive: true,
 			hasBackendThinkingActivity: true,
+		}),
+		false
+	);
+});
+
+test("detects post-tools GenUI generation while waiting for widget data", () => {
+	assert.equal(
+		isPostToolsGenuiGeneration({
+			widgetType: "genui-preview",
+			isWidgetLoading: true,
+			hasAnyToolCalls: true,
+			hasRunningToolCalls: false,
+		}),
+		true
+	);
+});
+
+test("does not mark post-tools GenUI generation while tools are still running", () => {
+	assert.equal(
+		isPostToolsGenuiGeneration({
+			widgetType: "genui-preview",
+			isWidgetLoading: true,
+			hasAnyToolCalls: true,
+			hasRunningToolCalls: true,
+		}),
+		false
+	);
+});
+
+test("does not mark post-tools GenUI generation when no tool calls were observed", () => {
+	assert.equal(
+		isPostToolsGenuiGeneration({
+			widgetType: "genui-preview",
+			isWidgetLoading: true,
+			hasAnyToolCalls: false,
+			hasRunningToolCalls: false,
 		}),
 		false
 	);

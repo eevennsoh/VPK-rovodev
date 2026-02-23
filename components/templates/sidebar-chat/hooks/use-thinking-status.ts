@@ -3,6 +3,7 @@ import {
 	getAllDataParts,
 	getMessageText,
 	getThinkingToolCallSummaries,
+	hasTurnCompleteSignal,
 	type RovoRenderableUIMessage,
 } from "@/lib/rovo-ui-messages";
 import { useDynamicThinkingLabel } from "@/components/templates/shared/hooks/use-dynamic-thinking-label";
@@ -23,7 +24,6 @@ import {
 interface UseThinkingStatusOptions {
 	messages: RovoRenderableUIMessage[];
 	isRequestInFlight: boolean;
-	isSubmitPending: boolean;
 }
 
 interface ThinkingStatusResult {
@@ -39,6 +39,7 @@ interface ThinkingStatusResult {
 	thinkingToolCalls: ReturnType<typeof getThinkingToolCallSummaries>;
 	hasThinkingToolCalls: boolean;
 	hasThinkingDetails: boolean;
+	allowAutoCollapse: boolean;
 	streamingReasoningKey: string;
 	lastMessage: RovoRenderableUIMessage | undefined;
 	reasoningPhase: ReasoningPhase;
@@ -48,7 +49,6 @@ interface ThinkingStatusResult {
 export function useThinkingStatus({
 	messages,
 	isRequestInFlight,
-	isSubmitPending,
 }: Readonly<UseThinkingStatusOptions>): ThinkingStatusResult {
 	const hasMessages = messages.length > 0;
 	const lastMessage = messages[messages.length - 1];
@@ -65,16 +65,6 @@ export function useThinkingStatus({
 	const thinkingStatusPart =
 		thinkingStatusParts[thinkingStatusParts.length - 1] ?? null;
 	const hasAssistantThinkingStatus = thinkingStatusPart !== null;
-	const hasInlineThinkingStatus = isAssistantMessage && hasAssistantThinkingStatus;
-
-	const shouldShowThinking =
-		isRequestInFlight &&
-		!hasInlineThinkingStatus &&
-		(
-			(hasMessages &&
-				(lastMessage?.role === "user" || isAssistantAwaitingOutput)) ||
-			(isSubmitPending && !hasMessages)
-		);
 
 	const thinkingEventParts = isAssistantMessage
 		? getAllDataParts(lastMessage, "data-thinking-event")
@@ -89,7 +79,31 @@ export function useThinkingStatus({
 		hasAssistantThinkingStatus ||
 		thinkingEventParts.length > 0 ||
 		hasThinkingToolCalls;
-	const isThinkingStreaming = isRequestInFlight && hasBackendThinkingStarted;
+	const hasTurnComplete =
+		isAssistantMessage ? hasTurnCompleteSignal(lastMessage) : false;
+
+	// When the last message's turn is complete, its thinking-status is from
+	// a finished turn and should not suppress the external preloader for a
+	// new in-flight request (e.g. after a hidden clarification submit).
+	const hasInlineThinkingStatus =
+		isAssistantMessage && hasAssistantThinkingStatus && !hasTurnComplete;
+	const hasActiveThinkingSignals = hasBackendThinkingStarted && !hasTurnComplete;
+	const isThinkingStreaming = isRequestInFlight && hasActiveThinkingSignals;
+
+	// Detect the gap after a hidden message submit (e.g. clarification answer)
+	// where the request is in flight but no new assistant message has appeared
+	// yet. The last visible message is a completed assistant from the prior turn.
+	const isWaitingForNewTurn =
+		isAssistantMessage && hasTurnComplete;
+
+	const shouldShowThinking =
+		isRequestInFlight &&
+		!hasInlineThinkingStatus &&
+		(
+			(hasMessages &&
+				(lastMessage?.role === "user" || isAssistantAwaitingOutput || isWaitingForNewTurn)) ||
+			!hasMessages
+		);
 
 	const thinkingStatusUpdateSignal = useMemo(
 		() =>
@@ -137,7 +151,7 @@ export function useThinkingStatus({
 	const { phase: rawReasoningPhase, duration: reasoningDuration } =
 		useReasoningPhase({
 			isStreaming: isThinkingStreaming,
-			hasMessageText: hasBackendThinkingStarted,
+			hasMessageText: hasActiveThinkingSignals,
 			responseKey: streamingReasoningKey,
 			autoIdle: true,
 			minPreloadMs: 0,
@@ -151,7 +165,7 @@ export function useThinkingStatus({
 	const visibility = resolveThinkingIndicatorVisibility({
 		requestActive: shouldShowThinking,
 		hasThinkingStatusInline: hasInlineThinkingStatus,
-		hasBackendThinkingActivity: hasBackendThinkingStarted,
+		hasBackendThinkingActivity: hasActiveThinkingSignals,
 		reasoningPhase,
 	});
 
@@ -174,6 +188,7 @@ export function useThinkingStatus({
 		thinkingToolCalls,
 		hasThinkingToolCalls,
 		hasThinkingDetails,
+		allowAutoCollapse: hasTurnComplete,
 		streamingReasoningKey,
 		lastMessage,
 		reasoningPhase,
