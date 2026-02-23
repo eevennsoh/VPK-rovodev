@@ -136,15 +136,16 @@ export const catalog = defineCatalog(schema, {
 			description: "Section heading element",
 			example: { text: "Project Overview", level: "h2" },
 		},
-		Text: {
-			props: z.object({
-				content: z.string(),
-				muted: z.boolean().nullable(),
-			}),
-			slots: [],
-			description: "Text content paragraph. Use muted for secondary text.",
-			example: { content: "Here is your data overview.", muted: null },
-		},
+			Text: {
+				props: z.object({
+					content: z.string(),
+					muted: z.boolean().nullable(),
+					size: z.enum(["xs", "sm", "base"]).nullable(),
+				}),
+				slots: [],
+				description: "Text content paragraph. Use muted for secondary text.",
+				example: { content: "Here is your data overview.", muted: null, size: "sm" },
+			},
 
 		// ── Data Display ───────────────────────────────────
 		Badge: {

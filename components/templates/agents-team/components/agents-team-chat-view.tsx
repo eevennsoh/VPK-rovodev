@@ -296,7 +296,6 @@ export default function AgentsTeamChatView() {
 						isStreaming={isStreaming}
 						isSubmitPending={isSubmitPending}
 						streamingIndicatorVariant="reasoning-expanded"
-						thinkingLabel="Thinking"
 						showFeedbackActions={false}
 						showFollowUpSuggestions={!isAwaitingUserInput}
 						showAwaitingIndicator={isAwaitingUserInput || isWidgetLoading}

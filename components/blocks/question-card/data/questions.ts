@@ -7,7 +7,6 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "participation-model",
 		label: "How should teams participate?",
-		header: "Participation",
 		kind: "single-select",
 		options: [
 			{
@@ -30,7 +29,6 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "communication-plan",
 		label: "How should rollout communication happen?",
-		header: "Communication",
 		kind: "multi-select",
 		options: [
 			{
@@ -53,7 +51,6 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "success-metric",
 		label: "Which success signal should we prioritize first?",
-		header: "Metrics",
 		kind: "single-select",
 		options: [
 			{
@@ -97,6 +94,15 @@ export const QUESTION_CARD_SINGLE_SELECT_DEMO: ReadonlyArray<QuestionCardDemoQue
 				description: "Incrementally replace instances with the new version.",
 			},
 		],
+	},
+];
+
+export const QUESTION_CARD_TEXT_ONLY_DEMO: ReadonlyArray<QuestionCardDemoQuestion> = [
+	{
+		id: "custom-instructions",
+		label: "What would you like Rovo to do?",
+		kind: "text",
+		options: [],
 	},
 ];
 

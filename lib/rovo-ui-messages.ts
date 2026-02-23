@@ -205,6 +205,8 @@ export interface RovoMessageMetadata {
 		| "plan-approval-submit"
 		| "agent-directive"
 		| "agent-team-plan-retry";
+	/** Short label shown in the user bubble instead of the full prompt text */
+	displayLabel?: string;
 }
 
 export type RovoUIMessage = UIMessage<RovoMessageMetadata, RovoDataParts>;

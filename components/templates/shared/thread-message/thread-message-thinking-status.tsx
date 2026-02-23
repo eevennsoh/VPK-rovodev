@@ -9,6 +9,7 @@ import {
 	ReasoningText,
 } from "@/components/ui-ai/reasoning";
 import { getReasoningPropsForPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
+import { getReasoningSectionTitle } from "@/components/templates/shared/lib/reasoning-labels";
 import { ThreadMessageContext } from "./thread-message-context";
 import { AssistantThinkingToolsSection } from "../components/assistant-thinking-tools-section";
 import { AssistantToolsSection } from "../components/assistant-tools-section";
@@ -19,6 +20,7 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 		reasoning,
 		isThinkingStatusActive,
 		thinkingStatusReasoningPhase,
+		thinkingStatusDuration,
 		allThinkingStatusParts,
 		resolvedThinkingStatusLabel,
 		toolParts,
@@ -49,6 +51,8 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 		<div className={reasoning ? "pt-2" : undefined}>
 			<Reasoning
 				className="mb-0"
+				autoExpandOnDetails
+				hasDetails={hasDetails}
 				defaultOpen={phaseProps.defaultOpen ?? hasDetails}
 				isStreaming={phaseProps.isStreaming}
 				streamingWave={phaseProps.streamingWave}
@@ -56,6 +60,7 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 					phaseProps.streamingWaveGradientColor
 				}
 				animatedDots={phaseProps.animatedDots}
+				duration={thinkingStatusReasoningPhase === "completed" ? thinkingStatusDuration : undefined}
 			>
 				<AdsReasoningTrigger
 					label={resolvedThinkingStatusLabel}
@@ -66,7 +71,7 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 					<ReasoningContent>
 						<div className="space-y-4">
 							{hasThinkingText ? (
-								<ReasoningSection title="Thinking">
+								<ReasoningSection title={getReasoningSectionTitle("thinking")}>
 									<ReasoningText
 										maxVisibleTimelineItems={6}
 										text={accumulatedContent}
@@ -74,8 +79,9 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 									/>
 								</ReasoningSection>
 							) : null}
+
 							{hasTools ? (
-								<ReasoningSection title="Tools">
+								<ReasoningSection title={getReasoningSectionTitle("tools")}>
 									{hasToolParts ? (
 										<div className="-mx-6">
 											<AssistantToolsSection

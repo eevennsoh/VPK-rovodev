@@ -3,6 +3,9 @@ import type { GenerativeContentType } from "@/components/templates/shared/lib/ge
 export const GENERATIVE_CONTENT_TYPE_SUGGESTIONS: ReadonlyArray<GenerativeContentType> = [
 	"image",
 	"text",
+	"translation",
+	"message",
+	"calendar",
 	"chart-bar",
 	"chart-line",
 	"chart-area",
@@ -26,6 +29,18 @@ export function formatContentTypeLabel(contentType: GenerativeContentType): stri
 
 	if (contentType === "text") {
 		return "Text";
+	}
+
+	if (contentType === "translation") {
+		return "Translation";
+	}
+
+	if (contentType === "message") {
+		return "Message";
+	}
+
+	if (contentType === "calendar") {
+		return "Calendar";
 	}
 
 	if (contentType === "chart-bar") {

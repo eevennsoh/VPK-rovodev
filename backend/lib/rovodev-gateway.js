@@ -586,14 +586,14 @@ function getThinkingLabelForActivity(activity, phase) {
 		return "Generated UI";
 	}
 	if (activity === "data") {
-		if (phase === "start") return "Gathering information";
+		if (phase === "start") return "Thinking";
 		if (phase === "error") return "Information retrieval failed";
-		return "Gathered information";
+		return "Thinking";
 	}
 
-	if (phase === "start") return "Generating results";
+	if (phase === "start") return "Thinking";
 	if (phase === "error") return "Result generation failed";
-	return "Generated results";
+	return "Thinking";
 }
 
 function isGenericIntegrationWrapperToolName(toolName) {

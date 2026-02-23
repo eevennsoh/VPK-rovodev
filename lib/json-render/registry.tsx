@@ -99,7 +99,7 @@ import { Slider as SliderPrimitive } from "@/components/ui/slider";
 import { Toggle as TogglePrimitive } from "@/components/ui/toggle";
 import { ToggleGroup as ToggleGroupPrimitive, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Avatar as AvatarRoot, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Lozenge } from "@/components/ui/lozenge";
+import { Lozenge, type LozengeProps } from "@/components/ui/lozenge";
 import { Tag as TagPrimitive, TagGroup } from "@/components/ui/tag";
 import { Spinner } from "@/components/ui/spinner";
 import { CodeBlock as AiCodeBlock } from "@/components/ui-ai/code-block";
@@ -212,6 +212,16 @@ const GAP_CLASSES: Record<string, string> = {
 	lg: "gap-6",
 };
 
+const LOZENGE_VARIANT_ALIASES: Record<string, LozengeProps["variant"]> = {
+	default: "neutral",
+	rounded: "neutral",
+	removed: "danger",
+	inprogress: "information",
+	new: "discovery",
+	moved: "warning",
+	info: "information",
+};
+
 // ── Grid column class mapping ─────────────────────────────────
 const GRID_COL_CLASSES: Record<string, string> = {
 	"1": "grid-cols-1",
@@ -245,14 +255,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		// ── Layout ──────────────────────────────────────
 		Stack: ({ props, children }) => {
 			const { direction = "vertical", gap = "md", align, justify, padding, className } = props;
-			const childCount = Children.count(children);
-			const shouldCollapseHorizontalLayout = direction === "horizontal" && childCount > 2;
-			const directionClass =
-				direction === "horizontal"
-					? shouldCollapseHorizontalLayout
-						? "flex-col @[560px]/stack:flex-row"
-						: "flex-row"
-					: "flex-col";
+			const directionClass = direction === "horizontal" ? "flex-row flex-wrap" : "flex-col";
 			return (
 				<div className="@container/stack">
 					<div
@@ -283,6 +286,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const title = toSafeOptionalText(props.title);
 			const description = toSafeOptionalText(props.description);
 			const href = toSafeOptionalText(props.href);
+			const childCount = Children.count(children);
 			const card = (
 				<Card className={cn(href && "no-underline transition-colors hover:bg-surface-hovered", className ?? undefined)}>
 					{title || description ? (
@@ -291,7 +295,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 							{description ? <CardDescription>{description}</CardDescription> : null}
 						</CardHeader>
 					) : null}
-					<CardContent>{children}</CardContent>
+					<CardContent>{childCount > 1 ? <div className="flex flex-col gap-2">{children}</div> : children}</CardContent>
 				</Card>
 			);
 			if (href) {
@@ -328,11 +332,21 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			return <Tag className={cn(sizes[normalizedLevel], "text-text", className)}>{text}</Tag>;
 		},
 
-		Text: ({ props }) => {
-			const { muted } = props;
-			const content = toSafeText(props.content);
-			return <p className={cn("text-sm", muted ? "text-text-subtlest" : "text-text-subtle")}>{content}</p>;
-		},
+			Text: ({ props }) => {
+				const { muted, size = "sm" } = props;
+				const content = toSafeText(props.content);
+				const sizeClass =
+					size === "xs"
+						? "text-xs"
+						: size === "base"
+							? "text-base"
+							: "text-sm";
+				return (
+					<p className={cn(sizeClass, muted ? "text-text-subtlest" : "text-text-subtle")}>
+						{content}
+					</p>
+				);
+			},
 
 		// ── Data Display ───────────────────────────────
 		Badge: ({ props }) => {
@@ -369,17 +383,19 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const detail = toSafeOptionalText(props.detail);
 			const trendColor = trend === "up" ? token("color.icon.success") : trend === "down" ? token("color.icon.danger") : undefined;
 			return (
-				<div className="rounded-lg border border-border bg-surface p-4">
-					<p className="text-xs text-text-subtlest">{label}</p>
-					<div className="mt-1 flex items-center gap-2">
-						<p className="text-2xl font-semibold text-text">{value}</p>
-						{trend === "up" ? <ChartTrendUpIcon label="" size="small" color={trendColor} /> : null}
-						{trend === "down" ? <ChartTrendDownIcon label="" size="small" color={trendColor} /> : null}
-					</div>
-					{detail ? (
-						<p className={cn("mt-1 text-xs", trend === "up" && "text-text-success", trend === "down" && "text-text-danger", (!trend || trend === "neutral") && "text-text-subtle")}>{detail}</p>
-					) : null}
-				</div>
+				<Card>
+					<CardContent className="flex flex-col gap-1">
+						<p className="text-xs text-text-subtlest">{label}</p>
+						<div className="flex items-center gap-2">
+							<p className="text-2xl font-semibold text-text">{value}</p>
+							{trend === "up" ? <ChartTrendUpIcon label="" size="small" color={trendColor} /> : null}
+							{trend === "down" ? <ChartTrendDownIcon label="" size="small" color={trendColor} /> : null}
+						</div>
+						{detail ? (
+							<p className={cn("text-xs", trend === "up" && "text-text-success", trend === "down" && "text-text-danger", (!trend || trend === "neutral") && "text-text-subtle")}>{detail}</p>
+						) : null}
+					</CardContent>
+				</Card>
 			);
 		},
 
@@ -536,7 +552,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const { tabs, defaultValue } = props;
 			return (
 				<Tabs defaultValue={toSafeOptionalText(defaultValue) || toSafeOptionalText(tabs[0]?.value)}>
-					<TabsList>
+					<TabsList className="w-full overflow-x-auto">
 						{tabs.map((tab: { value: string; label: string }) => (
 							<TabsTrigger key={toSafeText(tab.value)} value={toSafeText(tab.value)}>
 								{toSafeText(tab.label)}
@@ -721,7 +737,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 
 		// ── Data Display (extended) ───────────────────
 		Avatar: ({ props }) => {
-			const { src, fallback, size = "default", shape = "circle" } = props;
+			const { src, fallback, size = "default" } = props;
 			const safeFallback = toSafeText(fallback);
 			const initials =
 				safeFallback
@@ -731,21 +747,23 @@ export const { registry, handlers } = defineRegistry(catalog, {
 					.map((w) => w[0]?.toUpperCase())
 					.join("") || "?";
 			return (
-				<AvatarRoot size={size} shape={shape}>
+				<AvatarRoot size={size} shape="circle">
 					{src ? <AvatarImage src={src} alt={safeFallback} /> : null}
 					<AvatarFallback>{initials}</AvatarFallback>
 				</AvatarRoot>
 			);
 		},
 
-		Lozenge: ({ props }) => {
-			const { text, variant = "neutral", isBold = false } = props;
-			return (
-				<Lozenge variant={variant} isBold={isBold}>
-					{toSafeText(text)}
-				</Lozenge>
-			);
-		},
+			Lozenge: ({ props }) => {
+				const { text, variant = "neutral", isBold = false } = props;
+				const variantKey = typeof variant === "string" ? variant.toLowerCase() : "neutral";
+				const normalizedVariant = LOZENGE_VARIANT_ALIASES[variantKey] ?? (variant as LozengeProps["variant"]) ?? "neutral";
+				return (
+					<Lozenge variant={normalizedVariant} isBold={isBold}>
+						{toSafeText(text)}
+					</Lozenge>
+				);
+			},
 
 		Tag: ({ props }) => {
 			const { text, variant = "default", color } = props;

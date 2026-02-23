@@ -55,7 +55,7 @@ export function Message({ className, from, ...props }: Readonly<MessageProps>) {
 			className={cn(
 				"group flex w-full max-w-[80%] flex-col gap-2",
 				from === "user"
-					? "is-user ml-auto items-end justify-end"
+					? "is-user ml-auto items-end justify-end pr-3"
 					: "is-assistant",
 				className,
 			)}

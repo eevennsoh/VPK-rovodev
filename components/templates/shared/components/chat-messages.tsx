@@ -9,11 +9,10 @@ import { MessageTurns } from "@/components/templates/shared/message-turns";
 import { ThreadMessage } from "@/components/templates/shared/thread-message";
 import {
 	isRenderableRovoUIMessage,
-	getMessageText,
 	type RovoUIMessage,
 	type RovoRenderableUIMessage,
 } from "@/lib/rovo-ui-messages";
-import { Message, MessageContent } from "@/components/ui-ai/message";
+import { Message } from "@/components/ui-ai/message";
 import {
 	AdsReasoningTrigger,
 	Reasoning,
@@ -22,7 +21,13 @@ import {
 	ReasoningText,
 } from "@/components/ui-ai/reasoning";
 import { AssistantThinkingToolsSection } from "./assistant-thinking-tools-section";
+import { PreloadThinkingIndicator } from "./preload-thinking-indicator";
 import { useStreamingIndicatorState } from "@/components/templates/shared/hooks/use-streaming-indicator";
+import {
+	getAwaitingUserResponseLabel,
+	getDefaultThinkingLabel,
+	getReasoningSectionTitle,
+} from "@/components/templates/shared/lib/reasoning-labels";
 import styles from "./chat-messages.module.css";
 
 export interface ChatMessagesProps {
@@ -37,6 +42,7 @@ export interface ChatMessagesProps {
 	isStreaming?: boolean;
 	isSubmitPending?: boolean;
 	messageMode?: "plan" | "ask";
+	/** @deprecated Use centralized reasoning labels unless a surface-specific override is required. */
 	thinkingLabel?: string;
 	reasoningContent?: string;
 	streamingIndicatorVariant?: "thinking" | "reasoning-expanded";
@@ -116,12 +122,12 @@ export function ChatMessages({
 	isStreaming = false,
 	isSubmitPending = false,
 	messageMode = "plan",
-	thinkingLabel = "Rovo is cooking",
+	thinkingLabel = getDefaultThinkingLabel(),
 	reasoningContent,
 	streamingIndicatorVariant = "thinking",
 	streamingIndicatorMessages,
 	showAwaitingIndicator = false,
-	awaitingIndicatorLabel = "Waiting for your response",
+	awaitingIndicatorLabel = getAwaitingUserResponseLabel(),
 	showFeedbackActions,
 	showFollowUpSuggestions,
 	showWidgetSections: showWidgetSectionsProp,
@@ -161,6 +167,7 @@ export function ChatMessages({
 			computeLatestTurnScrollTop(defaultTargetTop, scrollElement, scrollSpacerRef),
 		[scrollSpacerRef]
 	);
+	const isRequestInFlight = isStreaming || isSubmitPending;
 
 	return (
 		<Conversation
@@ -185,18 +192,12 @@ export function ChatMessages({
 							marginTop: turnIndex > 0 ? "24px" : "0",
 						})}
 						getMessageContainerStyle={(message, messageIndex, turn) => {
-							const isEmptyAssistantPlaceholder =
-								message.role === "assistant" &&
-								indicator.shouldShow &&
-								getMessageText(message) === "";
-
 							return {
 								display: "flex",
 								justifyContent: message.role === "user" ? "flex-end" : "flex-start",
 								paddingLeft: message.role === "user" ? "24px" : "0",
 								marginTop:
 									message.role === "assistant" &&
-									!isEmptyAssistantPlaceholder &&
 									messageIndex > 0 &&
 									turn[messageIndex - 1]?.role === "user"
 										? "24px"
@@ -213,6 +214,9 @@ export function ChatMessages({
 								<ThreadMessage.Root
 									message={message}
 									surface="fullscreen"
+									isThinkingLifecycleStreaming={
+										isRequestInFlight && message.id === lastAssistantMessageId
+									}
 									assistantStreamingRenderMode={assistantStreamingRenderMode}
 									onDeleteMessage={onDeleteMessage}
 									renderWidget={shouldShowWidgetSections ? renderWidget : undefined}
@@ -239,12 +243,19 @@ export function ChatMessages({
 						}}
 					/>
 				)}
-				{indicator.shouldShow ? (
+				{indicator.shouldShowPreloader ? (
+					<div className="flex justify-start">
+						<PreloadThinkingIndicator />
+					</div>
+				) : null}
+				{indicator.shouldShowThinkingStatus ? (
 					<div className="flex justify-start">
 						<Message from="assistant" className="max-w-full">
 							<Reasoning
 								key={indicator.reasoningKey}
 								className="mb-0"
+								autoExpandOnDetails
+								hasDetails={indicator.hasDetails}
 								isStreaming={indicator.reasoningPhaseProps.isStreaming}
 								streamingWave={indicator.reasoningPhaseProps.streamingWave}
 								streamingWaveGradientColor={indicator.reasoningPhaseProps.streamingWaveGradientColor}
@@ -264,7 +275,7 @@ export function ChatMessages({
 									<ReasoningContent>
 										<div className="space-y-4">
 											{indicator.hasContent ? (
-												<ReasoningSection title="Thinking">
+												<ReasoningSection title={getReasoningSectionTitle("thinking")}>
 													<ReasoningText
 														maxVisibleTimelineItems={6}
 														text={indicator.trimmedContent}
@@ -273,7 +284,7 @@ export function ChatMessages({
 												</ReasoningSection>
 											) : null}
 											{indicator.hasToolCalls ? (
-												<ReasoningSection title="Tools">
+												<ReasoningSection title={getReasoningSectionTitle("tools")}>
 													<AssistantThinkingToolsSection
 														defaultOpenMode="running"
 														idPrefix={indicator.lastSourceMessageId ?? "stream"}
@@ -288,14 +299,12 @@ export function ChatMessages({
 						</Message>
 					</div>
 				) : null}
-				{!indicator.shouldShow && showAwaitingIndicator ? (
+				{!indicator.shouldShowPreloader && !indicator.shouldShowThinkingStatus && showAwaitingIndicator ? (
 					<div className="flex justify-start">
 						<Message from="assistant" className="max-w-full">
-							<MessageContent className="px-6">
-								<Reasoning className="mb-0" isStreaming>
-									<AdsReasoningTrigger label={awaitingIndicatorLabel} showChevron={false} />
-								</Reasoning>
-							</MessageContent>
+							<Reasoning className="mb-0" isStreaming>
+								<AdsReasoningTrigger label={awaitingIndicatorLabel} showChevron={false} streaming />
+							</Reasoning>
 						</Message>
 					</div>
 				) : null}

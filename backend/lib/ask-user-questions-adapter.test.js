@@ -97,7 +97,6 @@ test("converts standard QuestionsInput format with questions and options", () =>
 		questions: [
 			{
 				question: "What type of task are you working on?",
-				header: "Task Type",
 				options: [
 					{ label: "Bug Fix", description: "Fix an existing issue" },
 					{ label: "New Feature", description: "Implement new functionality" },
@@ -112,7 +111,6 @@ test("converts standard QuestionsInput format with questions and options", () =>
 	assert.equal(result.length, 1);
 	assert.equal(result[0].id, "q-1");
 	assert.equal(result[0].label, "What type of task are you working on?");
-	assert.equal(result[0].header, "Task Type");
 	assert.equal(result[0].kind, "single-select");
 	assert.equal(result[0].options.length, 3);
 	assert.equal(result[0].options[0].label, "Bug Fix");
@@ -124,14 +122,12 @@ test("converts multiple questions", () => {
 		questions: [
 			{
 				question: "What type of task?",
-				header: "Type",
 				options: [
 					{ label: "Bug Fix", description: "Fix a bug" },
 				],
 			},
 			{
 				question: "What priority?",
-				header: "Priority",
 				options: [
 					{ label: "High", description: "Urgent" },
 					{ label: "Low", description: "Can wait" },

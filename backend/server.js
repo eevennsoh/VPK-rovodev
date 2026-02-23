@@ -29,14 +29,12 @@ const {
 const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
 const { getGenuiSystemPrompt } = require("./lib/genui-system-prompt");
 const { analyzeGeneratedText, pickBestSpec } = require("./lib/genui-spec-utils");
-const { buildFallbackGenuiSpecFromText } = require("./lib/genui-fallback-spec");
-const {
-	detectDirectTranslationRequest,
-	createTranslationGenerationPrompt,
-	parseTranslationModelOutput,
-	buildTranslationTextSummary,
-	buildTranslationGenuiSpec,
-} = require("./lib/translation-card");
+const { buildFallbackGenuiSpecFromText, buildMinimalTextCardSpec } = require("./lib/genui-fallback-spec");
+const { buildToolObservationFallback } = require("./lib/genui-tool-observation-fallback");
+const { buildToolObservationStructuredFallback } = require("./lib/genui-tool-observation-structured-fallback");
+const { buildGoogleStructuredFallback } = require("./lib/genui-google-tool-fallback");
+const { assessToolFirstGenuiQuality } = require("./lib/tool-first-genui-quality");
+const { looksLikeInabilityResponse } = require("./lib/inability-response-detector");
 const { classifySmartGenerationIntent, preClassifyMediaIntent } = require("./lib/smart-generation-intent");
 const {
 	buildSmartGenerationGatewayOptions,
@@ -57,6 +55,9 @@ const {
 	shouldSuppressToolFirstIntentStatus,
 	stripToolFirstFailureNarrative,
 } = require("./lib/tool-first-genui-policy");
+const {
+	resolveToolFirstWidgetContentType,
+} = require("./lib/tool-first-widget-content-type");
 const { resolveToolFirstRoutingFlags } = require("./lib/tool-first-routing-flags");
 const {
 	buildClassifierPrompt: buildSmartClarificationClassifierPrompt,
@@ -94,6 +95,10 @@ const {
 	resolveSmartAudioVoiceInput,
 } = require("./lib/smart-audio-routing");
 const {
+	isAudioContextClarificationSession,
+	resolveAudioContextVoiceInputFromClarification,
+} = require("./lib/audio-context-resolution");
+const {
 	resolveSpeechPayloadFromAudioRequest,
 } = require("./lib/audio-input-extractor");
 const {
@@ -118,6 +123,11 @@ const {
 	sanitizeQuestionCardPayload,
 	buildQuestionCardPayloadFromRequestUserInput,
 } = require("./lib/question-card-payload");
+const {
+	shouldGateToolFirstQuestionCard,
+	buildToolFirstQuestionCardPayload,
+	buildToolFirstClarificationInstruction,
+} = require("./lib/tool-first-question-gate");
 const {
 	MAX_INLINE_ASSISTANT_JSON_CHARS,
 	ASSISTANT_JSON_SUPPRESSION_TEXT,
@@ -357,6 +367,9 @@ const PLANNING_GATE_SKIP_SOURCES = new Set([
 	"clarification-submit",
 	"plan-approval-submit",
 	"agent-team-plan-retry",
+]);
+const TOOL_FIRST_GATE_SKIP_SOURCES = new Set([
+	"clarification-submit",
 ]);
 const PLANNING_GATE_INTRO_TEXT =
 	"Before I draft the plan, answer these quick questions.";
@@ -1008,11 +1021,24 @@ async function generateSmartGenuiResult({
 	const { meta, body } = parseGenuiMetaAndBody(rawText);
 	const analysis = analyzeGeneratedText(body);
 	const bestSpec = pickBestSpec(analysis);
+	const qualityAssessment = assessToolFirstGenuiQuality({
+		analysis,
+		spec: bestSpec,
+	});
 	return {
 		rawText,
 		meta,
 		spec: bestSpec,
 		narrative: stripSpecBlocks(body),
+		quality: qualityAssessment.quality,
+		analysisSummary: {
+			synthesizedChildCount: qualityAssessment.synthesizedChildCount,
+			missingChildKeyCount: qualityAssessment.missingChildKeyCount,
+			usedSynthesizedSpec: qualityAssessment.usedSynthesizedSpec,
+			hasRecoveredPlaceholderSection:
+				qualityAssessment.hasRecoveredPlaceholderSection,
+			reasons: qualityAssessment.reasons,
+		},
 	};
 }
 
@@ -1303,6 +1329,93 @@ function getPositiveInteger(value) {
 	}
 
 	return null;
+}
+
+const TOOL_OBSERVATION_RAW_MAX_DEPTH = 5;
+const TOOL_OBSERVATION_RAW_MAX_ARRAY_ITEMS = 40;
+const TOOL_OBSERVATION_RAW_MAX_OBJECT_KEYS = 60;
+const TOOL_OBSERVATION_RAW_MAX_STRING_CHARS = 4000;
+
+function truncateObservationString(value) {
+	if (typeof value !== "string") {
+		return value;
+	}
+
+	if (value.length <= TOOL_OBSERVATION_RAW_MAX_STRING_CHARS) {
+		return value;
+	}
+
+	return `${value.slice(0, TOOL_OBSERVATION_RAW_MAX_STRING_CHARS - 1)}…`;
+}
+
+function isPlainObject(value) {
+	return Object.prototype.toString.call(value) === "[object Object]";
+}
+
+function toBoundedToolObservationRawOutput(value, depth = 0, seen = new WeakSet()) {
+	if (value === null || value === undefined) {
+		return value;
+	}
+
+	if (typeof value === "string") {
+		return truncateObservationString(value);
+	}
+
+	if (typeof value === "number" || typeof value === "boolean") {
+		return value;
+	}
+
+	if (typeof value !== "object") {
+		return truncateObservationString(String(value));
+	}
+
+	if (seen.has(value)) {
+		return "[Circular]";
+	}
+
+	if (depth >= TOOL_OBSERVATION_RAW_MAX_DEPTH) {
+		if (Array.isArray(value)) {
+			return `[Array(${value.length})]`;
+		}
+		return "[Object]";
+	}
+
+	seen.add(value);
+	try {
+		if (Array.isArray(value)) {
+			const boundedArray = value
+				.slice(0, TOOL_OBSERVATION_RAW_MAX_ARRAY_ITEMS)
+				.map((entry) =>
+					toBoundedToolObservationRawOutput(entry, depth + 1, seen)
+				);
+			if (value.length > TOOL_OBSERVATION_RAW_MAX_ARRAY_ITEMS) {
+				boundedArray.push(
+					`[+${value.length - TOOL_OBSERVATION_RAW_MAX_ARRAY_ITEMS} more items]`
+				);
+			}
+			return boundedArray;
+		}
+
+		if (isPlainObject(value)) {
+			const entries = Object.entries(value);
+			const boundedObject = {};
+			for (const [key, nestedValue] of entries.slice(0, TOOL_OBSERVATION_RAW_MAX_OBJECT_KEYS)) {
+				boundedObject[key] = toBoundedToolObservationRawOutput(
+					nestedValue,
+					depth + 1,
+					seen
+				);
+			}
+			if (entries.length > TOOL_OBSERVATION_RAW_MAX_OBJECT_KEYS) {
+				boundedObject.__truncated__ = `+${entries.length - TOOL_OBSERVATION_RAW_MAX_OBJECT_KEYS} more keys`;
+			}
+			return boundedObject;
+		}
+
+		return truncateObservationString(String(value));
+	} finally {
+		seen.delete(value);
+	}
 }
 
 function safeJsonParse(rawValue) {
@@ -2408,53 +2521,6 @@ function streamQuestionCardWidget({ res, payload, introText }) {
 	});
 }
 
-function buildTranslationTargetQuestionCardPayload() {
-	return sanitizeQuestionCardPayload(
-		{
-			type: CLARIFICATION_WIDGET_TYPE,
-			title: "Which language should I translate to?",
-			description: "Pick a target language or type your own.",
-			questions: [
-				{
-					id: "target-language",
-					header: "Target language",
-					label: "What target language do you want?",
-					description: "Choose one option or type a custom language.",
-					required: true,
-					kind: "single-select",
-					options: [
-						{
-							id: "mandarin-chinese",
-							label: "Mandarin Chinese",
-							description: "Simplified Chinese with pinyin",
-							recommended: true,
-						},
-						{
-							id: "spanish",
-							label: "Spanish",
-							description: "Neutral modern Spanish",
-						},
-						{
-							id: "french",
-							label: "French",
-							description: "Standard French",
-						},
-					],
-					placeholder: CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER,
-				},
-			],
-		},
-		{
-			widgetType: CLARIFICATION_WIDGET_TYPE,
-			maxRounds: 1,
-			maxPresetOptions: CLARIFICATION_MAX_PRESET_OPTIONS,
-			customOptionPlaceholder: CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER,
-			maxLabelLength: CLARIFICATION_MAX_LABEL_LENGTH,
-			createSessionId: createClarificationSessionId,
-		}
-	);
-}
-
 async function generateSuggestedQuestions({
 	message,
 	conversationHistory,
@@ -2675,216 +2741,184 @@ app.post("/api/chat-sdk", async (req, res) => {
 			return res.status(400).json({ error: "A user message is required" });
 		}
 
-		const translationRequest = detectDirectTranslationRequest(latestUserMessage);
 		if (
-			translationRequest.isTranslationRequest &&
-			!translationRequest.explicitToolingPreference
+			clarificationSubmission &&
+			isAudioContextClarificationSession(clarificationSubmission.sessionId)
 		) {
-			if (translationRequest.needsTargetLanguage) {
-				const translationQuestionCardPayload =
-					buildTranslationTargetQuestionCardPayload();
-				if (translationQuestionCardPayload) {
+			const latestVisiblePromptText =
+				getNonEmptyString(latestVisibleUserMessage?.text) || latestUserMessage;
+			const clarifiedAudioSelection = resolveAudioContextVoiceInputFromClarification({
+				clarificationSubmission,
+				messages,
+				latestVisibleUserMessage: latestVisiblePromptText,
+				maxChars: SMART_VOICE_INPUT_MAX_CHARS,
+			});
+
+			if (!clarifiedAudioSelection.voiceInput) {
+				const unresolvedAudioSelection = resolveSmartAudioVoiceInput({
+					intent: "audio",
+					latestUserMessage: latestVisiblePromptText,
+					latestVisibleUserMessage: latestVisiblePromptText,
+					messages,
+					generatedNarrative: null,
+					maxChars: SMART_VOICE_INPUT_MAX_CHARS,
+				});
+				if (
+					unresolvedAudioSelection.needsClarification &&
+					unresolvedAudioSelection.clarificationPayload
+				) {
 					streamQuestionCardWidget({
 						res,
-						payload: translationQuestionCardPayload,
-						introText:
-							"I can translate that right away. Choose the target language first.",
+						payload: unresolvedAudioSelection.clarificationPayload,
+						introText: "I still need one quick choice before generating audio.",
 					});
 					return;
 				}
-			}
 
-			const sourceText = getNonEmptyString(translationRequest.sourceText);
-			const targetLanguage = getNonEmptyString(
-				translationRequest.targetLanguage
-			);
-			if (sourceText && targetLanguage) {
-				console.info("[OUTPUT-ROUTING] Translation bypass detected", {
-					sourceTextLength: sourceText.length,
-					targetLanguage,
-				});
 				const stream = createUIMessageStream({
 					execute: async ({ writer }) => {
-						const translationWidgetId = `widget-translation-${Date.now()}`;
-						const textId = `text-translation-${Date.now()}`;
-						let textStarted = false;
-
-						const emitTextDelta = (delta) => {
-							if (typeof delta !== "string" || delta.length === 0) {
-								return;
-							}
-							if (!textStarted) {
-								writer.write({ type: "text-start", id: textId });
-								textStarted = true;
-							}
-							writer.write({ type: "text-delta", id: textId, delta });
-						};
-
+						const textId = `audio-clarification-unresolved-${Date.now()}`;
+						writer.write({ type: "text-start", id: textId });
 						writer.write({
-							type: "data-thinking-status",
-							data: {
-								label: "Translating text",
-								activity: "results",
-								source: "backend",
-							},
+							type: "text-delta",
+							id: textId,
+							delta:
+								"I couldn't determine which text to read aloud. Please paste the exact script.",
 						});
+						writer.write({ type: "text-end", id: textId });
 						writer.write({
-							type: "data-widget-loading",
-							id: translationWidgetId,
-							data: { type: SMART_WIDGET_TYPE_GENUI, loading: true },
+							type: "data-turn-complete",
+							data: { timestamp: new Date().toISOString() },
 						});
-
-						try {
-							const translationPrompt = createTranslationGenerationPrompt({
-								sourceText,
-								targetLanguage,
-							});
-							if (!translationPrompt) {
-								throw new Error("Translation prompt could not be built");
-							}
-
-							const rawTranslation = await generateTextViaGateway({
-								system:
-									"You are a translation assistant. Translate directly without asking follow-up questions.",
-								prompt: translationPrompt,
-								maxOutputTokens: 650,
-								temperature: 0.2,
-								provider,
-								portIndex,
-							});
-
-							let translationPayload = parseTranslationModelOutput(
-								rawTranslation,
-								{
-									sourceText,
-									targetLanguage,
-								}
-							);
-
-							if (!translationPayload) {
-								const fallbackTranslationText =
-									getNonEmptyString(rawTranslation);
-								if (!fallbackTranslationText) {
-									throw new Error("Translation output was empty");
-								}
-
-								translationPayload = {
-									sourceText,
-									targetLanguage,
-									variants: [
-										{
-											id: "natural",
-											label: "Natural",
-											text: fallbackTranslationText,
-										},
-									],
-								};
-							}
-
-							const translationSpec = buildTranslationGenuiSpec(
-								translationPayload
-							);
-							if (!translationSpec) {
-								throw new Error("Failed to build translation card");
-							}
-
-							const translationSummary =
-								buildTranslationTextSummary(translationPayload);
-							writer.write({
-								type: "data-widget-data",
-								id: translationWidgetId,
-								data: {
-									type: SMART_WIDGET_TYPE_GENUI,
-									payload: {
-										spec: translationSpec,
-										summary: translationSummary,
-										source: "translation-bypass",
-										contentType: "text",
-									},
-								},
-							});
-							emitTextDelta(translationSummary);
-							writer.write({
-								type: "data-route-decision",
-								data: {
-									reason: "intent_translation",
-									experience: "generative_ui",
-									timestamp: new Date().toISOString(),
-									toolsDetected: false,
-									classifierIntent: "translation",
-								},
-							});
-						} catch (translationError) {
-							console.error(
-								"[OUTPUT-ROUTING] Translation bypass failed:",
-								translationError
-							);
-							writer.write({
-								type: "data-widget-error",
-								id: translationWidgetId,
-								data: {
-									type: SMART_WIDGET_TYPE_GENUI,
-									message:
-										translationError instanceof Error &&
-										getNonEmptyString(translationError.message)
-											? translationError.message.trim()
-											: "I couldn't translate that request right now.",
-									canRetry: true,
-								},
-							});
-							emitTextDelta(
-								"I couldn't translate that right now. Please retry in a moment."
-							);
-							writer.write({
-								type: "data-route-decision",
-								data: {
-									reason: "fallback_ui_failed",
-									experience: "text",
-									timestamp: new Date().toISOString(),
-									toolsDetected: false,
-									fallbackCause:
-										translationError instanceof Error
-											? translationError.message
-											: "translation-bypass-failed",
-								},
-							});
-						} finally {
-							writer.write({
-								type: "data-widget-loading",
-								id: translationWidgetId,
-								data: { type: SMART_WIDGET_TYPE_GENUI, loading: false },
-							});
-							if (textStarted) {
-								writer.write({ type: "text-end", id: textId });
-							}
-							writer.write({
-								type: "data-turn-complete",
-								data: { timestamp: new Date().toISOString() },
-							});
-						}
 					},
-					onError: (error) => {
-						if (error instanceof Error) {
-							return error.message;
-						}
-						return "Failed to stream translation response";
-					},
+					onError: (error) =>
+						error instanceof Error
+							? error.message
+							: "Failed to resolve audio clarification answer",
 				});
 
-				pipeUIMessageStreamToResponse({
-					response: res,
-					stream,
-				});
+				pipeUIMessageStreamToResponse({ response: res, stream });
 				return;
 			}
+
+			const stream = createUIMessageStream({
+				execute: async ({ writer }) => {
+					const audioWidgetId = `widget-audio-clarification-${Date.now()}`;
+					const textId = `text-audio-clarification-${Date.now()}`;
+					writer.write({
+						type: "data-thinking-status",
+						data: {
+							label: "Synthesizing audio",
+							activity: "audio",
+							source: "backend",
+						},
+					});
+					writer.write({
+						type: "data-widget-loading",
+						id: audioWidgetId,
+						data: { type: SMART_WIDGET_TYPE_AUDIO, loading: true },
+					});
+
+					try {
+						const synthesisResult = await synthesizeSound({
+							input: clarifiedAudioSelection.voiceInput,
+							provider: "google",
+							model: "tts-latest",
+							responseFormat: "mp3",
+						});
+
+						writer.write({
+							type: "data-widget-data",
+							id: audioWidgetId,
+							data: {
+								type: SMART_WIDGET_TYPE_AUDIO,
+								payload: {
+									audioUrl: buildAudioDataUrl(
+										synthesisResult.audioBytes,
+										synthesisResult.contentType
+									),
+									mimeType: synthesisResult.contentType,
+									transcript: clarifiedAudioSelection.voiceInput,
+									source: "audio-context-clarification",
+									inputSource: clarifiedAudioSelection.source || undefined,
+								},
+							},
+						});
+						writer.write({ type: "text-start", id: textId });
+						writer.write({
+							type: "text-delta",
+							id: textId,
+							delta: clarifiedAudioSelection.voiceInput,
+						});
+						writer.write({ type: "text-end", id: textId });
+					} catch (audioError) {
+						console.error("[AUDIO-CONTEXT] Audio synthesis failed:", audioError);
+						writer.write({
+							type: "data-widget-error",
+							id: audioWidgetId,
+							data: {
+								type: SMART_WIDGET_TYPE_AUDIO,
+								message: audioError instanceof Error
+									? audioError.message
+									: "Audio generation failed.",
+								canRetry: true,
+							},
+						});
+						writer.write({ type: "text-start", id: textId });
+						writer.write({
+							type: "text-delta",
+							id: textId,
+							delta: "I couldn't generate audio right now.",
+						});
+						writer.write({ type: "text-end", id: textId });
+					} finally {
+						writer.write({
+							type: "data-widget-loading",
+							id: audioWidgetId,
+							data: { type: SMART_WIDGET_TYPE_AUDIO, loading: false },
+						});
+					}
+
+					writer.write({
+						type: "data-route-decision",
+						data: {
+							reason: "intent_media_audio",
+							experience: "audio",
+							timestamp: new Date().toISOString(),
+							toolsDetected: false,
+							classifierIntent: "audio",
+						},
+					});
+
+					writer.write({
+						type: "data-turn-complete",
+						data: { timestamp: new Date().toISOString() },
+					});
+				},
+				onError: (error) => {
+					if (error instanceof Error) {
+						return error.message;
+					}
+					return "Failed to generate audio from clarification";
+				},
+			});
+
+			pipeUIMessageStreamToResponse({ response: res, stream });
+			return;
 		}
 
 		const toolFirstPolicy = resolveToolFirstPolicy({
 			prompt: latestUserMessage,
 		});
+		const toolFirstRelevanceDomains =
+			Array.isArray(toolFirstPolicy.relevanceDomains) &&
+			toolFirstPolicy.relevanceDomains.length > 0
+				? toolFirstPolicy.relevanceDomains
+				: toolFirstPolicy.domains;
 		if (toolFirstPolicy.matched) {
 			console.info("[TOOL-FIRST] Matched tool-first domains", {
 				domains: toolFirstPolicy.domains,
+				relevanceDomains: toolFirstRelevanceDomains,
 				domainLabels: toolFirstPolicy.domainLabels,
 			});
 		}
@@ -2927,6 +2961,42 @@ app.post("/api/chat-sdk", async (req, res) => {
 			}
 		}
 
+		let toolFirstClarificationInstruction = null;
+		if (isStrictToolFirstTurn && !clarificationSubmission) {
+			const { shouldGate, unsatisfiedHints } = shouldGateToolFirstQuestionCard({
+				prompt: latestUserMessage,
+				toolFirstPolicy,
+				latestUserMessageSource,
+				gateSkipSources: TOOL_FIRST_GATE_SKIP_SOURCES,
+			});
+			if (shouldGate) {
+				const hasFigmaDomain = Array.isArray(toolFirstPolicy.domains)
+					&& toolFirstPolicy.domains.includes("figma");
+				if (hasFigmaDomain) {
+					const toolFirstQuestionCardPayload = buildToolFirstQuestionCardPayload({
+						unsatisfiedHints,
+						domainLabels: toolFirstPolicy.domainLabels,
+						sessionId: createClarificationSessionId(),
+					});
+					if (toolFirstQuestionCardPayload) {
+						streamQuestionCardWidget({
+							res,
+							payload: toolFirstQuestionCardPayload,
+							introText:
+								"I need a couple details before I can get Figma design context.",
+						});
+						return;
+					}
+				}
+
+				toolFirstClarificationInstruction =
+					buildToolFirstClarificationInstruction({
+						unsatisfiedHints,
+						domainLabels: toolFirstPolicy.domainLabels,
+					});
+			}
+		}
+
 		let enrichedContextDescription = contextDescription;
 		if (clarificationSubmission) {
 			const serialized = JSON.stringify(
@@ -2949,10 +3019,23 @@ app.post("/api/chat-sdk", async (req, res) => {
 				: `Plan approval: ${serialized}`;
 		}
 
+		const toolFirstPromptInstruction = isStrictToolFirstTurn
+			? [
+				toolFirstPolicy.instruction,
+				toolFirstClarificationInstruction,
+			]
+				.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+				.join("\n\n")
+			: null;
 		const effectiveContextDescription = isStrictToolFirstTurn
 			? enrichedContextDescription
-				? `${enrichedContextDescription}\n\n${toolFirstPolicy.instruction}`
-				: toolFirstPolicy.instruction
+				? [
+					enrichedContextDescription,
+					toolFirstPromptInstruction,
+				]
+					.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+					.join("\n\n")
+				: toolFirstPromptInstruction
 			: enrichedContextDescription;
 		const effectiveContextWithPortBinding = strictPortAssignment
 			? effectiveContextDescription
@@ -3235,6 +3318,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 						const audioWidgetId = `widget-audio-${Date.now()}`;
 						let textStarted = false;
 						let generatedNarrative = null;
+						let emittedAudioClarificationCard = false;
 						const sanitizeThinkingLabel = (value) => {
 							if (typeof value !== "string") {
 								return "";
@@ -3476,18 +3560,23 @@ app.post("/api/chat-sdk", async (req, res) => {
 							smartIntentResult.intent === "audio" ||
 							smartIntentResult.intent === "both"
 						) {
-							emitThinkingStatus("Synthesizing audio");
-							emitWidgetLoading(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, true);
 							try {
 								throwIfSmartRouteAborted();
 								const {
 									voiceInput,
 									source: voiceInputSource,
 									extractionMode: voiceInputExtractionMode,
+									resolutionType: voiceInputResolutionType,
+									needsClarification: needsAudioClarification,
+									clarificationPayload: audioClarificationPayload,
+									confidence: voiceInputConfidence,
+									candidateCount: voiceInputCandidateCount,
 								} =
 									resolveSmartAudioVoiceInput({
 										intent: smartIntentResult.intent,
 										latestUserMessage,
+										latestVisibleUserMessage: latestVisibleUserMessage?.text || latestUserMessage,
+										messages,
 										generatedNarrative,
 										maxChars: SMART_VOICE_INPUT_MAX_CHARS,
 									});
@@ -3495,37 +3584,89 @@ app.post("/api/chat-sdk", async (req, res) => {
 									intent: smartIntentResult.intent,
 									source: voiceInputSource,
 									extractionMode: voiceInputExtractionMode || null,
+									resolutionType: voiceInputResolutionType || null,
+									confidence:
+										typeof voiceInputConfidence === "number"
+											? voiceInputConfidence
+											: null,
+									candidateCount:
+										typeof voiceInputCandidateCount === "number"
+											? voiceInputCandidateCount
+											: null,
 									forcedAudioRoute: forceSmartAudioRoute,
 									hasInput: Boolean(voiceInput),
 									payloadLength: typeof voiceInput === "string" ? voiceInput.length : 0,
 								});
 
-								if (!voiceInput) {
-									throw new Error("No text available for audio synthesis");
-								}
+								if (needsAudioClarification) {
+									if (audioClarificationPayload) {
+										const clarificationWidgetId = `widget-audio-clarification-${Date.now()}`;
+										emitThinkingStatus("Need clarification");
+										emitWidgetLoading(
+											clarificationWidgetId,
+											CLARIFICATION_WIDGET_TYPE,
+											true
+										);
+										emitWidgetData(
+											clarificationWidgetId,
+											CLARIFICATION_WIDGET_TYPE,
+											audioClarificationPayload
+										);
+										emitWidgetLoading(
+											clarificationWidgetId,
+											CLARIFICATION_WIDGET_TYPE,
+											false
+										);
+										emittedAudioClarificationCard = true;
+										writer.write({
+											type: "data-route-decision",
+											data: {
+												reason: "intent_clarification",
+												experience: "question_card",
+												timestamp: new Date().toISOString(),
+												toolsDetected: false,
+											},
+										});
+										if (smartIntentResult.intent === "audio") {
+											emitTextDelta(
+												"I need one quick detail before generating the audio clip."
+											);
+										}
+									} else {
+										emitTextDelta(
+											"I need a bit more detail about which text to read aloud."
+										);
+									}
+								} else {
+									emitThinkingStatus("Synthesizing audio");
+									emitWidgetLoading(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, true);
+									if (!voiceInput) {
+										throw new Error("No text available for audio synthesis");
+									}
 
-								const synthesisResult = await synthesizeSound({
-									input: voiceInput,
-									provider: "google",
-									model: "tts-latest",
-									responseFormat: "mp3",
-									signal: smartRouteAbortController.signal,
-								});
-								throwIfSmartRouteAborted();
+									const synthesisResult = await synthesizeSound({
+										input: voiceInput,
+										provider: "google",
+										model: "tts-latest",
+										responseFormat: "mp3",
+										signal: smartRouteAbortController.signal,
+									});
+									throwIfSmartRouteAborted();
 
-								emitWidgetData(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, {
-									audioUrl: buildAudioDataUrl(
-										synthesisResult.audioBytes,
-										synthesisResult.contentType
-									),
-									mimeType: synthesisResult.contentType,
-									transcript: voiceInput,
-									source: "sound-generation",
-									inputSource: voiceInputSource || undefined,
-								});
+									emitWidgetData(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, {
+										audioUrl: buildAudioDataUrl(
+											synthesisResult.audioBytes,
+											synthesisResult.contentType
+										),
+										mimeType: synthesisResult.contentType,
+										transcript: voiceInput,
+										source: "sound-generation",
+										inputSource: voiceInputSource || undefined,
+									});
 
-								if (smartIntentResult.intent === "audio") {
-									emitTextDelta(voiceInput);
+									if (smartIntentResult.intent === "audio") {
+										emitTextDelta(voiceInput);
+									}
 								}
 							} catch (audioError) {
 								if (isSmartRouteAbortError(audioError)) {
@@ -3539,7 +3680,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 								);
 								emitTextDelta("I couldn't generate voice output right now.");
 							} finally {
-								if (!smartRouteAbortController.signal.aborted) {
+								if (
+									!smartRouteAbortController.signal.aborted &&
+									!emittedAudioClarificationCard
+								) {
 									emitWidgetLoading(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, false);
 								}
 							}
@@ -3550,7 +3694,8 @@ app.post("/api/chat-sdk", async (req, res) => {
 						const shouldEmitDefaultNarrative =
 							smartIntentResult.intent !== "image" &&
 							smartIntentResult.intent !== "genui" &&
-							smartIntentResult.intent !== "both";
+							smartIntentResult.intent !== "both" &&
+							!emittedAudioClarificationCard;
 						if (shouldEmitDefaultNarrative && !textStarted) {
 							emitTextDelta("Completed smart generation request.");
 						}
@@ -3743,6 +3888,36 @@ app.post("/api/chat-sdk", async (req, res) => {
 			}
 
 			if (mediaPreClassification.intent === "audio") {
+				const {
+					voiceInput: mediaBypassVoiceInput,
+					source: mediaBypassVoiceInputSource,
+					extractionMode: mediaBypassExtractionMode,
+					resolutionType: mediaBypassResolutionType,
+					needsClarification: mediaBypassNeedsClarification,
+					clarificationPayload: mediaBypassClarificationPayload,
+					confidence: mediaBypassConfidence,
+					candidateCount: mediaBypassCandidateCount,
+				} = resolveSmartAudioVoiceInput({
+					intent: "audio",
+					latestUserMessage,
+					latestVisibleUserMessage: latestVisibleUserMessage?.text || latestUserMessage,
+					messages,
+					generatedNarrative: null,
+					maxChars: SMART_VOICE_INPUT_MAX_CHARS,
+				});
+
+				if (
+					mediaBypassNeedsClarification &&
+					mediaBypassClarificationPayload
+				) {
+					streamQuestionCardWidget({
+						res,
+						payload: mediaBypassClarificationPayload,
+						introText: "I need one quick choice before generating the audio clip.",
+					});
+					return;
+				}
+
 				// BE-003: Route audio queries to AI Gateway (bypass RovoDev)
 				const stream = createUIMessageStream({
 					execute: async ({ writer }) => {
@@ -3764,29 +3939,31 @@ app.post("/api/chat-sdk", async (req, res) => {
 						});
 
 						try {
-							const {
-								voiceInput,
-								source: voiceInputSource,
-								extractionMode: voiceInputExtractionMode,
-							} = resolveSmartAudioVoiceInput({
-								intent: "audio",
-								latestUserMessage,
-								generatedNarrative: null,
-								maxChars: SMART_VOICE_INPUT_MAX_CHARS,
-							});
 							console.info("[OUTPUT-ROUTING] Selected media bypass audio input", {
-								source: voiceInputSource || null,
-								extractionMode: voiceInputExtractionMode || null,
-								hasInput: Boolean(voiceInput),
-								payloadLength: typeof voiceInput === "string" ? voiceInput.length : 0,
+								source: mediaBypassVoiceInputSource || null,
+								extractionMode: mediaBypassExtractionMode || null,
+								resolutionType: mediaBypassResolutionType || null,
+								confidence:
+									typeof mediaBypassConfidence === "number"
+										? mediaBypassConfidence
+										: null,
+								candidateCount:
+									typeof mediaBypassCandidateCount === "number"
+										? mediaBypassCandidateCount
+										: null,
+								hasInput: Boolean(mediaBypassVoiceInput),
+								payloadLength:
+									typeof mediaBypassVoiceInput === "string"
+										? mediaBypassVoiceInput.length
+										: 0,
 							});
 
-							if (!voiceInput) {
+							if (!mediaBypassVoiceInput) {
 								throw new Error("No text available for audio synthesis");
 							}
 
 							const synthesisResult = await synthesizeSound({
-								input: voiceInput,
+								input: mediaBypassVoiceInput,
 								provider: "google",
 								model: "tts-latest",
 								responseFormat: "mp3",
@@ -3803,14 +3980,19 @@ app.post("/api/chat-sdk", async (req, res) => {
 											synthesisResult.contentType
 										),
 										mimeType: synthesisResult.contentType,
-										transcript: voiceInput,
+										transcript: mediaBypassVoiceInput,
 										source: "media-bypass-audio",
+										inputSource: mediaBypassVoiceInputSource || undefined,
 									},
 								},
 							});
 
 							writer.write({ type: "text-start", id: textId });
-							writer.write({ type: "text-delta", id: textId, delta: voiceInput });
+							writer.write({
+								type: "text-delta",
+								id: textId,
+								delta: mediaBypassVoiceInput,
+							});
 							writer.write({ type: "text-end", id: textId });
 						} catch (audioError) {
 							console.error("[OUTPUT-ROUTING] Media bypass audio generation failed:", audioError);
@@ -4092,13 +4274,14 @@ app.post("/api/chat-sdk", async (req, res) => {
 					// the two-step GenUI flow (BE-001).
 					let hasObservedActionableToolCall = false;
 					let hasObservedRelevantActionableToolCall = false;
-					const toolFirstExecutionState = createToolFirstExecutionState(
-						toolFirstPolicy
-					);
-					const toolFirstFullOutputs = [];
-					const toolFirstSoftRetryEnabled =
-						isStrictToolFirstTurn &&
-						toolFirstPolicy?.enforcement?.mode ===
+						const toolFirstExecutionState = createToolFirstExecutionState(
+							toolFirstPolicy
+						);
+						const toolFirstFullOutputs = [];
+						const toolObservationEntries = [];
+						const toolFirstSoftRetryEnabled =
+							isStrictToolFirstTurn &&
+							toolFirstPolicy?.enforcement?.mode ===
 							TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY;
 					const shouldDeferToolFirstText = toolFirstSoftRetryEnabled;
 					let deferredToolFirstText = "";
@@ -4439,10 +4622,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 					return null;
 				};
 
-				const sanitizeThinkingEvent = (value) => {
-					if (!value || typeof value !== "object") {
-						return null;
-					}
+						const sanitizeThinkingEvent = (value) => {
+							if (!value || typeof value !== "object") {
+								return null;
+							}
 
 					const phase = normalizeThinkingPhase(value.phase);
 					if (!phase) {
@@ -4522,11 +4705,144 @@ app.post("/api/chat-sdk", async (req, res) => {
 						}
 					}
 
-					return payload;
-				};
+							return payload;
+						};
 
-				const emitPlanWidgetLoading = (loading) => {
-					writer.write({
+						const recordToolObservation = ({
+							phase,
+							toolName,
+							text,
+							toolCallId,
+							source,
+							rawOutput,
+							outputTruncated,
+							outputBytes,
+						}) => {
+							const normalizedPhase =
+								phase === "result" || phase === "error" ? phase : null;
+							if (!normalizedPhase) {
+								return;
+							}
+
+							const normalizedText = getNonEmptyString(text);
+							if (!normalizedText) {
+								return;
+							}
+
+							toolObservationEntries.push({
+								phase: normalizedPhase,
+								toolName: getNonEmptyString(toolName) || "Tool",
+								text: normalizedText,
+								toolCallId: getNonEmptyString(toolCallId) || null,
+								source: getNonEmptyString(source) || null,
+								rawOutput: toBoundedToolObservationRawOutput(rawOutput),
+								outputTruncated: outputTruncated === true,
+								outputBytes:
+									typeof outputBytes === "number" && Number.isFinite(outputBytes)
+										? outputBytes
+										: null,
+							});
+							if (toolObservationEntries.length > 200) {
+								toolObservationEntries.shift();
+							}
+						};
+
+						const hasToolObservationEntries = () => toolObservationEntries.length > 0;
+
+						const resolveDeterministicGenuiFallback = ({
+							text,
+							prompt,
+							title,
+							description,
+							defaultSummary = "Generated interactive summary from tool results.",
+							defaultSource = "genui-fallback",
+							observationSource = "tool-observation-fallback",
+						} = {}) => {
+							const structuredToolFallback = buildToolObservationStructuredFallback({
+								observations: toolObservationEntries,
+								prompt,
+								title,
+								description,
+							});
+							if (structuredToolFallback) {
+								return {
+									spec: structuredToolFallback.spec,
+									summary: structuredToolFallback.summary || defaultSummary,
+									source: structuredToolFallback.source || observationSource,
+									observationUsed: true,
+									observationCount: structuredToolFallback.observationCount ?? 0,
+									resultCount: structuredToolFallback.resultCount ?? 0,
+									errorCount: structuredToolFallback.errorCount ?? 0,
+								};
+							}
+
+							const googleStructuredFallback = buildGoogleStructuredFallback({
+								observations: toolObservationEntries,
+								prompt,
+								title,
+								description,
+							});
+							if (googleStructuredFallback) {
+								return {
+									spec: googleStructuredFallback.spec,
+									summary: googleStructuredFallback.summary || defaultSummary,
+									source: googleStructuredFallback.source || observationSource,
+									observationUsed: true,
+									observationCount: googleStructuredFallback.observationCount ?? 0,
+									resultCount: googleStructuredFallback.resultCount ?? 0,
+									errorCount: googleStructuredFallback.errorCount ?? 0,
+								};
+							}
+
+							const observationFallback = buildToolObservationFallback({
+								observations: toolObservationEntries,
+							});
+							if (observationFallback.hasObservations) {
+								const observationSpec =
+									buildFallbackGenuiSpecFromText({
+										text: observationFallback.text,
+										prompt,
+										title: title || observationFallback.title,
+										description: description || observationFallback.description,
+									}) ||
+									buildMinimalTextCardSpec({
+										text: observationFallback.text,
+										title: title || observationFallback.title || "Tool results",
+									});
+								return {
+									spec: observationSpec,
+									summary: observationFallback.summary || defaultSummary,
+									source: observationSource,
+									observationUsed: true,
+									observationCount: observationFallback.observationCount,
+									resultCount: observationFallback.resultCount,
+									errorCount: observationFallback.errorCount,
+								};
+							}
+
+							const fallbackSpec = buildFallbackGenuiSpecFromText({
+								text,
+								prompt,
+								title,
+								description,
+							});
+							if (!fallbackSpec) {
+								return null;
+							}
+
+							return {
+								spec: fallbackSpec,
+								summary: defaultSummary,
+								source: defaultSource,
+								observationUsed: false,
+								observationCount: 0,
+								resultCount: 0,
+								errorCount: 0,
+							};
+						};
+
+					const emitPlanWidgetLoading = (loading) => {
+						writer.write({
 						type: "data-widget-loading",
 						id: widgetId,
 						data: {
@@ -5149,6 +5465,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 						return;
 					}
 
+					emitLazyThinkingStatus();
 					textBuffer += delta;
 					processTextBuffer(false);
 					maybeEmitProgressivePlanUpdate();
@@ -5156,14 +5473,24 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 					// RovoDev Serve: route through the local agent loop
 					console.log("[CHAT-SDK] Routing through RovoDev Serve");
-					writer.write({
-						type: "data-thinking-status",
-						data: {
-							label: "Thinking",
-							activity: "results",
-							source: "backend",
-						},
-					});
+					// Emit data-thinking-status lazily — only when the LLM
+					// actually starts producing output (text or tool events).
+					// Until then the frontend shows the preload indicator
+					// ("Rovo is cooking") to distinguish "waiting for LLM"
+					// from "LLM is actively working."
+					let hasEmittedThinkingStatus = false;
+					const emitLazyThinkingStatus = () => {
+						if (hasEmittedThinkingStatus) return;
+						hasEmittedThinkingStatus = true;
+						writer.write({
+							type: "data-thinking-status",
+							data: {
+								label: "Thinking",
+								activity: "results",
+								source: "backend",
+							},
+						});
+					};
 					const toolFirstRetryLimit = toolFirstSoftRetryEnabled
 						? Math.max(toolFirstPolicy?.enforcement?.maxRelevantRetries ?? 0, 0)
 						: 0;
@@ -5200,7 +5527,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 									if (
 										isToolNameRelevant({
 											toolName: toolCall.toolName,
-											domains: toolFirstPolicy.domains,
+											domains: toolFirstRelevanceDomains,
 										})
 									) {
 										hasObservedRelevantActionableToolCall = true;
@@ -5215,22 +5542,42 @@ app.post("/api/chat-sdk", async (req, res) => {
 										source: "request_user_input_tool_input",
 									});
 								},
-								onToolCallResult: (toolCallResult) => {
-									emitRequestUserInputQuestionCardFromResult(toolCallResult);
+									onToolCallResult: (toolCallResult) => {
+										emitRequestUserInputQuestionCardFromResult(toolCallResult);
 
-									// Capture full output for tool-first GenUI generation
-									if (toolFirstPolicy.matched && toolCallResult?.toolName) {
-										const isRelevant = isToolNameRelevant({
-											toolName: toolCallResult.toolName,
-											domains: toolFirstPolicy.domains,
-										});
+										// Capture full output for tool-first GenUI generation
 										const toolOutput =
-											toolCallResult.output ??
-											toolCallResult.toolOutputRaw ??
-											toolCallResult.toolOutputPreview;
-										if (isRelevant && toolOutput !== undefined && toolOutput !== null) {
-											toolFirstFullOutputs.push({
+											toolCallResult?.output ??
+											toolCallResult?.toolOutputRaw ??
+											toolCallResult?.toolOutputPreview;
+										const toolOutputPreview =
+											toolOutput !== undefined && toolOutput !== null
+												? toPreview(toolOutput)
+												: null;
+										if (
+											!isRequestUserInputTool(toolCallResult?.toolName) &&
+											toolOutputPreview?.text
+										) {
+											recordToolObservation({
+												phase: "result",
 												toolName: toolCallResult.toolName,
+												text: toolOutputPreview.text,
+												toolCallId: toolCallResult?.toolCallId,
+												source: "tool_call_result",
+												rawOutput: toolOutput,
+												outputTruncated: toolOutputPreview.truncated,
+												outputBytes: toolOutputPreview.bytes,
+											});
+										}
+
+										if (toolFirstPolicy.matched && toolCallResult?.toolName) {
+											const isRelevant = isToolNameRelevant({
+												toolName: toolCallResult.toolName,
+												domains: toolFirstRelevanceDomains,
+											});
+											if (isRelevant && toolOutput !== undefined && toolOutput !== null) {
+												toolFirstFullOutputs.push({
+													toolName: toolCallResult.toolName,
 												output: typeof toolOutput === "string"
 													? toolOutput.slice(0, 4000)
 													: JSON.stringify(toolOutput).slice(0, 4000),
@@ -5252,6 +5599,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 										return;
 									}
 
+									hasEmittedThinkingStatus = true;
 									const label = sanitizeThinkingLabel(statusUpdate.label);
 									if (!label) {
 										return;
@@ -5284,19 +5632,44 @@ app.post("/api/chat-sdk", async (req, res) => {
 										},
 									});
 								},
-								onThinkingEvent: (thinkingEvent) => {
-									const sanitizedEvent = sanitizeThinkingEvent(thinkingEvent);
-									if (!sanitizedEvent) {
-										return;
-									}
-									recordToolThinkingEvent(
-										toolFirstExecutionState,
-										sanitizedEvent
-									);
+									onThinkingEvent: (thinkingEvent) => {
+										const sanitizedEvent = sanitizeThinkingEvent(thinkingEvent);
+										if (!sanitizedEvent) {
+											return;
+										}
+										recordToolThinkingEvent(
+											toolFirstExecutionState,
+											sanitizedEvent
+										);
+										if (sanitizedEvent.phase === "result") {
+											recordToolObservation({
+												phase: "result",
+												toolName: sanitizedEvent.toolName,
+												text:
+													sanitizedEvent.outputPreview || sanitizedEvent.output,
+												toolCallId: sanitizedEvent.toolCallId,
+												source: "thinking_event",
+												outputTruncated: sanitizedEvent.outputTruncated,
+												outputBytes: sanitizedEvent.outputBytes,
+											});
+										} else if (sanitizedEvent.phase === "error") {
+											recordToolObservation({
+												phase: "error",
+												toolName: sanitizedEvent.toolName,
+												text:
+													sanitizedEvent.errorText ||
+													sanitizedEvent.outputPreview ||
+													sanitizedEvent.output,
+												toolCallId: sanitizedEvent.toolCallId,
+												source: "thinking_event",
+												outputTruncated: sanitizedEvent.outputTruncated,
+												outputBytes: sanitizedEvent.outputBytes,
+											});
+										}
 
-									writer.write({
-										type: "data-thinking-event",
-										id: sanitizedEvent.eventId,
+										writer.write({
+											type: "data-thinking-event",
+											id: sanitizedEvent.eventId,
 										data: sanitizedEvent,
 									});
 								},
@@ -5450,6 +5823,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 						console.info("[TOOL-FIRST] Retrying tool-grounded response", {
 							domains: toolFirstPolicy.domains,
+							relevanceDomains: toolFirstRelevanceDomains,
 							attempt: nextAttempt,
 							maxAttempts: totalToolFirstAttempts,
 							retryDelayMs,
@@ -5480,6 +5854,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 								policy: toolFirstPolicy,
 								attemptNumber: nextAttempt,
 								remainingRetries: retriesRemaining,
+								execution: toolFirstExecutionState,
 							}
 						)}`;
 						currentToolFirstAttempt = nextAttempt;
@@ -5670,67 +6045,103 @@ app.post("/api/chat-sdk", async (req, res) => {
 				// ── Output Routing: Two-step GenUI flow (BE-001, BE-007) ──
 				// Trigger GenUI only for task-like prompts. Conversational and
 				// capability chat should always stay in text streaming mode.
-				const trimmedAssistantText = assistantText.trim();
-				const getRouteToolsDetected = () => {
-					if (!isStrictToolFirstTurn) {
-						return hasObservedActionableToolCall;
-					}
+					const trimmedAssistantText = assistantText.trim();
+					const getRouteToolsDetected = () => {
+						if (!isStrictToolFirstTurn) {
+							return hasObservedActionableToolCall || hasToolObservationEntries();
+						}
 
-					return (
-						hasObservedRelevantActionableToolCall ||
-						hasRelevantToolObservation(toolFirstExecutionState)
-					);
-				};
-				const emitTwoStepFallbackGenuiWidget = ({ widgetId, fallbackCause }) => {
-					const fallbackSpec = buildFallbackGenuiSpecFromText({
-						text: assistantText,
-						prompt: latestUserMessage,
-					});
-					if (!fallbackSpec) {
-						return false;
-					}
-					writer.write({
-						type: "data-widget-data",
-						id: widgetId,
-						data: {
-							type: SMART_WIDGET_TYPE_GENUI,
-							payload: {
-								spec: fallbackSpec,
-								summary: "Generated interactive summary",
-								source: "two-step-genui-fallback",
+						return (
+							hasObservedRelevantActionableToolCall ||
+							hasRelevantToolObservation(toolFirstExecutionState)
+						);
+					};
+					const resolveRouteWidgetContentType = () =>
+						resolveToolFirstWidgetContentType({
+							primaryDomains: toolFirstPolicy.domains,
+							relevanceDomains: toolFirstPolicy.relevanceDomains,
+							lastRelevantToolName: toolFirstExecutionState.lastRelevantToolName,
+							prompt: latestUserMessage,
+						});
+					const withRouteWidgetContentType = (payload) => {
+						const widgetContentType = resolveRouteWidgetContentType();
+						if (!widgetContentType) {
+							return payload;
+						}
+
+						return {
+							...payload,
+							widgetContentType,
+						};
+					};
+					const emitTwoStepFallbackGenuiWidget = ({
+						widgetId,
+						fallbackCause,
+						observationFallbackCause = "tool_observation_fallback",
+					}) => {
+						const fallbackPayload = resolveDeterministicGenuiFallback({
+							text: assistantText,
+							prompt: latestUserMessage,
+							defaultSummary: "Generated interactive summary from tool results.",
+							defaultSource: "two-step-genui-fallback",
+							observationSource: "tool-observation-fallback",
+						});
+						if (!fallbackPayload) {
+							return false;
+						}
+						writer.write({
+							type: "data-widget-data",
+							id: widgetId,
+							data: {
+								type: SMART_WIDGET_TYPE_GENUI,
+								payload: withRouteWidgetContentType({
+									spec: fallbackPayload.spec,
+									summary: fallbackPayload.summary,
+									source: fallbackPayload.source,
+								}),
 							},
-						},
-					});
-					hasEmittedGenuiWidget = true;
-					writer.write({
+						});
+						hasEmittedGenuiWidget = true;
+						writer.write({
 						type: "data-route-decision",
 						data: {
 							reason: "intent_task_toolable",
-							experience: "generative_ui",
-							timestamp: new Date().toISOString(),
-							toolsDetected: getRouteToolsDetected(),
-							fallbackCause,
-						},
-					});
-					return true;
-				};
-				if (!isStrictToolFirstTurn) {
-					const looksLikeClarification = looksLikeClarificationResponse(trimmedAssistantText);
-					if (looksLikeClarification && !hasEmittedQuestionCard) {
-						console.info("[OUTPUT-ROUTING] Clarification-like response detected, skipping GenUI", {
-							textLength: trimmedAssistantText.length,
+								experience: "generative_ui",
+								timestamp: new Date().toISOString(),
+								toolsDetected: getRouteToolsDetected(),
+								fallbackCause: fallbackPayload.observationUsed
+									? observationFallbackCause
+									: fallbackCause,
+							},
 						});
+						return true;
+					};
+					if (!isStrictToolFirstTurn) {
+						const hasToolObservationData = hasToolObservationEntries();
+						const looksLikeClarification = looksLikeClarificationResponse(trimmedAssistantText);
+						const looksLikeInability = looksLikeInabilityResponse(trimmedAssistantText);
+						if (looksLikeClarification && !hasEmittedQuestionCard) {
+							console.info("[OUTPUT-ROUTING] Clarification-like response detected, skipping GenUI", {
+								textLength: trimmedAssistantText.length,
+							});
 					}
+						if (looksLikeInability) {
+							console.info("[OUTPUT-ROUTING] Inability response detected, skipping GenUI", {
+								textLength: trimmedAssistantText.length,
+							});
+						}
 					const shouldAttemptGenui =
 						!hasEmittedQuestionCard &&
 						!looksLikeClarification &&
-						!abortController.signal.aborted &&
-						trimmedAssistantText.length > 0 &&
-						isTaskLikeRequest &&
-						(
-							shouldForceCardFirstGenui ||
-							hasObservedActionableToolCall
-						);
+						!looksLikeInability &&
+							!abortController.signal.aborted &&
+							trimmedAssistantText.length > 0 &&
+							isTaskLikeRequest &&
+							(
+								shouldForceCardFirstGenui ||
+								hasObservedActionableToolCall ||
+								hasToolObservationData
+							);
 
 					if (shouldAttemptGenui) {
 						const twoStepGenuiWidgetId = `widget-two-step-genui-${Date.now()}`;
@@ -5766,7 +6177,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 									id: twoStepGenuiWidgetId,
 									data: {
 										type: SMART_WIDGET_TYPE_GENUI,
-										payload: {
+										payload: withRouteWidgetContentType({
 											spec: genuiResult.spec,
 											summary: summaryText
 												? summaryText.length > 280
@@ -5774,7 +6185,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 													: summaryText
 												: "Generated interactive view",
 											source: "two-step-genui",
-										},
+										}),
 									},
 								});
 								hasEmittedGenuiWidget = true;
@@ -5793,10 +6204,11 @@ app.post("/api/chat-sdk", async (req, res) => {
 								console.warn("[OUTPUT-ROUTING] Two-step GenUI failed, using fallback card", {
 									error: genuiResult.error,
 								});
-								const emittedFallbackWidget = emitTwoStepFallbackGenuiWidget({
-									widgetId: twoStepGenuiWidgetId,
-									fallbackCause: genuiResult.error || "genui-generation-failed",
-								});
+									const emittedFallbackWidget = emitTwoStepFallbackGenuiWidget({
+										widgetId: twoStepGenuiWidgetId,
+										fallbackCause: genuiResult.error || "genui-generation-failed",
+										observationFallbackCause: "tool_observation_fallback",
+									});
 								if (!emittedFallbackWidget) {
 									emitGenuiErrorTextFallback();
 									writer.write({
@@ -5817,12 +6229,14 @@ app.post("/api/chat-sdk", async (req, res) => {
 								"[OUTPUT-ROUTING] Two-step GenUI exception, using fallback card:",
 								twoStepError instanceof Error ? twoStepError.message : twoStepError
 							);
-							const emittedFallbackWidget = emitTwoStepFallbackGenuiWidget({
-								widgetId: twoStepGenuiWidgetId,
-								fallbackCause: twoStepError instanceof Error
-									? twoStepError.message
-									: "genui-generation-exception",
-							});
+								const emittedFallbackWidget = emitTwoStepFallbackGenuiWidget({
+									widgetId: twoStepGenuiWidgetId,
+									fallbackCause: twoStepError instanceof Error
+										? twoStepError.message
+										: "genui-generation-exception",
+									observationFallbackCause:
+										"tool_observation_fallback_after_genui_exception",
+								});
 							if (!emittedFallbackWidget) {
 								emitGenuiErrorTextFallback();
 								writer.write({
@@ -5848,21 +6262,30 @@ app.post("/api/chat-sdk", async (req, res) => {
 								},
 							});
 						}
-					} else if (!hasEmittedQuestionCard) {
-						if (shouldForceCardFirstGenui && trimmedAssistantText.length > 0 && !looksLikeClarification) {
-							const twoStepGenuiWidgetId = `widget-two-step-genui-${Date.now()}`;
-							writer.write({
-								type: "data-widget-loading",
+						} else if (!hasEmittedQuestionCard) {
+							const shouldEmitCardFirstFallback =
+								shouldForceCardFirstGenui &&
+								trimmedAssistantText.length > 0 &&
+								!looksLikeClarification &&
+								!looksLikeInability;
+							const shouldEmitObservationFallback = hasToolObservationData;
+							if (shouldEmitCardFirstFallback || shouldEmitObservationFallback) {
+								const twoStepGenuiWidgetId = `widget-two-step-genui-${Date.now()}`;
+								writer.write({
+									type: "data-widget-loading",
 								id: twoStepGenuiWidgetId,
 								data: {
 									type: SMART_WIDGET_TYPE_GENUI,
 									loading: true,
 								},
 							});
-							const emittedFallbackWidget = emitTwoStepFallbackGenuiWidget({
-								widgetId: twoStepGenuiWidgetId,
-								fallbackCause: "card-first-fallback",
-							});
+								const emittedFallbackWidget = emitTwoStepFallbackGenuiWidget({
+									widgetId: twoStepGenuiWidgetId,
+									fallbackCause: shouldEmitObservationFallback
+										? "tool_observation_fallback"
+										: "card-first-fallback",
+									observationFallbackCause: "tool_observation_fallback",
+								});
 							writer.write({
 								type: "data-widget-loading",
 								id: twoStepGenuiWidgetId,
@@ -5876,13 +6299,15 @@ app.post("/api/chat-sdk", async (req, res) => {
 								writer.write({
 									type: "data-route-decision",
 									data: {
-										reason: "fallback_ui_failed",
-										experience: "text",
-										timestamp: new Date().toISOString(),
-										toolsDetected: getRouteToolsDetected(),
-										fallbackCause: "card-first-fallback",
-									},
-								});
+											reason: "fallback_ui_failed",
+											experience: "text",
+											timestamp: new Date().toISOString(),
+											toolsDetected: getRouteToolsDetected(),
+											fallbackCause: shouldEmitObservationFallback
+												? "tool_observation_fallback"
+												: "card-first-fallback",
+										},
+									});
 							}
 						} else {
 							// Short conversational reply or empty -> plain text route
@@ -5903,7 +6328,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 				// emission (emitRequestUserInputQuestionCard or fallback
 				// extraction), so no additional emission is needed here.
 
-					if (isStrictToolFirstTurn) {
+				if (isStrictToolFirstTurn && !hasEmittedQuestionCard) {
 						let toolFirstRouteReason = "tool_first_no_relevant_result";
 						let toolFirstRouteExperience = "text";
 						let toolFirstFallbackCause = null;
@@ -5946,26 +6371,49 @@ app.post("/api/chat-sdk", async (req, res) => {
 									signal: abortController.signal,
 								});
 
-								if (genuiResult.spec) {
-									const narrativeSummary = getNonEmptyString(
-										genuiResult.narrative
-									);
-									const conciseSummary = narrativeSummary
-										? narrativeSummary.length > 320
-											? `${narrativeSummary.slice(0, 319)}…`
-											: narrativeSummary
-										: "Generated a visual summary from tool context below.";
+								const narrativeSummary = getNonEmptyString(
+									genuiResult.narrative
+								);
+								const conciseSummary = narrativeSummary
+									? narrativeSummary.length > 320
+										? `${narrativeSummary.slice(0, 319)}…`
+										: narrativeSummary
+									: null;
+									const hasRenderableSpec = Boolean(genuiResult.spec);
+									const isLowConfidenceSpec =
+										hasRenderableSpec && genuiResult.quality === "low_confidence";
+									const fallbackSummary =
+										conciseSummary ||
+										"Generated interactive summary from tool results.";
+									const toolFirstFallbackPayload = resolveDeterministicGenuiFallback({
+										text: toolContextForGenui || assistantText,
+										prompt: latestUserMessage,
+										title: "Tool results",
+										description:
+											"Generated from successful integration tool calls.",
+										defaultSummary: fallbackSummary,
+										defaultSource: isLowConfidenceSpec
+											? "tool-first-quality-fallback"
+											: "tool-first-genui-fallback",
+										observationSource: isLowConfidenceSpec
+											? "tool-observation-quality-fallback"
+											: "tool-observation-fallback",
+									});
 
+								if (hasRenderableSpec && !isLowConfidenceSpec) {
+									const renderedSummary =
+										conciseSummary ||
+										"Generated a visual summary from tool context below.";
 									writer.write({
 										type: "data-widget-data",
 										id: toolFirstGenuiWidgetId,
 										data: {
 											type: SMART_WIDGET_TYPE_GENUI,
-											payload: {
+											payload: withRouteWidgetContentType({
 												spec: genuiResult.spec,
-												summary: conciseSummary,
+												summary: renderedSummary,
 												source: "tool-first-genui",
-											},
+											}),
 										},
 									});
 									hasEmittedGenuiWidget = true;
@@ -5973,47 +6421,126 @@ app.post("/api/chat-sdk", async (req, res) => {
 									toolFirstRouteExperience = "generative_ui";
 
 									emitForcedTextDelta(
-										`${toolFirstSummaryPrefix}${conciseSummary}`
+										`${toolFirstSummaryPrefix}${renderedSummary}`
 									);
-								} else {
-									toolFirstRouteReason = "tool_first_visual_fallback";
-									toolFirstFallbackCause = "missing_renderable_genui_spec";
-									writer.write({
-										type: "data-route-decision",
-										data: {
-											reason: "fallback_ui_failed",
-											experience: "text",
-											timestamp: new Date().toISOString(),
-											toolsDetected: true,
-										},
+									} else if (toolFirstFallbackPayload) {
+										if (isLowConfidenceSpec) {
+											console.warn(
+												"[TOOL-FIRST] Replacing low-confidence GenUI spec with deterministic fallback",
+											{
+												domains: toolFirstPolicy.domainLabels,
+												reasons: genuiResult.analysisSummary?.reasons,
+												synthesizedChildCount:
+													genuiResult.analysisSummary?.synthesizedChildCount ?? 0,
+												missingChildKeyCount:
+													genuiResult.analysisSummary?.missingChildKeyCount ?? 0,
+												relevantToolResults:
+													toolFirstExecutionState.relevantToolResults,
+											}
+										);
+									}
+
+										writer.write({
+											type: "data-widget-data",
+											id: toolFirstGenuiWidgetId,
+											data: {
+												type: SMART_WIDGET_TYPE_GENUI,
+												payload: withRouteWidgetContentType({
+													spec: toolFirstFallbackPayload.spec,
+													summary: toolFirstFallbackPayload.summary,
+													source: toolFirstFallbackPayload.source,
+												}),
+											},
+										});
+										hasEmittedGenuiWidget = true;
+										toolFirstRouteReason = "intent_task_toolable";
+										toolFirstRouteExperience = "generative_ui";
+										toolFirstFallbackCause = toolFirstFallbackPayload.observationUsed
+											? "tool_observation_fallback"
+											: isLowConfidenceSpec
+												? "tool_first_low_confidence_genui"
+												: "missing_renderable_genui_spec";
+
+										emitForcedTextDelta(
+											`${toolFirstSummaryPrefix}${toolFirstFallbackPayload.summary}`
+										);
+									} else {
+										toolFirstRouteReason = "tool_first_visual_fallback";
+										toolFirstFallbackCause = isLowConfidenceSpec
+											? "tool_first_low_confidence_genui_no_fallback"
+											: "missing_renderable_genui_spec";
+										writer.write({
+											type: "data-route-decision",
+											data: {
+												reason: "fallback_ui_failed",
+												experience: "text",
+												timestamp: new Date().toISOString(),
+												toolsDetected: true,
+											},
+										});
+										emitForcedTextDelta(
+											`${toolFirstSummaryPrefix}I couldn't produce a renderable interactive summary from tool output.`
+										);
+									}
+								} catch (toolFirstGenuiError) {
+									console.error(
+										"[TOOL-FIRST] Post-tool GenUI generation failed:",
+										toolFirstGenuiError
+									);
+									const catchFallbackPayload = resolveDeterministicGenuiFallback({
+										text: assistantText,
+										prompt: latestUserMessage,
+										title: "Tool results",
+										description:
+											"Generated from tool execution results and errors.",
+										defaultSummary:
+											"Generated interactive summary from tool results.",
+										defaultSource: "tool-first-error-fallback",
+										observationSource: "tool-observation-fallback",
 									});
-									emitForcedTextDelta(
-										`${toolFirstSummaryPrefix}I continued in text-only mode because I couldn't produce a renderable visual summary from the tool output.`
-									);
-								}
-							} catch (toolFirstGenuiError) {
-								console.error(
-									"[TOOL-FIRST] Post-tool GenUI generation failed:",
-									toolFirstGenuiError
-								);
-								toolFirstRouteReason = "tool_first_visual_fallback";
-								toolFirstFallbackCause =
-									toolFirstGenuiError instanceof Error
-										? toolFirstGenuiError.message
-										: "tool-first-genui-error";
-								writer.write({
-									type: "data-route-decision",
-									data: {
-										reason: "fallback_ui_failed",
-										experience: "text",
-										timestamp: new Date().toISOString(),
-										toolsDetected: true,
-									},
-								});
-								emitForcedTextDelta(
-									`${toolFirstSummaryPrefix}I continued in text-only mode because visual summary generation failed after tool execution.`
-								);
-							} finally {
+									if (catchFallbackPayload) {
+										writer.write({
+											type: "data-widget-data",
+											id: toolFirstGenuiWidgetId,
+											data: {
+												type: SMART_WIDGET_TYPE_GENUI,
+												payload: withRouteWidgetContentType({
+													spec: catchFallbackPayload.spec,
+													summary: catchFallbackPayload.summary,
+													source: catchFallbackPayload.source,
+												}),
+											},
+										});
+										hasEmittedGenuiWidget = true;
+										toolFirstRouteReason = "intent_task_toolable";
+										toolFirstRouteExperience = "generative_ui";
+										toolFirstFallbackCause = catchFallbackPayload.observationUsed
+											? "tool_observation_fallback_after_genui_exception"
+											: "tool_first_genui_exception_fallback";
+
+										emitForcedTextDelta(
+											`${toolFirstSummaryPrefix}${catchFallbackPayload.summary}`
+										);
+									} else {
+										toolFirstRouteReason = "tool_first_visual_fallback";
+										toolFirstFallbackCause =
+											toolFirstGenuiError instanceof Error
+												? toolFirstGenuiError.message
+												: "tool-first-genui-error";
+										writer.write({
+											type: "data-route-decision",
+											data: {
+												reason: "fallback_ui_failed",
+												experience: "text",
+												timestamp: new Date().toISOString(),
+												toolsDetected: true,
+											},
+										});
+										emitForcedTextDelta(
+											`${toolFirstSummaryPrefix}I couldn't produce a renderable interactive summary from tool output.`
+										);
+									}
+								} finally {
 								writer.write({
 									type: "data-widget-loading",
 									id: toolFirstGenuiWidgetId,
@@ -6023,18 +6550,102 @@ app.post("/api/chat-sdk", async (req, res) => {
 									},
 								});
 							}
-						} else {
-							removeToolFirstFailureNarrative();
-							const warningText = buildToolFirstTextFallback({
-								policy: toolFirstPolicy,
-								execution: toolFirstExecutionState,
-								rovoDevFallback: false,
-							});
-							const toolFirstWarningPrefix =
-								assistantText.trim().length > 0 ? "\n\n" : "";
-							emitForcedTextDelta(`${toolFirstWarningPrefix}${warningText}`);
-							toolFirstFallbackCause = "no_relevant_tool_success";
+							} else if (looksLikeInabilityResponse(assistantText.trim())) {
+								console.info("[TOOL-FIRST] Inability response detected, skipping GenUI fallback card", {
+									textLength: assistantText.trim().length,
+								});
+								toolFirstRouteReason = "tool_first_inability_detected";
+								toolFirstRouteExperience = "text";
+							} else {
+								removeToolFirstFailureNarrative();
+								const toolFirstTextFallbackPayload = resolveDeterministicGenuiFallback({
+									text: assistantText,
+									prompt: latestUserMessage,
+									defaultSummary:
+										"Generated interactive summary from tool results.",
+									defaultSource: "tool-first-genui-fallback",
+									observationSource: "tool-observation-fallback",
+								});
+
+								if (toolFirstTextFallbackPayload) {
+									const toolFirstFallbackWidgetId = `widget-tool-first-genui-${Date.now()}`;
+									writer.write({
+										type: "data-widget-loading",
+									id: toolFirstFallbackWidgetId,
+									data: {
+										type: SMART_WIDGET_TYPE_GENUI,
+										loading: true,
+									},
+								});
+									writer.write({
+										type: "data-widget-data",
+										id: toolFirstFallbackWidgetId,
+										data: {
+											type: SMART_WIDGET_TYPE_GENUI,
+											payload: withRouteWidgetContentType({
+												spec: toolFirstTextFallbackPayload.spec,
+												summary: toolFirstTextFallbackPayload.summary,
+												source: toolFirstTextFallbackPayload.source,
+											}),
+										},
+									});
+								writer.write({
+									type: "data-widget-loading",
+									id: toolFirstFallbackWidgetId,
+									data: {
+										type: SMART_WIDGET_TYPE_GENUI,
+										loading: false,
+									},
+								});
+									hasEmittedGenuiWidget = true;
+									toolFirstRouteReason = "intent_task_toolable";
+									toolFirstRouteExperience = "generative_ui";
+									toolFirstFallbackCause = toolFirstTextFallbackPayload.observationUsed
+										? "tool_observation_fallback"
+										: "no_relevant_tool_success_fallback_card";
+								} else {
+								const warningText = buildToolFirstTextFallback({
+									policy: toolFirstPolicy,
+									execution: toolFirstExecutionState,
+									rovoDevFallback: false,
+								});
+								const toolFirstWarningPrefix =
+									assistantText.trim().length > 0 ? "\n\n" : "";
+								emitForcedTextDelta(`${toolFirstWarningPrefix}${warningText}`);
+								toolFirstFallbackCause = "no_relevant_tool_success";
+							}
 						}
+
+						const resolvedToolFirstFallbackCause = (() => {
+							const fallbackCause =
+								typeof toolFirstFallbackCause === "string" &&
+								toolFirstFallbackCause.trim().length > 0
+									? toolFirstFallbackCause
+									: null;
+							const teamworkGraphTimeWindowActive =
+								toolFirstPolicy?.teamworkGraphTimeWindow?.enabled === true;
+							if (!teamworkGraphTimeWindowActive) {
+								return fallbackCause;
+							}
+
+							if (toolFirstRouteExperience !== "generative_ui") {
+								return fallbackCause;
+							}
+
+							if (hasRelevantToolSuccess(toolFirstExecutionState)) {
+								return fallbackCause;
+							}
+
+							if (toolFirstExecutionState.lastRelevantErrorCategory === "validation") {
+								return "twg_datetime_validation_to_jira_cql_fallback";
+							}
+
+							if (fallbackCause && fallbackCause.startsWith("tool_observation")) {
+								return "twg_to_jira_cql_tool_observation_fallback";
+							}
+
+							return fallbackCause || "twg_to_jira_cql_fallback";
+						})();
 
 						writer.write({
 							type: "data-route-decision",
@@ -6043,12 +6654,13 @@ app.post("/api/chat-sdk", async (req, res) => {
 								experience: toolFirstRouteExperience,
 								timestamp: new Date().toISOString(),
 								toolsDetected: getRouteToolsDetected(),
-								fallbackCause: toolFirstFallbackCause || undefined,
+								fallbackCause: resolvedToolFirstFallbackCause || undefined,
 							},
 						});
 
 						console.info("[TOOL-FIRST] Execution summary", {
 							domains: toolFirstPolicy.domains,
+							relevanceDomains: toolFirstRelevanceDomains,
 							domainLabels: toolFirstPolicy.domainLabels,
 							attempts: toolFirstExecutionState.attempts,
 							retriesUsed: toolFirstExecutionState.retriesUsed,

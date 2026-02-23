@@ -154,6 +154,7 @@ function QuestionInput({
 	const visibleOptionCount = getVisibleOptionCount(question.options.length, maxVisibleOptions);
 	const visibleOptions = question.options.slice(0, visibleOptionCount);
 	const customInputValue = getCustomInputValue(question, answerValue);
+	const isTextOnlyMode = visibleOptionCount === 0;
 
 	return (
 		<ul data-slot="question-card-options" className="m-0 flex list-none flex-col gap-1 p-0" role="group" aria-label={question.label}>
@@ -185,13 +186,15 @@ function QuestionInput({
 			{showCustomInput ? (
 				<li
 					data-slot="question-card-custom-input"
-					className="flex h-8 items-center gap-4 rounded-lg pl-2"
+					className={cn("flex h-8 items-center rounded-lg", isTextOnlyMode ? "px-1" : "gap-4 pl-2")}
 					onMouseEnter={() => {
 						onFocusIndex(customOptionIndex);
 						customInputRef.current?.focus();
 					}}
 				>
-					<span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">{customOptionIndex + 1}</span>
+					{isTextOnlyMode ? null : (
+						<span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">{customOptionIndex + 1}</span>
+					)}
 					<Input
 						ref={customInputRef}
 						aria-label={`${question.label} custom answer`}
@@ -270,11 +273,6 @@ function QuestionCard({
 			<header data-slot="question-card-header" className="px-4 pb-2 pt-4">
 				<div className="flex items-start justify-between gap-2">
 					<div className="min-w-0">
-						{currentQuestion.header ? (
-							<span className="mb-0.5 block text-xs font-medium text-text-subtlest uppercase tracking-wider">
-								{currentQuestion.header}
-							</span>
-						) : null}
 						<h2 className="text-sm leading-5 font-medium text-text">{currentQuestion.label}</h2>
 					</div>
 					{onDismiss ? (

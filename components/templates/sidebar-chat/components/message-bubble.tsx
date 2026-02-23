@@ -12,6 +12,7 @@ interface MessageBubbleProps {
 	onSuggestionClick?: (question: string) => void;
 	enableSmartWidgets?: boolean;
 	showThinkingStatusSection?: boolean;
+	isThinkingLifecycleStreaming?: boolean;
 	generativeCardAnimation?: GenerativeCardAnimationProps;
 	onWidgetPrimaryAction?: (
 		payload: GenerativeWidgetPrimaryActionPayload
@@ -23,6 +24,7 @@ export default function MessageBubble({
 	onSuggestionClick,
 	enableSmartWidgets = false,
 	showThinkingStatusSection = true,
+	isThinkingLifecycleStreaming = false,
 	generativeCardAnimation,
 	onWidgetPrimaryAction,
 }: Readonly<MessageBubbleProps>): ReactNode {
@@ -41,6 +43,7 @@ export default function MessageBubble({
 		<ThreadMessage.Root
 			message={message}
 			surface="sidebar"
+			isThinkingLifecycleStreaming={isThinkingLifecycleStreaming}
 			renderWidget={renderWidget}
 		>
 			<ThreadMessage.Reasoning />

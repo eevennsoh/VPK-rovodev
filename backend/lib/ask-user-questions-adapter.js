@@ -55,7 +55,7 @@ function adaptClarificationAnswers(sessionId, answers, questionMeta) {
  * This handles the Pydantic model structure from ask_user_questions.
  *
  * @param {object} toolInput - The raw tool input (QuestionsInput Pydantic model)
- * @returns {Array<{id: string, label: string, header?: string, kind: string, options: Array<{id: string, label: string, description?: string}>}>|null}
+ * @returns {Array<{id: string, label: string, kind: string, options: Array<{id: string, label: string, description?: string}>}>|null}
  */
 function convertToolInputToQuestionCardFormat(toolInput) {
 	if (!toolInput || typeof toolInput !== "object") {
@@ -110,7 +110,6 @@ function convertToolInputToQuestionCardFormat(toolInput) {
 			return {
 				id: typeof q.id === "string" ? q.id : `q-${idx + 1}`,
 				label,
-				header: typeof q.header === "string" ? q.header.trim() || undefined : undefined,
 				kind: "single-select",
 				options,
 			};

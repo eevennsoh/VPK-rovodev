@@ -26,7 +26,6 @@ export interface ParsedQuestionCardOption {
 export interface ParsedQuestionCardQuestion {
 	id: string;
 	label: string;
-	header?: string;
 	description?: string;
 	required: boolean;
 	kind: QuestionKind;
@@ -217,7 +216,6 @@ export function parseQuestionCardPayload(
 		questions.push({
 			id: questionId,
 			label: truncatedLabel,
-			header: getNonEmptyString(question.header) ?? undefined,
 			description: getNonEmptyString(question.description) ?? undefined,
 			required: question.required !== false,
 			kind: normalizeQuestionKind(question.kind),

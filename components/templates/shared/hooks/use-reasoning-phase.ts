@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type ReasoningPhase = "thinking" | "streaming" | "completed" | "idle";
+export type ReasoningPhase = "preload" | "thinking" | "completed" | "idle";
 
 const THINKING_GRADIENT_COLORS = ["#1868db", "#bf63f3", "#fca700"] as const;
 const MS_IN_S = 1000;
 const DEFAULT_AUTO_IDLE_DELAY_MS = 3000;
+const DEFAULT_MIN_PRELOAD_MS = 0;
 
 interface UseReasoningPhaseOptions {
 	isStreaming: boolean;
@@ -14,6 +15,7 @@ interface UseReasoningPhaseOptions {
 	responseKey: string;
 	autoIdle?: boolean;
 	autoIdleDelayMs?: number;
+	minPreloadMs?: number;
 }
 
 interface UseReasoningPhaseResult {
@@ -23,7 +25,7 @@ interface UseReasoningPhaseResult {
 
 /**
  * Tracks the reasoning lifecycle through four phases:
- * thinking → streaming → completed → idle.
+ * preload → thinking → completed → idle.
  *
  * Uses refs for transition tracking and deferred state updates to satisfy
  * the react-hooks/set-state-in-effect lint rule (no synchronous setState
@@ -35,12 +37,14 @@ export function useReasoningPhase({
 	responseKey,
 	autoIdle = false,
 	autoIdleDelayMs = DEFAULT_AUTO_IDLE_DELAY_MS,
+	minPreloadMs = DEFAULT_MIN_PRELOAD_MS,
 }: Readonly<UseReasoningPhaseOptions>): UseReasoningPhaseResult {
 	const startTimeRef = useRef<number | null>(null);
 	const completedDurationRef = useRef<number | undefined>(undefined);
 	const isCompletedRef = useRef(false);
 	const prevStreamingRef = useRef(false);
 	const prevResponseKeyRef = useRef(responseKey);
+	const preloadLockedUntilRef = useRef<number>(0);
 
 	// Single state to trigger re-renders after ref mutations
 	const [, setTick] = useState(0);
@@ -55,6 +59,9 @@ export function useReasoningPhase({
 			startTimeRef.current = isStreaming ? Date.now() : null;
 			completedDurationRef.current = undefined;
 			isCompletedRef.current = false;
+			preloadLockedUntilRef.current = isStreaming && minPreloadMs > 0
+				? Date.now() + minPreloadMs
+				: 0;
 			prevStreamingRef.current = isStreaming;
 			const id = setTimeout(bumpTick, 0);
 			return () => clearTimeout(id);
@@ -67,6 +74,9 @@ export function useReasoningPhase({
 			startTimeRef.current = Date.now();
 			completedDurationRef.current = undefined;
 			isCompletedRef.current = false;
+			preloadLockedUntilRef.current = minPreloadMs > 0
+				? Date.now() + minPreloadMs
+				: 0;
 			const id = setTimeout(bumpTick, 0);
 			return () => clearTimeout(id);
 		}
@@ -85,7 +95,7 @@ export function useReasoningPhase({
 		}
 
 		return undefined;
-	}, [isStreaming, responseKey]);
+	}, [isStreaming, responseKey, minPreloadMs]);
 
 	// Auto-idle: dismiss completed display after a delay
 	useEffect(() => {
@@ -100,9 +110,23 @@ export function useReasoningPhase({
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- re-run when phase changes via tick
 	}, [isCompletedRef.current, autoIdle, autoIdleDelayMs]);
 
+	// Minimum preload: schedule re-render when the lock expires
+	useEffect(() => {
+		if (minPreloadMs <= 0) return;
+
+		const remaining = preloadLockedUntilRef.current - Date.now();
+		if (remaining <= 0) return;
+
+		const timer = setTimeout(bumpTick, remaining);
+		return () => clearTimeout(timer);
+	}, [isStreaming, hasMessageText, minPreloadMs]);
+
+	const isPreloadLocked = Date.now() < preloadLockedUntilRef.current;
 	let phase: ReasoningPhase;
-	if (isStreaming) {
-		phase = hasMessageText ? "streaming" : "thinking";
+	if (isPreloadLocked) {
+		phase = "preload";
+	} else if (isStreaming) {
+		phase = hasMessageText ? "thinking" : "preload";
 	} else if (isCompletedRef.current) {
 		phase = "completed";
 	} else {
@@ -128,7 +152,7 @@ export function getReasoningPropsForPhase(
 	hasDetails: boolean
 ): ReasoningPhaseProps {
 	switch (phase) {
-		case "thinking":
+		case "preload":
 			return {
 				isStreaming: true,
 				streamingWave: true,
@@ -138,7 +162,9 @@ export function getReasoningPropsForPhase(
 				defaultOpen: hasDetails ? true : undefined,
 				triggerStreaming: undefined,
 			};
-		case "streaming":
+		case "thinking":
+			// Thinking variant contract: calm trigger icon + animated dots.
+			// Keep shimmer disabled here (preload-only).
 			return {
 				isStreaming: true,
 				streamingWave: false,

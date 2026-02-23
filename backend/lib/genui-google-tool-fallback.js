@@ -1,0 +1,967 @@
+const DEFAULT_MAX_ITEMS = 10;
+const MAX_SCAN_NODES = 240;
+const MAX_LABEL_LENGTH = 180;
+
+function isObjectRecord(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getNonEmptyString(value) {
+	if (typeof value !== "string") {
+		return null;
+	}
+
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
+
+function clipText(value, maxLength = MAX_LABEL_LENGTH) {
+	const text = getNonEmptyString(value);
+	if (!text) {
+		return null;
+	}
+
+	if (text.length <= maxLength) {
+		return text;
+	}
+
+	return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function parseMaybeJson(value) {
+	if (typeof value !== "string") {
+		return null;
+	}
+
+	const trimmed = value.trim();
+	if (!trimmed || (trimmed[0] !== "{" && trimmed[0] !== "[")) {
+		return null;
+	}
+
+	try {
+		return JSON.parse(trimmed);
+	} catch {
+		return null;
+	}
+}
+
+function toStructuredPayload(rawValue) {
+	if (rawValue === null || rawValue === undefined) {
+		return null;
+	}
+
+	if (Array.isArray(rawValue) || isObjectRecord(rawValue)) {
+		return rawValue;
+	}
+
+	if (typeof rawValue === "string") {
+		return parseMaybeJson(rawValue);
+	}
+
+	return null;
+}
+
+function normalizeToolName(toolName) {
+	const normalized = getNonEmptyString(toolName);
+	if (!normalized) {
+		return "";
+	}
+
+	return normalized
+		.toLowerCase()
+		.replace(/[_:/.-]+/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function detectGoogleDomainFromToolName(toolName) {
+	const normalized = normalizeToolName(toolName);
+	if (!normalized || !normalized.includes("google")) {
+		return null;
+	}
+
+	if (
+		/\bcalendar\b/.test(normalized)
+	) {
+		return "calendar";
+	}
+
+	if (
+		/\b(drive|docs?|sheets?|slides?)\b/.test(normalized)
+	) {
+		return "drive";
+	}
+
+	return null;
+}
+
+function detectPreferredDomainFromPrompt(prompt) {
+	const normalized = getNonEmptyString(prompt)?.toLowerCase() ?? "";
+	if (!normalized) {
+		return null;
+	}
+
+	if (/\bgoogle\s+calendar\b|\bcalendar\b/.test(normalized)) {
+		return "calendar";
+	}
+
+	if (
+		/\bgoogle\s+drive\b|\bdrive\b|\bgoogle\s+docs?\b|\bgoogle\s+sheets?\b|\bgoogle\s+slides?\b/.test(
+			normalized
+		)
+	) {
+		return "drive";
+	}
+
+	return null;
+}
+
+function walkNodes(rootValue, visit, maxNodes = MAX_SCAN_NODES) {
+	const queue = [rootValue];
+	let visited = 0;
+
+	while (queue.length > 0 && visited < maxNodes) {
+		const value = queue.shift();
+		if (value === undefined || value === null) {
+			continue;
+		}
+
+		visited += 1;
+		visit(value);
+
+		if (Array.isArray(value)) {
+			for (const entry of value) {
+				queue.push(entry);
+			}
+			continue;
+		}
+
+		if (isObjectRecord(value)) {
+			for (const nested of Object.values(value)) {
+				queue.push(nested);
+			}
+		}
+	}
+}
+
+function firstString(record, keys) {
+	if (!isObjectRecord(record)) {
+		return null;
+	}
+
+	for (const key of keys) {
+		const candidate = clipText(record[key]);
+		if (candidate) {
+			return candidate;
+		}
+	}
+
+	return null;
+}
+
+function resolveDateValue(rawValue) {
+	if (typeof rawValue === "string") {
+		return clipText(rawValue, 80);
+	}
+
+	if (!isObjectRecord(rawValue)) {
+		return null;
+	}
+
+	return firstString(rawValue, [
+		"dateTime",
+		"date",
+		"time",
+		"iso",
+		"value",
+	]);
+}
+
+function formatDateRange(startValue, endValue) {
+	const start = resolveDateValue(startValue);
+	const end = resolveDateValue(endValue);
+	if (start && end) {
+		return `${start} -> ${end}`;
+	}
+	if (start) {
+		return `Starts: ${start}`;
+	}
+	if (end) {
+		return `Ends: ${end}`;
+	}
+	return null;
+}
+
+function normalizeCalendarEvent(rawEvent) {
+	if (!isObjectRecord(rawEvent)) {
+		return null;
+	}
+
+	const rawTitle = firstString(rawEvent, ["summary", "title", "name"]);
+	const when = formatDateRange(
+		rawEvent.start ?? rawEvent.startTime ?? rawEvent.begin,
+		rawEvent.end ?? rawEvent.endTime ?? rawEvent.finish
+	);
+	const location = firstString(rawEvent, ["location"]);
+	const status = firstString(rawEvent, ["status"]);
+	const link = firstString(rawEvent, [
+		"htmlLink",
+		"webViewLink",
+		"url",
+		"link",
+		"alternateLink",
+	]);
+	const id = firstString(rawEvent, ["id", "eventId"]);
+
+	if (!rawTitle && !when && !location && !status && !link && !id) {
+		return null;
+	}
+
+	return {
+		id,
+		title: rawTitle || "Untitled event",
+		when,
+		location,
+		status,
+		link,
+	};
+}
+
+function normalizeDriveFile(rawFile) {
+	if (!isObjectRecord(rawFile)) {
+		return null;
+	}
+
+	const rawName = firstString(rawFile, ["name", "title", "filename"]);
+	const mimeType = firstString(rawFile, ["mimeType", "type"]);
+	const modifiedTime = firstString(rawFile, [
+		"modifiedTime",
+		"modified",
+		"updatedTime",
+		"updated",
+	]);
+	const link = firstString(rawFile, [
+		"webViewLink",
+		"alternateLink",
+		"url",
+		"htmlLink",
+		"link",
+	]);
+	const id = firstString(rawFile, ["id", "fileId"]);
+
+	let owner = null;
+	if (Array.isArray(rawFile.owners) && rawFile.owners.length > 0) {
+		const firstOwner = rawFile.owners[0];
+		if (isObjectRecord(firstOwner)) {
+			owner = firstString(firstOwner, ["displayName", "name", "emailAddress", "email"]);
+		}
+	}
+	if (!owner) {
+		owner = firstString(rawFile, ["owner", "ownerName"]);
+	}
+
+	if (!rawName && !mimeType && !modifiedTime && !owner && !link && !id) {
+		return null;
+	}
+
+	return {
+		id,
+		name: rawName || "Untitled file",
+		mimeType,
+		modifiedTime,
+		owner,
+		link,
+	};
+}
+
+function collectArraysByKeys(payloads, keys) {
+	const normalizedKeys = new Set(keys.map((key) => key.toLowerCase()));
+	const arrays = [];
+	for (const payload of payloads) {
+		if (Array.isArray(payload)) {
+			arrays.push(payload);
+		}
+
+		walkNodes(payload, (node) => {
+			if (!isObjectRecord(node)) {
+				return;
+			}
+
+			for (const [key, value] of Object.entries(node)) {
+				if (!Array.isArray(value)) {
+					continue;
+				}
+				if (normalizedKeys.has(key.toLowerCase())) {
+					arrays.push(value);
+				}
+			}
+		});
+	}
+
+	return arrays;
+}
+
+function dedupeBy(items, keyFn) {
+	const seen = new Set();
+	const result = [];
+	for (const item of items) {
+		const key = keyFn(item);
+		if (!key || seen.has(key)) {
+			continue;
+		}
+		seen.add(key);
+		result.push(item);
+	}
+	return result;
+}
+
+function extractCalendarData(payloads, maxItems) {
+	const arrays = collectArraysByKeys(payloads, ["events", "items"]);
+	const normalizedEvents = [];
+	for (const collection of arrays) {
+		for (const entry of collection) {
+			const normalized = normalizeCalendarEvent(entry);
+			if (normalized) {
+				normalizedEvents.push(normalized);
+			}
+		}
+	}
+
+	const dedupedEvents = dedupeBy(normalizedEvents, (event) =>
+		[event.id, event.link, event.title, event.when].filter(Boolean).join("|")
+	);
+	const limitedEvents = dedupedEvents.slice(0, maxItems);
+
+	let calendarId = null;
+	let timeZone = null;
+	let calendarName = null;
+	let message = null;
+	for (const payload of payloads) {
+		if (isObjectRecord(payload)) {
+			if (!calendarId) {
+				calendarId = firstString(payload, ["calendarId"]);
+			}
+			if (!timeZone) {
+				timeZone = firstString(payload, ["timeZone", "timezone"]);
+			}
+			if (!calendarName) {
+				calendarName = firstString(payload, ["summary", "name", "title"]);
+			}
+			if (!message) {
+				message = firstString(payload, ["message", "note", "description"]);
+			}
+		}
+
+		walkNodes(payload, (node) => {
+			if (!isObjectRecord(node)) {
+				return;
+			}
+
+			if (!calendarId) {
+				calendarId = firstString(node, ["calendarId"]);
+			}
+			if (!timeZone) {
+				timeZone = firstString(node, ["timeZone", "timezone"]);
+			}
+			if (!calendarName) {
+				calendarName = firstString(node, ["summary", "name", "title"]);
+			}
+			if (!message) {
+				message = firstString(node, ["message", "note", "description"]);
+			}
+		});
+	}
+
+	return {
+		events: limitedEvents,
+		totalEvents: dedupedEvents.length,
+		info: {
+			calendarId,
+			timeZone,
+			calendarName,
+			message,
+		},
+	};
+}
+
+function extractDriveData(payloads, maxItems) {
+	const arrays = collectArraysByKeys(payloads, ["files", "items"]);
+	const normalizedFiles = [];
+	for (const collection of arrays) {
+		for (const entry of collection) {
+			const normalized = normalizeDriveFile(entry);
+			if (normalized) {
+				normalizedFiles.push(normalized);
+			}
+		}
+	}
+
+	const dedupedFiles = dedupeBy(normalizedFiles, (file) =>
+		[file.id, file.link, file.name, file.modifiedTime].filter(Boolean).join("|")
+	);
+	const limitedFiles = dedupedFiles.slice(0, maxItems);
+
+	let accountName = null;
+	let email = null;
+	let storageUsed = null;
+	let storageLimit = null;
+	let message = null;
+
+	for (const payload of payloads) {
+		walkNodes(payload, (node) => {
+			if (!isObjectRecord(node)) {
+				return;
+			}
+
+			if (!accountName) {
+				accountName = firstString(node, ["displayName", "name"]);
+			}
+			if (!email) {
+				email = firstString(node, ["emailAddress", "email"]);
+			}
+
+			const quota = isObjectRecord(node.storageQuota) ? node.storageQuota : null;
+			if (quota) {
+				if (!storageUsed) {
+					storageUsed = firstString(quota, [
+						"usageInDrive",
+						"usage",
+						"usageInDriveTrash",
+						"storageUsed",
+					]);
+				}
+				if (!storageLimit) {
+					storageLimit = firstString(quota, ["limit", "storageLimit", "quota"]);
+				}
+			}
+
+			if (!message) {
+				message = firstString(node, ["message", "note", "description"]);
+			}
+		});
+	}
+
+	return {
+		files: limitedFiles,
+		totalFiles: dedupedFiles.length,
+		info: {
+			accountName,
+			email,
+			storageUsed,
+			storageLimit,
+			message,
+		},
+	};
+}
+
+function pushTextLine(elements, parentChildren, key, content, muted = false) {
+	if (!content) {
+		return;
+	}
+
+	parentChildren.push(key);
+	elements[key] = {
+		type: "Text",
+		props: {
+			content,
+			...(muted ? { muted: true } : {}),
+		},
+	};
+}
+
+function buildCalendarSpec({ title, description, data }) {
+	const elements = {};
+	const cardChildren = [];
+	const rootChildren = ["summary-card"];
+
+	elements.root = {
+		type: "Stack",
+		props: { direction: "vertical", gap: "md" },
+		children: rootChildren,
+	};
+
+	elements["summary-card"] = {
+		type: "Card",
+		props: { title, description },
+		children: cardChildren,
+	};
+
+	if (data.events.length > 0) {
+		const lineSegments = [];
+		if (data.totalEvents > 0) {
+			lineSegments.push(
+				`Showing ${data.events.length} of ${data.totalEvents} event${
+					data.totalEvents === 1 ? "" : "s"
+				}.`
+			);
+		}
+		if (data.info.calendarName) {
+			lineSegments.push(`Calendar: ${data.info.calendarName}`);
+		}
+		if (data.info.timeZone) {
+			lineSegments.push(`Time zone: ${data.info.timeZone}`);
+		}
+
+		pushTextLine(
+			elements,
+			cardChildren,
+			"calendar-overview",
+			lineSegments.join(" "),
+			true
+		);
+
+		data.events.forEach((event, index) => {
+			const eventCardKey = `calendar-event-${index}`;
+			const eventChildKeys = [];
+			cardChildren.push(eventCardKey);
+			elements[eventCardKey] = {
+				type: "Card",
+				props: {
+					title: event.title,
+					description: event.when || undefined,
+				},
+				children: eventChildKeys,
+			};
+
+			pushTextLine(
+				elements,
+				eventChildKeys,
+				`${eventCardKey}-location`,
+				event.location ? `Location: ${event.location}` : null,
+				true
+			);
+			pushTextLine(
+				elements,
+				eventChildKeys,
+				`${eventCardKey}-status`,
+				event.status ? `Status: ${event.status}` : null,
+				true
+			);
+
+			if (event.link) {
+				const linkKey = `${eventCardKey}-link`;
+				eventChildKeys.push(linkKey);
+				elements[linkKey] = {
+					type: "Link",
+					props: {
+						text: "Open event",
+						href: event.link,
+					},
+				};
+			}
+		});
+
+		return { root: "root", elements };
+	}
+
+	const emptyLines = [];
+	pushTextLine(
+		elements,
+		emptyLines,
+		"calendar-empty",
+		"No events were returned in the tool response."
+	);
+	pushTextLine(
+		elements,
+		emptyLines,
+		"calendar-name",
+		data.info.calendarName ? `Calendar: ${data.info.calendarName}` : null,
+		true
+	);
+	pushTextLine(
+		elements,
+		emptyLines,
+		"calendar-id",
+		data.info.calendarId ? `Calendar ID: ${data.info.calendarId}` : null,
+		true
+	);
+	pushTextLine(
+		elements,
+		emptyLines,
+		"calendar-timezone",
+		data.info.timeZone ? `Time zone: ${data.info.timeZone}` : null,
+		true
+	);
+	pushTextLine(
+		elements,
+		emptyLines,
+		"calendar-message",
+		data.info.message ? `Details: ${data.info.message}` : null,
+		true
+	);
+
+	const infoStackKey = "calendar-info-stack";
+	cardChildren.push(infoStackKey);
+	elements[infoStackKey] = {
+		type: "Stack",
+		props: {
+			direction: "vertical",
+			gap: "sm",
+		},
+		children: emptyLines,
+	};
+
+	return { root: "root", elements };
+}
+
+function buildDriveSpec({ title, description, data }) {
+	const elements = {};
+	const cardChildren = [];
+	const rootChildren = ["summary-card"];
+
+	elements.root = {
+		type: "Stack",
+		props: { direction: "vertical", gap: "md" },
+		children: rootChildren,
+	};
+
+	elements["summary-card"] = {
+		type: "Card",
+		props: { title, description },
+		children: cardChildren,
+	};
+
+	if (data.files.length > 0) {
+		pushTextLine(
+			elements,
+			cardChildren,
+			"drive-overview",
+			`Showing ${data.files.length} of ${data.totalFiles} file${
+				data.totalFiles === 1 ? "" : "s"
+			}.`,
+			true
+		);
+
+		data.files.forEach((file, index) => {
+			const fileCardKey = `drive-file-${index}`;
+			const fileChildKeys = [];
+			cardChildren.push(fileCardKey);
+
+			const fileDescriptionParts = [];
+			if (file.mimeType) {
+				fileDescriptionParts.push(file.mimeType);
+			}
+			if (file.modifiedTime) {
+				fileDescriptionParts.push(`Updated: ${file.modifiedTime}`);
+			}
+
+			elements[fileCardKey] = {
+				type: "Card",
+				props: {
+					title: file.name,
+					description:
+						fileDescriptionParts.length > 0
+							? fileDescriptionParts.join(" · ")
+							: undefined,
+				},
+				children: fileChildKeys,
+			};
+
+			pushTextLine(
+				elements,
+				fileChildKeys,
+				`${fileCardKey}-owner`,
+				file.owner ? `Owner: ${file.owner}` : null,
+				true
+			);
+
+			if (file.link) {
+				const linkKey = `${fileCardKey}-link`;
+				fileChildKeys.push(linkKey);
+				elements[linkKey] = {
+					type: "Link",
+					props: {
+						text: "Open file",
+						href: file.link,
+					},
+				};
+			}
+		});
+
+		return { root: "root", elements };
+	}
+
+	const infoLines = [];
+	pushTextLine(
+		elements,
+		infoLines,
+		"drive-empty",
+		"No files were returned in the tool response."
+	);
+	pushTextLine(
+		elements,
+		infoLines,
+		"drive-account",
+		data.info.accountName ? `Account: ${data.info.accountName}` : null,
+		true
+	);
+	pushTextLine(
+		elements,
+		infoLines,
+		"drive-email",
+		data.info.email ? `Email: ${data.info.email}` : null,
+		true
+	);
+	pushTextLine(
+		elements,
+		infoLines,
+		"drive-storage",
+		data.info.storageUsed || data.info.storageLimit
+			? `Storage: ${data.info.storageUsed || "unknown"} / ${
+					data.info.storageLimit || "unknown"
+				}`
+			: null,
+		true
+	);
+	pushTextLine(
+		elements,
+		infoLines,
+		"drive-message",
+		data.info.message ? `Details: ${data.info.message}` : null,
+		true
+	);
+
+	const infoStackKey = "drive-info-stack";
+	cardChildren.push(infoStackKey);
+	elements[infoStackKey] = {
+		type: "Stack",
+		props: {
+			direction: "vertical",
+			gap: "sm",
+		},
+		children: infoLines,
+	};
+
+	return { root: "root", elements };
+}
+
+function scoreCandidate(candidate, preferredDomain) {
+	if (!candidate) {
+		return -1;
+	}
+
+	let score = 0;
+	if (candidate.domain === preferredDomain) {
+		score += 2000;
+	}
+
+	if (candidate.listCount > 0) {
+		score += 1000 + candidate.listCount;
+	}
+	if (candidate.hasInfo) {
+		score += 100 + candidate.infoFieldCount;
+	}
+
+	return score;
+}
+
+function buildCalendarCandidate({
+	observations,
+	payloads,
+	title,
+	description,
+	maxItems,
+}) {
+	if (payloads.length === 0) {
+		return null;
+	}
+
+	const data = extractCalendarData(payloads, maxItems);
+	const hasInfo = Boolean(
+		data.info.calendarId || data.info.timeZone || data.info.calendarName || data.info.message
+	);
+	if (data.events.length === 0 && !hasInfo) {
+		return null;
+	}
+
+	const resolvedTitle =
+		clipText(title, 80) || "Google Calendar";
+	const resolvedDescription =
+		clipText(description, 140) ||
+		(data.events.length > 0
+			? "Upcoming events from Google Calendar."
+			: "Calendar information from Google Calendar.");
+
+	const resultCount = observations.filter((entry) => entry.phase === "result").length;
+	const errorCount = observations.filter((entry) => entry.phase === "error").length;
+
+	return {
+		domain: "calendar",
+		spec: buildCalendarSpec({
+			title: resolvedTitle,
+			description: resolvedDescription,
+			data,
+		}),
+		summary:
+			data.events.length > 0
+				? `Rendered ${data.events.length} Google Calendar event${
+						data.events.length === 1 ? "" : "s"
+					}.`
+				: "Rendered Google Calendar details.",
+		source: "tool-observation-google-calendar-structured",
+		observationUsed: true,
+		observationCount: observations.length,
+		resultCount,
+		errorCount,
+		listCount: data.events.length,
+		hasInfo,
+		infoFieldCount: [
+			data.info.calendarId,
+			data.info.timeZone,
+			data.info.calendarName,
+			data.info.message,
+		].filter(Boolean).length,
+	};
+}
+
+function buildDriveCandidate({
+	observations,
+	payloads,
+	title,
+	description,
+	maxItems,
+}) {
+	if (payloads.length === 0) {
+		return null;
+	}
+
+	const data = extractDriveData(payloads, maxItems);
+	const hasInfo = Boolean(
+		data.info.accountName ||
+			data.info.email ||
+			data.info.storageUsed ||
+			data.info.storageLimit ||
+			data.info.message
+	);
+	if (data.files.length === 0 && !hasInfo) {
+		return null;
+	}
+
+	const resolvedTitle =
+		clipText(title, 80) || "Google Drive";
+	const resolvedDescription =
+		clipText(description, 140) ||
+		(data.files.length > 0
+			? "Files from Google Drive."
+			: "Drive account information from Google Drive.");
+
+	const resultCount = observations.filter((entry) => entry.phase === "result").length;
+	const errorCount = observations.filter((entry) => entry.phase === "error").length;
+
+	return {
+		domain: "drive",
+		spec: buildDriveSpec({
+			title: resolvedTitle,
+			description: resolvedDescription,
+			data,
+		}),
+		summary:
+			data.files.length > 0
+				? `Rendered ${data.files.length} Google Drive file${
+						data.files.length === 1 ? "" : "s"
+					}.`
+				: "Rendered Google Drive account details.",
+		source: "tool-observation-google-drive-structured",
+		observationUsed: true,
+		observationCount: observations.length,
+		resultCount,
+		errorCount,
+		listCount: data.files.length,
+		hasInfo,
+		infoFieldCount: [
+			data.info.accountName,
+			data.info.email,
+			data.info.storageUsed,
+			data.info.storageLimit,
+			data.info.message,
+		].filter(Boolean).length,
+	};
+}
+
+function filterDomainObservations(observations, domain) {
+	return observations.filter((entry) => {
+		const detectedDomain = detectGoogleDomainFromToolName(entry.toolName);
+		return detectedDomain === domain;
+	});
+}
+
+function collectStructuredPayloads(observations) {
+	const payloads = [];
+	for (const observation of observations) {
+		if (!observation || observation.phase !== "result") {
+			continue;
+		}
+
+		const payload =
+			toStructuredPayload(observation.rawOutput)
+			|| toStructuredPayload(observation.text);
+		if (payload) {
+			payloads.push(payload);
+		}
+	}
+	return payloads;
+}
+
+function buildGoogleStructuredFallback({
+	observations,
+	prompt,
+	title,
+	description,
+	maxItems = DEFAULT_MAX_ITEMS,
+} = {}) {
+	const entries = Array.isArray(observations) ? observations : [];
+	if (entries.length === 0) {
+		return null;
+	}
+
+	const boundedMaxItems =
+		typeof maxItems === "number" && Number.isFinite(maxItems) && maxItems > 0
+			? Math.min(Math.floor(maxItems), 20)
+			: DEFAULT_MAX_ITEMS;
+
+	const calendarObservations = filterDomainObservations(entries, "calendar");
+	const driveObservations = filterDomainObservations(entries, "drive");
+
+	const calendarPayloads = collectStructuredPayloads(calendarObservations);
+	const drivePayloads = collectStructuredPayloads(driveObservations);
+
+	const calendarCandidate = buildCalendarCandidate({
+		observations: calendarObservations,
+		payloads: calendarPayloads,
+		title: title || "Google Calendar",
+		description,
+		maxItems: boundedMaxItems,
+	});
+	const driveCandidate = buildDriveCandidate({
+		observations: driveObservations,
+		payloads: drivePayloads,
+		title: title || "Google Drive",
+		description,
+		maxItems: boundedMaxItems,
+	});
+
+	if (!calendarCandidate && !driveCandidate) {
+		return null;
+	}
+
+	const preferredDomain = detectPreferredDomainFromPrompt(prompt);
+	const candidates = [calendarCandidate, driveCandidate].filter(Boolean);
+	candidates.sort(
+		(a, b) => scoreCandidate(b, preferredDomain) - scoreCandidate(a, preferredDomain)
+	);
+
+	const selected = candidates[0];
+	return {
+		spec: selected.spec,
+		summary: selected.summary,
+		source: selected.source,
+		observationUsed: true,
+		observationCount: selected.observationCount,
+		resultCount: selected.resultCount,
+		errorCount: selected.errorCount,
+	};
+}
+
+module.exports = {
+	buildGoogleStructuredFallback,
+};

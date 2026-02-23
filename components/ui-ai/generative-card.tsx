@@ -78,7 +78,7 @@ export const GenerativeCard = memo(function GenerativeCard({
 	expanded,
 	onExpandedChange,
 	animate = false,
-	animateDuration = 2000,
+	animateDuration,
 	animateDistortionScale,
 	animateBlur,
 	animateRadius,

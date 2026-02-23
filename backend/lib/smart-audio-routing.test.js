@@ -60,6 +60,62 @@ test("resolveSmartAudioVoiceInput keeps direct-user source for non-command text"
 	assert.equal(result.extractionMode, "fallback-original");
 });
 
+test("resolveSmartAudioVoiceInput resolves context-referential prompts from prior chat messages", () => {
+	const assistantPoem = [
+		"Here's a poem about AI:",
+		"",
+		"Silicon Dreams",
+		"In circuits deep where electrons dance, a mind unfolds.",
+	].join("\n");
+
+	const result = resolveSmartAudioVoiceInput({
+		intent: "audio",
+		latestUserMessage:
+			"make a voice clip for the Silicon Dreams poem, the entire poem in the above chat",
+		messages: [
+			{
+				id: "user-1",
+				role: "user",
+				parts: [{ type: "text", text: "Write a poem about AI." }],
+			},
+			{
+				id: "assistant-1",
+				role: "assistant",
+				parts: [{ type: "text", text: assistantPoem }],
+			},
+		],
+	});
+
+	assert.equal(result.needsClarification, false);
+	assert.equal(result.source, "context-reference");
+	assert.match(result.voiceInput || "", /Silicon Dreams/);
+});
+
+test("resolveSmartAudioVoiceInput requests clarification when context resolution is low confidence", () => {
+	const result = resolveSmartAudioVoiceInput({
+		intent: "audio",
+		latestUserMessage: "make a voice clip for the poem above",
+		messages: [
+			{
+				id: "assistant-a",
+				role: "assistant",
+				parts: [{ type: "text", text: "Silicon Dreams poem first version with four stanzas." }],
+			},
+			{
+				id: "assistant-b",
+				role: "assistant",
+				parts: [{ type: "text", text: "Silicon Dreams poem revised version with two stanzas." }],
+			},
+		],
+		contextConfidenceThreshold: 0.999,
+	});
+
+	assert.equal(result.voiceInput, null);
+	assert.equal(result.needsClarification, true);
+	assert.equal(result.source, null);
+	assert.equal(typeof result.clarificationPayload, "object");
+});
+
 test("toSpeechInputText trims and enforces max length", () => {
 	assert.equal(toSpeechInputText("  hello  "), "hello");
 

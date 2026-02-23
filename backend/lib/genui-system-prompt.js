@@ -30,7 +30,7 @@ const VPK_CUSTOM_RULES = [
 	"Only use 3D components (Scene3D, Group3D, Box, Sphere, Cylinder, Cone, Torus, Plane, Ring, AmbientLight, PointLight, DirectionalLight, Stars, Label3D) when the user explicitly asks for 3D scenes, models, or visualizations.",
 
 	// Atlassian context
-	"When the response contains data from Atlassian products (Jira issues, Confluence pages, Trello cards, Bitbucket PRs, Loom videos), you MUST generate a visual UI spec. Use Table for lists of items with columns, Card for grouped details, Timeline for chronological events, Lozenge for statuses (e.g. \"In Progress\", \"Done\"), Tag for labels/categories, Avatar for people, Badge for counts, and Metric for summary statistics.",
+	"When the response contains data from Atlassian products (Jira work items, Confluence pages, Trello cards, Bitbucket PRs, Loom videos), you MUST generate a visual UI spec — NEVER output plain text paragraphs. Structure rules: (a) For a single Jira work item, use a Card with the item key + summary as title, a horizontal Stack for status Lozenge + priority Badge + type Tag, and separate Text rows for assignee, dates, and description. (b) For multiple work items, use a Table with columns for Key, Summary, Status (render as text — Table cells don't support components), Priority, and Updated. (c) For activity feeds, use Timeline with each event as an item. (d) For work summaries, use Metric components for counts (work items updated, pages edited, PRs merged) in a Grid and include a BarChart comparing work items vs pages when both counts exist, then detail sections below. Always use Lozenge for workflow statuses (variant mapping: 'Done'→'success', 'In Progress'→'information', 'To Do'→'neutral', 'Blocked'→'danger'), Tag for labels/categories, Avatar for people, and Badge for priority levels. IMPORTANT: Never use the word 'Issues' in user-facing labels — always use 'Work Items' instead. Use 'Pages' (not 'Confluence Pages') for Confluence content labels.",
 
 	// Output quality
 	"Output exactly one ```spec block per response. Keep the ```spec block machine-parseable: no markdown bullets, no prose, no comments inside the fence.",
@@ -41,20 +41,21 @@ const VPK_CUSTOM_RULES = [
  * Each is added as a rule string containing a complete spec example.
  */
 const COMPANION_EXAMPLES = [
-	// Jira Issue Card
-	`Example — Jira issue card with status and labels:
+	// Jira Single Issue Detail
+	`Example — single Jira issue detail card with status, priority, type, assignee, and dates:
 \`\`\`spec
 {"op":"add","path":"/root","value":"main"}
-{"op":"add","path":"/elements/main","value":{"type":"Stack","props":{"gap":"md"},"children":["header","issueCard"]}}
-{"op":"add","path":"/elements/header","value":{"type":"Heading","props":{"level":"h2","text":"Sprint Board"}}}
-{"op":"add","path":"/elements/issueCard","value":{"type":"Card","props":{"title":"AUTH-142: Fix login timeout"},"children":["issueDetails"]}}
-{"op":"add","path":"/elements/issueDetails","value":{"type":"Stack","props":{"direction":"horizontal","gap":"sm","align":"center"},"children":["status","priority","tags","assignee"]}}
-{"op":"add","path":"/elements/status","value":{"type":"Lozenge","props":{"text":"In Progress","appearance":"inprogress","isBold":true}}}
-{"op":"add","path":"/elements/priority","value":{"type":"Badge","props":{"text":"High","variant":"destructive"}}}
-{"op":"add","path":"/elements/tags","value":{"type":"TagGroup","props":{},"children":["tagAuth","tagBug"]}}
-{"op":"add","path":"/elements/tagAuth","value":{"type":"Tag","props":{"text":"auth","color":"blue"}}}
-{"op":"add","path":"/elements/tagBug","value":{"type":"Tag","props":{"text":"bug","color":"red"}}}
-{"op":"add","path":"/elements/assignee","value":{"type":"Avatar","props":{"fallback":"JD","size":"sm"}}}
+{"op":"add","path":"/elements/main","value":{"type":"Stack","props":{"gap":"md"},"children":["issueCard"]}}
+{"op":"add","path":"/elements/issueCard","value":{"type":"Card","props":{"title":"AIDOPS-101: Agent Logo Change"},"children":["statusRow","detailsStack"]}}
+{"op":"add","path":"/elements/statusRow","value":{"type":"Stack","props":{"direction":"horizontal","gap":"sm","align":"center"},"children":["status","priority","typeTag"]}}
+{"op":"add","path":"/elements/status","value":{"type":"Lozenge","props":{"text":"In Progress","variant":"information","isBold":true}}}
+{"op":"add","path":"/elements/priority","value":{"type":"Badge","props":{"text":"Minor","variant":"neutral"}}}
+{"op":"add","path":"/elements/typeTag","value":{"type":"Tag","props":{"text":"AI Design Support","color":"standard"}}}
+{"op":"add","path":"/elements/detailsStack","value":{"type":"Stack","props":{"direction":"vertical","gap":"sm"},"children":["assigneeRow","dateRow"]}}
+{"op":"add","path":"/elements/assigneeRow","value":{"type":"Stack","props":{"direction":"horizontal","gap":"sm","align":"center"},"children":["assigneeAvatar","assigneeText"]}}
+{"op":"add","path":"/elements/assigneeAvatar","value":{"type":"Avatar","props":{"fallback":"You","size":"xs"}}}
+{"op":"add","path":"/elements/assigneeText","value":{"type":"Text","props":{"content":"Assigned to you","muted":null}}}
+{"op":"add","path":"/elements/dateRow","value":{"type":"Text","props":{"content":"Created Feb 21, 2026 · Updated Feb 22, 2026","muted":true,"size":"xs"}}}
 \`\`\``,
 
 	// Settings Page
@@ -82,7 +83,7 @@ const COMPANION_EXAMPLES = [
 {"op":"add","path":"/elements/heading","value":{"type":"PageHeader","props":{"title":"Project Dashboard","description":"Q1 2025 performance overview"}}}
 {"op":"add","path":"/elements/metricsRow","value":{"type":"Grid","props":{"columns":"3","gap":"md"},"children":["m1","m2","m3"]}}
 {"op":"add","path":"/elements/m1","value":{"type":"Metric","props":{"label":"Tasks Completed","value":"142","detail":"+18%","trend":"up"}}}
-{"op":"add","path":"/elements/m2","value":{"type":"Metric","props":{"label":"Open Issues","value":"23","detail":"-5%","trend":"up"}}}
+{"op":"add","path":"/elements/m2","value":{"type":"Metric","props":{"label":"Open Work Items","value":"23","detail":"-5%","trend":"up"}}}
 {"op":"add","path":"/elements/m3","value":{"type":"Metric","props":{"label":"Sprint Velocity","value":"34 pts","detail":"+2 pts","trend":"up"}}}
 {"op":"add","path":"/elements/tabs","value":{"type":"Tabs","props":{"tabs":[{"value":"traffic","label":"Traffic"},{"value":"progress","label":"Progress"}],"defaultValue":"traffic"},"children":["tabTraffic","tabProgress"]}}
 {"op":"add","path":"/elements/tabTraffic","value":{"type":"TabContent","props":{"value":"traffic"},"children":["areaChart"]}}
@@ -92,18 +93,26 @@ const COMPANION_EXAMPLES = [
 \`\`\``,
 
 	// Work Activity Summary
-	`Example — work activity summary with issue table and recent activity:
+	`Example — 7-day work summary with metrics, work items vs pages chart, work item cards, and activity timeline:
 \`\`\`spec
 {"op":"add","path":"/root","value":"main"}
-{"op":"add","path":"/elements/main","value":{"type":"Stack","props":{"gap":"lg"},"children":["heading","metrics","issueTable","activityHeading","activity"]}}
+{"op":"add","path":"/elements/main","value":{"type":"Stack","props":{"gap":"lg"},"children":["heading","metrics","activityChart","tabs"]}}
 {"op":"add","path":"/elements/heading","value":{"type":"Heading","props":{"level":"h2","text":"Work Summary — Last 7 Days"}}}
 {"op":"add","path":"/elements/metrics","value":{"type":"Grid","props":{"columns":"3","gap":"md"},"children":["m1","m2","m3"]}}
-{"op":"add","path":"/elements/m1","value":{"type":"Metric","props":{"label":"Issues Updated","value":"12","trend":"up"}}}
-{"op":"add","path":"/elements/m2","value":{"type":"Metric","props":{"label":"Pages Edited","value":"5","trend":"up"}}}
-{"op":"add","path":"/elements/m3","value":{"type":"Metric","props":{"label":"PRs Merged","value":"3","trend":"up"}}}
-{"op":"add","path":"/elements/issueTable","value":{"type":"Table","props":{"columns":[{"key":"key","label":"Key"},{"key":"summary","label":"Summary"},{"key":"status","label":"Status"},{"key":"updated","label":"Updated"}],"rows":[{"key":"PROJ-101","summary":"Fix login timeout","status":"Done","updated":"2d ago"},{"key":"PROJ-98","summary":"Add search filters","status":"In Progress","updated":"1d ago"}]}}}
-{"op":"add","path":"/elements/activityHeading","value":{"type":"Heading","props":{"level":"h3","text":"Recent Activity"}}}
-{"op":"add","path":"/elements/activity","value":{"type":"Timeline","props":{"items":[{"title":"Updated PROJ-101","description":"Moved to Done","timestamp":"Feb 21"},{"title":"Edited Design Spec page","description":"Confluence · Design Space","timestamp":"Feb 20"},{"title":"Merged PR #387","description":"Bitbucket · main branch","timestamp":"Feb 19"}]}}}
+{"op":"add","path":"/elements/m1","value":{"type":"Metric","props":{"label":"Work Items","value":"1","detail":"Updated","trend":"neutral"}}}
+{"op":"add","path":"/elements/m2","value":{"type":"Metric","props":{"label":"Pages","value":"3","detail":"Edited","trend":"up"}}}
+{"op":"add","path":"/elements/m3","value":{"type":"Metric","props":{"label":"Total Activity","value":"4","detail":"Items","trend":"up"}}}
+{"op":"add","path":"/elements/activityChart","value":{"type":"BarChart","props":{"title":"Activity by Source","data":[{"source":"Work Items","count":1},{"source":"Pages","count":3}],"xKey":"source","yKey":"count","height":220}}}
+{"op":"add","path":"/elements/tabs","value":{"type":"Tabs","props":{"tabs":[{"value":"work-items","label":"Work Items"},{"value":"activity","label":"Activity"}],"defaultValue":"work-items"},"children":["tabWorkItems","tabActivity"]}}
+{"op":"add","path":"/elements/tabWorkItems","value":{"type":"TabContent","props":{"value":"work-items"},"children":["workItemsList"]}}
+{"op":"add","path":"/elements/workItemsList","value":{"type":"Stack","props":{"direction":"vertical","gap":"md"},"children":["item1"]}}
+{"op":"add","path":"/elements/item1","value":{"type":"Card","props":{"title":"PROJ-101: Fix login timeout"},"children":["item1meta"]}}
+{"op":"add","path":"/elements/item1meta","value":{"type":"Stack","props":{"direction":"horizontal","gap":"sm","align":"center"},"children":["item1status","item1priority","item1date"]}}
+{"op":"add","path":"/elements/item1status","value":{"type":"Lozenge","props":{"text":"Done","variant":"success","isBold":true}}}
+{"op":"add","path":"/elements/item1priority","value":{"type":"Badge","props":{"text":"High","variant":"destructive"}}}
+{"op":"add","path":"/elements/item1date","value":{"type":"Text","props":{"content":"Updated 2d ago","muted":true}}}
+{"op":"add","path":"/elements/tabActivity","value":{"type":"TabContent","props":{"value":"activity"},"children":["activityTimeline"]}}
+{"op":"add","path":"/elements/activityTimeline","value":{"type":"Timeline","props":{"items":[{"title":"Updated PROJ-101","description":"Moved to Done","date":"Feb 21"},{"title":"Edited Design Spec page","description":"Confluence · Design Space","date":"Feb 20"},{"title":"Merged PR #387","description":"Bitbucket · main branch","date":"Feb 19"}]}}}
 \`\`\``,
 
 	// Notification Feed

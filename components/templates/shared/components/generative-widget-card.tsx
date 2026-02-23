@@ -22,7 +22,15 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { AudioPlayerElement } from "@/components/ui-ai/audio-player";
+import {
+	AudioPlayer,
+	AudioPlayerControlBar,
+	AudioPlayerDurationDisplay,
+	AudioPlayerElement,
+	AudioPlayerPlayButton,
+	AudioPlayerTimeDisplay,
+	AudioPlayerTimeRange,
+} from "@/components/ui-ai/audio-player";
 import { JsonRenderView } from "@/lib/json-render/renderer";
 import { useProgressiveSpec } from "@/lib/json-render/use-progressive-spec";
 import type { DistortionTintMode } from "@/components/ui-ai/generative-card-bulge-canvas";
@@ -278,7 +286,7 @@ function GenuiBody({
 	return (
 		<div
 			className={cn(
-				"rounded-md bg-surface [&>[data-slot=card]]:gap-0 [&>[data-slot=card]]:py-0 [&>[data-slot=card]>[data-slot=card-content]]:p-0 [&>[data-slot=card]>[data-slot=card-content]>div]:!p-0",
+				"rounded-md bg-surface [&>[data-slot=card]]:gap-0 [&>[data-slot=card]]:py-0 [&>[data-slot=card]]:ring-0 [&>[data-slot=card]]:rounded-none [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]>[data-slot=card-content]]:p-0 [&>[data-slot=card]>[data-slot=card-content]>div]:!p-0",
 				previewMode && "max-h-[65vh] overflow-auto",
 			)}
 		>
@@ -306,26 +314,26 @@ function AudioBody({
 		);
 	}
 
-	const content = (
-		<>
-			<AudioPlayerElement
-				controls
-				preload="metadata"
-				src={audioUrl}
-				className="w-full"
-				onError={() => setAudioError(true)}
-			/>
+	return (
+		<div className={withContainer ? "rounded-md bg-surface" : undefined}>
+			<AudioPlayer>
+				<AudioPlayerElement
+					preload="metadata"
+					src={audioUrl}
+					onError={() => setAudioError(true)}
+				/>
+				<AudioPlayerControlBar>
+					<AudioPlayerPlayButton />
+					<AudioPlayerTimeDisplay />
+					<AudioPlayerTimeRange />
+					<AudioPlayerDurationDisplay />
+				</AudioPlayerControlBar>
+			</AudioPlayer>
 			{transcript ? (
 				<p className={cn("text-xs text-text-subtle", withContainer ? "mt-2" : "mt-3")}>
 					{transcript}
 				</p>
 			) : null}
-		</>
-	);
-
-	return (
-		<div className={withContainer ? "rounded-md bg-surface" : undefined}>
-			{content}
 		</div>
 	);
 }

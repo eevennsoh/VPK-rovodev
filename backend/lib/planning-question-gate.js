@@ -200,6 +200,7 @@ function shouldGatePlanningQuestionCard({
 
 module.exports = {
 	hasCompletedPlanWidgetInMessages,
+	hasGateSkipSource,
 	isConversationalMessage,
 	isTaskLikeMessage,
 	shouldGatePlanningQuestionCard,

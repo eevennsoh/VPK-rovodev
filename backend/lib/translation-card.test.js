@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
 	detectDirectTranslationRequest,
+	resolveTranslationRequestState,
 	createTranslationGenerationPrompt,
 	parseTranslationModelOutput,
 	resolvePronunciationLabel,
@@ -29,6 +30,39 @@ test("detectDirectTranslationRequest flags missing target language", () => {
 	assert.equal(parsed.sourceText, "Let's do this together");
 	assert.equal(parsed.targetLanguage, null);
 	assert.equal(parsed.needsTargetLanguage, true);
+});
+
+test("resolveTranslationRequestState flags missing source and target for generic prompt", () => {
+	const parsed = resolveTranslationRequestState("Translate this text");
+
+	assert.equal(parsed.isTranslationRequest, true);
+	assert.equal(parsed.sourceText, null);
+	assert.equal(parsed.targetLanguage, null);
+	assert.equal(parsed.needsSourceText, true);
+	assert.equal(parsed.needsTargetLanguage, true);
+	assert.equal(parsed.needsClarification, true);
+});
+
+test("resolveTranslationRequestState flags missing source text when only target language is provided", () => {
+	const parsed = resolveTranslationRequestState("Translate to Japanese");
+
+	assert.equal(parsed.isTranslationRequest, true);
+	assert.equal(parsed.sourceText, null);
+	assert.equal(parsed.targetLanguage, "Japanese");
+	assert.equal(parsed.needsSourceText, true);
+	assert.equal(parsed.needsTargetLanguage, false);
+	assert.equal(parsed.needsClarification, true);
+});
+
+test("resolveTranslationRequestState does not require clarification when source and target are present", () => {
+	const parsed = resolveTranslationRequestState('Translate "Hello team" to Spanish');
+
+	assert.equal(parsed.isTranslationRequest, true);
+	assert.equal(parsed.sourceText, "Hello team");
+	assert.equal(parsed.targetLanguage, "Spanish");
+	assert.equal(parsed.needsSourceText, false);
+	assert.equal(parsed.needsTargetLanguage, false);
+	assert.equal(parsed.needsClarification, false);
 });
 
 test("detectDirectTranslationRequest identifies explicit tooling preference", () => {
@@ -136,6 +170,9 @@ test("buildTranslationGenuiSpec returns spec with original and translated sectio
 	assert.equal(spec.elements["original-heading"].props.text, "Original (English)");
 	assert.equal(spec.elements["original-text"].props.content, "Let's do this together");
 	assert.equal(spec.elements["translated-heading"].props.text, "Translated (Mandarin)");
-	assert.equal(spec.elements["translated-text"].props.content, "我们一起做吧");
+	assert.equal(spec.elements["translated-heading"].props.className, "text-sm font-semibold");
+	assert.equal(spec.elements["translated-text"].type, "Heading");
+	assert.equal(spec.elements["translated-text"].props.text, "我们一起做吧");
+	assert.equal(spec.elements["translated-text"].props.className, "text-lg font-medium");
 	assert.equal(spec.elements["separator"].type, "Separator");
 });

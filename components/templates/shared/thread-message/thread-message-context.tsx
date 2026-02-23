@@ -48,6 +48,8 @@ export interface ThreadMessageContextValue {
 	isThinkingStatusActive: boolean;
 	/** Reasoning phase for the thinking-status indicator. */
 	thinkingStatusReasoningPhase: ReasoningPhase;
+	/** Completed thinking duration in seconds (when available). */
+	thinkingStatusDuration: number | undefined;
 	/** Tool call summaries to show in the thinking-status section (empty array if standalone tools are shown instead). */
 	thinkingToolCallsForStatus: ThinkingToolCallSummary[];
 

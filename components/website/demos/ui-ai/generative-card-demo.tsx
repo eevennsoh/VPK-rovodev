@@ -439,6 +439,7 @@ export function GenerativeCardDemoAnimated() {
 						description="WebGL bulge + fringe entrance animation."
 						checked={distortion}
 						onChange={setDistortion}
+						valueKeys="distortion"
 					/>
 					{distortion ? (
 						<>
@@ -448,6 +449,7 @@ export function GenerativeCardDemoAnimated() {
 								description="Apply a color tint inside the moving distortion band."
 								checked={distortionTintEnabled}
 								onChange={setDistortionTintEnabled}
+								valueKeys="distortionTintEnabled"
 							/>
 							{distortionTintEnabled ? (
 								<>
@@ -457,6 +459,7 @@ export function GenerativeCardDemoAnimated() {
 										description="Blend all 4 Rovo colors inside the distortion band."
 										checked={distortionTintGradient}
 										onChange={setDistortionTintGradient}
+										valueKeys="distortionTintMode"
 									/>
 									{distortionTintGradient ? null : (
 									<GUI.Control
@@ -471,6 +474,7 @@ export function GenerativeCardDemoAnimated() {
 										onChange={(next) => {
 											setDistortionTintPreset(Math.round(next));
 										}}
+										valueKeys={["distortionTintPreset", "distortionTintColor"]}
 									/>
 									)}
 									<GUI.Control
@@ -483,6 +487,7 @@ export function GenerativeCardDemoAnimated() {
 										max={1}
 										step={0.01}
 										onChange={setDistortionTintStrength}
+										valueKeys="distortionTintStrength"
 									/>
 								</>
 							) : null}
@@ -497,6 +502,7 @@ export function GenerativeCardDemoAnimated() {
 								step={10}
 								unit="ms"
 								onChange={setDurationMs}
+								valueKeys="animateDuration"
 							/>
 							<GUI.Control
 								id="anim-distortion"
@@ -508,6 +514,7 @@ export function GenerativeCardDemoAnimated() {
 								max={300}
 								step={1}
 								onChange={setDistortionScale}
+								valueKeys="animateDistortionScale"
 							/>
 							<GUI.Control
 								id="anim-blur"
@@ -519,6 +526,7 @@ export function GenerativeCardDemoAnimated() {
 								max={12}
 								step={0.05}
 								onChange={setBlur}
+								valueKeys="animateBlur"
 							/>
 							<GUI.Control
 								id="anim-radius"
@@ -530,6 +538,7 @@ export function GenerativeCardDemoAnimated() {
 								max={0.8}
 								step={0.01}
 								onChange={setRadius}
+								valueKeys="animateRadius"
 							/>
 							<GUI.Control
 								id="anim-edge-safe-x"
@@ -541,6 +550,7 @@ export function GenerativeCardDemoAnimated() {
 								max={0.08}
 								step={0.001}
 								onChange={setEdgeSafeX}
+								valueKeys="animateEdgeSafeX"
 							/>
 							<GUI.Control
 								id="anim-speed"
@@ -552,6 +562,7 @@ export function GenerativeCardDemoAnimated() {
 								max={3}
 								step={0.05}
 								onChange={setSpeed}
+								valueKeys="animateSpeed"
 							/>
 							<GUI.Control
 								id="anim-scale-smoothing"
@@ -563,6 +574,7 @@ export function GenerativeCardDemoAnimated() {
 								max={1}
 								step={0.01}
 								onChange={setScaleSmoothing}
+								valueKeys="animateScaleSmoothing"
 							/>
 							<GUI.Control
 								id="anim-sweep-smoothing"
@@ -574,6 +586,7 @@ export function GenerativeCardDemoAnimated() {
 								max={1}
 								step={0.01}
 								onChange={setSweepSmoothing}
+								valueKeys="animateSweepSmoothing"
 							/>
 						</>
 					) : null}
@@ -583,6 +596,7 @@ export function GenerativeCardDemoAnimated() {
 						description="Gradient comet tracing the card perimeter."
 						checked={borderTrace}
 						onChange={setBorderTrace}
+						valueKeys="borderEffect"
 					/>
 					{borderTrace ? (
 						<>
@@ -597,6 +611,7 @@ export function GenerativeCardDemoAnimated() {
 								step={50}
 								unit="ms"
 								onChange={setBorderDuration}
+								valueKeys="borderEffectDuration"
 							/>
 							<GUI.Control
 								id="border-arc-width"
@@ -609,6 +624,7 @@ export function GenerativeCardDemoAnimated() {
 								step={1}
 								unit="°"
 								onChange={setArcWidth}
+								valueKeys="borderEffectArcWidth"
 							/>
 						</>
 					) : null}
@@ -618,6 +634,7 @@ export function GenerativeCardDemoAnimated() {
 						description="Contained rotating conic inner edge glow using Rovo colors."
 						checked={innerGlow}
 						onChange={setInnerGlow}
+						valueKeys="innerGlow"
 					/>
 					{innerGlow ? (
 						<>
@@ -632,6 +649,7 @@ export function GenerativeCardDemoAnimated() {
 								step={50}
 								unit="ms"
 								onChange={setInnerGlowDuration}
+								valueKeys="innerGlowDuration"
 							/>
 							<GUI.Control
 								id="inner-glow-spread"
@@ -644,6 +662,7 @@ export function GenerativeCardDemoAnimated() {
 								step={0.5}
 								unit="px"
 								onChange={setInnerGlowSpread}
+								valueKeys="innerGlowSpread"
 							/>
 							<GUI.Control
 								id="inner-glow-thickness"
@@ -656,6 +675,7 @@ export function GenerativeCardDemoAnimated() {
 								step={0.5}
 								unit="px"
 								onChange={setInnerGlowThickness}
+								valueKeys="innerGlowThickness"
 							/>
 							<GUI.Control
 								id="inner-glow-softness"
@@ -668,6 +688,7 @@ export function GenerativeCardDemoAnimated() {
 								step={0.25}
 								unit="px"
 								onChange={setInnerGlowSoftness}
+								valueKeys="innerGlowSoftness"
 							/>
 							<GUI.Control
 								id="inner-glow-saturation"
@@ -680,6 +701,7 @@ export function GenerativeCardDemoAnimated() {
 								step={5}
 								unit="%"
 								onChange={setInnerGlowSaturation}
+								valueKeys="innerGlowSaturation"
 							/>
 							<GUI.Control
 								id="inner-glow-intensity"
@@ -691,6 +713,7 @@ export function GenerativeCardDemoAnimated() {
 								max={1}
 								step={0.01}
 								onChange={setInnerGlowIntensity}
+								valueKeys="innerGlowIntensity"
 							/>
 						</>
 					) : null}

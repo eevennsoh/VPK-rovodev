@@ -2,6 +2,14 @@
 
 set -euo pipefail
 
+# Load .env.local if it exists
+if [ -f .env.local ]; then
+	set -a
+	# shellcheck disable=SC1091
+	source .env.local
+	set +a
+fi
+
 WINDOW_NAME="ports"
 POOL_SIZE="${ROVODEV_POOL_SIZE:-6}"
 SITE_URL="${ROVODEV_SITE_URL:-https://hello.atlassian.net}"

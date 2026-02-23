@@ -5,6 +5,12 @@ interface ResolveThinkingStatusActiveOptions {
 	isStreaming: boolean;
 }
 
+interface ResolveThinkingStatusLifecycleStreamingOptions {
+	isThinkingLifecycleStreaming: boolean;
+	isThinkingStatusActive: boolean;
+	hasBackendThinkingActivity: boolean;
+}
+
 export function isThinkingStatusActive({
 	hasThinkingStatusPart,
 	hasThinkingEvents,
@@ -21,4 +27,16 @@ export function isThinkingStatusActive({
 	}
 
 	return true;
+}
+
+export function isThinkingStatusLifecycleStreaming({
+	isThinkingLifecycleStreaming,
+	isThinkingStatusActive,
+	hasBackendThinkingActivity,
+}: Readonly<ResolveThinkingStatusLifecycleStreamingOptions>): boolean {
+	return (
+		isThinkingLifecycleStreaming &&
+		isThinkingStatusActive &&
+		hasBackendThinkingActivity
+	);
 }

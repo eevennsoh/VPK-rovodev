@@ -1,0 +1,43 @@
+export const REASONING_LABELS = {
+	trigger: {
+		thinking: "Thinking",
+		preloadShimmer: "Rovo is cooking",
+		awaitingUserResponse: "Awaiting user response",
+		working: "Working",
+		generatingResults: "Generating results",
+	},
+	section: {
+		thinking: "Thinking",
+		stream: "Response",
+		tools: "Tools",
+	},
+	completed: {
+		fewSeconds: "Thought for a few seconds",
+	},
+} as const;
+
+export function getDefaultThinkingLabel(): string {
+	return REASONING_LABELS.trigger.thinking;
+}
+
+export function getPreloadShimmerLabel(): string {
+	return REASONING_LABELS.trigger.preloadShimmer;
+}
+
+export function getAwaitingUserResponseLabel(): string {
+	return REASONING_LABELS.trigger.awaitingUserResponse;
+}
+
+export function getReasoningSectionTitle(
+	kind: keyof typeof REASONING_LABELS.section
+): string {
+	return REASONING_LABELS.section[kind];
+}
+
+export function getReasoningCompletedLabel(duration?: number): string {
+	if (duration === undefined) {
+		return REASONING_LABELS.completed.fewSeconds;
+	}
+
+	return `Thought for ${duration} ${duration === 1 ? "second" : "seconds"}`;
+}

@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import {
 	isRenderableRovoUIMessage,
 	getAllDataParts,
-	getLatestDataPart,
 	getMessageText,
 	getThinkingToolCallSummaries,
 	type RovoUIMessage,
@@ -14,6 +13,10 @@ import {
 	type ReasoningPhase,
 	type ReasoningPhaseProps,
 } from "@/components/templates/shared/hooks/use-reasoning-phase";
+import { resolveThinkingLabelForSurface } from "@/components/templates/shared/lib/thinking-label-policy";
+import {
+	resolveThinkingIndicatorVisibility,
+} from "@/components/templates/shared/lib/reasoning-display-phase";
 
 interface UseStreamingIndicatorOptions {
 	isStreaming: boolean;
@@ -27,6 +30,9 @@ interface UseStreamingIndicatorOptions {
 
 export interface StreamingIndicatorState {
 	shouldShow: boolean;
+	shouldShowPreloader: boolean;
+	shouldShowThinkingStatus: boolean;
+	hasBackendThinkingStarted: boolean;
 	resolvedLabel: string;
 	reasoningKey: string;
 	shouldUseExpanded: boolean;
@@ -60,20 +66,34 @@ export function useStreamingIndicatorState(
 		[streamingIndicatorMessages, uiMessages]
 	);
 	const lastSource = sourceMessages[sourceMessages.length - 1];
+	const isAssistantSource = lastSource?.role === "assistant";
+	const isLastAssistantMessage = lastSource?.id === lastAssistantMessageId;
 
-	const hasInlineThinkingStatus = useMemo(() => {
-		if (!lastSource || lastSource.role !== "assistant") return false;
-		if (lastSource.id !== lastAssistantMessageId) return false;
-		return getLatestDataPart(lastSource, "data-thinking-status") !== null;
-	}, [lastAssistantMessageId, lastSource]);
+	const thinkingStatusParts = isAssistantSource
+		? getAllDataParts(lastSource, "data-thinking-status")
+		: [];
+	const thinkingStatusPart =
+		thinkingStatusParts[thinkingStatusParts.length - 1] ?? null;
+	const hasThinkingStatus = thinkingStatusPart !== null;
+	const thinkingEventParts = isAssistantSource
+		? getAllDataParts(lastSource, "data-thinking-event")
+		: [];
+	const lastThinkingEventPart =
+		thinkingEventParts[thinkingEventParts.length - 1] ?? null;
+	const thinkingToolCalls = isAssistantSource
+		? getThinkingToolCallSummaries(lastSource)
+		: [];
+	const hasToolCalls = thinkingToolCalls.length > 0;
+	const hasBackendThinkingStarted =
+		hasThinkingStatus || thinkingEventParts.length > 0 || hasToolCalls;
+
+	const hasInlineThinkingStatus =
+		Boolean(isAssistantSource) && Boolean(isLastAssistantMessage) && hasThinkingStatus;
 
 	const isAwaitingOutput =
 		isStreaming &&
-		lastSource?.role === "assistant" &&
+		isAssistantSource &&
 		getMessageText(lastSource) === "";
-	const hasThinkingStatus =
-		isAwaitingOutput &&
-		getLatestDataPart(lastSource, "data-thinking-status") !== null;
 
 	const shouldShowFromStream =
 		isStreaming &&
@@ -81,18 +101,7 @@ export function useStreamingIndicatorState(
 		(lastSource?.role === "user" || isAwaitingOutput) &&
 		!hasInlineThinkingStatus;
 	const shouldShow = shouldShowFromStream || isSubmitPending;
-
-	const thinkingStatusParts = hasThinkingStatus
-		? getAllDataParts(lastSource, "data-thinking-status")
-		: [];
-	const thinkingStatusPart =
-		thinkingStatusParts[thinkingStatusParts.length - 1] ?? null;
-	const thinkingEventParts =
-		hasThinkingStatus && lastSource
-			? getAllDataParts(lastSource, "data-thinking-event")
-			: [];
-	const lastThinkingEventPart =
-		thinkingEventParts[thinkingEventParts.length - 1] ?? null;
+	const isThinkingStreaming = isStreaming && hasBackendThinkingStarted;
 
 	const thinkingStatusUpdateSignal = [
 		lastSource?.id ?? "stream",
@@ -105,9 +114,9 @@ export function useStreamingIndicatorState(
 		`event-phase:${lastThinkingEventPart?.data.phase ?? ""}`,
 	].join("|");
 
-	const { label: resolvedLabel } = useDynamicThinkingLabel({
+	const { label: dynamicLabel } = useDynamicThinkingLabel({
 		baseLabel: thinkingStatusPart?.data.label ?? thinkingLabel,
-		isStreaming: shouldShow,
+		isStreaming: isThinkingStreaming,
 		updateSignal: thinkingStatusUpdateSignal,
 		fallbackLabel: thinkingLabel,
 	});
@@ -119,39 +128,43 @@ export function useStreamingIndicatorState(
 				.join("\n\n") || reasoningContent
 		: reasoningContent;
 
-	const thinkingToolCalls =
-		hasThinkingStatus && lastSource
-			? getThinkingToolCallSummaries(lastSource)
-			: [];
-
 	const trimmedContent = resolvedContent?.trim() ?? "";
 	const hasContent = trimmedContent.length > 0;
-	const hasToolCalls = thinkingToolCalls.length > 0;
 	const hasDetails = hasContent || hasToolCalls;
 
 	const reasoningKey = lastSource?.id ?? "stream";
-	const hasMessageText =
-		hasThinkingStatus ||
-		(sourceMessages.length > 0 &&
-			lastSource?.role === "assistant" &&
-			getMessageText(lastSource) !== "");
-
-	const { phase: reasoningPhase, duration: reasoningDuration } =
+	const { phase: rawReasoningPhase, duration: reasoningDuration } =
 		useReasoningPhase({
-			isStreaming,
-			hasMessageText,
+			isStreaming: isThinkingStreaming,
+			hasMessageText: hasBackendThinkingStarted,
 			responseKey: reasoningKey,
 			autoIdle: true,
+			minPreloadMs: 0,
 		});
+	const reasoningPhase = rawReasoningPhase;
+	const visibility = resolveThinkingIndicatorVisibility({
+		requestActive: shouldShow,
+		hasThinkingStatusInline: hasInlineThinkingStatus,
+		hasBackendThinkingActivity: hasBackendThinkingStarted,
+		reasoningPhase,
+	});
 
 	const reasoningPhaseProps = getReasoningPropsForPhase(
 		reasoningPhase,
 		reasoningDuration,
 		hasDetails
 	);
+	const resolvedLabel = resolveThinkingLabelForSurface({
+		baseLabel: dynamicLabel,
+		surface: "fullscreen",
+		reasoningPhase,
+	});
 
 	return {
-		shouldShow: shouldShow || reasoningPhase === "completed",
+		shouldShow: visibility.shouldShowAny,
+		shouldShowPreloader: visibility.shouldShowPreloader,
+		shouldShowThinkingStatus: visibility.shouldShowThinkingStatus,
+		hasBackendThinkingStarted,
 		resolvedLabel,
 		reasoningKey,
 		shouldUseExpanded: streamingIndicatorVariant === "reasoning-expanded",

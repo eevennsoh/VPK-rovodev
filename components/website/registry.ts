@@ -1006,8 +1006,8 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"queue-demo-with-actions": dynamic(() => import("./demos/ui-ai/queue-demo").then((mod) => ({ default: mod.QueueDemoWithActions })), { ssr: false }),
 	"queue-demo-with-attachments": dynamic(() => import("./demos/ui-ai/queue-demo").then((mod) => ({ default: mod.QueueDemoWithAttachments })), { ssr: false }),
 	"queue-demo-minimal": dynamic(() => import("./demos/ui-ai/queue-demo").then((mod) => ({ default: mod.QueueDemoMinimal })), { ssr: false }),
+	"reasoning-demo-preload": dynamic(() => import("./demos/ui-ai/reasoning-demo").then((mod) => ({ default: mod.ReasoningDemoPreload })), { ssr: false }),
 	"reasoning-demo-thinking": dynamic(() => import("./demos/ui-ai/reasoning-demo").then((mod) => ({ default: mod.ReasoningDemoThinking })), { ssr: false }),
-	"reasoning-demo-streaming": dynamic(() => import("./demos/ui-ai/reasoning-demo").then((mod) => ({ default: mod.ReasoningDemoStreaming })), { ssr: false }),
 	"reasoning-demo-completed": dynamic(() => import("./demos/ui-ai/reasoning-demo").then((mod) => ({ default: mod.ReasoningDemoCompleted })), { ssr: false }),
 	"sandbox-demo-running": dynamic(() => import("./demos/ui-ai/sandbox-demo").then((mod) => ({ default: mod.SandboxDemoRunning })), { ssr: false }),
 	"sandbox-demo-error": dynamic(() => import("./demos/ui-ai/sandbox-demo").then((mod) => ({ default: mod.SandboxDemoError })), { ssr: false }),
@@ -1152,6 +1152,7 @@ const BLOCK_VARIANT_DEMOS: Record<string, ComponentType> = {
 	// Question Card
 	"question-card-demo-single-select": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoSingleSelect })), { ssr: false }),
 	"question-card-demo-multi-select": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoMultiSelect })), { ssr: false }),
+	"question-card-demo-text-only": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoTextOnly })), { ssr: false }),
 	"question-card-demo-mixed": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoMixed })), { ssr: false }),
 	"question-card-demo-no-custom-input": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoNoCustomInput })), { ssr: false }),
 	"question-card-demo-custom-placeholder": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoCustomPlaceholder })), { ssr: false }),

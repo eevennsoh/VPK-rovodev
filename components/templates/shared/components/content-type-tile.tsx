@@ -2,16 +2,19 @@ import type { ReactNode } from "react";
 import AngleBracketsIcon from "@atlaskit/icon/core/angle-brackets";
 import AudioIcon from "@atlaskit/icon/core/audio";
 import BoardIcon from "@atlaskit/icon/core/board";
+import CalendarIcon from "@atlaskit/icon/core/calendar";
 import ChartBarIcon from "@atlaskit/icon/core/chart-bar";
 import ChartBubbleIcon from "@atlaskit/icon/core/chart-bubble";
 import ChartMatrixIcon from "@atlaskit/icon/core/chart-matrix";
 import ChartPieIcon from "@atlaskit/icon/core/chart-pie";
 import ChartTrendIcon from "@atlaskit/icon/core/chart-trend";
+import CommentIcon from "@atlaskit/icon/core/comment";
 import FileIcon from "@atlaskit/icon/core/file";
 import ImageIcon from "@atlaskit/icon/core/image";
 import PageIcon from "@atlaskit/icon/core/page";
 import TableIcon from "@atlaskit/icon/core/table";
 import TextIcon from "@atlaskit/icon/core/text";
+import TranslateIcon from "@atlaskit/icon/core/translate";
 import VideoIcon from "@atlaskit/icon/core/video";
 import WorkItemIcon from "@atlaskit/icon/core/work-item";
 import GenerativeIndicatorIcon from "@atlaskit/icon-lab/core/generative-indicator";
@@ -22,6 +25,8 @@ export function renderContentTypeIcon(contentType: GenerativeContentType): React
 	switch (contentType) {
 		case "image": return <ImageIcon label="" size="small" />;
 		case "text": return <TextIcon label="" size="small" />;
+		case "translation": return <TranslateIcon label="" size="small" />;
+		case "message": return <CommentIcon label="" size="small" />;
 		case "chart-bar": return <ChartBarIcon label="" size="small" />;
 		case "chart-line":
 		case "chart-area": return <ChartTrendIcon label="" size="small" />;
@@ -31,6 +36,7 @@ export function renderContentTypeIcon(contentType: GenerativeContentType): React
 		case "chart": return <ChartBarIcon label="" size="small" />;
 		case "sound": return <AudioIcon label="" size="small" />;
 		case "video": return <VideoIcon label="" size="small" />;
+		case "calendar": return <CalendarIcon label="" size="small" />;
 		case "work-item": return <WorkItemIcon label="" size="small" />;
 		case "page": return <PageIcon label="" size="small" />;
 		case "board": return <BoardIcon label="" size="small" />;

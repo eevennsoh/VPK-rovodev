@@ -5,9 +5,9 @@ import { ThreadMessageContext } from "./thread-message-context";
 import { AssistantReasoningSection } from "../components/assistant-reasoning-section";
 
 export function ThreadMessageReasoning(): ReactNode {
-	const { reasoning } = use(ThreadMessageContext)!;
+	const { reasoning, isThinkingStatusActive } = use(ThreadMessageContext)!;
 
-	if (!reasoning) {
+	if (!reasoning || isThinkingStatusActive) {
 		return null;
 	}
 

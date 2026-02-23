@@ -8,6 +8,7 @@ import RovoChatMessages from "./rovo-chat-messages";
 import RovoChatInput from "./rovo-chat-input";
 import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
 import { QuestionCardShortcutsFooter } from "@/components/templates/shared/components/question-card-shortcuts-footer";
+import { getAwaitingUserResponseLabel } from "@/components/templates/shared/lib/reasoning-labels";
 import styles from "./rovo-chat-panel.module.css";
 import type { Product } from "../types";
 
@@ -101,7 +102,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				isStreaming={isStreaming}
 				isSubmitPending={isSubmitPending}
 				showAwaitingIndicator={shouldShowQuestionCard && activeQuestionCard !== null}
-				awaitingIndicatorLabel="Awaiting user response"
+				awaitingIndicatorLabel={getAwaitingUserResponseLabel()}
 			/>
 
 			{shouldShowQuestionCard && activeQuestionCard ? (

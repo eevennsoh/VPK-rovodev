@@ -16,6 +16,7 @@ import {
 } from "@/components/ui-ai/reasoning";
 import { AssistantThinkingToolsSection } from "./assistant-thinking-tools-section";
 import { AssistantToolsSection } from "./assistant-tools-section";
+import { getReasoningSectionTitle } from "@/components/templates/shared/lib/reasoning-labels";
 
 interface AssistantThinkingStatusSectionProps {
 	message: RovoRenderableUIMessage;
@@ -25,6 +26,21 @@ interface AssistantThinkingStatusSectionProps {
 	toolParts: ReturnType<typeof getMessageToolParts>;
 	thinkingToolCalls: ReturnType<typeof getThinkingToolCallSummaries>;
 	reasoningPhase?: ReasoningPhase;
+}
+
+function resolveCompletedThinkingDurationSeconds(
+	message: RovoRenderableUIMessage
+): number | undefined {
+	const timestamps = getAllDataParts(message, "data-thinking-event")
+		.map((part) => Date.parse(part.data.timestamp))
+		.filter((value) => Number.isFinite(value));
+	if (timestamps.length === 0) {
+		return undefined;
+	}
+
+	const startedAt = Math.min(...timestamps);
+	const endedAt = Math.max(...timestamps);
+	return Math.max(1, Math.ceil((endedAt - startedAt) / 1000));
 }
 
 export function AssistantThinkingStatusSection({
@@ -46,18 +62,25 @@ export function AssistantThinkingStatusSection({
 	const hasTools = hasToolParts || hasThinkingToolCalls;
 	const hasDetails = hasThinkingText || hasTools;
 
-	const resolvedPhase = reasoningPhase ?? (isStreaming ? "streaming" : "completed");
+	const resolvedPhase = reasoningPhase ?? (isStreaming ? "thinking" : "completed");
 	const phaseProps = getReasoningPropsForPhase(resolvedPhase, undefined, hasDetails);
+	const completedDuration =
+		resolvedPhase === "completed"
+			? resolveCompletedThinkingDurationSeconds(message)
+			: undefined;
 
 	return (
 		<div className={hasReasoning ? "pt-2" : undefined}>
 			<Reasoning
 				className="mb-0"
+				autoExpandOnDetails
+				hasDetails={hasDetails}
 				defaultOpen={phaseProps.defaultOpen ?? hasDetails}
 				isStreaming={phaseProps.isStreaming}
 				streamingWave={phaseProps.streamingWave}
 				streamingWaveGradientColor={phaseProps.streamingWaveGradientColor}
 				animatedDots={phaseProps.animatedDots}
+				duration={completedDuration}
 			>
 				<AdsReasoningTrigger
 					label={label}
@@ -68,7 +91,7 @@ export function AssistantThinkingStatusSection({
 					<ReasoningContent>
 						<div className="space-y-4">
 							{hasThinkingText ? (
-								<ReasoningSection title="Thinking">
+								<ReasoningSection title={getReasoningSectionTitle("thinking")}>
 									<ReasoningText
 										maxVisibleTimelineItems={6}
 										text={accumulatedContent}
@@ -77,7 +100,7 @@ export function AssistantThinkingStatusSection({
 								</ReasoningSection>
 							) : null}
 							{hasTools ? (
-								<ReasoningSection title="Tools">
+								<ReasoningSection title={getReasoningSectionTitle("tools")}>
 									{hasToolParts ? (
 										<div className="-mx-6">
 											<AssistantToolsSection

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getDefaultThinkingLabel } from "@/components/templates/shared/lib/reasoning-labels";
 
-export const THINKING_FALLBACK_LABEL = "Generating results...";
+export const THINKING_FALLBACK_LABEL = getDefaultThinkingLabel();
 export const THINKING_FALLBACK_TIMEOUT_MS = 5_000;
 
 interface UseDynamicThinkingLabelOptions {

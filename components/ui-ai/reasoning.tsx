@@ -11,10 +11,10 @@ import {
 import { Lozenge } from "@/components/ui/lozenge";
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
-import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
-import { mermaid } from "@streamdown/mermaid";
+import {
+	getDefaultThinkingLabel,
+	getReasoningCompletedLabel,
+} from "@/components/templates/shared/lib/reasoning-labels";
 import RovoIconGlyph from "@atlaskit/icon-lab/core/rovo";
 import { ChevronDownIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -29,11 +29,13 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Streamdown } from "streamdown";
 
 import { AnimatedDots } from "./animated-dots";
 import { AnimatedRovo } from "./animated-rovo";
+
+import { CodeBlock } from "./code-block";
 import { Shimmer } from "./shimmer";
+import { shouldAutoExpandReasoning } from "./reasoning-open-state";
 
 interface ReasoningContextValue {
 	isStreaming: boolean;
@@ -70,6 +72,8 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
 	defaultOpen?: boolean;
 	onOpenChange?: (open: boolean) => void;
 	duration?: number;
+	autoExpandOnDetails?: boolean;
+	hasDetails?: boolean;
 	autoCollapseAtCount?: number;
 	collapseDelayMs?: number;
 	maxVisibleTimelineItems?: number;
@@ -166,18 +170,20 @@ function ReasoningStatusIcon({
 }
 
 export const Reasoning = memo(
-		({
+	({
 		className,
 		isStreaming = false,
 		streamingWave = false,
 		animatedDots = true,
 		streamingWaveGradientColor,
-			streamingWaveDuration,
-			streamingWaveSpread,
-			open,
-			defaultOpen,
-			onOpenChange,
+		streamingWaveDuration,
+		streamingWaveSpread,
+		open,
+		defaultOpen,
+		onOpenChange,
 		duration: durationProp,
+		autoExpandOnDetails = false,
+		hasDetails = false,
 		autoCollapseAtCount = DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS,
 		collapseDelayMs = AUTO_CLOSE_DELAY,
 		maxVisibleTimelineItems = DEFAULT_MAX_VISIBLE_TIMELINE_ITEMS,
@@ -238,6 +244,28 @@ export const Reasoning = memo(
 		}, [isExplicitlyClosed, isOpen, isStreaming, setIsOpen]);
 
 		useEffect(() => {
+			if (!shouldAutoExpandReasoning({
+				autoExpandOnDetails,
+				hasDetails,
+				isStreaming,
+				isOpen,
+				isExplicitlyClosed,
+				hasUserClosed: hasUserClosedRef.current,
+			})) {
+				return;
+			}
+
+			setIsOpen(true);
+		}, [
+			autoExpandOnDetails,
+			hasDetails,
+			isExplicitlyClosed,
+			isOpen,
+			isStreaming,
+			setIsOpen,
+		]);
+
+		useEffect(() => {
 			if (!isStreaming || !isOpen || hasAutoCollapsedAtCountRef.current) {
 				return;
 			}
@@ -286,7 +314,7 @@ export const Reasoning = memo(
 				}
 				setIsOpen(newOpen);
 			},
-			[setIsOpen, isStreaming]
+			[isStreaming, setIsOpen]
 		);
 
 		const handleTimelineEntryCountChange = useCallback((count: number) => {
@@ -302,27 +330,27 @@ export const Reasoning = memo(
 				isOpen,
 				isStreaming,
 				maxVisibleTimelineItems,
-					setIsOpen,
-					setTimelineEntryCount: handleTimelineEntryCountChange,
-					streamingWave,
-					streamingWaveDuration,
-					streamingWaveGradientColor,
-					streamingWaveSpread,
-				}),
-				[
-					animatedDots,
+				setIsOpen,
+				setTimelineEntryCount: handleTimelineEntryCountChange,
+				streamingWave,
+				streamingWaveDuration,
+				streamingWaveGradientColor,
+				streamingWaveSpread,
+			}),
+			[
+				animatedDots,
 				duration,
 				handleTimelineEntryCountChange,
 				isOpen,
 				isStreaming,
 				maxVisibleTimelineItems,
-					setIsOpen,
-					streamingWave,
-					streamingWaveDuration,
-					streamingWaveGradientColor,
-					streamingWaveSpread,
-				]
-			);
+				setIsOpen,
+				streamingWave,
+				streamingWaveDuration,
+				streamingWaveGradientColor,
+				streamingWaveSpread,
+			]
+		);
 
 		return (
 			<ReasoningContext value={contextValue}>
@@ -427,18 +455,14 @@ export type ReasoningTriggerProps = ComponentProps<
 	streaming?: boolean;
 };
 
-const defaultReasoningCompletedLabel = (duration?: number) => {
-	if (duration === undefined) {
-		return "Thought for a few seconds";
-	}
-	return `Thought for ${duration} ${duration === 1 ? "second" : "seconds"}`;
-};
+const defaultReasoningCompletedLabel = (duration?: number) =>
+	getReasoningCompletedLabel(duration);
 
 export const ReasoningTrigger = memo(
 	({
 		className,
 		children,
-		label = "Thinking",
+		label = getDefaultThinkingLabel(),
 		completedLabel = defaultReasoningCompletedLabel,
 		streaming,
 		...props
@@ -510,8 +534,6 @@ export type ReasoningContentProps = ComponentProps<
 	timelineMode?: "auto" | "always" | "never";
 	maxVisibleTimelineItems?: number;
 };
-
-const streamdownPlugins = { cjk, code, math, mermaid };
 
 export type ReasoningTextProps = {
 	text: string;
@@ -593,7 +615,7 @@ export function ReasoningText({
 		);
 	}
 
-	return <Streamdown plugins={streamdownPlugins}>{text}</Streamdown>;
+	return <CodeBlock code={text} language="markdown" />;
 }
 
 export const ReasoningContent = memo(
@@ -643,12 +665,8 @@ export type AdsReasoningTriggerProps = ComponentProps<
 	streaming?: boolean;
 };
 
-const defaultCompletedLabel = (duration?: number) => {
-	if (duration === undefined) {
-		return "Thought for a few seconds";
-	}
-	return `Thought for ${duration} ${duration === 1 ? "second" : "seconds"}`;
-};
+const defaultCompletedLabel = (duration?: number) =>
+	getReasoningCompletedLabel(duration);
 
 export type ReasoningSectionProps = ComponentProps<"div"> & {
 	title?: ReactNode;
@@ -670,7 +688,7 @@ export const ReasoningSection = memo(
 export const AdsReasoningTrigger = memo(
 	({
 		className,
-		label = "Thinking",
+		label = getDefaultThinkingLabel(),
 		completedLabel = defaultCompletedLabel,
 		showChevron = true,
 		streaming,

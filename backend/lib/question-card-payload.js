@@ -197,7 +197,6 @@ function sanitizeQuestionCardPayload(payload, defaults = {}) {
 			return {
 				id: questionId,
 				label: truncatedLabel,
-				header: getNonEmptyString(question.header) || undefined,
 				description: getNonEmptyString(question.description) || undefined,
 				required: question.required !== false,
 				kind: normalizeQuestionKind(question.kind),
@@ -424,8 +423,7 @@ function normalizeRequestUserInputQuestions(value) {
 				getNonEmptyString(question.question) ||
 				getNonEmptyString(question.label) ||
 				getNonEmptyString(question.title) ||
-				getNonEmptyString(question.text) ||
-				getNonEmptyString(question.header);
+				getNonEmptyString(question.text);
 			if (!label) {
 				return null;
 			}
@@ -433,7 +431,6 @@ function normalizeRequestUserInputQuestions(value) {
 			return {
 				id: getNonEmptyString(question.id) || `q-${index + 1}`,
 				label,
-				header: getNonEmptyString(question.header) || undefined,
 				description: getNonEmptyString(question.description) || undefined,
 				required: question.required !== false,
 				kind: normalizeQuestionKind(question.kind),

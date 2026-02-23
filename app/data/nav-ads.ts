@@ -19,6 +19,7 @@ const ADS_AI_SLUGS = new Set([
 	"speech-input",
 	"suggestion",
 	"task",
+	"tool",
 ]);
 
 const ADS_BLOCK_SLUGS = new Set([

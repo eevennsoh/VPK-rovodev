@@ -147,6 +147,23 @@ function detectDirectTranslationRequest(prompt) {
 	};
 }
 
+function resolveTranslationRequestState(prompt) {
+	const request = detectDirectTranslationRequest(prompt);
+	const sourceText = getNonEmptyString(request.sourceText);
+	const targetLanguage = sanitizeLanguageCandidate(request.targetLanguage);
+	const needsSourceText = request.isTranslationRequest && !sourceText;
+	const needsTargetLanguage = request.isTranslationRequest && !targetLanguage;
+
+	return {
+		...request,
+		sourceText,
+		targetLanguage,
+		needsSourceText,
+		needsTargetLanguage,
+		needsClarification: needsSourceText || needsTargetLanguage,
+	};
+}
+
 function createTranslationGenerationPrompt({
 	sourceText,
 	targetLanguage,
@@ -392,12 +409,16 @@ function buildTranslationGenuiSpec(payload) {
 				props: {
 					text: `Translated (${payload.targetLanguage})`,
 					level: "h4",
-					className: null,
+					className: "text-sm font-semibold",
 				},
 			},
 			"translated-text": {
-				type: "Text",
-				props: { content: firstVariant.text, muted: null },
+				type: "Heading",
+				props: {
+					text: firstVariant.text,
+					level: "h4",
+					className: "text-lg font-medium",
+				},
 			},
 		},
 	};
@@ -405,6 +426,7 @@ function buildTranslationGenuiSpec(payload) {
 
 module.exports = {
 	detectDirectTranslationRequest,
+	resolveTranslationRequestState,
 	createTranslationGenerationPrompt,
 	parseTranslationModelOutput,
 	resolvePronunciationLabel,

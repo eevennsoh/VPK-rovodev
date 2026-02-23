@@ -60,6 +60,15 @@ test("resolveToolFirstPolicy matches explicit Google Translate prompts", () => {
 	assert.ok(policy.domains.includes("google-translate"));
 });
 
+test("resolveToolFirstPolicy matches figma design-context prompts", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: "Get Figma design context",
+	});
+
+	assert.equal(policy.matched, true);
+	assert.ok(policy.domains.includes("figma"));
+});
+
 test("resolveToolFirstPolicy matches Drive prompts without explicit Google prefix", () => {
 	const listPolicy = resolveToolFirstPolicy({
 		prompt: "List all files in my Drive?",
@@ -205,6 +214,29 @@ test("buildToolFirstRetryInstruction includes domain and retry details", () => {
 	assert.match(instruction, /Remaining retries/i);
 });
 
+test("buildToolFirstRetryInstruction adds TWG fallback guidance for work-summary windows", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: "Last 7 days of work",
+	});
+	const state = createToolFirstExecutionState(policy);
+	recordToolThinkingEvent(state, {
+		phase: "error",
+		toolName: "mcp__teamwork_graph__cypher_query",
+		errorText: "SEMANTIC_ERROR: invalid datetime format. Expected ISO 8601 datetime format",
+	});
+	const instruction = buildToolFirstRetryInstruction({
+		policy,
+		attemptNumber: 2,
+		remainingRetries: 0,
+		execution: state,
+	});
+
+	assert.match(instruction, /Jira JQL/i);
+	assert.match(instruction, /Confluence CQL/i);
+	assert.match(instruction, /ISO 8601/i);
+	assert.match(instruction, /validation error/i);
+});
+
 test("getToolFirstRetryDelayMs returns configured backoff values", () => {
 	const policy = resolveToolFirstPolicy({
 		prompt: "Find Confluence page updates",
@@ -216,6 +248,10 @@ test("getToolFirstRetryDelayMs returns configured backoff values", () => {
 });
 
 test("classifyToolErrorCategory maps common failure types", () => {
+	assert.equal(
+		classifyToolErrorCategory("SEMANTIC_ERROR invalid datetime format expected ISO 8601"),
+		"validation"
+	);
 	assert.equal(classifyToolErrorCategory("401 Unauthorized"), "auth");
 	assert.equal(classifyToolErrorCategory("403 forbidden"), "permission");
 	assert.equal(classifyToolErrorCategory("404 not found"), "not_found");
@@ -287,6 +323,21 @@ test("resolveToolFirstPolicy matches work-activity prompts to teamwork-graph dom
 			`Expected "${prompt}" to match teamwork-graph domain, got: ${policy.domains.join(", ")}`
 		);
 	}
+});
+
+test("resolveToolFirstPolicy enables TWG time-window fallback relevance domains", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: "Last 7 days of work summary",
+	});
+
+	assert.equal(policy.matched, true);
+	assert.ok(policy.domains.includes("teamwork-graph"));
+	assert.ok(policy.relevanceDomains.includes("jira"));
+	assert.ok(policy.relevanceDomains.includes("confluence"));
+	assert.equal(policy.teamworkGraphTimeWindow.enabled, true);
+	assert.match(policy.instruction, /Teamwork Graph/i);
+	assert.match(policy.instruction, /Jira JQL and Confluence CQL/i);
+	assert.match(policy.instruction, /ISO 8601/i);
 });
 
 test("shouldSuppressToolFirstIntentStatus suppresses early intent labels until relevant tool starts", () => {

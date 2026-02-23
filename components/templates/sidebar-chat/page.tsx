@@ -7,12 +7,11 @@ import {
 	Conversation,
 	ConversationContent,
 } from "@/components/ui-ai/conversation";
-import { Message, MessageContent } from "@/components/ui-ai/message";
+import { Message } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import { MessageTurns } from "@/components/templates/shared/message-turns";
 import {
 	isRenderableRovoUIMessage,
-	getMessageText,
 } from "@/lib/rovo-ui-messages";
 import {
 	buildClarificationDismissPrompt,
@@ -36,6 +35,8 @@ import ChatGreeting from "./components/chat-greeting";
 import ChatComposer from "./components/chat-composer";
 import MessageBubble from "./components/message-bubble";
 import { StreamingThinkingIndicator } from "./components/streaming-thinking-indicator";
+import { PreloadThinkingIndicator } from "@/components/templates/shared/components/preload-thinking-indicator";
+import { getAwaitingUserResponseLabel } from "@/components/templates/shared/lib/reasoning-labels";
 import { chatStyles } from "./data/styles";
 import { useChatSubmit } from "./hooks/use-chat-submit";
 import { useScrollAnchor } from "./hooks/use-scroll-anchor";
@@ -148,6 +149,14 @@ export default function ChatPanel({
 		() => uiMessages.filter(isRenderableRovoUIMessage),
 		[uiMessages]
 	);
+	const lastAssistantMessageId = useMemo(() => {
+		for (let i = messages.length - 1; i >= 0; i--) {
+			if (messages[i].role === "assistant") {
+				return messages[i].id;
+			}
+		}
+		return null;
+	}, [messages]);
 
 	const activeQuestionCard = useMemo(
 		() => getLatestQuestionCardPayload(rawUiMessages),
@@ -194,7 +203,10 @@ export default function ChatPanel({
 
 	const hasMessages = messages.length > 0;
 	const shouldShowAwaitingUserResponse =
-		shouldShowQuestionCard && activeQuestionCard !== null && !thinking.shouldShowThinking;
+		shouldShowQuestionCard &&
+		activeQuestionCard !== null &&
+		!thinking.shouldShowPreloader &&
+		!thinking.shouldShowThinkingStatus;
 
 	const handleClarificationSubmit = useCallback(
 		(answers: ClarificationAnswers) => {
@@ -222,8 +234,25 @@ export default function ChatPanel({
 	);
 
 	const handleGreetingSuggestionClick = useCallback(
-		(suggestion: RovoSuggestion) => void submitPrompt(suggestion.label),
-		[submitPrompt]
+		(suggestion: RovoSuggestion) => {
+			const existingContext = resolvedSendPromptOptions?.contextDescription?.trim();
+			const suggestionContext = suggestion.contextDescription?.trim();
+			const mergedContext = suggestionContext
+				? [existingContext, suggestionContext].filter(Boolean).join("\n\n")
+				: existingContext;
+
+			const hasSeparatePrompt = suggestion.prompt && suggestion.prompt !== suggestion.label;
+
+			void sendPrompt(suggestion.prompt ?? suggestion.label, {
+				...resolvedSendPromptOptions,
+				contextDescription: mergedContext,
+				messageMetadata: {
+					...resolvedSendPromptOptions?.messageMetadata,
+					...(hasSeparatePrompt ? { displayLabel: suggestion.label } : {}),
+				},
+			});
+		},
+		[resolvedSendPromptOptions, sendPrompt]
 	);
 
 	const handleWidgetPrimaryAction = useCallback(
@@ -267,18 +296,11 @@ export default function ChatPanel({
 								marginTop: turnIndex > 0 ? "24px" : "0",
 							})}
 							getMessageContainerStyle={(message, messageIndex, turn) => {
-								const isEmptyAssistantPlaceholder =
-									message.role === "assistant" &&
-									thinking.isAssistantAwaitingOutput &&
-									getMessageText(message) === "" &&
-									!thinking.hasInlineThinkingStatus;
-
 								return {
 									paddingLeft: message.role === "assistant" ? "12px" : "0",
 									paddingRight: message.role === "assistant" ? "12px" : "0",
 									marginTop:
 										message.role === "assistant" &&
-										!isEmptyAssistantPlaceholder &&
 										messageIndex > 0 &&
 										turn[messageIndex - 1]?.role === "user"
 											? "24px"
@@ -291,6 +313,10 @@ export default function ChatPanel({
 							renderMessage={(message) => (
 								<MessageBubble
 									message={message}
+									isThinkingLifecycleStreaming={
+										isRequestInFlight &&
+										message.id === lastAssistantMessageId
+									}
 									onSuggestionClick={handleFollowUpSuggestionClick}
 									enableSmartWidgets={enableSmartWidgets}
 									generativeCardAnimation={cards?.generativeAnimation}
@@ -299,7 +325,12 @@ export default function ChatPanel({
 							)}
 						/>
 					)}
-					{thinking.shouldShowThinking ? (
+					{thinking.shouldShowPreloader ? (
+						<div style={chatStyles.thinkingContainer}>
+							<PreloadThinkingIndicator />
+						</div>
+					) : null}
+					{thinking.shouldShowThinkingStatus ? (
 						<StreamingThinkingIndicator
 							isStreaming={isRequestInFlight}
 							streamingReasoningKey={thinking.streamingReasoningKey}
@@ -317,14 +348,13 @@ export default function ChatPanel({
 					{shouldShowAwaitingUserResponse ? (
 						<div style={chatStyles.thinkingContainer}>
 							<Message from="assistant" className="max-w-full">
-								<MessageContent className="px-6">
-									<Reasoning className="mb-0" isStreaming>
-										<AdsReasoningTrigger
-											label="Awaiting user response"
-											showChevron={false}
-										/>
-									</Reasoning>
-								</MessageContent>
+								<Reasoning className="mb-0" isStreaming>
+									<AdsReasoningTrigger
+										label={getAwaitingUserResponseLabel()}
+										showChevron={false}
+										streaming
+									/>
+								</Reasoning>
 							</Message>
 						</div>
 					) : null}

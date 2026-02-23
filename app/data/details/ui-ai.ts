@@ -1326,16 +1326,16 @@ import AddIcon from "@atlaskit/icon/core/add";
 				description: "Thinking duration in seconds. Auto-computed from streaming start/stop when not provided.",
 			},
 		],
-		subComponents: [
-			{ name: "ReasoningTrigger", description: "Default trigger with Rovo logo, shimmer text, optional animated color dots, and chevron." },
-			{ name: "AdsReasoningTrigger", description: "ADS-styled trigger with Rovo logo, shimmer text, optional animated color dots, and optional chevron." },
-			{ name: "ReasoningContent", description: "Collapsible content area rendering reasoning text via Streamdown." },
-		],
-		examples: [
-			{ title: "Thinking", description: "Bouncy AnimatedRovo with gradient wave shimmer and \"Rovo is cooking\" label.", demoSlug: "reasoning-demo-thinking" },
-			{ title: "Streaming", description: "Calm AnimatedRovo with chevron and expanded tool call timeline.", demoSlug: "reasoning-demo-streaming" },
-			{ title: "Completed", description: "Completed state showing duration and static Rovo icon.", demoSlug: "reasoning-demo-completed" },
-		],
+			subComponents: [
+				{ name: "ReasoningTrigger", description: "Default trigger with Rovo logo, shimmer text, optional animated color dots, and chevron." },
+				{ name: "AdsReasoningTrigger", description: "ADS-styled trigger with Rovo logo, shimmer text, optional animated color dots, and optional chevron." },
+				{ name: "ReasoningContent", description: "Collapsible content area that shows timeline entries and renders non-timeline text as raw markdown source inside CodeBlock." },
+			],
+			examples: [
+				{ title: "Preload", description: "Immediate feedback on query submission — bouncy AnimatedRovo with gradient wave shimmer and \"Rovo is cooking\" label.", demoSlug: "reasoning-demo-preload" },
+				{ title: "Thinking", description: "Active processing state — calm AnimatedRovo with chevron and expanded tool call timeline.", demoSlug: "reasoning-demo-thinking" },
+				{ title: "Completed", description: "Completed state showing duration and static Rovo icon.", demoSlug: "reasoning-demo-completed" },
+			],
 	},
 
 	sandbox: {
@@ -1627,43 +1627,43 @@ import { Button } from "@/components/ui/button";
 			{
 				name: "animateDuration",
 				type: "number",
-				default: "820",
+				default: "2000",
 				description: "Duration of the entrance animation in milliseconds.",
 			},
 			{
 				name: "animateDistortionScale",
 				type: "number",
-				default: "112",
+				default: "100",
 				description: "Maximum WebGL displacement scale used by the sweep effect. Increase for a stronger distortion.",
 			},
 			{
 				name: "animateBlur",
 				type: "number",
-				default: "2.4",
+				default: "8",
 				description: "Maximum blur amount applied inside the moving distortion band.",
 			},
 			{
 				name: "animateRadius",
 				type: "number",
-				default: "0.2",
+				default: "0.4",
 				description: "Distortion radius mapped to moving band height (0-1). Higher values distort a thicker region.",
 			},
 			{
 				name: "animateSpeed",
 				type: "number",
-				default: "1",
+				default: "1.35",
 				description: "Sweep playback speed multiplier. Higher values move the distortion band from top to bottom faster.",
 			},
 			{
 				name: "animateScaleSmoothing",
 				type: "number",
-				default: "0.46",
+				default: "0.5",
 				description: "Smoothing factor (0-1) for displacement scale changes. Higher values react faster.",
 			},
 			{
 				name: "animateSweepSmoothing",
 				type: "number",
-				default: "0.44",
+				default: "0.5",
 				description: "Smoothing factor (0-1) for vertical sweep movement. Higher values react faster.",
 			},
 			{

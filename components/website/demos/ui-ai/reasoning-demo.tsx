@@ -3,6 +3,9 @@ import {
 	ReasoningContent,
 	AdsReasoningTrigger,
 } from "@/components/ui-ai/reasoning";
+import {
+	REASONING_LABELS,
+} from "@/components/templates/shared/lib/reasoning-labels";
 
 const SAMPLE_TIMELINE_REASONING =
 	"Invoking mcp_invoke_tool\nInvoking search\nTool call failed: mcp_atlassian_mcp__invoke_tool";
@@ -16,13 +19,13 @@ export default function ReasoningDemo() {
 			animatedDots={false}
 			defaultOpen={false}
 		>
-			<AdsReasoningTrigger label="Rovo is cooking" showChevron={false} />
+			<AdsReasoningTrigger label={REASONING_LABELS.trigger.preloadShimmer} showChevron={false} />
 			<ReasoningContent>{SAMPLE_TIMELINE_REASONING}</ReasoningContent>
 		</Reasoning>
 	);
 }
 
-export function ReasoningDemoThinking() {
+export function ReasoningDemoPreload() {
 	return (
 		<Reasoning
 			isStreaming
@@ -31,13 +34,13 @@ export function ReasoningDemoThinking() {
 			animatedDots={false}
 			defaultOpen={false}
 		>
-			<AdsReasoningTrigger label="Rovo is cooking" showChevron={false} />
+			<AdsReasoningTrigger label={REASONING_LABELS.trigger.preloadShimmer} showChevron={false} />
 			<ReasoningContent>{SAMPLE_TIMELINE_REASONING}</ReasoningContent>
 		</Reasoning>
 	);
 }
 
-export function ReasoningDemoStreaming() {
+export function ReasoningDemoThinking() {
 	return (
 		<Reasoning isStreaming open>
 			<AdsReasoningTrigger streaming />

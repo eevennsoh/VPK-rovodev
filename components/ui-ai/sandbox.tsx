@@ -129,5 +129,5 @@ export const SandboxTabContent = ({
   className,
   ...props
 }: SandboxTabContentProps) => (
-  <TabsContent className={cn("mt-0 text-sm", className)} {...props} />
+  <TabsContent className={cn("mt-0 text-sm [&>*]:rounded-none [&>*]:border-0", className)} {...props} />
 );

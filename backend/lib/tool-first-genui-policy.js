@@ -15,6 +15,40 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 			/\bevent(s)?\b/i,
 			/\bgcal\b/i,
 		],
+		requiresClarificationWhen: [
+			/\b(schedule|create|add|book|set\s+up)\b[\s\S]{0,40}\b(meeting|event|appointment|call)\b/i,
+		],
+		requiredContextHints: [
+			{
+				id: "attendees",
+				label: "Who should attend?",
+				description: "Specify the attendees for the meeting or event.",
+				satisfiedPatterns: [
+					/\bwith\s+\S+/i,
+					/\b(attendee|invit|participant)s?\b/i,
+					/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/,
+				],
+				suggestedOptions: [
+					{ id: "specify", label: "I'll type the attendees" },
+				],
+			},
+			{
+				id: "time",
+				label: "When should it be?",
+				description: "Specify the date and/or time for the event.",
+				satisfiedPatterns: [
+					/\b(at|from|on|this|next|tomorrow|today)\s+\d/i,
+					/\b\d{1,2}:\d{2}\b/,
+					/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i,
+					/\b(tomorrow|today|tonight|this\s+(morning|afternoon|evening))\b/i,
+					/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d/i,
+					/\b\d{1,2}\/\d{1,2}\b/,
+				],
+				suggestedOptions: [
+					{ id: "specify", label: "I'll type the time" },
+				],
+			},
+		],
 	},
 	{
 		id: "google-drive-docs",
@@ -77,6 +111,42 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 			/\bchannel(s)?\b/i,
 			/\brepl(y|ies)\b/i,
 			/\bmessage(s)?\b/i,
+		],
+		requiresClarificationWhen: [
+			/\b(send|post|write|reply)\b[\s\S]{0,40}\b(message|slack)\b/i,
+			/\b(message|slack)\b[\s\S]{0,40}\b(send|post|write|reply)\b/i,
+		],
+		requiredContextHints: [
+			{
+				id: "channel",
+				label: "Which channel or person?",
+				description: "Specify the Slack channel or person to message.",
+				satisfiedPatterns: [
+					/#[a-zA-Z][\w-]*/,
+					/\b(in|to|on)\s+#?\S+\s+(channel|slack)\b/i,
+					/\b(channel|dm|direct\s+message)\s+#?\S+/i,
+					/\b(to|message)\s+@\w+/i,
+				],
+				suggestedOptions: [
+					{ id: "general", label: "#general" },
+					{ id: "random", label: "#random" },
+					{ id: "specify", label: "I'll type the channel" },
+				],
+			},
+			{
+				id: "message-content",
+				label: "What should the message say?",
+				description: "Specify the content of the message.",
+				satisfiedPatterns: [
+					/\bsay(ing)?\s+['"""].+['"""]/i,
+					/\bmessage\s*:\s*.+/i,
+					/\bsend\s+['"""].+['"""]/i,
+					/\b(saying|that\s+says|with\s+the\s+(text|message|content))\s+/i,
+				],
+				suggestedOptions: [
+					{ id: "specify", label: "I'll type the message" },
+				],
+			},
 		],
 	},
 	{
@@ -158,6 +228,37 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 			/\bjql\b/i,
 			/\btransition(s)?\b/i,
 		],
+		requiresClarificationWhen: [
+			/\b(create|make|add|open|file)\b[\s\S]{0,40}\b(issue|ticket|bug|story|task|epic)\b/i,
+		],
+		requiredContextHints: [
+			{
+				id: "project",
+				label: "Which project?",
+				description: "Specify the Jira project for the new issue.",
+				satisfiedPatterns: [
+					/\b(in|for|under|project)\s+[A-Z]{2,10}\b/,
+					/\b[A-Z]{2,10}\s+(project|board)\b/,
+					/\bproject\s*[:=]\s*\S+/i,
+				],
+				suggestedOptions: [
+					{ id: "specify", label: "I'll type the project key" },
+				],
+			},
+			{
+				id: "summary",
+				label: "What's the issue summary?",
+				description: "Provide a short summary or title for the issue.",
+				satisfiedPatterns: [
+					/\b(titled?|summar(y|ized)|called|named)\s+['"""].+['"""]/i,
+					/\bissue\s*:\s*.+/i,
+					/\b(about|for|regarding)\s+['"""].+['"""]/i,
+				],
+				suggestedOptions: [
+					{ id: "specify", label: "I'll type the summary" },
+				],
+			},
+		],
 	},
 	{
 		id: "confluence",
@@ -173,6 +274,37 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 			/\bcql\b/i,
 			/\bpage(s)?\b/i,
 			/\bspace(s)?\b/i,
+		],
+		requiresClarificationWhen: [
+			/\b(create|draft|write|add|make)\b[\s\S]{0,40}\b(page|doc|document)\b/i,
+		],
+		requiredContextHints: [
+			{
+				id: "space",
+				label: "Which Confluence space?",
+				description: "Specify the Confluence space for the new page.",
+				satisfiedPatterns: [
+					/\b(in|under|space)\s+['"""]?\S+['"""]?\s+(space|confluence)\b/i,
+					/\bspace\s*[:=]\s*\S+/i,
+					/\b(in|under)\s+the\s+\S+\s+space\b/i,
+				],
+				suggestedOptions: [
+					{ id: "specify", label: "I'll type the space name" },
+				],
+			},
+			{
+				id: "page-title",
+				label: "What should the page be called?",
+				description: "Provide a title for the new page.",
+				satisfiedPatterns: [
+					/\b(titled?|called|named)\s+['"""].+['"""]/i,
+					/\bpage\s*:\s*.+/i,
+					/\b(about|for|regarding)\s+['"""].+['"""]/i,
+				],
+				suggestedOptions: [
+					{ id: "specify", label: "I'll type the page title" },
+				],
+			},
 		],
 	},
 	{
@@ -251,6 +383,55 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 			/\bnode\b/i,
 			/\bvariable\b/i,
 		],
+		requiredContextHints: [
+			{
+				id: "figma-file",
+				label: "Which Figma file should I look at?",
+				description:
+					"Share the Figma URL or file key. If you have a node id, include it too.",
+				satisfiedPatterns: [
+					/\bhttps?:\/\/(?:www\.)?figma\.com\/(?:design|file|board|proto|make)\/[A-Za-z0-9]+/i,
+					/\bfigma\.com\/[^\s]+/i,
+					/\bfile\s*key\s*[:=]\s*[A-Za-z0-9_-]{6,}\b/i,
+					/\bnode[-\s]?id\s*[:=]\s*\d+[:\-]\d+\b/i,
+				],
+				suggestedOptions: [
+					{ id: "paste-url", label: "I'll paste the Figma URL" },
+					{ id: "file-key", label: "I only have the file key" },
+				],
+			},
+			{
+				id: "figma-goal",
+				label: "What should I do with this design?",
+				description:
+					"Pick the expected outcome so I can gather the right Figma context.",
+				satisfiedPatterns: [
+					/\bextract\s+(?:design\s+)?specs?\b/i,
+					/\bgenerate\s+(?:implementation\s+)?code\b/i,
+					/\b(?:review|check)\s+(?:layout|spacing|alignment)\b/i,
+					/\bextract\s+(?:design\s+)?tokens?\b/i,
+					/\bimplement\b[\s\S]{0,30}\bfigma\b/i,
+				],
+				suggestedOptions: [
+					{
+						id: "extract-specs",
+						label: "Extract design specs",
+					},
+					{
+						id: "generate-code",
+						label: "Generate implementation code",
+					},
+					{
+						id: "review-layout",
+						label: "Review layout and spacing",
+					},
+					{
+						id: "extract-tokens",
+						label: "Extract design tokens",
+					},
+				],
+			},
+		],
 	},
 	{
 		id: "workspace-file-ops",
@@ -281,6 +462,28 @@ const TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY = "soft-retry";
 const TOOL_FIRST_DEFAULT_MAX_RETRIES = 1;
 const TOOL_FIRST_DEFAULT_RETRY_BACKOFF_MS = [750, 1500];
 const TOOL_FIRST_DEFAULT_MAX_RETRY_WINDOW_MS = 3000;
+const TOOL_FIRST_TEAMWORK_GRAPH_DOMAIN_ID = "teamwork-graph";
+const TOOL_FIRST_TEAMWORK_GRAPH_FALLBACK_RELEVANCE_DOMAINS = [
+	"jira",
+	"confluence",
+	"atlassian-projects",
+];
+const TOOL_FIRST_DEFAULT_WORK_SUMMARY_WINDOW_DAYS = 7;
+const TOOL_FIRST_MAX_WORK_SUMMARY_WINDOW_DAYS = 120;
+const TOOL_FIRST_RELATIVE_NUMBER_MAP = new Map([
+	["one", 1],
+	["two", 2],
+	["three", 3],
+	["four", 4],
+	["five", 5],
+	["six", 6],
+	["seven", 7],
+	["eight", 8],
+	["nine", 9],
+	["ten", 10],
+	["eleven", 11],
+	["twelve", 12],
+]);
 
 const TOOL_FIRST_DOMAIN_MAP = new Map(
 	TOOL_FIRST_DOMAIN_CONFIG.map((domain) => [domain.id, domain])
@@ -408,6 +611,114 @@ function getDomainLabels(domains) {
 		.filter(Boolean);
 }
 
+function toIsoSeconds(value) {
+	if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+		return null;
+	}
+
+	return value.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function parseRelativeWindowDays(prompt) {
+	const normalizedPrompt = getNonEmptyString(prompt);
+	if (!normalizedPrompt) {
+		return TOOL_FIRST_DEFAULT_WORK_SUMMARY_WINDOW_DAYS;
+	}
+
+	const explicitRangeMatch = normalizedPrompt.match(
+		/\b(last|past|previous|recent)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(day|days|week|weeks|month|months)\b/i
+	);
+	if (explicitRangeMatch) {
+		const rawCount = explicitRangeMatch[2]?.toLowerCase();
+		const unit = explicitRangeMatch[3]?.toLowerCase() || "days";
+		const parsedCount = Number.parseInt(rawCount, 10);
+		const count = Number.isFinite(parsedCount) && parsedCount > 0
+			? parsedCount
+			: TOOL_FIRST_RELATIVE_NUMBER_MAP.get(rawCount) || 1;
+		const multiplier = unit.startsWith("week")
+			? 7
+			: unit.startsWith("month")
+				? 30
+				: 1;
+		return Math.max(
+			1,
+			Math.min(count * multiplier, TOOL_FIRST_MAX_WORK_SUMMARY_WINDOW_DAYS)
+		);
+	}
+
+	if (/\b(last|past|previous|recent)\s+week\b/i.test(normalizedPrompt)) {
+		return 7;
+	}
+
+	if (/\bthis\s+week'?s?\s+work\b/i.test(normalizedPrompt)) {
+		return 7;
+	}
+
+	return TOOL_FIRST_DEFAULT_WORK_SUMMARY_WINDOW_DAYS;
+}
+
+function resolveTeamworkGraphTimeWindowContext({ prompt, domains } = {}) {
+	const normalizedPrompt = getNonEmptyString(prompt);
+	if (!normalizedPrompt || !Array.isArray(domains)) {
+		return {
+			enabled: false,
+		};
+	}
+
+	if (!domains.includes(TOOL_FIRST_TEAMWORK_GRAPH_DOMAIN_ID)) {
+		return {
+			enabled: false,
+		};
+	}
+
+	const hasWorkSummarySignal =
+		/\b(work\s+summary|work\s+activit(y|ies)|recent\s+work|my\s+work)\b/i.test(
+			normalizedPrompt
+		) ||
+		/\b(last|past|previous|recent|this)\b[\s\S]{0,40}\b(day|days|week|weeks|month|months)\b/i.test(
+			normalizedPrompt
+		) ||
+		/\bthis\s+week'?s?\s+work\b/i.test(normalizedPrompt);
+	if (!hasWorkSummarySignal) {
+		return {
+			enabled: false,
+		};
+	}
+
+	const windowDays = parseRelativeWindowDays(normalizedPrompt);
+	const now = new Date();
+	const end = new Date(
+		Date.UTC(
+			now.getUTCFullYear(),
+			now.getUTCMonth(),
+			now.getUTCDate(),
+			23,
+			59,
+			59
+		)
+	);
+	const windowStartBase = new Date(
+		end.getTime() - (windowDays - 1) * 24 * 60 * 60 * 1000
+	);
+	const start = new Date(
+		Date.UTC(
+			windowStartBase.getUTCFullYear(),
+			windowStartBase.getUTCMonth(),
+			windowStartBase.getUTCDate(),
+			0,
+			0,
+			0
+		)
+	);
+
+	return {
+		enabled: true,
+		windowDays,
+		startIso: toIsoSeconds(start),
+		endIso: toIsoSeconds(end),
+	};
+}
+
 function resolveToolFirstPolicy({ prompt } = {}) {
 	const domains = resolveMatchedDomains(prompt);
 	const enforcement = resolveToolFirstEnforcementConfig();
@@ -415,25 +726,56 @@ function resolveToolFirstPolicy({ prompt } = {}) {
 		return {
 			matched: false,
 			domains: [],
+			relevanceDomains: [],
 			domainLabels: [],
 			instruction: null,
+			teamworkGraphTimeWindow: { enabled: false },
 			enforcement,
 		};
 	}
 
 	const domainLabels = getDomainLabels(domains);
-	const instruction = [
+	const teamworkGraphTimeWindow = resolveTeamworkGraphTimeWindowContext({
+		prompt,
+		domains,
+	});
+	const relevanceDomains = teamworkGraphTimeWindow.enabled
+		? Array.from(
+				new Set([
+					...domains,
+					...TOOL_FIRST_TEAMWORK_GRAPH_FALLBACK_RELEVANCE_DOMAINS,
+				])
+			)
+		: [...domains];
+	const instructionLines = [
 		"Tool-first execution policy:",
 		`- This request is in scope for: ${domainLabels.join(", ")}.`,
 		"- Before finalizing your answer, execute at least one relevant MCP/integration tool call and use its result as primary context.",
 		"- Do not invent tool results. If a tool fails, report the specific failure and the exact input needed to retry.",
-	].join("\n");
+	];
+	if (teamworkGraphTimeWindow.enabled) {
+		const resolvedRange =
+			teamworkGraphTimeWindow.startIso && teamworkGraphTimeWindow.endIso
+				? `${teamworkGraphTimeWindow.startIso} to ${teamworkGraphTimeWindow.endIso}`
+				: null;
+		instructionLines.push(
+			`- Time-window work-summary mode is active for the last ${teamworkGraphTimeWindow.windowDays} day${teamworkGraphTimeWindow.windowDays === 1 ? "" : "s"}.`,
+			"- Teamwork Graph / Cypher datetime filters must use strict ISO 8601 date-time values including timezone (e.g. YYYY-MM-DDTHH:mm:ssZ).",
+			resolvedRange
+				? `- Use this canonical UTC range unless the user overrides it: ${resolvedRange}.`
+				: "- Normalize relative dates into explicit UTC start/end timestamps before querying.",
+			"- If Teamwork Graph/Cypher returns datetime, semantic, permission, or no-result failures, fallback in the same turn to Jira JQL and Confluence CQL for the same date range."
+		);
+	}
+	const instruction = instructionLines.join("\n");
 
 	return {
 		matched: true,
 		domains,
+		relevanceDomains,
 		domainLabels,
 		instruction,
+		teamworkGraphTimeWindow,
 		enforcement,
 	};
 }
@@ -462,10 +804,16 @@ function isToolNameRelevant({ toolName, domains } = {}) {
 
 function createToolFirstExecutionState(policy) {
 	const resolvedPolicy = policy && typeof policy === "object" ? policy : null;
-	const domains = resolvedPolicy?.matched ? resolvedPolicy.domains : [];
+	const domains = resolvedPolicy?.matched
+		? Array.isArray(resolvedPolicy.relevanceDomains)
+			? resolvedPolicy.relevanceDomains
+			: resolvedPolicy.domains
+		: [];
+	const primaryDomains = resolvedPolicy?.matched ? resolvedPolicy.domains : [];
 	return {
 		matched: Boolean(resolvedPolicy?.matched),
 		domains: Array.isArray(domains) ? [...domains] : [],
+		primaryDomains: Array.isArray(primaryDomains) ? [...primaryDomains] : [],
 		totalToolStarts: 0,
 		totalToolResults: 0,
 		totalToolErrors: 0,
@@ -489,6 +837,14 @@ function classifyToolErrorCategory(value) {
 	}
 
 	const normalizedText = text.toLowerCase();
+	if (
+		/\b(invalid datetime|invalid date|expected iso\s*8601|semantic[_\s-]*error|syntax error|query parse|invalid format|invalid argument|cypher)\b/i.test(
+			normalizedText
+		)
+	) {
+		return "validation";
+	}
+
 	if (
 		/\b(unauthorized|authentication|reauth|re-auth|token|oauth|login required)\b/i.test(
 			normalizedText
@@ -651,7 +1007,12 @@ function getToolFirstRetryDelayMs({ policy, retryIndex } = {}) {
 	return retryDelays[normalizedRetryIndex] ?? fallbackDelay;
 }
 
-function buildToolFirstRetryInstruction({ policy, attemptNumber, remainingRetries } = {}) {
+function buildToolFirstRetryInstruction({
+	policy,
+	attemptNumber,
+	remainingRetries,
+	execution,
+} = {}) {
 	const domainLabels = Array.isArray(policy?.domainLabels)
 		&& policy.domainLabels.length > 0
 		? policy.domainLabels
@@ -669,8 +1030,7 @@ function buildToolFirstRetryInstruction({ policy, attemptNumber, remainingRetrie
 		&& remainingRetries >= 0
 			? Math.floor(remainingRetries)
 			: 0;
-
-	return [
+	const retryLines = [
 		"[Tool-first retry directive]",
 		`Retry attempt ${resolvedAttemptNumber} for ${scopedDomains}.`,
 		"Call at least one relevant MCP/integration tool before answering.",
@@ -678,7 +1038,24 @@ function buildToolFirstRetryInstruction({ policy, attemptNumber, remainingRetrie
 		retriesRemaining > 0
 			? `If this attempt still fails, report the exact tool error and required IDs/URLs or re-authentication steps. Remaining retries after this attempt: ${retriesRemaining}.`
 			: "If this attempt fails, report the exact tool error and required IDs/URLs or re-authentication steps.",
-	].join("\n");
+	];
+
+	const teamworkGraphTimeWindow = policy?.teamworkGraphTimeWindow;
+	if (teamworkGraphTimeWindow?.enabled) {
+		retryLines.push(
+			"- Work-summary fallback directive:",
+			"- Use Teamwork Graph first, but do not repeat the same failing Cypher path.",
+			"- If Teamwork Graph/Cypher fails (datetime format, semantic, permission, or empty-result), run Jira JQL and Confluence CQL in the same turn for the same date window.",
+			`- Enforce ISO 8601 date-time with timezone for graph filters (UTC window: ${teamworkGraphTimeWindow.startIso} to ${teamworkGraphTimeWindow.endIso}).`
+		);
+		if (execution?.lastRelevantErrorCategory === "validation") {
+			retryLines.push(
+				"- Previous failure was a query/date validation error. Prioritize Jira JQL + Confluence CQL fallback now."
+			);
+		}
+	}
+
+	return retryLines.join("\n");
 }
 
 function buildToolContextForGenui({
@@ -790,6 +1167,11 @@ function buildToolFirstTextFallback({
 			message += " Re-authenticate the integration connection, then retry.";
 		} else if (category === "permission") {
 			message += " Check integration permissions/scopes for the requested resource, then retry.";
+		} else if (category === "validation") {
+			message += " The request failed due to query/date validation. Use strict ISO 8601 date-time values (YYYY-MM-DDTHH:mm:ssZ).";
+			if (policy?.teamworkGraphTimeWindow?.enabled) {
+				message += " Then fallback to Jira JQL and Confluence CQL for the same date window.";
+			}
 		} else if (category === "not_found") {
 			message += " Provide the exact file URL or ID and retry.";
 		} else if (category === "rate_limit") {
@@ -801,6 +1183,9 @@ function buildToolFirstTextFallback({
 		}
 	} else if (!execution?.hadRelevantToolStart) {
 		message += " Retry with explicit resource identifiers (URL/ID) so I can target a relevant tool call.";
+		if (policy?.teamworkGraphTimeWindow?.enabled) {
+			message += " For work summaries, use Jira JQL and Confluence CQL fallback if Teamwork Graph does not execute.";
+		}
 	}
 
 	if (rovoDevFallback) {
@@ -890,10 +1275,49 @@ function buildToolFirstWarningPayload({
 	};
 }
 
+function resolveUnsatisfiedContextHints({ prompt, domains } = {}) {
+	const text = getNonEmptyString(prompt);
+	if (!text || !Array.isArray(domains) || domains.length === 0) {
+		return [];
+	}
+
+	const unsatisfied = [];
+	for (const domainId of domains) {
+		const domain = TOOL_FIRST_DOMAIN_MAP.get(domainId);
+		if (!domain || !Array.isArray(domain.requiredContextHints) || domain.requiredContextHints.length === 0) {
+			continue;
+		}
+
+		if (Array.isArray(domain.requiresClarificationWhen) && domain.requiresClarificationWhen.length > 0) {
+			const shouldGate = domain.requiresClarificationWhen.some((pattern) => pattern.test(text));
+			if (!shouldGate) {
+				continue;
+			}
+		}
+
+		for (const hint of domain.requiredContextHints) {
+			if (!hint || !hint.id || !Array.isArray(hint.satisfiedPatterns)) {
+				continue;
+			}
+
+			const satisfied = hint.satisfiedPatterns.some((pattern) => pattern.test(text));
+			if (!satisfied) {
+				unsatisfied.push({
+					domainId,
+					...hint,
+				});
+			}
+		}
+	}
+
+	return unsatisfied;
+}
+
 module.exports = {
 	TOOL_FIRST_DOMAIN_CONFIG,
 	TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY,
 	resolveToolFirstPolicy,
+	resolveUnsatisfiedContextHints,
 	isToolNameRelevant,
 	createToolFirstExecutionState,
 	recordToolFirstAttempt,

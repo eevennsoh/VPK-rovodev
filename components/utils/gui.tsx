@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CopyIcon from "@atlaskit/icon/core/copy";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import UndoIcon from "@atlaskit/icon/core/undo";
@@ -13,6 +13,27 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+
+type GUIPanelContextValue = Readonly<{
+	registerKeys: (keys: readonly string[]) => void;
+	unregisterKeys: (keys: readonly string[]) => void;
+}>;
+
+const GUIPanelContext = createContext<GUIPanelContextValue | null>(null);
+
+/** Register value keys so GUI.Panel only copies values for mounted controls. */
+function useGUIValueKeys(valueKeys?: string | readonly string[]) {
+	const ctx = use(GUIPanelContext);
+	const normalized = valueKeys == null ? [] : Array.isArray(valueKeys) ? valueKeys : [valueKeys];
+	const serialized = normalized.join("\0");
+
+	useEffect(() => {
+		if (!ctx || normalized.length === 0) return;
+		ctx.registerKeys(normalized);
+		return () => ctx.unregisterKeys(normalized);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ctx, serialized]);
+}
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(max, value));
@@ -35,6 +56,7 @@ type GUIControlProps = Readonly<{
 	step: number;
 	unit?: string;
 	onChange: (next: number) => void;
+	valueKeys?: string | readonly string[];
 }>;
 
 function GUIControl({
@@ -48,7 +70,9 @@ function GUIControl({
 	step,
 	unit,
 	onChange,
+	valueKeys,
 }: GUIControlProps) {
+	useGUIValueKeys(valueKeys);
 	const [localInput, setLocalInput] = useState<string | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -160,6 +184,27 @@ function GUIPanel({ title, values, onPlay, children }: GUIPanelProps) {
 	const [isExpanded, setIsExpanded] = useState(true);
 	const [isCopied, setIsCopied] = useState(false);
 	const copiedResetTimeoutRef = useRef<number | undefined>(undefined);
+	const registeredKeysRef = useRef(new Map<string, number>());
+	const hasRegistrationsRef = useRef(false);
+
+	const panelContext = useMemo<GUIPanelContextValue>(() => ({
+		registerKeys: (keys) => {
+			for (const key of keys) {
+				registeredKeysRef.current.set(key, (registeredKeysRef.current.get(key) ?? 0) + 1);
+			}
+			hasRegistrationsRef.current = true;
+		},
+		unregisterKeys: (keys) => {
+			for (const key of keys) {
+				const count = registeredKeysRef.current.get(key) ?? 0;
+				if (count <= 1) {
+					registeredKeysRef.current.delete(key);
+				} else {
+					registeredKeysRef.current.set(key, count - 1);
+				}
+			}
+		},
+	}), []);
 
 	useEffect(() => {
 		return () => {
@@ -171,7 +216,12 @@ function GUIPanel({ title, values, onPlay, children }: GUIPanelProps) {
 
 	const handleCopyValues = useCallback(async () => {
 		try {
-			await navigator.clipboard.writeText(`${JSON.stringify(values, null, 2)}\n`);
+			const valuesToCopy = hasRegistrationsRef.current
+				? Object.fromEntries(
+					Object.entries(values).filter(([key]) => registeredKeysRef.current.has(key)),
+				)
+				: values;
+			await navigator.clipboard.writeText(`${JSON.stringify(valuesToCopy, null, 2)}\n`);
 			setIsCopied(true);
 			if (copiedResetTimeoutRef.current) {
 				window.clearTimeout(copiedResetTimeoutRef.current);
@@ -185,60 +235,62 @@ function GUIPanel({ title, values, onPlay, children }: GUIPanelProps) {
 	}, [values]);
 
 	return (
-		<Card className="w-full gap-0 p-0">
-			<div className="flex items-center gap-2 px-3 py-2.5">
-				<span className="flex-1 text-xs font-semibold">{title}</span>
-				{onPlay ? (
+		<GUIPanelContext value={panelContext}>
+			<Card className="w-full gap-0 p-0">
+				<div className="flex items-center gap-2 px-3 py-2.5">
+					<span className="flex-1 text-xs font-semibold">{title}</span>
+					{onPlay ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-7 gap-1 px-2 text-xs"
+							onClick={onPlay}
+						>
+							<VideoPlayIcon label="" size="small" />
+							Play
+						</Button>
+					) : null}
 					<Button
 						type="button"
 						variant="outline"
 						size="sm"
 						className="h-7 gap-1 px-2 text-xs"
-						onClick={onPlay}
+						onClick={() => {
+							void handleCopyValues();
+						}}
 					>
-						<VideoPlayIcon label="" size="small" />
-						Play
+						<CopyIcon label="" size="small" />
+						{isCopied ? "Copied" : "Copy values"}
 					</Button>
-				) : null}
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					className="h-7 gap-1 px-2 text-xs"
-					onClick={() => {
-						void handleCopyValues();
-					}}
-				>
-					<CopyIcon label="" size="small" />
-					{isCopied ? "Copied" : "Copy values"}
-				</Button>
-				<button
-					type="button"
-					aria-label={isExpanded ? "Collapse controls" : "Expand controls"}
-					onClick={() => {
-						setIsExpanded((prev) => !prev);
-					}}
-					className="flex size-7 items-center justify-center rounded text-icon-subtle transition-colors hover:bg-bg-neutral hover:text-icon"
-				>
-					<span
-						className="inline-flex transition-transform duration-200 ease-in-out"
-						style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
+					<button
+						type="button"
+						aria-label={isExpanded ? "Collapse controls" : "Expand controls"}
+						onClick={() => {
+							setIsExpanded((prev) => !prev);
+						}}
+						className="flex size-7 items-center justify-center rounded text-icon-subtle transition-colors hover:bg-bg-neutral hover:text-icon"
 					>
-						<ChevronDownIcon label="" size="small" />
-					</span>
-				</button>
-			</div>
-			<div
-				className="grid transition-[grid-template-rows] duration-200 ease-in-out"
-				style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
-			>
-				<div className="min-h-0 overflow-hidden">
-					<CardContent className="space-y-4 px-3 py-3">
-						{children}
-					</CardContent>
+						<span
+							className="inline-flex transition-transform duration-200 ease-in-out"
+							style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
+						>
+							<ChevronDownIcon label="" size="small" />
+						</span>
+					</button>
 				</div>
-			</div>
-		</Card>
+				<div
+					className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+					style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
+				>
+					<div className="min-h-0 overflow-hidden">
+						<CardContent className="space-y-4 px-3 py-3">
+							{children}
+						</CardContent>
+					</div>
+				</div>
+			</Card>
+		</GUIPanelContext>
 	);
 }
 
@@ -248,9 +300,11 @@ type GUIToggleProps = Readonly<{
 	description?: string;
 	checked: boolean;
 	onChange: (next: boolean) => void;
+	valueKeys?: string | readonly string[];
 }>;
 
-function GUIToggle({ id, label, description, checked, onChange }: GUIToggleProps) {
+function GUIToggle({ id, label, description, checked, onChange, valueKeys }: GUIToggleProps) {
+	useGUIValueKeys(valueKeys);
 	const switchId = `${id}-toggle`;
 
 	return (
@@ -287,6 +341,7 @@ type GUISelectProps<T extends string> = Readonly<{
 	value: T;
 	options: readonly GUISelectOption<T>[];
 	onChange: (next: T) => void;
+	valueKeys?: string | readonly string[];
 }>;
 
 function GUISelect<T extends string>({
@@ -296,7 +351,9 @@ function GUISelect<T extends string>({
 	value,
 	options,
 	onChange,
+	valueKeys,
 }: GUISelectProps<T>) {
+	useGUIValueKeys(valueKeys);
 	return (
 		<div className="space-y-1.5">
 			<div className="flex items-center justify-between gap-2">

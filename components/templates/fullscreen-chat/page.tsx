@@ -10,6 +10,7 @@ import { ClarificationQuestionCard } from "@/components/templates/shared/compone
 import { QuestionCardShortcutsFooter } from "@/components/templates/shared/components/question-card-shortcuts-footer";
 import { CONTAINER_STYLES } from "./data/container-styles";
 import { useDismissibleCards } from "@/components/templates/shared/hooks/use-dismissible-cards";
+import { getAwaitingUserResponseLabel } from "@/components/templates/shared/lib/reasoning-labels";
 import styles from "./rovo.module.css";
 
 export default function RovoView() {
@@ -102,7 +103,7 @@ export default function RovoView() {
 								isStreaming={isStreaming}
 								isSubmitPending={isSubmitPending}
 								showAwaitingIndicator={shouldShowQuestionCard && activeQuestionCard !== null}
-								awaitingIndicatorLabel="Awaiting user response"
+								awaitingIndicatorLabel={getAwaitingUserResponseLabel()}
 							/>
 						</div>
 					</div>

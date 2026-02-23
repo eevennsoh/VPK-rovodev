@@ -17,7 +17,8 @@ const REQUEST_USER_INPUT_INSTRUCTION = [
 	"When you need to ask the user clarifying questions before proceeding (e.g. to gather requirements, preferences, or missing details), you MUST use the `ask_user_questions` tool instead of writing questions as plain text.",
 	"The tool renders an interactive question card in the UI. Provide 2–4 questions, each with a short label, description, and 1–3 predefined options. The UI automatically appends a free-text option.",
 	"Each option must be a specific, concrete answer to its question (e.g. site names, technologies, team names) — never generic labels like \"Quick\", \"Balanced\", or \"Detailed\".",
-	"Skip the tool for deterministic requests that can be completed directly without external systems (e.g. translation, rewrite, summarization, formatting).",
+	"For translation requests, if either the source text or target language is missing, use the tool to gather those inputs instead of asking in plain text.",
+	"Skip the tool for deterministic requests only when all required inputs are already present (e.g. rewrite, summarization, formatting, or translation with source text and target language).",
 	"Only use the tool when missing details genuinely block completion, or when asking a single simple yes/no follow-up or making a casual conversational remark.",
 	"[End Clarification Protocol]",
 ].join("\n");
@@ -31,6 +32,56 @@ const FIGMA_CLARIFICATION_INSTRUCTION = [
 	"Do NOT call Figma MCP tools without first collecting the Figma URL from the user.",
 	"[End Figma Tool Protocol]",
 ].join("\n");
+
+const LAST_7_DAYS_WORK_INSTRUCTION = [
+	"[Tool Guardrail]",
+	"For this request, do not call any Teamwork Graph tools.",
+	"Never use tools whose names start with or include: `twg_`, `twg_twg_`, or `teamwork_graph`.",
+	"If TWG is unavailable, continue with a non-TWG best-effort summary instead of failing.",
+	"[End Tool Guardrail]",
+	"",
+	"[Tool Requirement]",
+	"You MUST search BOTH Jira AND Confluence for this request. Do not skip either source.",
+	"Always call Jira search tools AND Confluence search tools, even if one returns empty results.",
+	"Present results from both sources in your response.",
+	"[End Tool Requirement]",
+].join("\n");
+
+const LAST_7_DAYS_WINDOW_PATTERN = /\b(?:last|past)\s+7\s+days?\b|\b7[-\s]?day\b|\blast\s+week\b/i;
+const WORK_SUMMARY_PATTERN = /\b(work|activity|summary|updates?)\b/i;
+
+function isSevenDayWorkSummaryPrompt(message) {
+	if (typeof message !== "string" || message.trim().length === 0) {
+		return false;
+	}
+
+	return (
+		LAST_7_DAYS_WINDOW_PATTERN.test(message) &&
+		WORK_SUMMARY_PATTERN.test(message)
+	);
+}
+
+function hasLast7DaysWorkGuardrail(contextDescription) {
+	if (typeof contextDescription !== "string" || contextDescription.trim().length === 0) {
+		return false;
+	}
+
+	return (
+		contextDescription.includes("[Tool Guardrail]") &&
+		contextDescription.includes("Teamwork Graph") &&
+		contextDescription.includes("[Tool Requirement]")
+	);
+}
+
+function resolvePromptSpecificInstruction(message, contextDescription) {
+	if (hasLast7DaysWorkGuardrail(contextDescription)) {
+		return null;
+	}
+
+	return isSevenDayWorkSummaryPrompt(message)
+		? LAST_7_DAYS_WORK_INSTRUCTION
+		: null;
+}
 
 /**
  * System message sent to RovoDev when the user skips/dismisses a
@@ -61,7 +112,17 @@ function buildQuestionCardSkipNotification(questionTitle) {
  * RovoDev handles all system prompts and widget protocol.
  */
 function buildUserMessage(message, conversationHistory, contextDescription) {
-	const instructions = `${REQUEST_USER_INPUT_INSTRUCTION}\n\n${FIGMA_CLARIFICATION_INSTRUCTION}`;
+	const promptSpecificInstruction = resolvePromptSpecificInstruction(
+		message,
+		contextDescription
+	);
+	const instructions = [
+		REQUEST_USER_INPUT_INSTRUCTION,
+		FIGMA_CLARIFICATION_INSTRUCTION,
+		promptSpecificInstruction,
+	]
+		.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+		.join("\n\n");
 	const combinedContext = contextDescription
 		? `${contextDescription}\n\n${instructions}`
 		: instructions;

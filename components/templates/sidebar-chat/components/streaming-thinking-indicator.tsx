@@ -12,6 +12,7 @@ import {
 	ReasoningText,
 } from "@/components/ui-ai/reasoning";
 import { AssistantThinkingToolsSection } from "@/components/templates/shared/components/assistant-thinking-tools-section";
+import { getReasoningSectionTitle } from "@/components/templates/shared/lib/reasoning-labels";
 
 interface StreamingThinkingIndicatorProps {
 	isStreaming: boolean;
@@ -45,6 +46,8 @@ export function StreamingThinkingIndicator({
 				<Reasoning
 					key={streamingReasoningKey}
 					className="mb-0"
+					autoExpandOnDetails
+					hasDetails={hasThinkingDetails}
 					isStreaming={phaseProps.isStreaming}
 					streamingWave={phaseProps.streamingWave}
 					streamingWaveGradientColor={
@@ -63,7 +66,7 @@ export function StreamingThinkingIndicator({
 						<ReasoningContent>
 							<div className="space-y-4">
 								{hasReasoningContent ? (
-									<ReasoningSection title="Thinking">
+									<ReasoningSection title={getReasoningSectionTitle("thinking")}>
 										<ReasoningText
 											maxVisibleTimelineItems={6}
 											text={trimmedReasoningContent}
@@ -72,7 +75,7 @@ export function StreamingThinkingIndicator({
 									</ReasoningSection>
 								) : null}
 								{hasThinkingToolCalls ? (
-									<ReasoningSection title="Tools">
+									<ReasoningSection title={getReasoningSectionTitle("tools")}>
 										<AssistantThinkingToolsSection
 											defaultOpenMode="running"
 											idPrefix={lastMessageId ?? "stream"}

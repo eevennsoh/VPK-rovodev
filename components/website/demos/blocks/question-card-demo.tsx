@@ -7,6 +7,7 @@ import {
 	QUESTION_CARD_DEMO_QUESTIONS,
 	QUESTION_CARD_SINGLE_SELECT_DEMO,
 	QUESTION_CARD_MULTI_SELECT_DEMO,
+	QUESTION_CARD_TEXT_ONLY_DEMO,
 } from "@/components/blocks/question-card/data/questions";
 
 function useQuestionCardDemo() {
@@ -103,6 +104,10 @@ export function QuestionCardDemoMultiSelect() {
 
 export function QuestionCardDemoMixed() {
 	return <DemoWrapper questions={QUESTION_CARD_DEMO_QUESTIONS} />;
+}
+
+export function QuestionCardDemoTextOnly() {
+	return <DemoWrapper questions={QUESTION_CARD_TEXT_ONLY_DEMO} showCustomInput={true} />;
 }
 
 export function QuestionCardDemoNoCustomInput() {

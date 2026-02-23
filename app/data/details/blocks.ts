@@ -301,6 +301,7 @@ const questions: QuestionCardQuestion[] = [
 		examples: [
 			{ title: "Single-select", description: "Numbered options with auto-advance on selection.", demoSlug: "question-card-demo-single-select" },
 			{ title: "Multi-select", description: "Checkbox indicators on the right allow multiple selections.", demoSlug: "question-card-demo-multi-select" },
+			{ title: "Text only", description: "Single free-form text input with no pre-defined options.", demoSlug: "question-card-demo-text-only" },
 			{ title: "Mixed flow", description: "Multi-question flow combining single-select and multi-select with pagination.", demoSlug: "question-card-demo-mixed" },
 			{ title: "Without custom input", description: "Custom input row hidden via showCustomInput={false}.", demoSlug: "question-card-demo-no-custom-input" },
 			{ title: "Custom placeholder", description: "Custom placeholder text for the free-form input.", demoSlug: "question-card-demo-custom-placeholder" },

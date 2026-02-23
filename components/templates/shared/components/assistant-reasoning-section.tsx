@@ -15,8 +15,8 @@ export function AssistantReasoningSection({
 }: Readonly<AssistantReasoningSectionProps>): React.ReactElement {
 	const phase: ReasoningPhase = reasoning.isStreaming
 		? reasoning.text
-			? "streaming"
-			: "thinking"
+			? "thinking"
+			: "preload"
 		: "completed";
 	const phaseProps = getReasoningPropsForPhase(phase, undefined, true);
 

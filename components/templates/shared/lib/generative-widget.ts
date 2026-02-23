@@ -66,6 +66,9 @@ const GENERATIVE_CONTENT_TYPE_HINT_KEYS = [
 export type GenerativeContentType =
 	| "image"
 	| "text"
+	| "translation"
+	| "message"
+	| "calendar"
 	| "chart-bar"
 	| "chart-line"
 	| "chart-area"
@@ -116,7 +119,19 @@ const CONTENT_TYPE_HINT_MATCHERS: ReadonlyArray<{
 		contentType: "chart",
 	},
 	{
-		pattern: /\b(work\s*item|work-item|task|tasks|issue|issues|ticket|tickets|bug|bugs|story|epic|backlog)\b/i,
+		pattern: /\bgoogle\s+calendar\b|\bcalendar\b/i,
+		contentType: "calendar",
+	},
+	{
+		pattern: /\b(translate|translation|source\s+language|target\s+language|translated\s+text)\b/i,
+		contentType: "translation",
+	},
+	{
+		pattern: /\b(send|post|reply|write)\b[\s\S]{0,30}\b(message|slack|dm|direct\s+message)\b|\b(slack|channel|dm|direct\s+message)\b/i,
+		contentType: "message",
+	},
+	{
+		pattern: /\b(work\s*item|work-item|work\s*summary|task|tasks|issue|issues|ticket|tickets|bug|bugs|story|epic|backlog)\b/i,
 		contentType: "work-item",
 	},
 	{
@@ -157,10 +172,37 @@ const CONTENT_TYPE_HINT_MATCHERS: ReadonlyArray<{
 	},
 ];
 
+const EXACT_CONTENT_TYPE_HINT_MAP: ReadonlyMap<string, GenerativeContentType> = new Map([
+	["image", "image"],
+	["text", "text"],
+	["translation", "translation"],
+	["translate", "translation"],
+	["message", "message"],
+	["calendar", "calendar"],
+	["bar chart", "chart-bar"],
+	["line chart", "chart-line"],
+	["area chart", "chart-area"],
+	["pie chart", "chart-pie"],
+	["radar chart", "chart-radar"],
+	["scatter chart", "chart-scatter"],
+	["chart", "chart"],
+	["sound", "sound"],
+	["audio", "sound"],
+	["video", "video"],
+	["work item", "work-item"],
+	["work summary", "work-item"],
+	["page", "page"],
+	["board", "board"],
+	["table", "table"],
+	["code", "code"],
+	["ui", "ui"],
+]);
+
 const ELEMENT_TYPE_CONTENT_MATCHERS: ReadonlyArray<{
 	pattern: RegExp;
 	contentType: GenerativeContentType;
 }> = [
+	{ pattern: /\bcalendar\b/i, contentType: "calendar" },
 	{ pattern: /\bbar\s*chart\b/i, contentType: "chart-bar" },
 	{ pattern: /\bline\s*chart\b/i, contentType: "chart-line" },
 	{ pattern: /\barea\s*chart\b/i, contentType: "chart-area" },
@@ -216,6 +258,11 @@ function resolveContentTypeFromHint(value?: string): GenerativeContentType | nul
 		return null;
 	}
 
+	const exactContentType = EXACT_CONTENT_TYPE_HINT_MAP.get(normalized);
+	if (exactContentType) {
+		return exactContentType;
+	}
+
 	for (const matcher of CONTENT_TYPE_HINT_MATCHERS) {
 		if (matcher.pattern.test(normalized)) {
 			return matcher.contentType;
@@ -238,6 +285,30 @@ function resolveContentTypeFromElementType(value: string): GenerativeContentType
 	}
 
 	return null;
+}
+
+function resolveContentTypeFromElementProps(
+	element: Record<string, unknown>
+): GenerativeContentType | null {
+	const props = getElementProps(element);
+	if (!props) {
+		return null;
+	}
+
+	const hintText = [
+		getNonEmptyString(props.title),
+		getNonEmptyString(props.description),
+		getNonEmptyString(props.content),
+		getNonEmptyString(props.text),
+		getNonEmptyString(props.label),
+	]
+		.filter((value): value is string => Boolean(value))
+		.join(" ");
+	if (!hintText) {
+		return null;
+	}
+
+	return resolveContentTypeFromHint(hintText);
 }
 
 function readFirstNonEmptyString(record: Record<string, unknown>, keys: string[]): string | undefined {
@@ -452,10 +523,11 @@ export function parseGenerativeWidget(
 
 function resolveGenuiContentType(widget: ParsedGenuiPreviewWidget): GenerativeContentType {
 	const textHints = [
-		widget.contentTypeHint,
 		widget.title,
 		widget.description,
 		widget.summary,
+		widget.primaryActionLabel,
+		widget.source?.name,
 	]
 		.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
 		.join(" ");
@@ -468,6 +540,11 @@ function resolveGenuiContentType(widget: ParsedGenuiPreviewWidget): GenerativeCo
 	for (const value of Object.values(widget.spec.elements ?? {})) {
 		if (!isObjectRecord(value)) {
 			continue;
+		}
+
+		const inferredFromProps = resolveContentTypeFromElementProps(value);
+		if (inferredFromProps) {
+			return inferredFromProps;
 		}
 
 		const typeName = getNonEmptyString(value.type);
@@ -486,6 +563,28 @@ function resolveGenuiContentType(widget: ParsedGenuiPreviewWidget): GenerativeCo
 
 function resolveContentType(widget: ParsedGenerativeWidget): GenerativeContentType {
 	const explicitHint = resolveContentTypeFromHint(widget.contentTypeHint);
+	if (widget.type === "genui-preview") {
+		const inferredContentType = resolveGenuiContentType(widget);
+
+		// Generic "text" hints should not override stronger inferred domains.
+		if (
+			explicitHint &&
+			!(
+				explicitHint === "text" &&
+				inferredContentType !== "other" &&
+				inferredContentType !== "text"
+			)
+		) {
+			return explicitHint;
+		}
+
+		if (inferredContentType !== "other") {
+			return inferredContentType;
+		}
+
+		return explicitHint ?? inferredContentType;
+	}
+
 	if (explicitHint) {
 		return explicitHint;
 	}
@@ -496,10 +595,6 @@ function resolveContentType(widget: ParsedGenerativeWidget): GenerativeContentTy
 
 	if (widget.type === "audio-preview") {
 		return "sound";
-	}
-
-	if (widget.type === "genui-preview") {
-		return resolveGenuiContentType(widget);
 	}
 
 	return "other";
@@ -742,6 +837,9 @@ function resolveGenuiPrimaryActionLabelFromSpec(
 const CONTENT_TYPE_FALLBACK_TITLES: Partial<Record<GenerativeContentType, string>> = {
 	"image": "Generated image",
 	"sound": "Generated audio",
+	"translation": "Generated translation",
+	"message": "Generated message draft",
+	"calendar": "Generated calendar preview",
 	"chart": "Generated chart preview",
 	"chart-bar": "Generated chart preview",
 	"chart-line": "Generated chart preview",
@@ -978,6 +1076,217 @@ function findDescriptionSourceInSpec(widget: ParsedGenuiPreviewWidget): SpecText
 }
 
 const REMOVABLE_HEADER_TYPES = new Set(["PageHeader", "Heading", "Text"]);
+const COLLAPSIBLE_EMPTY_CONTAINER_TYPES = new Set(["Stack"]);
+const TRANSLATED_HEADING_PATTERN = /^translated\s*\(/i;
+
+function getLiveChildKeys(
+	children: unknown[],
+	elements: Record<string, unknown>,
+	keysToRemove: ReadonlySet<string>
+): string[] {
+	return children.filter((childKey): childKey is string => {
+		if (typeof childKey !== "string" || childKey.trim().length === 0) {
+			return false;
+		}
+
+		if (keysToRemove.has(childKey)) {
+			return false;
+		}
+
+		return Object.prototype.hasOwnProperty.call(elements, childKey);
+	});
+}
+
+function isSeparatorElement(element: unknown): boolean {
+	return isObjectRecord(element) && getNonEmptyString(element.type) === "Separator";
+}
+
+function normalizeChildKeySequence(
+	childKeys: readonly string[],
+	elements: Record<string, unknown>
+): string[] {
+	const normalized: string[] = [];
+
+	for (const childKey of childKeys) {
+		const childIsSeparator = isSeparatorElement(elements[childKey]);
+		if (normalized.length === 0 && childIsSeparator) {
+			continue;
+		}
+
+		const previousKey = normalized[normalized.length - 1];
+		const previousIsSeparator = previousKey
+			? isSeparatorElement(elements[previousKey])
+			: false;
+
+		if (childIsSeparator && previousIsSeparator) {
+			continue;
+		}
+
+		normalized.push(childKey);
+	}
+
+	while (
+		normalized.length > 0 &&
+		isSeparatorElement(elements[normalized[normalized.length - 1]])
+	) {
+		normalized.pop();
+	}
+
+	return normalized;
+}
+
+function arraysMatch(left: readonly string[], right: readonly string[]): boolean {
+	if (left.length !== right.length) {
+		return false;
+	}
+
+	for (let index = 0; index < left.length; index += 1) {
+		if (left[index] !== right[index]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function normalizeTranslationTypography(
+	elements: Record<string, unknown>
+): Record<string, unknown> {
+	const normalizedElements: Record<string, unknown> = { ...elements };
+
+	for (const element of Object.values(normalizedElements)) {
+		if (!isObjectRecord(element) || getNonEmptyString(element.type) !== "Stack") {
+			continue;
+		}
+
+		if (!Array.isArray(element.children)) {
+			continue;
+		}
+
+		const childKeys = element.children.filter(
+			(childKey): childKey is string =>
+				typeof childKey === "string" && childKey.trim().length > 0
+		);
+		if (childKeys.length < 2) {
+			continue;
+		}
+
+		const translatedHeadingKey = childKeys[0];
+		const translatedValueKey = childKeys[1];
+		const translatedHeading = normalizedElements[translatedHeadingKey];
+		if (
+			!isObjectRecord(translatedHeading) ||
+			getNonEmptyString(translatedHeading.type) !== "Heading"
+		) {
+			continue;
+		}
+
+		const translatedHeadingProps = getElementProps(translatedHeading);
+		const translatedHeadingText = translatedHeadingProps
+			? getNonEmptyString(translatedHeadingProps.text)
+			: undefined;
+		if (!translatedHeadingText || !TRANSLATED_HEADING_PATTERN.test(translatedHeadingText)) {
+			continue;
+		}
+
+		normalizedElements[translatedHeadingKey] = {
+			...translatedHeading,
+			props: {
+				...(translatedHeadingProps ?? {}),
+				level: "h4",
+				className: "text-sm font-semibold",
+			},
+		};
+
+		const translatedValue = normalizedElements[translatedValueKey];
+		if (!isObjectRecord(translatedValue)) {
+			continue;
+		}
+
+		const translatedValueType = getNonEmptyString(translatedValue.type);
+		const translatedValueProps = getElementProps(translatedValue);
+		if (!translatedValueType || !translatedValueProps) {
+			continue;
+		}
+
+		if (translatedValueType === "Heading") {
+			normalizedElements[translatedValueKey] = {
+				...translatedValue,
+				props: {
+					...translatedValueProps,
+					level: "h4",
+					className: "text-lg font-medium",
+				},
+			};
+			continue;
+		}
+
+		if (translatedValueType === "Text") {
+			const translatedBodyText = getNonEmptyString(translatedValueProps.content);
+			if (translatedBodyText) {
+				normalizedElements[translatedValueKey] = {
+					...translatedValue,
+					type: "Heading",
+					props: {
+						text: translatedBodyText,
+						level: "h4",
+						className: "text-lg font-medium",
+					},
+				};
+				continue;
+			}
+
+			normalizedElements[translatedValueKey] = {
+				...translatedValue,
+				props: {
+					...translatedValueProps,
+					size: "base",
+					muted: null,
+				},
+			};
+		}
+	}
+
+	return normalizedElements;
+}
+
+function pruneUnreachableElements(
+	rootKey: string,
+	elements: Record<string, unknown>
+): Record<string, unknown> {
+	const reachableKeys = new Set<string>();
+	const stack = [rootKey];
+
+	while (stack.length > 0) {
+		const currentKey = stack.pop();
+		if (!currentKey || reachableKeys.has(currentKey)) {
+			continue;
+		}
+
+		if (!Object.prototype.hasOwnProperty.call(elements, currentKey)) {
+			continue;
+		}
+
+		reachableKeys.add(currentKey);
+		const element = elements[currentKey];
+		if (!isObjectRecord(element) || !Array.isArray(element.children)) {
+			continue;
+		}
+
+		for (const childKey of element.children) {
+			if (typeof childKey === "string" && childKey.trim().length > 0) {
+				stack.push(childKey);
+			}
+		}
+	}
+
+	const pruned: Record<string, unknown> = {};
+	for (const key of reachableKeys) {
+		pruned[key] = elements[key];
+	}
+
+	return pruned;
+}
 
 export function createBodyOnlySpec(widget: ParsedGenuiPreviewWidget): Spec {
 	const titleSource = findTitleSourceInSpec(widget);
@@ -1034,17 +1343,46 @@ export function createBodyOnlySpec(widget: ParsedGenuiPreviewWidget): Spec {
 		}
 	}
 
-	if (keysToRemove.size > 0) {
+	if (keysToRemove.has(widget.spec.root)) {
+		return widget.spec;
+	}
+
+	let changed = true;
+	while (changed) {
+		changed = false;
+
 		for (const [key, element] of Object.entries(newElements)) {
-			if (!isObjectRecord(element) || !Array.isArray(element.children)) continue;
-
-			const filtered = (element.children as unknown[]).filter(
-				(childKey) => typeof childKey !== "string" || !keysToRemove.has(childKey)
-			);
-
-			if (filtered.length !== (element.children as unknown[]).length) {
-				newElements[key] = { ...element, children: filtered };
+			if (key === widget.spec.root || keysToRemove.has(key)) {
+				continue;
 			}
+			if (!isObjectRecord(element) || !Array.isArray(element.children)) {
+				continue;
+			}
+
+			const elementType = getNonEmptyString(element.type);
+			if (!elementType || !COLLAPSIBLE_EMPTY_CONTAINER_TYPES.has(elementType)) {
+				continue;
+			}
+
+			const originalChildren = element.children.filter(
+				(childKey): childKey is string =>
+					typeof childKey === "string" && childKey.trim().length > 0
+			);
+			if (originalChildren.length === 0) {
+				continue;
+			}
+
+			const liveChildren = getLiveChildKeys(
+				element.children,
+				newElements,
+				keysToRemove
+			);
+			if (liveChildren.length > 0) {
+				continue;
+			}
+
+			keysToRemove.add(key);
+			changed = true;
 		}
 	}
 
@@ -1052,8 +1390,53 @@ export function createBodyOnlySpec(widget: ParsedGenuiPreviewWidget): Spec {
 		return widget.spec;
 	}
 
+	const elementsAfterRemoval: Record<string, unknown> = {};
+	for (const [key, element] of Object.entries(newElements)) {
+		if (!keysToRemove.has(key)) {
+			elementsAfterRemoval[key] = element;
+		}
+	}
+
+	if (!Object.prototype.hasOwnProperty.call(elementsAfterRemoval, widget.spec.root)) {
+		return widget.spec;
+	}
+
+	const normalizedElements: Record<string, unknown> = {};
+	for (const [key, element] of Object.entries(elementsAfterRemoval)) {
+		if (!isObjectRecord(element) || !Array.isArray(element.children)) {
+			normalizedElements[key] = element;
+			continue;
+		}
+
+		const liveChildren = getLiveChildKeys(
+			element.children,
+			elementsAfterRemoval,
+			new Set<string>()
+		);
+		const normalizedChildren = normalizeChildKeySequence(
+			liveChildren,
+			elementsAfterRemoval
+		);
+
+		if (arraysMatch(liveChildren, normalizedChildren)) {
+			normalizedElements[key] = { ...element, children: liveChildren };
+			continue;
+		}
+
+		normalizedElements[key] = { ...element, children: normalizedChildren };
+	}
+
+	const prunedElements = pruneUnreachableElements(
+		widget.spec.root,
+		normalizedElements
+	);
+
+	if (!Object.prototype.hasOwnProperty.call(prunedElements, widget.spec.root)) {
+		return widget.spec;
+	}
+
 	return {
 		...widget.spec,
-		elements: newElements,
+		elements: normalizeTranslationTypography(prunedElements),
 	} as Spec;
 }

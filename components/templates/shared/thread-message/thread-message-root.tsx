@@ -16,7 +16,10 @@ import {
 	type RovoRenderableUIMessage,
 	type RouteDecisionMeta,
 } from "@/lib/rovo-ui-messages";
-import type { ReasoningPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
+import {
+	useReasoningPhase,
+	type ReasoningPhase,
+} from "@/components/templates/shared/hooks/use-reasoning-phase";
 import {
 	Message as UiMessage,
 } from "@/components/ui-ai/message";
@@ -28,14 +31,20 @@ import {
 	sanitizeMarkdownArtifactMarkers,
 	suppressToolJsonTrace,
 } from "../lib/message-text-utils";
+import { shouldSuppressQuestionCardMessageText } from "./lib/question-card-text-visibility";
 import { resolveThinkingLabelForSurface } from "../lib/thinking-label-policy";
+import { getDefaultThinkingLabel } from "../lib/reasoning-labels";
 import { UserMessageBubble } from "../components/user-message-bubble";
 import { ThreadMessageContext, type ThreadMessageContextValue } from "./thread-message-context";
-import { isThinkingStatusActive as resolveThinkingStatusActive } from "./lib/thinking-status-state";
+import {
+	isThinkingStatusActive as resolveThinkingStatusActive,
+	isThinkingStatusLifecycleStreaming as resolveThinkingStatusLifecycleStreaming,
+} from "./lib/thinking-status-state";
 
 interface ThreadMessageRootProps {
 	message: RovoRenderableUIMessage;
 	surface: "sidebar" | "fullscreen";
+	isThinkingLifecycleStreaming?: boolean;
 	assistantStreamingRenderMode?: "rich" | "text-first";
 	onDeleteMessage?: (messageId: string) => void;
 	renderWidget?: (
@@ -49,12 +58,20 @@ interface ThreadMessageRootProps {
 function useThreadMessageDerived(
 	message: RovoRenderableUIMessage,
 	surface: "sidebar" | "fullscreen",
+	isThinkingLifecycleStreaming: boolean,
 	assistantStreamingRenderMode: "rich" | "text-first",
 	renderWidget: ThreadMessageRootProps["renderWidget"],
 	renderLoadingWidget: ThreadMessageRootProps["renderLoadingWidget"],
 ): ThreadMessageContextValue {
 	const rawMessageText = getMessageText(message);
 	const isStreaming = isMessageTextStreaming(message);
+
+	// ---------- widget loading state (needed for thinking status) ----------
+	const widgetLoadingPart = getLatestDataPart(message, "data-widget-loading");
+	const widgetDataPart = getLatestDataPart(message, "data-widget-data");
+	const isWidgetLoading = widgetLoadingPart?.data.loading ?? false;
+	const hasWidgetPayload = Boolean(widgetDataPart);
+	const hasWidgetOutput = hasWidgetPayload && !isWidgetLoading;
 
 	// ---------- thinking status ----------
 	const thinkingStatusPart = getLatestDataPart(message, "data-thinking-status");
@@ -78,16 +95,13 @@ function useThreadMessageDerived(
 		isRetryThinkingStatus,
 		isStreaming,
 	});
-	const hasRawMessageText = rawMessageText.trim().length > 0;
 	const { label: dynamicThinkingStatusLabel } = useDynamicThinkingLabel({
-		baseLabel: thinkingStatusPart?.data.label ?? "Thinking",
-		isStreaming: isStreaming && isThinkingStatusActive,
+		baseLabel: thinkingStatusPart?.data.label ?? getDefaultThinkingLabel(),
+		isStreaming: isThinkingLifecycleStreaming && isThinkingStatusActive,
 		updateSignal: thinkingStatusUpdateSignal,
 	});
 
-	// ---------- widget data ----------
-	const widgetLoadingPart = getLatestDataPart(message, "data-widget-loading");
-	const widgetDataPart = getLatestDataPart(message, "data-widget-data");
+	// ---------- widget data (remaining) ----------
 	const widgetErrorPart = getLatestDataPart(message, "data-widget-error");
 	const suggestedQuestionsPart = getLatestDataPart(
 		message,
@@ -97,7 +111,6 @@ function useThreadMessageDerived(
 		widgetDataPart?.data.type ??
 		widgetLoadingPart?.data.type ??
 		widgetErrorPart?.data.type;
-	const isWidgetLoading = widgetLoadingPart?.data.loading ?? false;
 
 	// ---------- route decision ----------
 	const routeDecisionPart = getLatestDataPart(message, "data-route-decision");
@@ -147,6 +160,27 @@ function useThreadMessageDerived(
 	);
 	const thinkingToolCallsForStatus =
 		toolParts.length > 0 ? [] : thinkingToolCalls;
+	const hasBackendThinkingActivity =
+		Boolean(thinkingStatusPart) ||
+		thinkingEventParts.length > 0 ||
+		thinkingToolCalls.length > 0 ||
+		toolParts.length > 0;
+	const isThinkingStatusStreaming =
+		resolveThinkingStatusLifecycleStreaming({
+			isThinkingLifecycleStreaming,
+			isThinkingStatusActive,
+			hasBackendThinkingActivity,
+		});
+	const {
+		phase: thinkingStatusLifecyclePhase,
+		duration: thinkingStatusDuration,
+	} = useReasoningPhase({
+		isStreaming: isThinkingStatusStreaming,
+		hasMessageText: hasBackendThinkingActivity,
+		responseKey: `${message.id}:thinking-status`,
+		autoIdle: false,
+		minPreloadMs: 0,
+	});
 	const hasToolFirstWarning =
 		Boolean(toolFirstWarning?.message) && !isStreaming;
 
@@ -158,14 +192,12 @@ function useThreadMessageDerived(
 		Boolean(isPlanWidgetFlow) &&
 		isCreatePlanSkillFlow &&
 		assistantStreamingRenderMode !== "text-first";
-	const hasWidgetPayload = Boolean(widgetDataPart);
-	const hasWidgetOutput = hasWidgetPayload && !isWidgetLoading;
 	const thinkingStatusReasoningPhase: ReasoningPhase = (() => {
 		if (!isThinkingStatusActive) return "idle";
+		if (!hasBackendThinkingActivity) return isStreaming ? "preload" : "idle";
 		if (hasWidgetOutput) return "completed";
-		if (!hasRawMessageText) return "thinking";
-		if (isStreaming) return "streaming";
-		return "completed";
+		if (isWidgetLoading && widgetType === "genui-preview") return "completed";
+		return thinkingStatusLifecyclePhase;
 	})();
 	const resolvedThinkingStatusLabel = resolveThinkingLabelForSurface({
 		baseLabel: dynamicThinkingStatusLabel,
@@ -197,14 +229,19 @@ function useThreadMessageDerived(
 			: null;
 	const shouldRenderPlanWidgetFirst = widgetType === "plan";
 	const hasRenderedWidget = Boolean(renderedWidget);
+	const shouldSuppressQuestionCardText = shouldSuppressQuestionCardMessageText({
+		shouldShowWidgetSections,
+		widgetType,
+		isStreaming,
+		widgetPayload: widgetDataPart?.data.payload,
+		messageText: rawMessageText,
+	});
 	const shouldSuppressTextForWidget =
 		shouldSuppressStreamingText ||
 		(widgetType === "plan" &&
 			isCreatePlanSkillFlow &&
 			isWidgetLoading) ||
-		(shouldShowWidgetSections &&
-			widgetType === "question-card" &&
-			!isStreaming) ||
+		shouldSuppressQuestionCardText ||
 		(
 			shouldShowWidgetSections &&
 			widgetType === "genui-preview" &&
@@ -230,6 +267,7 @@ function useThreadMessageDerived(
 			resolvedThinkingStatusLabel,
 			isThinkingStatusActive,
 			thinkingStatusReasoningPhase,
+			thinkingStatusDuration,
 			thinkingToolCallsForStatus,
 			sources,
 			toolParts,
@@ -255,6 +293,10 @@ function useThreadMessageDerived(
 			messageText,
 			widgetType,
 			isWidgetLoading,
+			isThinkingStatusActive,
+			thinkingStatusReasoningPhase,
+			thinkingStatusDuration,
+			hasToolFirstWarning,
 			suggestedQuestions.length,
 			routeDecision?.reason,
 			thinkingStatusUpdateSignal,
@@ -266,6 +308,7 @@ function useThreadMessageDerived(
 export function ThreadMessageRoot({
 	message,
 	surface,
+	isThinkingLifecycleStreaming = false,
 	assistantStreamingRenderMode = "rich",
 	onDeleteMessage,
 	renderWidget,
@@ -275,15 +318,17 @@ export function ThreadMessageRoot({
 	const contextValue = useThreadMessageDerived(
 		message,
 		surface,
+		isThinkingLifecycleStreaming,
 		assistantStreamingRenderMode,
 		renderWidget,
 		renderLoadingWidget,
 	);
 
 	if (message.role === "user") {
+		const displayLabel = message.metadata?.displayLabel;
 		return (
 			<UserMessageBubble
-				messageText={contextValue.rawMessageText}
+				messageText={displayLabel || contextValue.rawMessageText}
 				onDelete={
 					onDeleteMessage
 						? () => onDeleteMessage(message.id)

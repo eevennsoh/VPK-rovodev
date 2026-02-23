@@ -10,6 +10,7 @@ import {
 } from "@/components/ui-ai/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
+import { REASONING_LABELS } from "@/components/templates/shared/lib/reasoning-labels";
 import type { TaskExecution } from "../lib/execution-data";
 
 interface AgentScreenProps {
@@ -84,7 +85,7 @@ export const AgentScreen = memo(function AgentScreen({
 						<Message from="assistant" className="max-w-full">
 						<MessageContent className="px-3">
 							<Reasoning className="mb-0" isStreaming>
-								<AdsReasoningTrigger label="Working" showChevron={false} />
+								<AdsReasoningTrigger label={REASONING_LABELS.trigger.working} showChevron={false} />
 							</Reasoning>
 						</MessageContent>
 					</Message>
