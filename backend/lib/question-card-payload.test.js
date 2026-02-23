@@ -177,3 +177,63 @@ test("request_user_input conversion accepts snake_case answer option aliases", (
 	assert.equal(payload.questions[0].options[0].label, "Slack");
 	assert.equal(payload.questions[0].options[1].label, "Email digest");
 });
+
+test("request_user_input conversion parses questions nested under tool-result output", () => {
+	const payload = buildQuestionCardPayloadFromRequestUserInput(
+		{
+			output: JSON.stringify({
+				title: "Atlassian site selection",
+				questions: [
+					{
+						id: "site_selection",
+						question: "Which Atlassian site(s)?",
+						options: [
+							"softwareteams.atlassian.net",
+							"atlassian-team-25.atlassian.net",
+						],
+					},
+				],
+			}),
+		},
+		{
+			sessionId: "request-user-input-tool-result-output",
+			createSessionId: () => "request-user-input-tool-result-output",
+		}
+	);
+
+	assert.ok(payload);
+	assert.equal(payload.title, "Atlassian site selection");
+	assert.equal(payload.questions.length, 1);
+	assert.equal(payload.questions[0].options.length, 2);
+	assert.equal(payload.questions[0].options[0].label, "softwareteams.atlassian.net");
+});
+
+test("request_user_input conversion supports 8 preset options for clarification cards", () => {
+	const optionLabels = Array.from(
+		{ length: 12 },
+		(_, index) => `site-${index + 1}.atlassian.net`
+	);
+	const payload = buildQuestionCardPayloadFromRequestUserInput(
+		{
+			result: {
+				questions: [
+					{
+						id: "site_selection",
+						question: "Which Atlassian site(s)?",
+						options: optionLabels,
+					},
+				],
+			},
+		},
+		{
+			sessionId: "request-user-input-8-options",
+			createSessionId: () => "request-user-input-8-options",
+			maxPresetOptions: 8,
+		}
+	);
+
+	assert.ok(payload);
+	assert.equal(payload.questions[0].options.length, 8);
+	assert.equal(payload.questions[0].options[0].label, "site-1.atlassian.net");
+	assert.equal(payload.questions[0].options[7].label, "site-8.atlassian.net");
+});

@@ -24,17 +24,26 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 			/\bgoogle\s+doc(s)?\b/i,
 			/\bgoogle\s+sheet(s)?\b/i,
 			/\bgoogle\s+slide(s)?\b/i,
+			/\bmy\s+drive\b/i,
+			/\bdrive\s+(file|files|folder|folders|storage|usage|quota|content|contents)\b/i,
+			/\b(list|show|find|search|check|extract|get|open)\b[\s\S]{0,80}\b(files?|folders?|storage|quota|doc(s|uments?)?|sheet(s)?|slide(s)?|comments?|permissions?)\b[\s\S]{0,80}\bdrive\b/i,
 			/\b(doc|docs|drive|sheet|sheets|slide|slides)\s+(comment|permission|revision|label)s?\b/i,
 			/\batlassian:url:get:content\b/i,
 		],
 		toolPatterns: [
 			/\bgoogle[_\s:-]*(drive|doc|docs|sheet|sheets|slide|slides)\b/i,
+			/\bgoogle[_\s:-]*google[_\s:-]*drive\b/i,
 			/\bdrive\b/i,
 			/\bdoc(s)?\b/i,
 			/\bsheet(s)?\b/i,
 			/\bslide(s)?\b/i,
+			/\bfile(s)?\b/i,
+			/\bfolder(s)?\b/i,
+			/\bstorage\b/i,
+			/\bquota\b/i,
 			/\b(permission|comment|revision|label)s?\b/i,
 			/\batlassian:url:get:content\b/i,
+			/\batlassian[_\s:-]*url[_\s:-]*get[_\s:-]*(content|comments?|permissions?|revisions?|labels?|files?|storage)\b/i,
 			/\burl:get:content\b/i,
 		],
 	},
@@ -43,9 +52,10 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 		label: "Google Translate",
 		promptPatterns: [
 			/\bgoogle\s+translate\b/i,
-			/\btranslate\b/i,
-			/\bdetect\s+language\b/i,
-			/\bsupported\s+languages\b/i,
+			/\bgoogle\s+cloud\s+translate\b/i,
+			/\bcloud\s+translation\b/i,
+			/\buse\s+google\s+translate\b/i,
+			/\btranslate\s+(?:via|with)\s+google\b/i,
 		],
 		toolPatterns: [
 			/\btranslate\b/i,
@@ -98,6 +108,14 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 			/\bcollaboration\s+summary\b/i,
 			/\borg\s+hierarchy\b/i,
 			/\breport\s+chain\b/i,
+			/\b(last|past|previous|recent)\s+\d+\s+(day|days|week|weeks|month|months)\s+(of\s+)?work\b/i,
+			/\bmy\s+(recent\s+)?work\b/i,
+			/\bwork\s+activit(y|ies)\b/i,
+			/\bwhat\s+(did|have)\s+\w+\s+work(ed)?\s+on\b/i,
+			/\b(last|past|previous|recent)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\s+(day|days|week|weeks|month|months)\s+(of\s+)?work\b/i,
+			/\b(last|past|previous|recent)\s+week\b/i,
+			/\bthis\s+week'?s?\s+work\b/i,
+			/\b(summarize|summary|show|list)\s+(my\s+)?(recent\s+)?work\b/i,
 		],
 		toolPatterns: [
 			/\bteamwork\b/i,
@@ -260,7 +278,7 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 ];
 
 const TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY = "soft-retry";
-const TOOL_FIRST_DEFAULT_MAX_RETRIES = 0;
+const TOOL_FIRST_DEFAULT_MAX_RETRIES = 1;
 const TOOL_FIRST_DEFAULT_RETRY_BACKOFF_MS = [750, 1500];
 const TOOL_FIRST_DEFAULT_MAX_RETRY_WINDOW_MS = 3000;
 
@@ -590,6 +608,37 @@ function hasRelevantToolSuccess(state) {
 	return Boolean(state && state.matched && state.relevantToolResults > 0);
 }
 
+function hasRelevantToolObservation(state) {
+	if (!state || typeof state !== "object" || !state.matched) {
+		return false;
+	}
+
+	return (
+		state.relevantToolStarts > 0
+		|| state.relevantToolResults > 0
+		|| state.relevantToolErrors > 0
+	);
+}
+
+function shouldSuppressToolFirstIntentStatus({ execution, label, content } = {}) {
+	if (!execution || typeof execution !== "object" || !execution.matched) {
+		return false;
+	}
+
+	if (hasRelevantToolObservation(execution)) {
+		return false;
+	}
+
+	const normalizedLabel = getNonEmptyString(label)?.toLowerCase() ?? "";
+	const normalizedContent = getNonEmptyString(content)?.toLowerCase() ?? "";
+	const combined = `${normalizedLabel} ${normalizedContent}`.trim();
+	if (!combined) {
+		return false;
+	}
+
+	return /\bdetected\s+intent\b/.test(combined);
+}
+
 function getToolFirstRetryDelayMs({ policy, retryIndex } = {}) {
 	const retryDelays = Array.isArray(policy?.enforcement?.retryBackoffMs)
 		? policy.enforcement.retryBackoffMs
@@ -637,6 +686,7 @@ function buildToolContextForGenui({
 	execution,
 	assistantText,
 	maxItems = 6,
+	toolOutputs,
 } = {}) {
 	if (!policy?.matched || !execution?.matched) {
 		return null;
@@ -680,7 +730,14 @@ function buildToolContextForGenui({
 		}
 	}
 
-	const assistantPreview = trimPreview(assistantText, 420);
+	if (Array.isArray(toolOutputs) && toolOutputs.length > 0) {
+		lines.push("- Full tool outputs (extended context):");
+		for (const entry of toolOutputs) {
+			lines.push(`  - ${entry.toolName}:\n${entry.output}`);
+		}
+	}
+
+	const assistantPreview = trimPreview(assistantText, 800);
 	if (assistantPreview) {
 		lines.push(`- Assistant narrative: ${assistantPreview}`);
 	}
@@ -842,6 +899,8 @@ module.exports = {
 	recordToolFirstAttempt,
 	recordToolThinkingEvent,
 	hasRelevantToolSuccess,
+	hasRelevantToolObservation,
+	shouldSuppressToolFirstIntentStatus,
 	getToolFirstRetryDelayMs,
 	buildToolFirstRetryInstruction,
 	buildToolContextForGenui,

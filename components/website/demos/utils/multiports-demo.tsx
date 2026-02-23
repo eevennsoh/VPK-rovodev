@@ -3,8 +3,32 @@
 import { useCallback, useEffect, useRef } from "react";
 import { RovoChatProvider } from "@/app/contexts";
 import ChatPanel from "@/components/templates/sidebar-chat/page";
+import type { GenerativeCardAnimationProps } from "@/components/templates/shared/components/generative-widget-card";
 
 const PORT_COUNT = 3;
+const MULTIPORTS_GENERATIVE_CARD_ANIMATION: GenerativeCardAnimationProps = {
+	distortion: true,
+	animateDuration: 2000,
+	animateDistortionScale: 100,
+	animateBlur: 8,
+	animateRadius: 0.4,
+	animateEdgeSafeX: 0,
+	animateSpeed: 1.35,
+	animateScaleSmoothing: 0.5,
+	animateSweepSmoothing: 0.5,
+	distortionTintEnabled: false,
+	distortionTintMode: "rovo-gradient",
+	distortionTintPreset: "Rovo blue",
+	distortionTintColor: "#1868DB",
+	distortionTintStrength: 0,
+	innerGlow: false,
+	innerGlowDuration: 4000,
+	innerGlowSpread: 12,
+	innerGlowThickness: 12,
+	innerGlowSoftness: 10,
+	innerGlowSaturation: 170,
+	innerGlowIntensity: 1,
+};
 
 export default function MultiportsDemo(): React.ReactElement {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -59,6 +83,9 @@ export default function MultiportsDemo(): React.ReactElement {
 						<ChatPanel
 							onClose={() => {}}
 							enableSmartWidgets={true}
+							cards={{
+								generativeAnimation: MULTIPORTS_GENERATIVE_CARD_ANIMATION,
+							}}
 							sendPromptOptions={{
 								smartGeneration: {
 									enabled: true,

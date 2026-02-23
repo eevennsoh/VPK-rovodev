@@ -74,6 +74,7 @@ export type OutputRouteEnvelope =
 export type RouteDecisionReason =
 	| "intent_media_image"
 	| "intent_media_audio"
+	| "intent_translation"
 	| "intent_task_toolable"
 	| "intent_text_default"
 	| "intent_clarification"
@@ -300,7 +301,7 @@ export function getMessageText(
 	return message.parts
 		.filter(isTextUIPart)
 		.map((part) => part.text)
-		.join("")
+		.join("\n\n")
 		.trim();
 }
 

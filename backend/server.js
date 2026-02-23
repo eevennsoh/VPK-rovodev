@@ -29,6 +29,14 @@ const {
 const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
 const { getGenuiSystemPrompt } = require("./lib/genui-system-prompt");
 const { analyzeGeneratedText, pickBestSpec } = require("./lib/genui-spec-utils");
+const { buildFallbackGenuiSpecFromText } = require("./lib/genui-fallback-spec");
+const {
+	detectDirectTranslationRequest,
+	createTranslationGenerationPrompt,
+	parseTranslationModelOutput,
+	buildTranslationTextSummary,
+	buildTranslationGenuiSpec,
+} = require("./lib/translation-card");
 const { classifySmartGenerationIntent, preClassifyMediaIntent } = require("./lib/smart-generation-intent");
 const {
 	buildSmartGenerationGatewayOptions,
@@ -39,16 +47,21 @@ const {
 	createToolFirstExecutionState,
 	recordToolFirstAttempt,
 	recordToolThinkingEvent,
+	isToolNameRelevant,
 	hasRelevantToolSuccess,
+	hasRelevantToolObservation,
 	getToolFirstRetryDelayMs,
 	buildToolFirstRetryInstruction,
 	buildToolContextForGenui,
 	buildToolFirstTextFallback,
+	shouldSuppressToolFirstIntentStatus,
 	stripToolFirstFailureNarrative,
 } = require("./lib/tool-first-genui-policy");
+const { resolveToolFirstRoutingFlags } = require("./lib/tool-first-routing-flags");
 const {
 	buildClassifierPrompt: buildSmartClarificationClassifierPrompt,
 	parseClassifierOutput: parseSmartClarificationClassifierOutput,
+	isVagueVisualizationRequest,
 	shouldGateSmartClarification,
 } = require("./lib/smart-clarification-gate");
 const {
@@ -81,6 +94,9 @@ const {
 	resolveSmartAudioVoiceInput,
 } = require("./lib/smart-audio-routing");
 const {
+	resolveSpeechPayloadFromAudioRequest,
+} = require("./lib/audio-input-extractor");
+const {
 	extractPlanWidgetPayloadFromText,
 	extractProgressivePlanWidgetPayloadFromText,
 	extractPlanWidgetPayloadFromStructuredText,
@@ -88,11 +104,14 @@ const {
 const { detectPlanningIntent } = require("./lib/planning-intent");
 const {
 	shouldGatePlanningQuestionCard,
+	isConversationalMessage,
+	isTaskLikeMessage,
 } = require("./lib/planning-question-gate");
 const { resolvePlanMode } = require("./lib/plan-mode-resolution");
 const {
 	extractQuestionCardDefinitionFromAssistantText,
 	resolveFallbackQuestionCardState,
+	looksLikeClarificationResponse,
 	MAX_LABEL_LENGTH: CLARIFICATION_MAX_LABEL_LENGTH,
 } = require("./lib/question-card-extractor");
 const {
@@ -332,7 +351,7 @@ function debugLog(section, message, data) {
 
 const CLARIFICATION_WIDGET_TYPE = "question-card";
 const CLARIFICATION_MAX_ROUNDS = 3;
-const CLARIFICATION_MAX_PRESET_OPTIONS = 4;
+const CLARIFICATION_MAX_PRESET_OPTIONS = 8;
 const CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER = "Tell Rovo what to do...";
 const PLANNING_GATE_SKIP_SOURCES = new Set([
 	"clarification-submit",
@@ -771,6 +790,7 @@ const SMART_WIDGET_TYPE_GENUI = "genui-preview";
 const SMART_WIDGET_TYPE_AUDIO = "audio-preview";
 const SMART_WIDGET_TYPE_IMAGE = "image-preview";
 const SMART_VOICE_INPUT_MAX_CHARS = 4000;
+const SOUND_GENERATION_INPUT_MAX_CHARS = 4096;
 const CLASSIFIER_JSON_ALLOWED_KEYS = new Set(["intent", "confidence", "reason"]);
 const CLASSIFIER_JSON_BUFFER_MAX_CHARS = 320;
 const MAX_ASSISTANT_TEXT_WITH_TOOL_CALLS_CHARS = 1400;
@@ -778,10 +798,8 @@ const SMART_IMAGE_REQUEST_PATTERN =
 	/\b(generate|create|draw|make|design|render|show)\b[\s\S]{0,80}\b(image|photo|picture|illustration|icon|logo|wallpaper|art)\b|\b(image|photo|picture|illustration|icon|logo)\b[\s\S]{0,80}\b(generate|create|draw|make|design|render|show)\b/i;
 const SMART_UI_REQUEST_PATTERN =
 	/\b(ui|interface|layout|component|page|dashboard|mockup|wireframe|widget|json\s*spec|json-render|chart|charts|graph|graphs|plot|plots|table|tables|kanban|board|timeline|roadmap|form|visuali[sz]e|infographic)\b/i;
-const SMART_TEXT_FIRST_PATTERN =
-	/\b(hi|hello|hey|thanks|thank you|how are you|who are you|what can you do|tell me a joke)\b/i;
-const SMART_ACTION_REQUEST_PATTERN =
-	/\b(build|create|generate|make|design|draft|plan|organize|summari[sz]e|compare|show|visuali[sz]e)\b/i;
+const GENUI_FALLBACK_ERROR_TEXT =
+	"I couldn't generate an interactive card right now. Please try again later.";
 const SMART_WIDTH_CLASS_VALUES = new Set(["compact", "regular", "wide"]);
 
 function getSmartWidthClass(value) {
@@ -861,6 +879,11 @@ function inferSmartIntentFromPrompt(prompt) {
 	if (!text) {
 		return "normal";
 	}
+	if (isConversationalMessage(text)) {
+		return "normal";
+	}
+
+	const isTaskLikeRequest = isTaskLikeMessage(text);
 
 	const wantsImage = SMART_IMAGE_REQUEST_PATTERN.test(text);
 	if (wantsImage) {
@@ -869,10 +892,10 @@ function inferSmartIntentFromPrompt(prompt) {
 
 	const wantsUi = SMART_UI_REQUEST_PATTERN.test(text);
 	const wantsAudio = isAudioRequestPrompt(text);
-	if (wantsUi && wantsAudio) {
+	if (wantsUi && wantsAudio && isTaskLikeRequest) {
 		return "both";
 	}
-	if (wantsUi) {
+	if (wantsUi && isTaskLikeRequest) {
 		return "genui";
 	}
 	if (wantsAudio) {
@@ -888,15 +911,7 @@ function shouldPreferGenuiWhenPossible(prompt) {
 		return false;
 	}
 
-	if (SMART_UI_REQUEST_PATTERN.test(text)) {
-		return true;
-	}
-
-	if (SMART_TEXT_FIRST_PATTERN.test(text)) {
-		return false;
-	}
-
-	return SMART_ACTION_REQUEST_PATTERN.test(text);
+	return isTaskLikeMessage(text);
 }
 
 function mapUiMessagesToRoleContent(messages) {
@@ -2206,6 +2221,7 @@ function createClarificationQuestionPrompt({
 	submission,
 	round,
 	maxRounds,
+	intentHint,
 }) {
 	const conversationContext =
 		Array.isArray(conversationHistory) && conversationHistory.length > 0
@@ -2219,6 +2235,16 @@ function createClarificationQuestionPrompt({
 	const previousAnswers = submission
 		? JSON.stringify(submission.answers)
 		: "{}";
+
+	const intentGuidance = intentHint === "visualization"
+		? `
+Visualization-specific guidance:
+- Ask about chart type (bar, line, pie, area, radar, etc.)
+- Ask about the data source or metrics to visualize (revenue, users, conversions, etc.)
+- Ask about the grouping dimension (by region, by month, by product, etc.)
+- Ask about the time range or period (last 30 days, 2024, Q1-Q4, etc.)
+`
+		: "";
 
 	return `You generate structured clarification question cards for planning and problem-solving requests.
 Return ONLY valid JSON and no markdown.
@@ -2261,7 +2287,7 @@ Option quality:
 - BAD options (generic meta-labels): "Quick recommendation", "Balanced approach", "Detailed plan", "Basic", "Advanced"
 - GOOD options (specific answers): For "Which site?" → "Marketing site", "Developer docs", "Customer portal". For "What framework?" → "React", "Vue", "Angular".
 - Each option must directly answer the question it belongs to.
-
+${intentGuidance}
 Conversation context:
 ${conversationContext}
 
@@ -2283,6 +2309,8 @@ async function generateClarificationQuestionCard({
 	round,
 	maxRounds,
 	sessionId,
+	intentHint,
+	gatewayOptions,
 }) {
 	const promptText = createClarificationQuestionPrompt({
 		latestUserMessage,
@@ -2291,6 +2319,7 @@ async function generateClarificationQuestionCard({
 		submission,
 		round,
 		maxRounds,
+		intentHint,
 	});
 
 	try {
@@ -2299,6 +2328,7 @@ async function generateClarificationQuestionCard({
 			prompt: promptText,
 			maxOutputTokens: 700,
 			temperature: 0.3,
+			...gatewayOptions,
 		});
 
 		const parsedJson = parseJsonFromText(text);
@@ -2376,6 +2406,53 @@ function streamQuestionCardWidget({ res, payload, introText }) {
 		response: res,
 		stream,
 	});
+}
+
+function buildTranslationTargetQuestionCardPayload() {
+	return sanitizeQuestionCardPayload(
+		{
+			type: CLARIFICATION_WIDGET_TYPE,
+			title: "Which language should I translate to?",
+			description: "Pick a target language or type your own.",
+			questions: [
+				{
+					id: "target-language",
+					header: "Target language",
+					label: "What target language do you want?",
+					description: "Choose one option or type a custom language.",
+					required: true,
+					kind: "single-select",
+					options: [
+						{
+							id: "mandarin-chinese",
+							label: "Mandarin Chinese",
+							description: "Simplified Chinese with pinyin",
+							recommended: true,
+						},
+						{
+							id: "spanish",
+							label: "Spanish",
+							description: "Neutral modern Spanish",
+						},
+						{
+							id: "french",
+							label: "French",
+							description: "Standard French",
+						},
+					],
+					placeholder: CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER,
+				},
+			],
+		},
+		{
+			widgetType: CLARIFICATION_WIDGET_TYPE,
+			maxRounds: 1,
+			maxPresetOptions: CLARIFICATION_MAX_PRESET_OPTIONS,
+			customOptionPlaceholder: CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER,
+			maxLabelLength: CLARIFICATION_MAX_LABEL_LENGTH,
+			createSessionId: createClarificationSessionId,
+		}
+	);
 }
 
 async function generateSuggestedQuestions({
@@ -2598,6 +2675,210 @@ app.post("/api/chat-sdk", async (req, res) => {
 			return res.status(400).json({ error: "A user message is required" });
 		}
 
+		const translationRequest = detectDirectTranslationRequest(latestUserMessage);
+		if (
+			translationRequest.isTranslationRequest &&
+			!translationRequest.explicitToolingPreference
+		) {
+			if (translationRequest.needsTargetLanguage) {
+				const translationQuestionCardPayload =
+					buildTranslationTargetQuestionCardPayload();
+				if (translationQuestionCardPayload) {
+					streamQuestionCardWidget({
+						res,
+						payload: translationQuestionCardPayload,
+						introText:
+							"I can translate that right away. Choose the target language first.",
+					});
+					return;
+				}
+			}
+
+			const sourceText = getNonEmptyString(translationRequest.sourceText);
+			const targetLanguage = getNonEmptyString(
+				translationRequest.targetLanguage
+			);
+			if (sourceText && targetLanguage) {
+				console.info("[OUTPUT-ROUTING] Translation bypass detected", {
+					sourceTextLength: sourceText.length,
+					targetLanguage,
+				});
+				const stream = createUIMessageStream({
+					execute: async ({ writer }) => {
+						const translationWidgetId = `widget-translation-${Date.now()}`;
+						const textId = `text-translation-${Date.now()}`;
+						let textStarted = false;
+
+						const emitTextDelta = (delta) => {
+							if (typeof delta !== "string" || delta.length === 0) {
+								return;
+							}
+							if (!textStarted) {
+								writer.write({ type: "text-start", id: textId });
+								textStarted = true;
+							}
+							writer.write({ type: "text-delta", id: textId, delta });
+						};
+
+						writer.write({
+							type: "data-thinking-status",
+							data: {
+								label: "Translating text",
+								activity: "results",
+								source: "backend",
+							},
+						});
+						writer.write({
+							type: "data-widget-loading",
+							id: translationWidgetId,
+							data: { type: SMART_WIDGET_TYPE_GENUI, loading: true },
+						});
+
+						try {
+							const translationPrompt = createTranslationGenerationPrompt({
+								sourceText,
+								targetLanguage,
+							});
+							if (!translationPrompt) {
+								throw new Error("Translation prompt could not be built");
+							}
+
+							const rawTranslation = await generateTextViaGateway({
+								system:
+									"You are a translation assistant. Translate directly without asking follow-up questions.",
+								prompt: translationPrompt,
+								maxOutputTokens: 650,
+								temperature: 0.2,
+								provider,
+								portIndex,
+							});
+
+							let translationPayload = parseTranslationModelOutput(
+								rawTranslation,
+								{
+									sourceText,
+									targetLanguage,
+								}
+							);
+
+							if (!translationPayload) {
+								const fallbackTranslationText =
+									getNonEmptyString(rawTranslation);
+								if (!fallbackTranslationText) {
+									throw new Error("Translation output was empty");
+								}
+
+								translationPayload = {
+									sourceText,
+									targetLanguage,
+									variants: [
+										{
+											id: "natural",
+											label: "Natural",
+											text: fallbackTranslationText,
+										},
+									],
+								};
+							}
+
+							const translationSpec = buildTranslationGenuiSpec(
+								translationPayload
+							);
+							if (!translationSpec) {
+								throw new Error("Failed to build translation card");
+							}
+
+							const translationSummary =
+								buildTranslationTextSummary(translationPayload);
+							writer.write({
+								type: "data-widget-data",
+								id: translationWidgetId,
+								data: {
+									type: SMART_WIDGET_TYPE_GENUI,
+									payload: {
+										spec: translationSpec,
+										summary: translationSummary,
+										source: "translation-bypass",
+										contentType: "text",
+									},
+								},
+							});
+							emitTextDelta(translationSummary);
+							writer.write({
+								type: "data-route-decision",
+								data: {
+									reason: "intent_translation",
+									experience: "generative_ui",
+									timestamp: new Date().toISOString(),
+									toolsDetected: false,
+									classifierIntent: "translation",
+								},
+							});
+						} catch (translationError) {
+							console.error(
+								"[OUTPUT-ROUTING] Translation bypass failed:",
+								translationError
+							);
+							writer.write({
+								type: "data-widget-error",
+								id: translationWidgetId,
+								data: {
+									type: SMART_WIDGET_TYPE_GENUI,
+									message:
+										translationError instanceof Error &&
+										getNonEmptyString(translationError.message)
+											? translationError.message.trim()
+											: "I couldn't translate that request right now.",
+									canRetry: true,
+								},
+							});
+							emitTextDelta(
+								"I couldn't translate that right now. Please retry in a moment."
+							);
+							writer.write({
+								type: "data-route-decision",
+								data: {
+									reason: "fallback_ui_failed",
+									experience: "text",
+									timestamp: new Date().toISOString(),
+									toolsDetected: false,
+									fallbackCause:
+										translationError instanceof Error
+											? translationError.message
+											: "translation-bypass-failed",
+								},
+							});
+						} finally {
+							writer.write({
+								type: "data-widget-loading",
+								id: translationWidgetId,
+								data: { type: SMART_WIDGET_TYPE_GENUI, loading: false },
+							});
+							if (textStarted) {
+								writer.write({ type: "text-end", id: textId });
+							}
+							writer.write({
+								type: "data-turn-complete",
+								data: { timestamp: new Date().toISOString() },
+							});
+						}
+					},
+					onError: (error) => {
+						if (error instanceof Error) {
+							return error.message;
+						}
+						return "Failed to stream translation response";
+					},
+				});
+
+				pipeUIMessageStreamToResponse({
+					response: res,
+					stream,
+				});
+				return;
+			}
+		}
+
 		const toolFirstPolicy = resolveToolFirstPolicy({
 			prompt: latestUserMessage,
 		});
@@ -2607,6 +2888,13 @@ app.post("/api/chat-sdk", async (req, res) => {
 				domainLabels: toolFirstPolicy.domainLabels,
 			});
 		}
+		const inferredPromptIntent = inferSmartIntentFromPrompt(latestUserMessage);
+		const mediaPreClassification = preClassifyMediaIntent(latestUserMessage);
+		const { isStrictToolFirstTurn } = resolveToolFirstRoutingFlags({
+			toolFirstMatched: toolFirstPolicy.matched,
+			inferredPromptIntent,
+			preClassifiedIntent: mediaPreClassification.intent,
+		});
 
 		if (
 			shouldGatePlanningQuestionCard({
@@ -2661,7 +2949,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 				: `Plan approval: ${serialized}`;
 		}
 
-		const effectiveContextDescription = toolFirstPolicy.matched
+		const effectiveContextDescription = isStrictToolFirstTurn
 			? enrichedContextDescription
 				? `${enrichedContextDescription}\n\n${toolFirstPolicy.instruction}`
 				: toolFirstPolicy.instruction
@@ -2686,7 +2974,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 				widthClass: smartGeneration.widthClass,
 			};
 			const smartGenerationActive = isSmartGenerationEnabled(smartGeneration);
-			const inferredPromptIntent = inferSmartIntentFromPrompt(latestUserMessage);
+			const isTaskLikeRequest = isTaskLikeMessage(latestUserMessage);
+			const prefersGenuiCardExperience =
+				shouldPreferGenuiWhenPossible(latestUserMessage);
 			const forceSmartAudioRoute =
 				!smartGenerationActive && inferredPromptIntent === "audio";
 			const smartRoutingActive = smartGenerationActive || forceSmartAudioRoute;
@@ -2706,7 +2996,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 				console.info("[SMART-GENERATION] Forcing smart audio route for explicit audio request");
 			}
 				let smartIntentResult = null;
-				if (smartRoutingActive && !toolFirstPolicy.matched) {
+				if (smartRoutingActive && !isStrictToolFirstTurn) {
 					const heuristicIntent = inferredPromptIntent;
 					if (heuristicIntent !== "normal") {
 						smartIntentResult = {
@@ -2749,10 +3039,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 				if (
 					smartRoutingActive &&
-					!toolFirstPolicy.matched &&
+					!isStrictToolFirstTurn &&
 					smartIntentResult &&
 					smartIntentResult.intent === "normal" &&
-					shouldPreferGenuiWhenPossible(latestUserMessage)
+					prefersGenuiCardExperience
 				) {
 					const previousReason = getNonEmptyString(smartIntentResult.reason);
 					smartIntentResult = {
@@ -2772,7 +3062,28 @@ app.post("/api/chat-sdk", async (req, res) => {
 					});
 				}
 
-				if (smartRoutingActive && !toolFirstPolicy.matched) {
+				if (
+					smartRoutingActive &&
+					!isStrictToolFirstTurn &&
+					smartIntentResult &&
+					(smartIntentResult.intent === "genui" || smartIntentResult.intent === "both") &&
+					!isTaskLikeRequest
+				) {
+					smartIntentResult = {
+						...smartIntentResult,
+						intent: "normal",
+						reason: getNonEmptyString(smartIntentResult.reason)
+							? `${smartIntentResult.reason}+task-gate-text`
+							: "task-gate-text",
+					};
+					console.info("[SMART-GENERATION] Downgraded intent to normal due to non-task request", {
+						reason: smartIntentResult.reason,
+					});
+				}
+
+				if (smartRoutingActive && !isStrictToolFirstTurn) {
+					const vagueVisualization = isVagueVisualizationRequest(latestUserMessage);
+
 					const smartClarificationClassifierPrompt =
 						smartIntentResult && smartIntentResult.intent !== "normal"
 							? buildSmartClarificationClassifierPrompt({
@@ -2789,7 +3100,16 @@ app.post("/api/chat-sdk", async (req, res) => {
 								});
 
 					let smartClarificationDecision = null;
-					if (smartIntentResult?.timedOut) {
+					if (vagueVisualization && smartIntentResult && (smartIntentResult.intent === "genui" || smartIntentResult.intent === "both")) {
+						// Heuristic fast-path: skip the LLM classifier entirely for vague
+						// visualization requests to avoid port contention hangs.
+						smartClarificationDecision = {
+							needsClarification: true,
+							confidence: 1,
+							reason: "heuristic-vague-visualization",
+						};
+						console.info("[SMART-CLARIFICATION] Heuristic fast-path: vague visualization request");
+					} else if (smartIntentResult?.timedOut) {
 						console.info(
 							"[SMART-CLARIFICATION] Skipping classifier after smart-intent timeout"
 						);
@@ -2825,34 +3145,48 @@ app.post("/api/chat-sdk", async (req, res) => {
 					});
 
 					if (shouldGateClarification) {
-						const questionCardPayload = await generateClarificationQuestionCard({
-							latestUserMessage: latestVisibleUserMessage?.text || latestUserMessage,
-							conversationHistory,
-							previousQuestionCard: null,
-							submission: null,
-							round: 1,
-							maxRounds: CLARIFICATION_MAX_ROUNDS,
-							sessionId: buildSmartClarificationSessionId({
-								planRequestId,
-								surface: smartGeneration.surface,
-							}),
-						});
-
-						if (questionCardPayload) {
-							streamQuestionCardWidget({
-								res,
-								payload: questionCardPayload,
-								introText:
-									"A couple quick questions so I can generate the right output.",
+						const clarificationAbort = new AbortController();
+						const clarificationTimeout = setTimeout(() => clarificationAbort.abort(), 15_000);
+						try {
+							const questionCardPayload = await generateClarificationQuestionCard({
+								latestUserMessage: latestVisibleUserMessage?.text || latestUserMessage,
+								conversationHistory,
+								previousQuestionCard: null,
+								submission: null,
+								round: 1,
+								maxRounds: CLARIFICATION_MAX_ROUNDS,
+								sessionId: buildSmartClarificationSessionId({
+									planRequestId,
+									surface: smartGeneration.surface,
+								}),
+								intentHint: vagueVisualization ? "visualization" : undefined,
+								gatewayOptions: {
+									...buildSmartGenerationGatewayOptions({
+										provider,
+										excludePinnedPorts: true,
+									}),
+									signal: clarificationAbort.signal,
+								},
 							});
-							return;
+
+							if (questionCardPayload) {
+								streamQuestionCardWidget({
+									res,
+									payload: questionCardPayload,
+									introText:
+										"A couple quick questions so I can generate the right output.",
+								});
+								return;
+							}
+						} finally {
+							clearTimeout(clarificationTimeout);
 						}
 					}
 				}
 
 			if (
 				smartRoutingActive &&
-				!toolFirstPolicy.matched &&
+				!isStrictToolFirstTurn &&
 				smartIntentResult &&
 				smartIntentResult.intent !== "normal"
 			) {
@@ -3100,41 +3434,37 @@ app.post("/api/chat-sdk", async (req, res) => {
 								const summaryText = getNonEmptyString(genuiResult.narrative);
 								if (summaryText) {
 									generatedNarrative = summaryText;
-									emitTextDelta(summaryText);
 								}
 
-								if (genuiResult.spec) {
+								const fallbackSpec = summaryText
+									? buildFallbackGenuiSpecFromText({
+											text: summaryText,
+											prompt: latestUserMessage,
+										})
+									: null;
+								const resolvedSpec = genuiResult.spec || fallbackSpec;
+
+								if (resolvedSpec) {
+									const hasGeneratedSpec = Boolean(genuiResult.spec);
 									emitWidgetData(genuiWidgetId, SMART_WIDGET_TYPE_GENUI, {
-										spec: genuiResult.spec,
+										spec: resolvedSpec,
 										summary:
 											summaryText && summaryText.length > 280
-												? `${summaryText.slice(0, 279)}…`
-												: summaryText || "Generated UI preview",
-										source: "genui-chat",
+												? `${summaryText.slice(0, 279)}...`
+												: summaryText || "Generated interactive preview",
+										source: hasGeneratedSpec
+											? "genui-chat"
+											: "genui-chat-fallback",
 									});
 								} else {
-									emitWidgetError(
-										genuiWidgetId,
-										SMART_WIDGET_TYPE_GENUI,
-										"I couldn't produce a renderable UI preview for this request."
-									);
-									if (!summaryText) {
-										emitTextDelta(
-											"I couldn't produce a renderable UI preview for this request."
-										);
-									}
+									emitTextDelta(GENUI_FALLBACK_ERROR_TEXT);
 								}
 							} catch (genuiError) {
 								if (isSmartRouteAbortError(genuiError)) {
 									return;
 								}
 								console.error("[SMART-GENERATION] UI generation failed:", genuiError);
-								emitWidgetError(
-									genuiWidgetId,
-									SMART_WIDGET_TYPE_GENUI,
-									"I couldn't generate a UI preview right now."
-								);
-								emitTextDelta("I couldn't generate a UI preview right now.");
+								emitTextDelta(GENUI_FALLBACK_ERROR_TEXT);
 							} finally {
 								if (!smartRouteAbortController.signal.aborted) {
 									emitWidgetLoading(genuiWidgetId, SMART_WIDGET_TYPE_GENUI, false);
@@ -3150,7 +3480,11 @@ app.post("/api/chat-sdk", async (req, res) => {
 							emitWidgetLoading(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, true);
 							try {
 								throwIfSmartRouteAborted();
-								const { voiceInput, source: voiceInputSource } =
+								const {
+									voiceInput,
+									source: voiceInputSource,
+									extractionMode: voiceInputExtractionMode,
+								} =
 									resolveSmartAudioVoiceInput({
 										intent: smartIntentResult.intent,
 										latestUserMessage,
@@ -3160,8 +3494,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 								console.info("[SMART-GENERATION] Selected audio input source", {
 									intent: smartIntentResult.intent,
 									source: voiceInputSource,
+									extractionMode: voiceInputExtractionMode || null,
 									forcedAudioRoute: forceSmartAudioRoute,
 									hasInput: Boolean(voiceInput),
+									payloadLength: typeof voiceInput === "string" ? voiceInput.length : 0,
 								});
 
 								if (!voiceInput) {
@@ -3211,7 +3547,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 						throwIfSmartRouteAborted();
 						emitThinkingStatus("Finalizing response");
-						const shouldEmitDefaultNarrative = smartIntentResult.intent !== "image";
+						const shouldEmitDefaultNarrative =
+							smartIntentResult.intent !== "image" &&
+							smartIntentResult.intent !== "genui" &&
+							smartIntentResult.intent !== "both";
 						if (shouldEmitDefaultNarrative && !textStarted) {
 							emitTextDelta("Completed smart generation request.");
 						}
@@ -3247,10 +3586,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 		// Use lightweight regex pre-classification to detect obvious media
 		// generation intents BEFORE sending to RovoDev. This avoids the
 		// RovoDev round-trip for clear-cut image/audio requests.
-		const mediaPreClassification = preClassifyMediaIntent(latestUserMessage);
 		if (
 			mediaPreClassification.intent &&
-			!toolFirstPolicy.matched
+			!isStrictToolFirstTurn
 		) {
 			console.info("[OUTPUT-ROUTING] Media bypass detected", {
 				intent: mediaPreClassification.intent,
@@ -3426,11 +3764,21 @@ app.post("/api/chat-sdk", async (req, res) => {
 						});
 
 						try {
-							const { voiceInput } = resolveSmartAudioVoiceInput({
+							const {
+								voiceInput,
+								source: voiceInputSource,
+								extractionMode: voiceInputExtractionMode,
+							} = resolveSmartAudioVoiceInput({
 								intent: "audio",
 								latestUserMessage,
 								generatedNarrative: null,
 								maxChars: SMART_VOICE_INPUT_MAX_CHARS,
+							});
+							console.info("[OUTPUT-ROUTING] Selected media bypass audio input", {
+								source: voiceInputSource || null,
+								extractionMode: voiceInputExtractionMode || null,
+								hasInput: Boolean(voiceInput),
+								payloadLength: typeof voiceInput === "string" ? voiceInput.length : 0,
 							});
 
 							if (!voiceInput) {
@@ -3526,7 +3874,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 		const directGoogleIntent = inferSmartIntentFromPrompt(latestUserMessage);
 		if (
 			provider === "google" &&
-			!toolFirstPolicy.matched &&
+			!isStrictToolFirstTurn &&
 			directGoogleIntent === "image"
 		) {
 			const googleImageConfig = resolveGoogleImageGatewayConfig({
@@ -3698,6 +4046,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 				abortController.abort();
 			}
 		});
+		const shouldForceCardFirstGenui =
+			smartGenerationActive &&
+			prefersGenuiCardExperience &&
+			!isStrictToolFirstTurn;
 
 		const stream = createUIMessageStream({
 			execute: async ({ writer }) => {
@@ -3722,11 +4074,13 @@ app.post("/api/chat-sdk", async (req, res) => {
 				let resolvedRovoDevPort = null;
 				let hasEmittedQuestionCard = false;
 				let hasEmittedPlanWidget = false;
+				let hasEmittedGenuiWidget = false;
 					let hasSeenPlanWidgetSignal = false;
 					let hasEmittedPlanLoadingState = false;
 					let latestProgressivePlanFingerprint = null;
 					let hasExplicitPlanPayload = false;
-					const emittedQuestionCardToolCalls = new Set();
+					/** @type {Map<string, {widgetId: string; richnessScore: number}>} */
+					const emittedQuestionCardToolCalls = new Map();
 					/** @type {Map<string, Array<{id: string, label: string}>>} */
 					const requestUserInputQuestionMeta = new Map();
 					let pendingQuestionCardLoadingWidgetId = null;
@@ -3737,19 +4091,23 @@ app.post("/api/chat-sdk", async (req, res) => {
 					// the RovoDev stream. When true, post-stream processing triggers
 					// the two-step GenUI flow (BE-001).
 					let hasObservedActionableToolCall = false;
+					let hasObservedRelevantActionableToolCall = false;
 					const toolFirstExecutionState = createToolFirstExecutionState(
 						toolFirstPolicy
 					);
+					const toolFirstFullOutputs = [];
 					const toolFirstSoftRetryEnabled =
-						toolFirstPolicy.matched &&
+						isStrictToolFirstTurn &&
 						toolFirstPolicy?.enforcement?.mode ===
 							TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY;
 					const shouldDeferToolFirstText = toolFirstSoftRetryEnabled;
 					let deferredToolFirstText = "";
+					const suppressStreamingTextForCardFirstGenui =
+						shouldForceCardFirstGenui;
 
 					let bufferedAssistantText = "";
 					const removeToolFirstFailureNarrative = () => {
-						if (!toolFirstPolicy.matched) {
+						if (!isStrictToolFirstTurn) {
 							return;
 						}
 
@@ -3792,6 +4150,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 
 						if (shouldDeferToolFirstText) {
 							deferredToolFirstText += delta;
+							return;
+						}
+						if (suppressStreamingTextForCardFirstGenui) {
 							return;
 						}
 
@@ -3966,6 +4327,40 @@ app.post("/api/chat-sdk", async (req, res) => {
 						assistantText += delta;
 						bufferedAssistantText += delta;
 						flushBufferedAssistantText({ force: true });
+					};
+
+					const emitBufferedAssistantTextForTextRoute = () => {
+						if (
+							!suppressStreamingTextForCardFirstGenui ||
+							textStarted ||
+							assistantText.trim().length === 0
+						) {
+							return;
+						}
+
+						writer.write({ type: "text-start", id: textId });
+						textStarted = true;
+						writer.write({ type: "text-delta", id: textId, delta: assistantText });
+					};
+
+					const emitGenuiErrorTextFallback = (message = GENUI_FALLBACK_ERROR_TEXT) => {
+						const normalizedMessage = getNonEmptyString(message);
+						if (!normalizedMessage) {
+							return;
+						}
+
+						if (!textStarted) {
+							writer.write({ type: "text-start", id: textId });
+							textStarted = true;
+						}
+
+						writer.write({
+							type: "text-delta",
+							id: textId,
+							delta: normalizedMessage,
+						});
+						assistantText = normalizedMessage;
+						bufferedAssistantText = "";
 					};
 
 					const resetAssistantTextForRetryAttempt = () => {
@@ -4222,22 +4617,48 @@ app.post("/api/chat-sdk", async (req, res) => {
 					emitPlanWidgetData(progressivePlanPayload);
 				};
 
-				const emitRequestUserInputQuestionCard = (toolCall) => {
-					if (!toolCall || typeof toolCall !== "object") {
-						return;
+				const getQuestionCardRichnessScore = (payload) => {
+					if (!payload || typeof payload !== "object") {
+						return 0;
 					}
 
-					if (!isRequestUserInputTool(toolCall.toolName)) {
-						return;
+					const questions = Array.isArray(payload.questions)
+						? payload.questions
+						: [];
+					if (questions.length === 0) {
+						return 0;
 					}
 
-					const normalizedToolCallId = getNonEmptyString(toolCall.toolCallId);
+					const optionCount = questions.reduce((count, question) => {
+						if (!question || typeof question !== "object") {
+							return count;
+						}
+						const options = Array.isArray(question.options)
+							? question.options
+							: [];
+						return count + options.length;
+					}, 0);
+
+					return questions.length * 100 + optionCount;
+				};
+
+				const emitRequestUserInputQuestionCard = ({
+					toolName,
+					toolCallId,
+					questionInput,
+					source = "request_user_input_tool_input",
+				}) => {
+					if (!isRequestUserInputTool(toolName)) {
+						return false;
+					}
+
+					const normalizedToolCallId = getNonEmptyString(toolCallId);
 					let dedupeKey = normalizedToolCallId
 						? `request-user-input:${normalizedToolCallId}`
 						: null;
 					if (!dedupeKey) {
 						try {
-							const serializedInput = JSON.stringify(toolCall.toolInput);
+							const serializedInput = JSON.stringify(questionInput);
 							if (serializedInput && serializedInput !== "null") {
 								dedupeKey = `request-user-input:${serializedInput}`;
 							}
@@ -4247,7 +4668,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 
 					const payload = buildQuestionCardPayloadFromRequestUserInput(
-						toolCall.toolInput,
+						questionInput,
 						{
 							sessionId: normalizedToolCallId
 								? `request-user-input-${normalizedToolCallId}`
@@ -4265,7 +4686,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 						}
 					);
 					if (!payload) {
-						return;
+						return false;
 					}
 
 					// Store question ID → label mapping for answer format adaptation
@@ -4280,25 +4701,34 @@ app.post("/api/chat-sdk", async (req, res) => {
 					const resolvedDedupeKey =
 						dedupeKey ||
 						`request-user-input:${payload.sessionId}:${payload.round}`;
-					if (emittedQuestionCardToolCalls.has(resolvedDedupeKey)) {
-						return;
+					const richnessScore = getQuestionCardRichnessScore(payload);
+					const existingQuestionCardState =
+						emittedQuestionCardToolCalls.get(resolvedDedupeKey) || null;
+					if (
+						existingQuestionCardState &&
+						existingQuestionCardState.richnessScore >= richnessScore
+					) {
+						return false;
 					}
-					emittedQuestionCardToolCalls.add(resolvedDedupeKey);
 
-					const questionCardWidgetId = normalizedToolCallId
-						? `request-user-input-${normalizedToolCallId}`
-						: `request-user-input-${Date.now()}`;
+					const questionCardWidgetId =
+						existingQuestionCardState?.widgetId ||
+						(normalizedToolCallId
+							? `request-user-input-${normalizedToolCallId}`
+							: `request-user-input-${Date.now()}`);
 					hasEmittedQuestionCard = true;
 					pendingQuestionCardLoadingWidgetId = questionCardWidgetId;
 
-					writer.write({
-						type: "data-widget-loading",
-						id: questionCardWidgetId,
-						data: {
-							type: CLARIFICATION_WIDGET_TYPE,
-							loading: true,
-						},
-					});
+					if (!existingQuestionCardState) {
+						writer.write({
+							type: "data-widget-loading",
+							id: questionCardWidgetId,
+							data: {
+								type: CLARIFICATION_WIDGET_TYPE,
+								loading: true,
+							},
+						});
+					}
 
 					writer.write({
 						type: "data-widget-data",
@@ -4320,13 +4750,48 @@ app.post("/api/chat-sdk", async (req, res) => {
 						},
 					});
 
+					emittedQuestionCardToolCalls.set(resolvedDedupeKey, {
+						widgetId: questionCardWidgetId,
+						richnessScore,
+					});
+
 					console.info("[OUTPUT-ROUTING] Question card emitted via tool", {
 						reason: "intent_clarification",
 						experience: "question_card",
 						sessionId: payload.sessionId,
 						questionCount: Array.isArray(payload.questions) ? payload.questions.length : 0,
-						source: "request_user_input_tool",
+						richnessScore,
+						upgraded: Boolean(existingQuestionCardState),
+						source,
 					});
+					return true;
+				};
+
+				const emitRequestUserInputQuestionCardFromResult = (toolCallResult) => {
+					if (!toolCallResult || typeof toolCallResult !== "object") {
+						return;
+					}
+
+					if (!isRequestUserInputTool(toolCallResult.toolName)) {
+						return;
+					}
+
+					const outputCandidates = [
+						toolCallResult.toolOutputRaw,
+						toolCallResult.toolOutputPreview,
+					].filter((candidate) => candidate !== undefined && candidate !== null);
+
+					for (const candidate of outputCandidates) {
+						const emitted = emitRequestUserInputQuestionCard({
+							toolName: toolCallResult.toolName,
+							toolCallId: toolCallResult.toolCallId,
+							questionInput: candidate,
+							source: "request_user_input_tool_result",
+						});
+						if (emitted) {
+							return;
+						}
+					}
 				};
 
 				const findNextMarkerIndex = (value) => {
@@ -4492,6 +4957,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 								if (resolvedWidgetType === CLARIFICATION_WIDGET_TYPE) {
 									hasEmittedQuestionCard = true;
 									pendingQuestionCardLoadingWidgetId = widgetId;
+								}
+								if (resolvedWidgetType === SMART_WIDGET_TYPE_GENUI) {
+									hasEmittedGenuiWidget = true;
 								}
 								if (resolvedWidgetType === "plan") {
 									latestPlanPayload = parsedWidget;
@@ -4717,8 +5185,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 								onTextDelta: handleStreamTextDelta,
 								// ── Output Routing: Track all tool calls (BE-001) ──
 								// Question-card tools are emitted from resolved tool input
-								// (tool_call_args + start payload fallback). Other tools
-								// mark actionable usage for two-step GenUI flow.
+								// and upgraded from tool-result payloads when richer option
+								// data arrives. Other tools mark actionable usage for the
+								// two-step GenUI flow.
 								onToolCallStart: (toolCall) => {
 									if (!toolCall || typeof toolCall !== "object") {
 										return;
@@ -4728,10 +5197,46 @@ app.post("/api/chat-sdk", async (req, res) => {
 										return;
 									}
 
+									if (
+										isToolNameRelevant({
+											toolName: toolCall.toolName,
+											domains: toolFirstPolicy.domains,
+										})
+									) {
+										hasObservedRelevantActionableToolCall = true;
+									}
 									hasObservedActionableToolCall = true;
 								},
 								onToolCallInputResolved: (toolCall) => {
-									emitRequestUserInputQuestionCard(toolCall);
+									emitRequestUserInputQuestionCard({
+										toolName: toolCall?.toolName,
+										toolCallId: toolCall?.toolCallId,
+										questionInput: toolCall?.toolInput,
+										source: "request_user_input_tool_input",
+									});
+								},
+								onToolCallResult: (toolCallResult) => {
+									emitRequestUserInputQuestionCardFromResult(toolCallResult);
+
+									// Capture full output for tool-first GenUI generation
+									if (toolFirstPolicy.matched && toolCallResult?.toolName) {
+										const isRelevant = isToolNameRelevant({
+											toolName: toolCallResult.toolName,
+											domains: toolFirstPolicy.domains,
+										});
+										const toolOutput =
+											toolCallResult.output ??
+											toolCallResult.toolOutputRaw ??
+											toolCallResult.toolOutputPreview;
+										if (isRelevant && toolOutput !== undefined && toolOutput !== null) {
+											toolFirstFullOutputs.push({
+												toolName: toolCallResult.toolName,
+												output: typeof toolOutput === "string"
+													? toolOutput.slice(0, 4000)
+													: JSON.stringify(toolOutput).slice(0, 4000),
+											});
+										}
+									}
 								},
 								signal: abortController.signal,
 								conflictPolicy: "wait-for-turn",
@@ -4756,6 +5261,16 @@ app.post("/api/chat-sdk", async (req, res) => {
 										typeof statusUpdate.content === "string"
 											? statusUpdate.content.trim()
 											: "";
+									if (
+										isStrictToolFirstTurn &&
+										shouldSuppressToolFirstIntentStatus({
+											execution: toolFirstExecutionState,
+											label,
+											content: rawContent,
+										})
+									) {
+										return;
+									}
 									const activity = sanitizeThinkingActivity(statusUpdate.activity);
 									const source = sanitizeThinkingSource(statusUpdate.source);
 
@@ -5153,134 +5668,245 @@ app.post("/api/chat-sdk", async (req, res) => {
 				}
 
 				// ── Output Routing: Two-step GenUI flow (BE-001, BE-007) ──
-				// When RovoDev called actionable tools (not request_user_input) and no
-				// question card was emitted, trigger the GenUI LLM to produce a
-				// json-render spec from RovoDev's text response. If GenUI fails,
-				// the already-streamed text serves as the instant fallback.
-				if (
-					hasObservedActionableToolCall &&
-					!hasEmittedQuestionCard &&
-					!abortController.signal.aborted &&
-					assistantText.trim().length > 0
-				) {
-					const twoStepGenuiWidgetId = `widget-two-step-genui-${Date.now()}`;
+				// Trigger GenUI only for task-like prompts. Conversational and
+				// capability chat should always stay in text streaming mode.
+				const trimmedAssistantText = assistantText.trim();
+				const getRouteToolsDetected = () => {
+					if (!isStrictToolFirstTurn) {
+						return hasObservedActionableToolCall;
+					}
+
+					return (
+						hasObservedRelevantActionableToolCall ||
+						hasRelevantToolObservation(toolFirstExecutionState)
+					);
+				};
+				const emitTwoStepFallbackGenuiWidget = ({ widgetId, fallbackCause }) => {
+					const fallbackSpec = buildFallbackGenuiSpecFromText({
+						text: assistantText,
+						prompt: latestUserMessage,
+					});
+					if (!fallbackSpec) {
+						return false;
+					}
 					writer.write({
-						type: "data-widget-loading",
-						id: twoStepGenuiWidgetId,
+						type: "data-widget-data",
+						id: widgetId,
 						data: {
 							type: SMART_WIDGET_TYPE_GENUI,
-							loading: true,
+							payload: {
+								spec: fallbackSpec,
+								summary: "Generated interactive summary",
+								source: "two-step-genui-fallback",
+							},
 						},
 					});
-
-					try {
-						const roleMessages = mapUiMessagesToRoleContent(messages);
-						console.info("[OUTPUT-ROUTING] Two-step GenUI flow triggered", {
-							hasActionableTools: true,
-							rovodevTextLength: assistantText.length,
+					hasEmittedGenuiWidget = true;
+					writer.write({
+						type: "data-route-decision",
+						data: {
+							reason: "intent_task_toolable",
+							experience: "generative_ui",
+							timestamp: new Date().toISOString(),
+							toolsDetected: getRouteToolsDetected(),
+							fallbackCause,
+						},
+					});
+					return true;
+				};
+				if (!isStrictToolFirstTurn) {
+					const looksLikeClarification = looksLikeClarificationResponse(trimmedAssistantText);
+					if (looksLikeClarification && !hasEmittedQuestionCard) {
+						console.info("[OUTPUT-ROUTING] Clarification-like response detected, skipping GenUI", {
+							textLength: trimmedAssistantText.length,
 						});
-
-						const genuiResult = await generateGenuiFromRovodevResponse({
-							rovodevResponseText: assistantText,
-							conversationMessages: roleMessages,
-							layoutContext: smartLayoutContext,
-							rovoDevAvailable: true,
-							fallbackEnabled: false,
-						});
-
-						if (genuiResult.success && genuiResult.spec) {
-							const summaryText = getNonEmptyString(genuiResult.narrative);
-							writer.write({
-								type: "data-widget-data",
-								id: twoStepGenuiWidgetId,
-								data: {
-									type: SMART_WIDGET_TYPE_GENUI,
-									payload: {
-										spec: genuiResult.spec,
-										summary: summaryText
-											? summaryText.length > 280
-												? `${summaryText.slice(0, 279)}…`
-												: summaryText
-											: "Generated interactive view",
-										source: "two-step-genui",
-									},
-								},
-							});
-
-							// Emit route-decision: generative_ui experience
-							writer.write({
-								type: "data-route-decision",
-								data: {
-									reason: "intent_task_toolable",
-									experience: "generative_ui",
-									timestamp: new Date().toISOString(),
-									toolsDetected: true,
-								},
-							});
-						} else {
-							// BE-007: GenUI failed → text fallback (already streamed)
-							console.warn("[OUTPUT-ROUTING] Two-step GenUI failed, text fallback", {
-								error: genuiResult.error,
-							});
-
-							// Emit route-decision: text fallback due to UI failure
-							writer.write({
-								type: "data-route-decision",
-								data: {
-									reason: "fallback_ui_failed",
-									experience: "text",
-									timestamp: new Date().toISOString(),
-									toolsDetected: true,
-									fallbackCause: genuiResult.error || "genui-generation-failed",
-								},
-							});
-						}
-					} catch (twoStepError) {
-						// BE-007: Any exception → text fallback (already streamed)
-						console.error(
-							"[OUTPUT-ROUTING] Two-step GenUI exception, text fallback:",
-							twoStepError instanceof Error ? twoStepError.message : twoStepError
+					}
+					const shouldAttemptGenui =
+						!hasEmittedQuestionCard &&
+						!looksLikeClarification &&
+						!abortController.signal.aborted &&
+						trimmedAssistantText.length > 0 &&
+						isTaskLikeRequest &&
+						(
+							shouldForceCardFirstGenui ||
+							hasObservedActionableToolCall
 						);
 
-						writer.write({
-							type: "data-route-decision",
-							data: {
-								reason: "fallback_ui_failed",
-								experience: "text",
-								timestamp: new Date().toISOString(),
-								toolsDetected: true,
-								fallbackCause: twoStepError instanceof Error
-									? twoStepError.message
-									: "genui-generation-exception",
-							},
-						});
-					} finally {
+					if (shouldAttemptGenui) {
+						const twoStepGenuiWidgetId = `widget-two-step-genui-${Date.now()}`;
 						writer.write({
 							type: "data-widget-loading",
 							id: twoStepGenuiWidgetId,
 							data: {
 								type: SMART_WIDGET_TYPE_GENUI,
-								loading: false,
+								loading: true,
 							},
 						});
+
+						try {
+							const roleMessages = mapUiMessagesToRoleContent(messages);
+							console.info("[OUTPUT-ROUTING] Two-step GenUI flow triggered", {
+								hasActionableTools: hasObservedActionableToolCall,
+								taskLikeRequest: isTaskLikeRequest,
+								rovodevTextLength: trimmedAssistantText.length,
+							});
+
+							const genuiResult = await generateGenuiFromRovodevResponse({
+								rovodevResponseText: assistantText,
+								conversationMessages: roleMessages,
+								layoutContext: smartLayoutContext,
+								rovoDevAvailable: true,
+								fallbackEnabled: false,
+							});
+
+							if (genuiResult.success && genuiResult.spec) {
+								const summaryText = getNonEmptyString(genuiResult.narrative);
+								writer.write({
+									type: "data-widget-data",
+									id: twoStepGenuiWidgetId,
+									data: {
+										type: SMART_WIDGET_TYPE_GENUI,
+										payload: {
+											spec: genuiResult.spec,
+											summary: summaryText
+												? summaryText.length > 280
+													? `${summaryText.slice(0, 279)}...`
+													: summaryText
+												: "Generated interactive view",
+											source: "two-step-genui",
+										},
+									},
+								});
+								hasEmittedGenuiWidget = true;
+
+								// Emit route-decision: generative_ui experience
+								writer.write({
+									type: "data-route-decision",
+									data: {
+										reason: "intent_task_toolable",
+										experience: "generative_ui",
+										timestamp: new Date().toISOString(),
+										toolsDetected: getRouteToolsDetected(),
+									},
+								});
+							} else {
+								console.warn("[OUTPUT-ROUTING] Two-step GenUI failed, using fallback card", {
+									error: genuiResult.error,
+								});
+								const emittedFallbackWidget = emitTwoStepFallbackGenuiWidget({
+									widgetId: twoStepGenuiWidgetId,
+									fallbackCause: genuiResult.error || "genui-generation-failed",
+								});
+								if (!emittedFallbackWidget) {
+									emitGenuiErrorTextFallback();
+									writer.write({
+										type: "data-route-decision",
+										data: {
+											reason: "fallback_ui_failed",
+											experience: "text",
+											timestamp: new Date().toISOString(),
+											toolsDetected: getRouteToolsDetected(),
+											fallbackCause:
+												genuiResult.error || "genui-generation-failed",
+										},
+									});
+								}
+							}
+						} catch (twoStepError) {
+							console.error(
+								"[OUTPUT-ROUTING] Two-step GenUI exception, using fallback card:",
+								twoStepError instanceof Error ? twoStepError.message : twoStepError
+							);
+							const emittedFallbackWidget = emitTwoStepFallbackGenuiWidget({
+								widgetId: twoStepGenuiWidgetId,
+								fallbackCause: twoStepError instanceof Error
+									? twoStepError.message
+									: "genui-generation-exception",
+							});
+							if (!emittedFallbackWidget) {
+								emitGenuiErrorTextFallback();
+								writer.write({
+									type: "data-route-decision",
+									data: {
+										reason: "fallback_ui_failed",
+										experience: "text",
+										timestamp: new Date().toISOString(),
+										toolsDetected: getRouteToolsDetected(),
+										fallbackCause: twoStepError instanceof Error
+											? twoStepError.message
+											: "genui-generation-exception",
+									},
+								});
+							}
+						} finally {
+							writer.write({
+								type: "data-widget-loading",
+								id: twoStepGenuiWidgetId,
+								data: {
+									type: SMART_WIDGET_TYPE_GENUI,
+									loading: false,
+								},
+							});
+						}
+					} else if (!hasEmittedQuestionCard) {
+						if (shouldForceCardFirstGenui && trimmedAssistantText.length > 0 && !looksLikeClarification) {
+							const twoStepGenuiWidgetId = `widget-two-step-genui-${Date.now()}`;
+							writer.write({
+								type: "data-widget-loading",
+								id: twoStepGenuiWidgetId,
+								data: {
+									type: SMART_WIDGET_TYPE_GENUI,
+									loading: true,
+								},
+							});
+							const emittedFallbackWidget = emitTwoStepFallbackGenuiWidget({
+								widgetId: twoStepGenuiWidgetId,
+								fallbackCause: "card-first-fallback",
+							});
+							writer.write({
+								type: "data-widget-loading",
+								id: twoStepGenuiWidgetId,
+								data: {
+									type: SMART_WIDGET_TYPE_GENUI,
+									loading: false,
+								},
+							});
+							if (!emittedFallbackWidget) {
+								emitGenuiErrorTextFallback();
+								writer.write({
+									type: "data-route-decision",
+									data: {
+										reason: "fallback_ui_failed",
+										experience: "text",
+										timestamp: new Date().toISOString(),
+										toolsDetected: getRouteToolsDetected(),
+										fallbackCause: "card-first-fallback",
+									},
+								});
+							}
+						} else {
+							// Short conversational reply or empty -> plain text route
+							emitBufferedAssistantTextForTextRoute();
+							writer.write({
+								type: "data-route-decision",
+								data: {
+									reason: "intent_text_default",
+									experience: "text",
+									timestamp: new Date().toISOString(),
+									toolsDetected: false,
+								},
+							});
+						}
 					}
-				} else if (!hasObservedActionableToolCall && !hasEmittedQuestionCard) {
-					// No tool calls and no question card → plain text route
-					writer.write({
-						type: "data-route-decision",
-						data: {
-							reason: "intent_text_default",
-							experience: "text",
-							timestamp: new Date().toISOString(),
-							toolsDetected: false,
-						},
-					});
 				}
 				// Question card route-decision is emitted at the point of
 				// emission (emitRequestUserInputQuestionCard or fallback
 				// extraction), so no additional emission is needed here.
 
-					if (toolFirstPolicy.matched) {
+					if (isStrictToolFirstTurn) {
+						let toolFirstRouteReason = "tool_first_no_relevant_result";
+						let toolFirstRouteExperience = "text";
+						let toolFirstFallbackCause = null;
 						if (hasRelevantToolSuccess(toolFirstExecutionState)) {
 							removeToolFirstFailureNarrative();
 							const toolFirstSummaryPrefix =
@@ -5301,6 +5927,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 									policy: toolFirstPolicy,
 									execution: toolFirstExecutionState,
 									assistantText,
+									toolOutputs: toolFirstFullOutputs,
 								});
 								const roleMessagesForGenui = Array.isArray(roleMessages)
 									? [...roleMessages]
@@ -5341,11 +5968,25 @@ app.post("/api/chat-sdk", async (req, res) => {
 											},
 										},
 									});
+									hasEmittedGenuiWidget = true;
+									toolFirstRouteReason = "intent_task_toolable";
+									toolFirstRouteExperience = "generative_ui";
 
 									emitForcedTextDelta(
 										`${toolFirstSummaryPrefix}${conciseSummary}`
 									);
 								} else {
+									toolFirstRouteReason = "tool_first_visual_fallback";
+									toolFirstFallbackCause = "missing_renderable_genui_spec";
+									writer.write({
+										type: "data-route-decision",
+										data: {
+											reason: "fallback_ui_failed",
+											experience: "text",
+											timestamp: new Date().toISOString(),
+											toolsDetected: true,
+										},
+									});
 									emitForcedTextDelta(
 										`${toolFirstSummaryPrefix}I continued in text-only mode because I couldn't produce a renderable visual summary from the tool output.`
 									);
@@ -5355,6 +5996,20 @@ app.post("/api/chat-sdk", async (req, res) => {
 									"[TOOL-FIRST] Post-tool GenUI generation failed:",
 									toolFirstGenuiError
 								);
+								toolFirstRouteReason = "tool_first_visual_fallback";
+								toolFirstFallbackCause =
+									toolFirstGenuiError instanceof Error
+										? toolFirstGenuiError.message
+										: "tool-first-genui-error";
+								writer.write({
+									type: "data-route-decision",
+									data: {
+										reason: "fallback_ui_failed",
+										experience: "text",
+										timestamp: new Date().toISOString(),
+										toolsDetected: true,
+									},
+								});
 								emitForcedTextDelta(
 									`${toolFirstSummaryPrefix}I continued in text-only mode because visual summary generation failed after tool execution.`
 								);
@@ -5378,7 +6033,19 @@ app.post("/api/chat-sdk", async (req, res) => {
 							const toolFirstWarningPrefix =
 								assistantText.trim().length > 0 ? "\n\n" : "";
 							emitForcedTextDelta(`${toolFirstWarningPrefix}${warningText}`);
+							toolFirstFallbackCause = "no_relevant_tool_success";
 						}
+
+						writer.write({
+							type: "data-route-decision",
+							data: {
+								reason: toolFirstRouteReason,
+								experience: toolFirstRouteExperience,
+								timestamp: new Date().toISOString(),
+								toolsDetected: getRouteToolsDetected(),
+								fallbackCause: toolFirstFallbackCause || undefined,
+							},
+						});
 
 						console.info("[TOOL-FIRST] Execution summary", {
 							domains: toolFirstPolicy.domains,
@@ -5460,17 +6127,21 @@ app.post("/api/chat-sdk", async (req, res) => {
 				// ── Output Routing: Routing telemetry summary (BE-009) ──
 				// Emit a structured summary log for every completed turn so
 				// routing accuracy and fallback rate can be calculated.
+				const toolsDetectedForTelemetry = isStrictToolFirstTurn
+					? getRouteToolsDetected()
+					: hasObservedActionableToolCall || hasObservedToolExecution;
 				const routingTelemetry = {
 					timestamp: new Date().toISOString(),
 					experience: hasEmittedQuestionCard
 						? "question_card"
-						: hasObservedActionableToolCall
+						: hasEmittedGenuiWidget
 							? "generative_ui"
 							: "text",
-					toolsDetected: hasObservedActionableToolCall || hasObservedToolExecution,
+					toolsDetected: toolsDetectedForTelemetry,
 					questionCardEmitted: hasEmittedQuestionCard,
 					planWidgetEmitted: hasEmittedPlanWidget,
-					toolFirstMatched: toolFirstPolicy.matched,
+					genuiWidgetEmitted: hasEmittedGenuiWidget,
+					toolFirstMatched: isStrictToolFirstTurn,
 					isPostClarification: isPostClarificationTurn,
 					assistantTextLength: assistantText.length,
 					portIndex,
@@ -5747,7 +6418,24 @@ app.post("/api/genui-chat", (req, res) =>
 
 app.post("/api/sound-generation", async (req, res) => {
 	try {
-		const synthesisResult = await synthesizeSound(req.body || {});
+		const requestBody =
+			req.body && typeof req.body === "object" ? { ...req.body } : {};
+		const { payload: normalizedInput, mode: extractionMode } =
+			resolveSpeechPayloadFromAudioRequest(requestBody.input, {
+				maxChars: SOUND_GENERATION_INPUT_MAX_CHARS,
+			});
+		if (normalizedInput) {
+			requestBody.input = normalizedInput;
+		}
+
+		console.info("[SOUND-GENERATION] Resolved speech payload", {
+			extractionMode: extractionMode || null,
+			hasInput: typeof requestBody.input === "string",
+			payloadLength:
+				typeof requestBody.input === "string" ? requestBody.input.length : 0,
+		});
+
+		const synthesisResult = await synthesizeSound(requestBody);
 		const filename = `speech-${Date.now()}.${synthesisResult.extension}`;
 
 		res.setHeader("Content-Type", synthesisResult.contentType);

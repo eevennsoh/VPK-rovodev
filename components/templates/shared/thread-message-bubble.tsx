@@ -192,7 +192,12 @@ function AssistantThreadMessageBubble({
 		shouldSuppressStreamingText ||
 		(widgetType === "plan" && isCreatePlanSkillFlow && isWidgetLoading) ||
 		(shouldShowWidgetSections && widgetType === "question-card" && !isStreaming) ||
-		(shouldShowWidgetSections && widgetType === "genui-preview" && !isFallbackTextRoute);
+		(
+			shouldShowWidgetSections &&
+			widgetType === "genui-preview" &&
+			!isFallbackTextRoute &&
+			(Boolean(widgetDataPart) || isWidgetLoading)
+		);
 	const shouldRenderMessageText = Boolean(messageText) && !shouldSuppressTextForWidget;
 	const showFeedback = shouldShowFeedbackActions && !isStreaming && shouldRenderMessageText && !hasRenderedWidget;
 	const showSuggestions = shouldShowFollowUpSuggestions && !isStreaming && suggestedQuestions.length > 0 && !hasRenderedWidget;

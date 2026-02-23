@@ -234,7 +234,7 @@ function resolveToolResultIsError(payload, outputPreview, rawOutput) {
  *   - "close"               → stream end (skip)
  *
  * Returns
- * { type, text, toolName?, toolCallId?, toolInput?, outputPreview?, outputTruncated?, outputBytes? }
+ * { type, text, toolName?, toolCallId?, toolInput?, outputPreview?, outputTruncated?, outputBytes?, rawOutput? }
  * or null if the event should be skipped.
  */
 function extractChunkFromEvent(eventName, parsed) {
@@ -299,6 +299,7 @@ function extractChunkFromEvent(eventName, parsed) {
 			outputPreview: content,
 			outputTruncated: preview.truncated,
 			outputBytes: preview.bytes,
+			rawOutput: rawContent,
 		};
 	}
 

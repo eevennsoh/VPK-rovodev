@@ -199,7 +199,7 @@ export const GenerativeCardHeader = memo(function GenerativeCardHeader({
 	const { expanded, setExpanded } = useGenerativeCardContext();
 
 	return (
-		<CardHeader className={cn("items-center gap-0 px-4 py-3", expanded ? "border-b" : null, className)} {...props}>
+		<CardHeader className={cn("items-center gap-x-3 gap-y-0 px-4 py-3", expanded ? "border-b" : null, className)} {...props}>
 			<div className="flex min-w-0 items-center gap-3">
 				{leading}
 				<div className="min-w-0 flex-1">
@@ -290,7 +290,7 @@ export const GenerativeCardFooter = memo(function GenerativeCardFooter({
 }: Readonly<GenerativeCardFooterProps>) {
 	return (
 		<CardFooter
-			className={cn("h-16 justify-end gap-2 px-4 py-4", className)}
+			className={cn("justify-end gap-2 px-4 py-4", className)}
 			{...props}
 		>
 			{children}

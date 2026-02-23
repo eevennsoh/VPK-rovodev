@@ -30,6 +30,9 @@ test("extractChunkFromEvent bounds large retry-prompt payloads", () => {
 	assert.equal(chunk.outputTruncated, true);
 	assert.ok(chunk.outputPreview.length <= 1200);
 	assert.ok(chunk.outputBytes > chunk.outputPreview.length);
+	assert.equal(typeof chunk.rawOutput, "object");
+	assert.equal(Array.isArray(chunk.rawOutput.events), true);
+	assert.equal(chunk.rawOutput.events.length, 140);
 });
 
 test("extractChunkFromEvent marks error payloads as tool_error", () => {
@@ -45,6 +48,7 @@ test("extractChunkFromEvent marks error payloads as tool_error", () => {
 	assert.equal(chunk.toolCallId, "call-2");
 	assert.equal(chunk.outputPreview, "Error: Google Calendar API quota exceeded");
 	assert.equal(chunk.outputTruncated, false);
+	assert.equal(chunk.rawOutput, "Error: Google Calendar API quota exceeded");
 });
 
 test("extractChunkFromEvent parses tool_result success payload variants", () => {
@@ -64,6 +68,8 @@ test("extractChunkFromEvent parses tool_result success payload variants", () => 
 	assert.equal(chunk.toolName, "google_calendar");
 	assert.equal(chunk.toolCallId, "call-3");
 	assert.equal(typeof chunk.outputPreview, "string");
+	assert.equal(typeof chunk.rawOutput, "object");
+	assert.equal(Array.isArray(chunk.rawOutput.events), true);
 });
 
 test("extractChunkFromEvent parses tool_result error payload variants", () => {

@@ -72,11 +72,12 @@ export const catalog = defineCatalog(schema, {
 			props: z.object({
 				title: z.string().nullable(),
 				description: z.string().nullable(),
+				href: z.string().nullable(),
 				className: z.string().nullable(),
 			}),
 			slots: ["default"],
-			description: "Card container with optional title and description",
-			example: { title: "Overview", description: "Summary of recent activity" },
+			description: "Card container with optional title, description, and clickable link",
+			example: { title: "Overview", description: "Summary of recent activity", href: null },
 		},
 		Grid: {
 			props: z.object({

@@ -264,6 +264,7 @@ export function GenerativeCardDemoAnimated() {
 	const [speed, setSpeed] = useState(1.35);
 	const [scaleSmoothing, setScaleSmoothing] = useState(0.5);
 	const [sweepSmoothing, setSweepSmoothing] = useState(0.5);
+	const [distortion, setDistortion] = useState(true);
 	const [distortionTintEnabled, setDistortionTintEnabled] = useState(false);
 	const [distortionTintGradient, setDistortionTintGradient] = useState(DEFAULT_DISTORTION_TINT_GRADIENT);
 	const [distortionTintPreset, setDistortionTintPreset] = useState(DEFAULT_DISTORTION_TINT_PRESET_INDEX);
@@ -286,6 +287,7 @@ export function GenerativeCardDemoAnimated() {
 
 	const animationValues = useMemo(
 		() => ({
+			distortion,
 			animateDuration: durationMs,
 			animateDistortionScale: distortionScale,
 			animateBlur: blur,
@@ -309,6 +311,7 @@ export function GenerativeCardDemoAnimated() {
 			...(borderTrace ? { borderEffect: "trace", borderEffectDuration: borderDuration, borderEffectArcWidth: arcWidth } : {}),
 		}),
 		[
+			distortion,
 			durationMs,
 			distortionScale,
 			blur,
@@ -369,7 +372,7 @@ export function GenerativeCardDemoAnimated() {
 						className="w-full max-w-[380px]"
 					>
 						<GenerativeCard
-							animate
+							animate={distortion}
 							animateDuration={durationMs}
 							animateDistortionScale={distortionScale}
 							animateBlur={blur}
@@ -431,46 +434,146 @@ export function GenerativeCardDemoAnimated() {
 				</div>
 				<GUI.Panel title="Animation controls" values={animationValues} onPlay={handleRetry}>
 					<GUI.Toggle
-						id="distortion-tint"
-						label="Distortion tint"
-						description="Apply a color tint inside the moving distortion band."
-						checked={distortionTintEnabled}
-						onChange={setDistortionTintEnabled}
+						id="distortion"
+						label="Distortion"
+						description="WebGL bulge + fringe entrance animation."
+						checked={distortion}
+						onChange={setDistortion}
 					/>
-					{distortionTintEnabled ? (
+					{distortion ? (
 						<>
 							<GUI.Toggle
-								id="distortion-tint-gradient"
-								label="Use 4-color gradient"
-								description="Blend all 4 Rovo colors inside the distortion band."
-								checked={distortionTintGradient}
-								onChange={setDistortionTintGradient}
+								id="distortion-tint"
+								label="Distortion tint"
+								description="Apply a color tint inside the moving distortion band."
+								checked={distortionTintEnabled}
+								onChange={setDistortionTintEnabled}
 							/>
-							{distortionTintGradient ? null : (
+							{distortionTintEnabled ? (
+								<>
+									<GUI.Toggle
+										id="distortion-tint-gradient"
+										label="Use 4-color gradient"
+										description="Blend all 4 Rovo colors inside the distortion band."
+										checked={distortionTintGradient}
+										onChange={setDistortionTintGradient}
+									/>
+									{distortionTintGradient ? null : (
+									<GUI.Control
+										id="distortion-tint-preset"
+										label="Tint color preset"
+										description="0=Blue, 1=Orange, 2=Purple, 3=Green (Rovo colors)."
+										value={clampedTintPresetIndex}
+										defaultValue={DEFAULT_DISTORTION_TINT_PRESET_INDEX}
+										min={0}
+										max={DISTORTION_TINT_PRESETS.length - 1}
+										step={1}
+										onChange={(next) => {
+											setDistortionTintPreset(Math.round(next));
+										}}
+									/>
+									)}
+									<GUI.Control
+										id="distortion-tint-strength"
+										label="Tint strength"
+										description="Opacity strength of the distortion tint blend."
+										value={distortionTintStrength}
+										defaultValue={DEFAULT_DISTORTION_TINT_STRENGTH}
+										min={0}
+										max={1}
+										step={0.01}
+										onChange={setDistortionTintStrength}
+									/>
+								</>
+							) : null}
 							<GUI.Control
-								id="distortion-tint-preset"
-								label="Tint color preset"
-								description="0=Blue, 1=Orange, 2=Purple, 3=Green (Rovo colors)."
-								value={clampedTintPresetIndex}
-								defaultValue={DEFAULT_DISTORTION_TINT_PRESET_INDEX}
-								min={0}
-								max={DISTORTION_TINT_PRESETS.length - 1}
+								id="anim-duration"
+								label="Duration"
+								description="How long the full top-to-bottom pass takes."
+								value={durationMs}
+								defaultValue={2000}
+								min={100}
+								max={3000}
+								step={10}
+								unit="ms"
+								onChange={setDurationMs}
+							/>
+							<GUI.Control
+								id="anim-distortion"
+								label="Distortion scale"
+								description="Maximum displacement strength inside the moving band."
+								value={distortionScale}
+								defaultValue={100}
+								min={-300}
+								max={300}
 								step={1}
-								onChange={(next) => {
-									setDistortionTintPreset(Math.round(next));
-								}}
+								onChange={setDistortionScale}
 							/>
-							)}
 							<GUI.Control
-								id="distortion-tint-strength"
-								label="Tint strength"
-								description="Opacity strength of the distortion tint blend."
-								value={distortionTintStrength}
-								defaultValue={DEFAULT_DISTORTION_TINT_STRENGTH}
+								id="anim-blur"
+								label="Blur"
+								description="Peak blur amount blended into the distortion band."
+								value={blur}
+								defaultValue={8}
 								min={0}
+								max={12}
+								step={0.05}
+								onChange={setBlur}
+							/>
+							<GUI.Control
+								id="anim-radius"
+								label="Radius"
+								description="Band thickness relative to card height."
+								value={radius}
+								defaultValue={0.4}
+								min={0.02}
+								max={0.8}
+								step={0.01}
+								onChange={setRadius}
+							/>
+							<GUI.Control
+								id="anim-edge-safe-x"
+								label="Edge to edge"
+								description="Horizontal side fade. 0 = full edge-to-edge; increase if side artifacts appear."
+								value={edgeSafeX}
+								defaultValue={DEFAULT_DISTORTION_EDGE_SAFE_X}
+								min={0}
+								max={0.08}
+								step={0.001}
+								onChange={setEdgeSafeX}
+							/>
+							<GUI.Control
+								id="anim-speed"
+								label="Speed"
+								description="Sweep velocity multiplier from top to bottom."
+								value={speed}
+								defaultValue={1.35}
+								min={-3}
+								max={3}
+								step={0.05}
+								onChange={setSpeed}
+							/>
+							<GUI.Control
+								id="anim-scale-smoothing"
+								label="Scale smoothing"
+								description="How quickly distortion strength catches up to target values."
+								value={scaleSmoothing}
+								defaultValue={0.5}
+								min={0.01}
 								max={1}
 								step={0.01}
-								onChange={setDistortionTintStrength}
+								onChange={setScaleSmoothing}
+							/>
+							<GUI.Control
+								id="anim-sweep-smoothing"
+								label="Sweep smoothing"
+								description="How quickly the band position tracks its target path."
+								value={sweepSmoothing}
+								defaultValue={0.5}
+								min={0.01}
+								max={1}
+								step={0.01}
+								onChange={setSweepSmoothing}
 							/>
 						</>
 					) : null}
@@ -481,6 +584,34 @@ export function GenerativeCardDemoAnimated() {
 						checked={borderTrace}
 						onChange={setBorderTrace}
 					/>
+					{borderTrace ? (
+						<>
+							<GUI.Control
+								id="border-duration"
+								label="Trace duration"
+								description="Full cycle duration for the border trace animation."
+								value={borderDuration}
+								defaultValue={2400}
+								min={500}
+								max={5000}
+								step={50}
+								unit="ms"
+								onChange={setBorderDuration}
+							/>
+							<GUI.Control
+								id="border-arc-width"
+								label="Arc width"
+								description="Angular width of the visible trace arc in degrees."
+								value={arcWidth}
+								defaultValue={90}
+								min={30}
+								max={180}
+								step={1}
+								unit="°"
+								onChange={setArcWidth}
+							/>
+						</>
+					) : null}
 					<GUI.Toggle
 						id="inner-glow"
 						label="Inner glow"
@@ -563,123 +694,6 @@ export function GenerativeCardDemoAnimated() {
 							/>
 						</>
 					) : null}
-					{borderTrace ? (
-						<>
-							<GUI.Control
-								id="border-duration"
-								label="Trace duration"
-								description="Full cycle duration for the border trace animation."
-								value={borderDuration}
-								defaultValue={2400}
-								min={500}
-								max={5000}
-								step={50}
-								unit="ms"
-								onChange={setBorderDuration}
-							/>
-							<GUI.Control
-								id="border-arc-width"
-								label="Arc width"
-								description="Angular width of the visible trace arc in degrees."
-								value={arcWidth}
-								defaultValue={90}
-								min={30}
-								max={180}
-								step={1}
-								unit="°"
-								onChange={setArcWidth}
-							/>
-						</>
-					) : null}
-					<GUI.Control
-						id="anim-duration"
-						label="Duration"
-						description="How long the full top-to-bottom pass takes."
-						value={durationMs}
-						defaultValue={2000}
-						min={100}
-						max={3000}
-						step={10}
-						unit="ms"
-						onChange={setDurationMs}
-					/>
-					<GUI.Control
-						id="anim-distortion"
-						label="Distortion scale"
-						description="Maximum displacement strength inside the moving band."
-						value={distortionScale}
-						defaultValue={100}
-						min={-300}
-						max={300}
-						step={1}
-						onChange={setDistortionScale}
-					/>
-					<GUI.Control
-						id="anim-blur"
-						label="Blur"
-						description="Peak blur amount blended into the distortion band."
-						value={blur}
-						defaultValue={8}
-						min={0}
-						max={12}
-						step={0.05}
-						onChange={setBlur}
-					/>
-					<GUI.Control
-						id="anim-radius"
-						label="Radius"
-						description="Band thickness relative to card height."
-						value={radius}
-						defaultValue={0.4}
-						min={0.02}
-						max={0.8}
-						step={0.01}
-						onChange={setRadius}
-					/>
-					<GUI.Control
-						id="anim-edge-safe-x"
-						label="Edge to edge"
-						description="Horizontal side fade. 0 = full edge-to-edge; increase if side artifacts appear."
-						value={edgeSafeX}
-						defaultValue={DEFAULT_DISTORTION_EDGE_SAFE_X}
-						min={0}
-						max={0.08}
-						step={0.001}
-						onChange={setEdgeSafeX}
-					/>
-					<GUI.Control
-						id="anim-speed"
-						label="Speed"
-						description="Sweep velocity multiplier from top to bottom."
-						value={speed}
-						defaultValue={1.35}
-						min={-3}
-						max={3}
-						step={0.05}
-						onChange={setSpeed}
-					/>
-					<GUI.Control
-						id="anim-scale-smoothing"
-						label="Scale smoothing"
-						description="How quickly distortion strength catches up to target values."
-						value={scaleSmoothing}
-						defaultValue={0.5}
-						min={0.01}
-						max={1}
-						step={0.01}
-						onChange={setScaleSmoothing}
-					/>
-					<GUI.Control
-						id="anim-sweep-smoothing"
-						label="Sweep smoothing"
-						description="How quickly the band position tracks its target path."
-						value={sweepSmoothing}
-						defaultValue={0.5}
-						min={0.01}
-						max={1}
-						step={0.01}
-						onChange={setSweepSmoothing}
-					/>
 				</GUI.Panel>
 			</div>
 		</div>

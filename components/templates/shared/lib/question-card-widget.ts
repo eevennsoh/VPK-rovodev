@@ -49,7 +49,7 @@ const DEFAULT_SESSION_ID = "clarification-session";
 const DEFAULT_MAX_ROUNDS = 3;
 const DEFAULT_TITLE = "Help me clarify this";
 const DEFAULT_PLACEHOLDER = "Tell Rovo what to do...";
-const MAX_GENERATED_OPTIONS = 4;
+const MAX_GENERATED_OPTIONS = 8;
 const MAX_LABEL_LENGTH = 120;
 const QUESTION_KINDS: ReadonlySet<QuestionKind> = new Set([
 	"single-select",
