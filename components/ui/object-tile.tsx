@@ -43,7 +43,7 @@ function ObjectTile({
 		"flex items-center gap-3 rounded-lg px-3 py-2",
 		hasBorder && "border border-border",
 		href
-			? "bg-surface hover:bg-surface-hovered active:bg-surface-pressed transition-colors outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3"
+			? "no-underline bg-surface hover:bg-surface-hovered active:bg-surface-pressed transition-colors outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3"
 			: "bg-surface",
 		className
 	)

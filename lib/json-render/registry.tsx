@@ -87,7 +87,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
+import { token } from "@/lib/tokens";
 import type { BundledLanguage } from "shiki";
+import NodeIcon from "@atlaskit/icon/core/node";
 
 // ── New VPK UI primitives ─────────────────────────────────────
 import { Checkbox as CheckboxPrimitive } from "@/components/ui/checkbox";
@@ -112,8 +114,12 @@ import { ButtonGroup as ButtonGroupPrimitive } from "@/components/ui/button-grou
 import { Progress as ProgressBar, ProgressLabel as ProgressBarLabel } from "@/components/ui/progress";
 import { ProgressTracker } from "@/components/ui/progress-tracker";
 
-// ── Lucide icons ──────────────────────────────────────────────
-import { TrendingUp, TrendingDown, Minus, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+// ── Atlaskit icons ────────────────────────────────────────────
+import ChartTrendUpIcon from "@atlaskit/icon/core/chart-trend-up";
+import ChartTrendDownIcon from "@atlaskit/icon/core/chart-trend-down";
+import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
+import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
+import SortDescendingIcon from "@atlaskit/icon/core/sort-descending";
 
 // ── Recharts ───────────────────────────────────────────────────
 import {
@@ -276,8 +282,9 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const { className } = props;
 			const title = toSafeOptionalText(props.title);
 			const description = toSafeOptionalText(props.description);
-			return (
-				<Card className={className ?? undefined}>
+			const href = toSafeOptionalText(props.href);
+			const card = (
+				<Card className={cn(href && "no-underline transition-colors hover:bg-surface-hovered", className ?? undefined)}>
 					{title || description ? (
 						<CardHeader>
 							{title ? <CardTitle>{title}</CardTitle> : null}
@@ -287,6 +294,14 @@ export const { registry, handlers } = defineRegistry(catalog, {
 					<CardContent>{children}</CardContent>
 				</Card>
 			);
+			if (href) {
+				return (
+					<a href={href} className="no-underline" target="_blank" rel="noopener noreferrer">
+						{card}
+					</a>
+				);
+			}
+			return card;
 		},
 
 		Grid: ({ props, children }) => {
@@ -352,13 +367,14 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const label = toSafeText(props.label);
 			const value = toSafeText(props.value);
 			const detail = toSafeOptionalText(props.detail);
-			const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
+			const trendColor = trend === "up" ? token("color.icon.success") : trend === "down" ? token("color.icon.danger") : undefined;
 			return (
 				<div className="rounded-lg border border-border bg-surface p-4">
 					<p className="text-xs text-text-subtlest">{label}</p>
 					<div className="mt-1 flex items-center gap-2">
 						<p className="text-2xl font-semibold text-text">{value}</p>
-						{trend ? <TrendIcon className={cn("size-4", trend === "up" && "text-text-success", trend === "down" && "text-text-danger", trend === "neutral" && "text-text-subtle")} /> : null}
+						{trend === "up" ? <ChartTrendUpIcon label="" size="small" color={trendColor} /> : null}
+						{trend === "down" ? <ChartTrendDownIcon label="" size="small" color={trendColor} /> : null}
 					</div>
 					{detail ? (
 						<p className={cn("mt-1 text-xs", trend === "up" && "text-text-success", trend === "down" && "text-text-danger", (!trend || trend === "neutral") && "text-text-subtle")}>{detail}</p>
@@ -409,7 +425,7 @@ export const { registry, handlers } = defineRegistry(catalog, {
 								<TableHead key={col.key} className="cursor-pointer select-none" onClick={() => handleSort(col.key)}>
 									<div className="flex items-center gap-1">
 										{toSafeText(col.label)}
-										{sortKey === col.key ? sortDir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" /> : <ArrowUpDown className="size-3 opacity-40" />}
+										{sortKey === col.key ? sortDir === "asc" ? <ArrowUpIcon label="" size="small" /> : <ArrowDownIcon label="" size="small" /> : <span className="opacity-40"><SortDescendingIcon label="" size="small" /></span>}
 									</div>
 								</TableHead>
 							))}
@@ -618,23 +634,22 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		Timeline: ({ props }) => {
 			const { items } = props;
 			return (
-				<div className="space-y-4">
-					{items.map((item, i) => {
-						const dotColor = item.status === "completed" ? "bg-bg-success-bold" : item.status === "current" ? "bg-bg-brand-bold" : "bg-bg-neutral";
-						return (
-							<div key={i} className="flex gap-3">
-								<div className="flex flex-col items-center">
-									<div className={cn("size-3 rounded-full mt-1 shrink-0", dotColor)} />
-									{i < items.length - 1 ? <div className="w-px flex-1 bg-border" /> : null}
+				<div className="flex flex-col">
+					{items.map((item, i) => (
+						<div key={i} className="flex gap-3">
+							<div className="flex flex-col items-center">
+								<div className="flex h-5 shrink-0 items-center justify-center">
+									<NodeIcon label="" size="small" color={token("color.icon.subtlest")} />
 								</div>
-								<div className="pb-4">
-									<p className="text-sm font-medium text-text">{toSafeText(item.title)}</p>
-									{item.description ? <p className="text-xs text-text-subtle">{toSafeText(item.description)}</p> : null}
-									{item.date ? <p className="text-xs text-text-subtlest mt-0.5">{toSafeText(item.date)}</p> : null}
-								</div>
+								{i < items.length - 1 ? <div className="w-px flex-1 bg-border" /> : null}
 							</div>
-						);
-					})}
+							<div className="pb-4">
+								<p className="text-sm font-medium leading-5 text-text">{toSafeText(item.title)}</p>
+								{item.description ? <p className="text-xs text-text-subtle">{toSafeText(item.description)}</p> : null}
+								{item.date ? <p className="mt-0.5 text-xs text-text-subtlest">{toSafeText(item.date)}</p> : null}
+							</div>
+						</div>
+					))}
 				</div>
 			);
 		},

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import Image from "next/image";
 import type { Spec } from "@json-render/react";
 import CrossIcon from "@atlaskit/icon/core/cross";
@@ -25,6 +25,7 @@ import {
 import { AudioPlayerElement } from "@/components/ui-ai/audio-player";
 import { JsonRenderView } from "@/lib/json-render/renderer";
 import { useProgressiveSpec } from "@/lib/json-render/use-progressive-spec";
+import type { DistortionTintMode } from "@/components/ui-ai/generative-card-bulge-canvas";
 import {
 	type GenerativeWidgetPrimaryActionPayload,
 	parseGenerativeWidget,
@@ -40,10 +41,69 @@ import { ContentTypeTile } from "./content-type-tile";
 /*  Props                                                                     */
 /* -------------------------------------------------------------------------- */
 
+const INNER_GLOW_STYLE_ID = "gen-widget-card-inner-glow-keyframes";
+const DEFAULT_INNER_GLOW_DURATION_MS = 4000;
+const DEFAULT_INNER_GLOW_SPREAD = 12;
+const DEFAULT_INNER_GLOW_THICKNESS = 12;
+const DEFAULT_INNER_GLOW_SOFTNESS = 10;
+const DEFAULT_INNER_GLOW_SATURATION = 170;
+const DEFAULT_INNER_GLOW_INTENSITY = 1;
+
+const INNER_GLOW_KEYFRAMES = `
+@property --gen-widget-card-inner-angle {
+	syntax: '<angle>';
+	initial-value: 0deg;
+	inherits: false;
+}
+@keyframes gen-widget-card-inner-angle-spin {
+	to { --gen-widget-card-inner-angle: 1turn; }
+}
+@keyframes gen-widget-card-inner-opacity {
+	0%   { opacity: 0; }
+	8%   { opacity: var(--gen-widget-card-inner-peak, 1); }
+	88%  { opacity: calc(var(--gen-widget-card-inner-peak, 1) * 0.95); }
+	100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+	@keyframes gen-widget-card-inner-angle-spin {
+		to { --gen-widget-card-inner-angle: 0deg; }
+	}
+	@keyframes gen-widget-card-inner-opacity {
+		0%   { opacity: calc(var(--gen-widget-card-inner-peak, 1) * 0.44); }
+		100% { opacity: calc(var(--gen-widget-card-inner-peak, 1) * 0.44); }
+	}
+}
+`;
+
+export interface GenerativeCardAnimationProps {
+	distortion?: boolean;
+	animateDuration?: number;
+	animateDistortionScale?: number;
+	animateBlur?: number;
+	animateRadius?: number;
+	animateEdgeSafeX?: number;
+	animateSpeed?: number;
+	animateScaleSmoothing?: number;
+	animateSweepSmoothing?: number;
+	distortionTintEnabled?: boolean;
+	distortionTintMode?: DistortionTintMode;
+	distortionTintPreset?: string;
+	distortionTintColor?: string;
+	distortionTintStrength?: number;
+	innerGlow?: boolean;
+	innerGlowDuration?: number;
+	innerGlowSpread?: number;
+	innerGlowThickness?: number;
+	innerGlowSoftness?: number;
+	innerGlowSaturation?: number;
+	innerGlowIntensity?: number;
+}
+
 interface GenerativeWidgetCardProps {
 	widgetType: string;
 	widgetData: unknown;
 	className?: string;
+	cardAnimation?: GenerativeCardAnimationProps;
 	onPrimaryAction?: (
 		payload: GenerativeWidgetPrimaryActionPayload
 	) => Promise<void> | void;
@@ -59,6 +119,7 @@ interface GenerativeWidgetCardShellProps {
 	showPrimaryAction?: boolean;
 	primaryActionLabel?: string;
 	onStateChange?: (path: string, value: unknown) => void;
+	cardAnimation?: GenerativeCardAnimationProps;
 }
 
 interface GenuiBodyProps {
@@ -106,6 +167,83 @@ function immutableSetByPath(
 function toInitialGenuiState(widget: ParsedGenerativeWidget): Record<string, unknown> {
 	if (widget.type !== "genui-preview") return {};
 	return isObjectRecord(widget.spec.state) ? { ...widget.spec.state } : {};
+}
+
+function useInnerGlowStyles(enabled: boolean) {
+	useEffect(() => {
+		if (!enabled || typeof document === "undefined") return;
+
+		let styleEl = document.getElementById(INNER_GLOW_STYLE_ID) as HTMLStyleElement | null;
+		if (!styleEl) {
+			styleEl = document.createElement("style");
+			styleEl.id = INNER_GLOW_STYLE_ID;
+			document.head.appendChild(styleEl);
+		}
+
+		if (styleEl.textContent !== INNER_GLOW_KEYFRAMES) {
+			styleEl.textContent = INNER_GLOW_KEYFRAMES;
+		}
+	}, [enabled]);
+}
+
+interface GenerativeCardInnerGlowShellProps {
+	durationMs: number;
+	spread: number;
+	thickness: number;
+	softness: number;
+	saturation: number;
+	intensity: number;
+	className?: string;
+	children: ReactNode;
+}
+
+function GenerativeCardInnerGlowShell({
+	durationMs,
+	spread,
+	thickness,
+	softness,
+	saturation,
+	intensity,
+	className,
+	children,
+}: Readonly<GenerativeCardInnerGlowShellProps>): ReactNode {
+	useInnerGlowStyles(true);
+
+	const rovoConic = "conic-gradient(from var(--gen-widget-card-inner-angle), #1868DB, #AF59E1, #FCA700, #6A9A23, #1868DB)";
+	const peakOpacity = Math.max(0, Math.min(1, intensity));
+	const ringInset = -(spread + thickness * 0.5);
+	const glowAnimation = `gen-widget-card-inner-angle-spin ${durationMs}ms linear forwards, gen-widget-card-inner-opacity ${durationMs}ms var(--ease-out, ease-out) forwards`;
+	const glowVariables = {
+		"--gen-widget-card-inner-peak": peakOpacity,
+	} as CSSProperties;
+
+	return (
+		<div className={cn("relative", className)}>
+			<div
+				aria-hidden="true"
+				className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl"
+				style={glowVariables}
+			>
+				<div
+					style={{
+						position: "absolute",
+						inset: ringInset,
+						borderRadius: 12,
+						borderWidth: thickness,
+						borderStyle: "solid",
+						borderColor: "transparent",
+						borderImageSource: rovoConic,
+						borderImageSlice: 1,
+						filter: `blur(${softness}px) saturate(${saturation}%)`,
+						opacity: 0,
+						animation: glowAnimation,
+						willChange: "opacity",
+					}}
+				/>
+			</div>
+			<div className="relative z-10">{children}</div>
+		</div>
+	);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -326,12 +464,33 @@ function GenerativeWidgetCardShell({
 	showPrimaryAction = false,
 	primaryActionLabel,
 	onStateChange,
+	cardAnimation,
 }: Readonly<GenerativeWidgetCardShellProps>): ReactNode {
 	const contentTypeLabel = formatContentTypeLabel(metadata.contentType);
-	const shouldAnimateGenuiCard = !previewMode && bodyWidget.type === "genui-preview";
+	const shouldAnimateDistortion =
+		!previewMode &&
+		bodyWidget.type === "genui-preview" &&
+		(cardAnimation?.distortion ?? true);
+	const shouldRenderInnerGlow = !previewMode && Boolean(cardAnimation?.innerGlow);
+	const shouldRenderDistortionTint =
+		shouldAnimateDistortion && Boolean(cardAnimation?.distortionTintEnabled);
 
-	return (
-		<GenerativeCard className={className} animate={shouldAnimateGenuiCard}>
+	const cardNode = (
+		<GenerativeCard
+			className={shouldRenderInnerGlow ? "w-full" : className}
+			animate={shouldAnimateDistortion}
+			animateDuration={cardAnimation?.animateDuration}
+			animateDistortionScale={cardAnimation?.animateDistortionScale}
+			animateBlur={cardAnimation?.animateBlur}
+			animateRadius={cardAnimation?.animateRadius}
+			animateEdgeSafeX={cardAnimation?.animateEdgeSafeX}
+			animateSpeed={cardAnimation?.animateSpeed}
+			animateScaleSmoothing={cardAnimation?.animateScaleSmoothing}
+			animateSweepSmoothing={cardAnimation?.animateSweepSmoothing}
+			animateTintMode={shouldRenderDistortionTint ? cardAnimation?.distortionTintMode : undefined}
+			animateTintColor={shouldRenderDistortionTint ? cardAnimation?.distortionTintColor : undefined}
+			animateTintStrength={shouldRenderDistortionTint ? (cardAnimation?.distortionTintStrength ?? 0) : 0}
+		>
 			<GenerativeCardHeader
 				className="p-4"
 				leading={<ContentTypeTile contentType={metadata.contentType} label={contentTypeLabel} />}
@@ -346,7 +505,7 @@ function GenerativeWidgetCardShell({
 						true,
 						onOpenPreview,
 						onStateChange,
-						!previewMode,
+						!previewMode && !shouldAnimateDistortion,
 					)}
 				</GenerativeCardContent>
 				<GenerativeCardFooter className="flex-wrap gap-2">
@@ -370,6 +529,24 @@ function GenerativeWidgetCardShell({
 			</GenerativeCardBody>
 		</GenerativeCard>
 	);
+
+	if (!shouldRenderInnerGlow) {
+		return cardNode;
+	}
+
+	return (
+		<GenerativeCardInnerGlowShell
+			className={className}
+			durationMs={cardAnimation?.innerGlowDuration ?? DEFAULT_INNER_GLOW_DURATION_MS}
+			spread={cardAnimation?.innerGlowSpread ?? DEFAULT_INNER_GLOW_SPREAD}
+			thickness={cardAnimation?.innerGlowThickness ?? DEFAULT_INNER_GLOW_THICKNESS}
+			softness={cardAnimation?.innerGlowSoftness ?? DEFAULT_INNER_GLOW_SOFTNESS}
+			saturation={cardAnimation?.innerGlowSaturation ?? DEFAULT_INNER_GLOW_SATURATION}
+			intensity={cardAnimation?.innerGlowIntensity ?? DEFAULT_INNER_GLOW_INTENSITY}
+		>
+			{cardNode}
+		</GenerativeCardInnerGlowShell>
+	);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -380,6 +557,7 @@ export function GenerativeWidgetCard({
 	widgetType,
 	widgetData,
 	className,
+	cardAnimation,
 	onPrimaryAction,
 }: Readonly<GenerativeWidgetCardProps>): ReactNode {
 	const [previewOpen, setPreviewOpen] = useState(false);
@@ -440,14 +618,15 @@ export function GenerativeWidgetCard({
 	return (
 		<div className={cn("pb-2", className)}>
 			<Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-				<GenerativeWidgetCardShell
-					bodyWidget={bodyWidget ?? parsedWidget}
-					metadata={metadata}
-					onOpenPreview={() => setPreviewOpen(true)}
-					onPrimaryAction={handlePrimaryAction}
-					showPrimaryAction={shouldShowPrimaryAction}
-					primaryActionLabel={metadata.primaryActionLabel}
-					onStateChange={handleGenuiStateChange}
+					<GenerativeWidgetCardShell
+						bodyWidget={bodyWidget ?? parsedWidget}
+						metadata={metadata}
+						cardAnimation={cardAnimation}
+						onOpenPreview={() => setPreviewOpen(true)}
+						onPrimaryAction={handlePrimaryAction}
+						showPrimaryAction={shouldShowPrimaryAction}
+						primaryActionLabel={metadata.primaryActionLabel}
+						onStateChange={handleGenuiStateChange}
 				/>
 				<DialogContent className="max-h-[90vh] overflow-hidden gap-0 p-0 sm:max-w-5xl" size="xl" showCloseButton={false}>
 					<DialogHeader className="mx-0 mt-0 flex-row items-center border-b p-4 sm:p-6">

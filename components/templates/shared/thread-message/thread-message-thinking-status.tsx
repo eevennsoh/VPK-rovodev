@@ -19,14 +19,13 @@ export function ThreadMessageThinkingStatus(): ReactNode {
 		reasoning,
 		isThinkingStatusActive,
 		thinkingStatusReasoningPhase,
-		thinkingStatusPart,
 		allThinkingStatusParts,
 		resolvedThinkingStatusLabel,
 		toolParts,
 		thinkingToolCallsForStatus,
 	} = use(ThreadMessageContext)!;
 
-	if (!isThinkingStatusActive || !thinkingStatusPart) {
+	if (!isThinkingStatusActive) {
 		return null;
 	}
 

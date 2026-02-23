@@ -9,6 +9,8 @@ const {
 	recordToolFirstAttempt,
 	recordToolThinkingEvent,
 	hasRelevantToolSuccess,
+	hasRelevantToolObservation,
+	shouldSuppressToolFirstIntentStatus,
 	getToolFirstRetryDelayMs,
 	buildToolFirstRetryInstruction,
 	buildToolContextForGenui,
@@ -27,6 +29,7 @@ test("resolveToolFirstPolicy matches integration-domain prompts", () => {
 	assert.ok(policy.domains.includes("google-calendar"));
 	assert.match(policy.instruction, /Tool-first execution policy/);
 	assert.equal(policy.enforcement.mode, TOOL_FIRST_ENFORCEMENT_MODE_SOFT_RETRY);
+	assert.equal(policy.enforcement.maxRelevantRetries, 1);
 });
 
 test("resolveToolFirstPolicy ignores casual prompts", () => {
@@ -37,6 +40,38 @@ test("resolveToolFirstPolicy ignores casual prompts", () => {
 	assert.equal(policy.matched, false);
 	assert.equal(policy.domains.length, 0);
 	assert.equal(policy.instruction, null);
+});
+
+test("resolveToolFirstPolicy does not match generic translation prompts", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: 'translate "Let\'s do this together" to Mandarin',
+	});
+
+	assert.equal(policy.matched, false);
+	assert.equal(policy.domains.length, 0);
+});
+
+test("resolveToolFirstPolicy matches explicit Google Translate prompts", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: 'Use Google Translate to translate "Hello team" to Spanish',
+	});
+
+	assert.equal(policy.matched, true);
+	assert.ok(policy.domains.includes("google-translate"));
+});
+
+test("resolveToolFirstPolicy matches Drive prompts without explicit Google prefix", () => {
+	const listPolicy = resolveToolFirstPolicy({
+		prompt: "List all files in my Drive?",
+	});
+	const storagePolicy = resolveToolFirstPolicy({
+		prompt: "Check my Drive storage info",
+	});
+
+	assert.equal(listPolicy.matched, true);
+	assert.ok(listPolicy.domains.includes("google-drive-docs"));
+	assert.equal(storagePolicy.matched, true);
+	assert.ok(storagePolicy.domains.includes("google-drive-docs"));
 });
 
 test("isToolNameRelevant maps tool names against matched domains", () => {
@@ -51,6 +86,15 @@ test("isToolNameRelevant maps tool names against matched domains", () => {
 
 	assert.equal(relevant, true);
 	assert.equal(irrelevant, false);
+});
+
+test("isToolNameRelevant matches Atlassian Google Drive URL bridge tools", () => {
+	const relevant = isToolNameRelevant({
+		toolName: "google_google_drive_atlassian_url_get_content",
+		domains: ["google-drive-docs"],
+	});
+
+	assert.equal(relevant, true);
 });
 
 test("execution state tracks relevant tool success", () => {
@@ -72,6 +116,7 @@ test("execution state tracks relevant tool success", () => {
 	assert.equal(state.relevantToolStarts, 1);
 	assert.equal(state.relevantToolResults, 1);
 	assert.equal(hasRelevantToolSuccess(state), true);
+	assert.equal(hasRelevantToolObservation(state), true);
 });
 
 test("execution state counts resolved Slack integration tool results", () => {
@@ -218,6 +263,60 @@ test("stripToolFirstFailureNarrative removes fallback warning paragraph", () => 
 	const output = stripToolFirstFailureNarrative(input);
 	assert.equal(output.replaced, true);
 	assert.equal(output.text, "I sent the message successfully.");
+});
+
+test("resolveToolFirstPolicy matches work-activity prompts to teamwork-graph domain", () => {
+	const cases = [
+		"Last 7 days of work",
+		"Last seven days of work",
+		"Show my recent work",
+		"summarize my work from last week",
+		"recent work activity this week",
+		"What did I work on this week?",
+		"my work activity",
+		"past 2 weeks of work",
+		"my work activities",
+		"What have you worked on lately?",
+	];
+
+	for (const prompt of cases) {
+		const policy = resolveToolFirstPolicy({ prompt });
+		assert.equal(policy.matched, true, `Expected "${prompt}" to match`);
+		assert.ok(
+			policy.domains.includes("teamwork-graph"),
+			`Expected "${prompt}" to match teamwork-graph domain, got: ${policy.domains.join(", ")}`
+		);
+	}
+});
+
+test("shouldSuppressToolFirstIntentStatus suppresses early intent labels until relevant tool starts", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: "Last 7 days of work",
+	});
+	const state = createToolFirstExecutionState(policy);
+
+	assert.equal(
+		shouldSuppressToolFirstIntentStatus({
+			execution: state,
+			label: "Classifying request",
+			content: "Detected intent: genui",
+		}),
+		true
+	);
+
+	recordToolThinkingEvent(state, {
+		phase: "start",
+		toolName: "mcp__teamwork_graph__work_summary",
+	});
+
+	assert.equal(
+		shouldSuppressToolFirstIntentStatus({
+			execution: state,
+			label: "Classifying request",
+			content: "Detected intent: genui",
+		}),
+		false
+	);
 });
 
 test("stripToolFirstFailureNarrative keeps normal narrative unchanged", () => {

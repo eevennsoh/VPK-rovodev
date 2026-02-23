@@ -7,6 +7,8 @@ import {
 	Conversation,
 	ConversationContent,
 } from "@/components/ui-ai/conversation";
+import { Message, MessageContent } from "@/components/ui-ai/message";
+import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import { MessageTurns } from "@/components/templates/shared/message-turns";
 import {
 	isRenderableRovoUIMessage,
@@ -24,6 +26,7 @@ import {
 	buildGenerativeWidgetSubmitPrompt,
 	type GenerativeWidgetPrimaryActionPayload,
 } from "@/components/templates/shared/lib/generative-widget";
+import type { GenerativeCardAnimationProps } from "@/components/templates/shared/components/generative-widget-card";
 import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
 import { QuestionCardShortcutsFooter } from "@/components/templates/shared/components/question-card-shortcuts-footer";
 import { useDismissibleCards } from "@/components/templates/shared/hooks/use-dismissible-cards";
@@ -39,10 +42,15 @@ import { useScrollAnchor } from "./hooks/use-scroll-anchor";
 import { useThinkingStatus } from "./hooks/use-thinking-status";
 import styles from "./chat.module.css";
 
+interface ChatPanelCardsProps {
+	generativeAnimation?: GenerativeCardAnimationProps;
+}
+
 interface ChatPanelProps {
 	onClose: () => void;
 	sendPromptOptions?: SendPromptOptions;
 	enableSmartWidgets?: boolean;
+	cards?: ChatPanelCardsProps;
 }
 
 const COMPACT_CHAT_WIDTH_MAX = 520;
@@ -60,6 +68,7 @@ export default function ChatPanel({
 	onClose,
 	sendPromptOptions,
 	enableSmartWidgets = false,
+	cards,
 }: Readonly<ChatPanelProps>): React.ReactElement {
 	const { resetChat, uiMessages: rawUiMessages, sendPrompt } = useRovoChat();
 	const panelRef = useRef<HTMLDivElement | null>(null);
@@ -184,6 +193,8 @@ export default function ChatPanel({
 	}, [abort]);
 
 	const hasMessages = messages.length > 0;
+	const shouldShowAwaitingUserResponse =
+		shouldShowQuestionCard && activeQuestionCard !== null && !thinking.shouldShowThinking;
 
 	const handleClarificationSubmit = useCallback(
 		(answers: ClarificationAnswers) => {
@@ -282,11 +293,8 @@ export default function ChatPanel({
 									message={message}
 									onSuggestionClick={handleFollowUpSuggestionClick}
 									enableSmartWidgets={enableSmartWidgets}
+									generativeCardAnimation={cards?.generativeAnimation}
 									onWidgetPrimaryAction={handleWidgetPrimaryAction}
-									showThinkingStatusSection={
-										message.role === "assistant" &&
-										message.id === thinking.lastMessage?.id
-									}
 								/>
 							)}
 						/>
@@ -305,6 +313,20 @@ export default function ChatPanel({
 							containerStyle={chatStyles.thinkingContainer}
 							phaseProps={thinking.reasoningPhaseProps}
 						/>
+					) : null}
+					{shouldShowAwaitingUserResponse ? (
+						<div style={chatStyles.thinkingContainer}>
+							<Message from="assistant" className="max-w-full">
+								<MessageContent className="px-6">
+									<Reasoning className="mb-0" isStreaming>
+										<AdsReasoningTrigger
+											label="Awaiting user response"
+											showChevron={false}
+										/>
+									</Reasoning>
+								</MessageContent>
+							</Message>
+						</div>
 					) : null}
 					{hasMessages ? (
 						<div ref={scrollSpacerRef} aria-hidden style={{ height: 0, flexShrink: 0 }} />

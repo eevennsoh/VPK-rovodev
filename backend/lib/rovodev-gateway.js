@@ -800,6 +800,7 @@ function resolveToolCallInput({
  * @param {function} [params.onThinkingEvent] - Called with structured tool timeline events
  * @param {function} [params.onToolCallStart] - Called with structured tool-call details when a tool starts
  * @param {function} [params.onToolCallInputResolved] - Called with merged tool input once args deltas are complete or a start payload fallback is available
+ * @param {function} [params.onToolCallResult] - Called with raw tool-result output (before preview truncation) for post-processing needs like question-card payload extraction
  * @param {function} [params.onRetry] - Called when a 409 retry is about to happen (for UI indicators)
  * @param {function} [params.onRetryProgress] - Called for each 409 retry progress update
  * @param {"cancel-and-retry" | "wait-for-turn"} [params.conflictPolicy] - Conflict resolution policy
@@ -817,6 +818,7 @@ async function streamViaRovoDev({
 	onThinkingEvent,
 	onToolCallStart,
 	onToolCallInputResolved,
+	onToolCallResult,
 	onRetry,
 	onRetryProgress,
 	conflictPolicy = "cancel-and-retry",
@@ -1028,6 +1030,40 @@ async function streamViaRovoDev({
 								reportedToolName: chunk.toolName,
 								fallbackWithoutArgs: true,
 							});
+
+							if (
+								chunk.type === "tool_result" &&
+								typeof onToolCallResult === "function"
+							) {
+								const normalizedToolCallId =
+									typeof chunk.toolCallId === "string" && chunk.toolCallId.trim()
+										? chunk.toolCallId.trim()
+										: null;
+								const resolvedToolName = resolveToolNameForToolEvent({
+									reportedToolName: chunk.toolName,
+									rememberedToolName: normalizedToolCallId
+										? toolNameByCallId.get(normalizedToolCallId) ?? null
+										: null,
+								});
+
+								onToolCallResult({
+									toolName: resolvedToolName,
+									toolCallId: normalizedToolCallId,
+									toolOutputRaw:
+										chunk.rawOutput !== undefined
+											? chunk.rawOutput
+											: chunk.text,
+									toolOutputPreview:
+										typeof chunk.outputPreview === "string"
+											? chunk.outputPreview
+											: undefined,
+									outputTruncated: chunk.outputTruncated === true,
+									outputBytes:
+										typeof chunk.outputBytes === "number"
+											? chunk.outputBytes
+											: undefined,
+								});
+							}
 
 							const rememberedToolName = chunk.toolCallId
 								? toolNameByCallId.get(chunk.toolCallId) ?? null

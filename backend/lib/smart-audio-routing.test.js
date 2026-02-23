@@ -16,23 +16,25 @@ test("isAudioRequestPrompt detects explicit audio requests", () => {
 test("resolveSmartAudioVoiceInput prefers direct user input for audio intent", () => {
 	const result = resolveSmartAudioVoiceInput({
 		intent: "audio",
-		latestUserMessage: "Sing this in a voice clip",
+		latestUserMessage: 'make me a simple audio clip that says "HeLLO!"',
 		generatedNarrative: "I can't generate audio directly.",
 	});
 
-	assert.equal(result.voiceInput, "Sing this in a voice clip");
-	assert.equal(result.source, "direct-user");
+	assert.equal(result.voiceInput, "HeLLO!");
+	assert.equal(result.source, "extracted-user-payload");
+	assert.equal(result.extractionMode, "quoted");
 });
 
 test("resolveSmartAudioVoiceInput prefers direct user input for both intent", () => {
 	const result = resolveSmartAudioVoiceInput({
 		intent: "both",
-		latestUserMessage: "Generate audio for this summary",
+		latestUserMessage: "Generate a voice clip that says hello",
 		generatedNarrative: "Generated UI summary text.",
 	});
 
-	assert.equal(result.voiceInput, "Generate audio for this summary");
-	assert.equal(result.source, "direct-user");
+	assert.equal(result.voiceInput, "hello");
+	assert.equal(result.source, "extracted-user-payload");
+	assert.equal(result.extractionMode, "command-pattern");
 });
 
 test("resolveSmartAudioVoiceInput falls back to generated narrative only when direct input is unavailable", () => {
@@ -44,6 +46,18 @@ test("resolveSmartAudioVoiceInput falls back to generated narrative only when di
 
 	assert.equal(result.voiceInput, "Fallback narrative for synthesis");
 	assert.equal(result.source, "generated-narrative");
+});
+
+test("resolveSmartAudioVoiceInput keeps direct-user source for non-command text", () => {
+	const result = resolveSmartAudioVoiceInput({
+		intent: "audio",
+		latestUserMessage: "Release is complete and all systems are healthy.",
+		generatedNarrative: null,
+	});
+
+	assert.equal(result.voiceInput, "Release is complete and all systems are healthy.");
+	assert.equal(result.source, "direct-user");
+	assert.equal(result.extractionMode, "fallback-original");
 });
 
 test("toSpeechInputText trims and enforces max length", () => {

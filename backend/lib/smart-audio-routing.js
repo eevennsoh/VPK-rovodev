@@ -1,5 +1,10 @@
 const SMART_AUDIO_REQUEST_PATTERN =
 	/\b(audio|voice|speech|tts|text[-\s]?to[-\s]?speech|narrate|read aloud)\b/i;
+const {
+	clipToMaxChars,
+	normalizeSpeechPayload,
+	resolveSpeechPayloadFromAudioRequest,
+} = require("./audio-input-extractor");
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -20,16 +25,12 @@ function isAudioRequestPrompt(prompt) {
 }
 
 function toSpeechInputText(value, { maxChars = 4000 } = {}) {
-	const text = getNonEmptyString(value);
+	const text = normalizeSpeechPayload(value);
 	if (!text) {
 		return null;
 	}
 
-	if (text.length <= maxChars) {
-		return text;
-	}
-
-	return `${text.slice(0, maxChars - 1)}…`;
+	return clipToMaxChars(text, maxChars);
 }
 
 function resolveSmartAudioVoiceInput({
@@ -40,9 +41,16 @@ function resolveSmartAudioVoiceInput({
 	maxChars = 4000,
 } = {}) {
 	const normalizedIntent = getNonEmptyString(intent)?.toLowerCase() || "audio";
-	const directUserInput = toSpeechInputText(latestUserMessage, { maxChars });
+	const {
+		payload: directUserInput,
+		mode: directUserInputMode,
+	} = resolveSpeechPayloadFromAudioRequest(latestUserMessage, { maxChars });
 	const explicitScriptInput = toSpeechInputText(explicitScript, { maxChars });
 	const generatedNarrativeInput = toSpeechInputText(generatedNarrative, { maxChars });
+	const directUserSource =
+		directUserInputMode && directUserInputMode !== "fallback-original"
+			? "extracted-user-payload"
+			: "direct-user";
 
 	if (explicitScriptInput) {
 		return {
@@ -55,7 +63,8 @@ function resolveSmartAudioVoiceInput({
 		if (directUserInput) {
 			return {
 				voiceInput: directUserInput,
-				source: "direct-user",
+				source: directUserSource,
+				extractionMode: directUserInputMode,
 			};
 		}
 		if (generatedNarrativeInput) {
@@ -80,7 +89,8 @@ function resolveSmartAudioVoiceInput({
 	if (directUserInput) {
 		return {
 			voiceInput: directUserInput,
-			source: "direct-user",
+			source: directUserSource,
+			extractionMode: directUserInputMode,
 		};
 	}
 

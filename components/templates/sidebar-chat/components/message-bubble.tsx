@@ -4,14 +4,15 @@ import type { ReactNode } from "react";
 import type { RovoRenderableUIMessage } from "@/lib/rovo-ui-messages";
 import { ThreadMessage } from "@/components/templates/shared/thread-message";
 import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
+import type { GenerativeCardAnimationProps } from "@/components/templates/shared/components/generative-widget-card";
 import type { GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
-import LoadingWidget from "./loading-widget";
 
 interface MessageBubbleProps {
 	message: RovoRenderableUIMessage;
 	onSuggestionClick?: (question: string) => void;
 	enableSmartWidgets?: boolean;
 	showThinkingStatusSection?: boolean;
+	generativeCardAnimation?: GenerativeCardAnimationProps;
 	onWidgetPrimaryAction?: (
 		payload: GenerativeWidgetPrimaryActionPayload
 	) => Promise<void> | void;
@@ -22,6 +23,7 @@ export default function MessageBubble({
 	onSuggestionClick,
 	enableSmartWidgets = false,
 	showThinkingStatusSection = true,
+	generativeCardAnimation,
 	onWidgetPrimaryAction,
 }: Readonly<MessageBubbleProps>): ReactNode {
 	const renderWidget = enableSmartWidgets
@@ -29,13 +31,10 @@ export default function MessageBubble({
 				<GenerativeWidgetCard
 					widgetType={widget.type}
 					widgetData={widget.data}
+					cardAnimation={generativeCardAnimation}
 					onPrimaryAction={onWidgetPrimaryAction}
 				/>
 			)
-		: undefined;
-
-	const renderLoadingWidget = enableSmartWidgets
-		? (widgetType?: string) => <LoadingWidget widgetType={widgetType} />
 		: undefined;
 
 	return (
@@ -43,7 +42,6 @@ export default function MessageBubble({
 			message={message}
 			surface="sidebar"
 			renderWidget={renderWidget}
-			renderLoadingWidget={renderLoadingWidget}
 		>
 			<ThreadMessage.Reasoning />
 			{showThinkingStatusSection ? <ThreadMessage.ThinkingStatus /> : null}

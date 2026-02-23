@@ -207,9 +207,6 @@ export function ChatMessages({
 						latestTurnDataAttribute="data-rovo-latest-turn"
 						messages={renderableMessages}
 						renderMessage={(message) => {
-							const showThinkingStatus =
-								message.role === "assistant" &&
-								message.id === lastAssistantMessageId;
 							const shouldShowFeedback = showFeedbackActions ?? true;
 							const shouldShowSuggestions = showFollowUpSuggestions ?? true;
 							return (
@@ -222,7 +219,7 @@ export function ChatMessages({
 									renderLoadingWidget={shouldShowWidgetSections ? renderLoadingWidget : undefined}
 								>
 									<ThreadMessage.Reasoning />
-									{showThinkingStatus ? <ThreadMessage.ThinkingStatus /> : null}
+									<ThreadMessage.ThinkingStatus />
 									<ThreadMessage.Widget position="before-content" />
 									<ThreadMessage.Content />
 									{shouldShowFeedback ? <ThreadMessage.Feedback /> : null}

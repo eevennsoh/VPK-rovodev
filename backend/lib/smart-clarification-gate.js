@@ -147,6 +147,25 @@ Latest user request:
 ${normalizedMessage}`;
 }
 
+const VISUALIZATION_KEYWORDS =
+	/\b(chart|charts|graph|graphs|dashboard|dashboards|visualization|visualize|visualisation|visualise|plot|diagram|heatmap|histogram|treemap)\b/i;
+
+const SPECIFICITY_SIGNALS =
+	/\b(by\s+\w+|monthly|weekly|daily|quarterly|yearly|per\s+\w+|revenue|sales|cost|profit|users|sessions|conversion|retention|churn|latency|uptime|error rate|from\s+\d{4}|for\s+\d{4}|q[1-4]\s+\d{4}|\d{4}-\d{2}|last\s+\d+\s+(?:days?|weeks?|months?|years?)|top\s+\d+|grouped\s+by|split\s+by|compared?\s+to|versus|vs\.?)\b/i;
+
+function isVagueVisualizationRequest(text) {
+	if (!isNonEmptyString(text)) {
+		return false;
+	}
+
+	const normalized = normalizeWhitespace(text);
+	if (!VISUALIZATION_KEYWORDS.test(normalized)) {
+		return false;
+	}
+
+	return !SPECIFICITY_SIGNALS.test(normalized);
+}
+
 function shouldGateSmartClarification({
 	latestUserMessage,
 	latestUserMessageSource,
@@ -175,6 +194,15 @@ function shouldGateSmartClarification({
 		return false;
 	}
 
+	// Heuristic fast-path: vague visualization requests always need clarification,
+	// regardless of what the LLM classifier says.
+	if (
+		(smartIntentResult.intent === "genui" || smartIntentResult.intent === "both") &&
+		isVagueVisualizationRequest(normalizedMessage)
+	) {
+		return true;
+	}
+
 	if (!classifierResult || typeof classifierResult.needsClarification !== "boolean") {
 		return false;
 	}
@@ -184,6 +212,7 @@ function shouldGateSmartClarification({
 
 module.exports = {
 	buildClassifierPrompt,
+	isVagueVisualizationRequest,
 	parseClassifierOutput,
 	shouldGateSmartClarification,
 };

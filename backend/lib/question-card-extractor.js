@@ -208,7 +208,14 @@ function extractQuestionCardDefinitionFromAssistantText(rawText, defaults = {}) 
 	const { questionBlocks, sawNumberedQuestionMarker, sawBoldHeaderQuestionMarker } = collectQuestionBlocks(
 		normalizedText
 	);
-	if (!hasClarificationSignal && !sawNumberedQuestionMarker && !sawBoldHeaderQuestionMarker) {
+	const nonEmptyLines = normalizedText.split(/\r?\n/).filter(l => l.trim().length > 0);
+	const questionRatio = nonEmptyLines.length > 0
+		? questionBlocks.length / nonEmptyLines.length
+		: 0;
+	const hasEnoughInlineQuestions =
+		questionBlocks.length >= MIN_QUESTION_COUNT && questionRatio >= 0.3;
+
+	if (!hasClarificationSignal && !sawNumberedQuestionMarker && !sawBoldHeaderQuestionMarker && !hasEnoughInlineQuestions) {
 		return null;
 	}
 
@@ -278,9 +285,29 @@ function resolveFallbackQuestionCardState({
 	};
 }
 
+function looksLikeClarificationResponse(text) {
+	if (typeof text !== "string" || !text.trim()) {
+		return false;
+	}
+	const normalizedText = text.trim();
+	const lines = normalizedText.split(/\r?\n/).filter(l => l.trim().length > 0);
+	if (lines.length === 0) {
+		return false;
+	}
+	const questionLines = lines.filter(l => l.includes("?"));
+	if (CLARIFICATION_SIGNAL_PATTERN.test(normalizedText) && questionLines.length >= 1) {
+		return true;
+	}
+	if (questionLines.length >= 2) {
+		return questionLines.length / lines.length >= 0.3;
+	}
+	return false;
+}
+
 module.exports = {
 	extractQuestionCardDefinitionFromAssistantText,
 	resolveFallbackQuestionCardState,
+	looksLikeClarificationResponse,
 	normalizeQuestionCardText,
 	parseQuestionCardQuestionText,
 	MAX_LABEL_LENGTH,

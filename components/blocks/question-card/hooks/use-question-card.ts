@@ -6,6 +6,7 @@ import {
 	getTotalOptionSlots,
 	getVisibleOptionCount,
 } from "../lib/option-slots";
+import { getQuestionCardPrimaryAction } from "../lib/footer-actions";
 import { isQuestionAnswered } from "../lib/question-helpers";
 
 interface UseQuestionCardOptions {
@@ -32,8 +33,6 @@ export function useQuestionCard({
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 	const [answers, setAnswers] = useState<QuestionCardAnswers>(defaultAnswers ?? {});
 	const [focusedIndex, setFocusedIndex] = useState(0);
-	const [hasSkippedQuestions, setHasSkippedQuestions] = useState(false);
-	const [visitedLastQuestion, setVisitedLastQuestion] = useState(false);
 
 	const totalQuestions = questions.length;
 	const hasMultipleQuestions = totalQuestions > 1;
@@ -46,9 +45,7 @@ export function useQuestionCard({
 	const totalOptionSlots = showCustomInput ? getTotalOptionSlots(visibleOptionCount) : visibleOptionCount;
 
 	const allQuestionsAnswered = questions.every((question) => isQuestionAnswered(question, answers));
-
-	const needsManualSubmit = hasSkippedQuestions && visitedLastQuestion;
-	const showSubmitButton = needsManualSubmit && !allQuestionsAnswered;
+	const showSubmitButton = getQuestionCardPrimaryAction(allQuestionsAnswered) === "submit";
 
 	useEffect(() => {
 		cardRef.current?.focus();
@@ -72,13 +69,7 @@ export function useQuestionCard({
 
 	const goToNextQuestion = useCallback(() => {
 		resetFocusForNewQuestion();
-		setCurrentQuestionIndex((previous) => {
-			const next = Math.min(totalQuestions - 1, previous + 1);
-			if (next === totalQuestions - 1) {
-				setVisitedLastQuestion(true);
-			}
-			return next;
-		});
+		setCurrentQuestionIndex((previous) => Math.min(totalQuestions - 1, previous + 1));
 	}, [totalQuestions, resetFocusForNewQuestion]);
 
 	const goToPreviousQuestion = useCallback(() => {
@@ -90,7 +81,6 @@ export function useQuestionCard({
 		if (isSubmitting) return;
 
 		if (canGoToNextQuestion) {
-			setHasSkippedQuestions(true);
 			goToNextQuestion();
 		} else {
 			onDismiss?.();
@@ -112,9 +102,6 @@ export function useQuestionCard({
 			const allAnswered = questions.every((question) => (question.id === currentQuestion.id ? true : isQuestionAnswered(question, nextAnswers)));
 			if (allAnswered) {
 				onSubmit(nextAnswers);
-			} else {
-				setVisitedLastQuestion(true);
-				setHasSkippedQuestions(true);
 			}
 		},
 		[isSubmitting, answers, currentQuestion, canGoToNextQuestion, goToNextQuestion, questions, onSubmit],
@@ -136,9 +123,6 @@ export function useQuestionCard({
 			const allAnswered = questions.every((question) => (question.id === currentQuestion.id ? true : isQuestionAnswered(question, nextAnswers)));
 			if (allAnswered) {
 				onSubmit(nextAnswers);
-			} else {
-				setVisitedLastQuestion(true);
-				setHasSkippedQuestions(true);
 			}
 		},
 		[isSubmitting, answers, currentQuestion, canGoToNextQuestion, goToNextQuestion, questions, onSubmit],
@@ -164,9 +148,6 @@ export function useQuestionCard({
 					const allAnswered = questions.every((question) => (question.id === currentQuestion.id ? true : isQuestionAnswered(question, nextAnswers)));
 					if (allAnswered) {
 						onSubmit(nextAnswers);
-					} else {
-						setVisitedLastQuestion(true);
-						setHasSkippedQuestions(true);
 					}
 				}
 			}

@@ -31,6 +31,7 @@ import {
 import { resolveThinkingLabelForSurface } from "../lib/thinking-label-policy";
 import { UserMessageBubble } from "../components/user-message-bubble";
 import { ThreadMessageContext, type ThreadMessageContextValue } from "./thread-message-context";
+import { isThinkingStatusActive as resolveThinkingStatusActive } from "./lib/thinking-status-state";
 
 interface ThreadMessageRootProps {
 	message: RovoRenderableUIMessage;
@@ -71,25 +72,17 @@ function useThreadMessageDerived(
 	].join("|");
 	const isRetryThinkingStatus =
 		thinkingStatusPart?.data.label?.includes("Retrying") ?? false;
-	const isThinkingStatusActive =
-		Boolean(thinkingStatusPart) &&
-		!(isRetryThinkingStatus && !isStreaming);
+	const isThinkingStatusActive = resolveThinkingStatusActive({
+		hasThinkingStatusPart: Boolean(thinkingStatusPart),
+		hasThinkingEvents: thinkingEventParts.length > 0,
+		isRetryThinkingStatus,
+		isStreaming,
+	});
 	const hasRawMessageText = rawMessageText.trim().length > 0;
-	const thinkingStatusReasoningPhase: ReasoningPhase = (() => {
-		if (!isThinkingStatusActive) return "idle";
-		if (!hasRawMessageText) return "thinking";
-		if (isStreaming) return "streaming";
-		return "completed";
-	})();
 	const { label: dynamicThinkingStatusLabel } = useDynamicThinkingLabel({
 		baseLabel: thinkingStatusPart?.data.label ?? "Thinking",
 		isStreaming: isStreaming && isThinkingStatusActive,
 		updateSignal: thinkingStatusUpdateSignal,
-	});
-	const resolvedThinkingStatusLabel = resolveThinkingLabelForSurface({
-		baseLabel: dynamicThinkingStatusLabel,
-		surface,
-		reasoningPhase: thinkingStatusReasoningPhase,
 	});
 
 	// ---------- widget data ----------
@@ -166,6 +159,19 @@ function useThreadMessageDerived(
 		isCreatePlanSkillFlow &&
 		assistantStreamingRenderMode !== "text-first";
 	const hasWidgetPayload = Boolean(widgetDataPart);
+	const hasWidgetOutput = hasWidgetPayload && !isWidgetLoading;
+	const thinkingStatusReasoningPhase: ReasoningPhase = (() => {
+		if (!isThinkingStatusActive) return "idle";
+		if (hasWidgetOutput) return "completed";
+		if (!hasRawMessageText) return "thinking";
+		if (isStreaming) return "streaming";
+		return "completed";
+	})();
+	const resolvedThinkingStatusLabel = resolveThinkingLabelForSurface({
+		baseLabel: dynamicThinkingStatusLabel,
+		surface,
+		reasoningPhase: thinkingStatusReasoningPhase,
+	});
 	// GenUI payload can arrive before the trailing loading=false event.
 	// Keep the card renderable when payload exists to avoid "stuck spinner" regressions.
 	const shouldRenderWidgetWhileLoading =
@@ -199,7 +205,12 @@ function useThreadMessageDerived(
 		(shouldShowWidgetSections &&
 			widgetType === "question-card" &&
 			!isStreaming) ||
-		(shouldShowWidgetSections && widgetType === "genui-preview" && !isFallbackTextRoute);
+		(
+			shouldShowWidgetSections &&
+			widgetType === "genui-preview" &&
+			!isFallbackTextRoute &&
+			(hasWidgetPayload || isWidgetLoading)
+		);
 	const shouldRenderMessageText =
 		Boolean(messageText) && !shouldSuppressTextForWidget;
 	const shouldRenderPlainTextWhileStreaming =
