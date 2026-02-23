@@ -885,6 +885,90 @@ export const catalog = defineCatalog(schema, {
 			},
 		},
 
+		// ── Overlay & Trigger ─────────────────────────────
+		Collapsible: {
+			props: z.object({
+				title: z.string(),
+				defaultOpen: z.boolean().nullable(),
+			}),
+			slots: ["default"],
+			description: "Simple collapsible section with trigger and content. Simpler than Accordion for single sections.",
+			example: { title: "Show details", defaultOpen: false },
+		},
+		Tooltip: {
+			props: z.object({
+				text: z.string(),
+			}),
+			slots: ["default"],
+			description: "Tooltip that shows text on hover. Wraps its child element as the trigger.",
+			example: { text: "More information about this item" },
+		},
+		Dialog: {
+			props: z.object({
+				triggerLabel: z.string(),
+				title: z.string().nullable(),
+				description: z.string().nullable(),
+				size: z.enum(["sm", "md", "lg", "xl"]).nullable(),
+				triggerVariant: z.enum(["default", "destructive", "outline", "secondary", "ghost", "link"]).nullable(),
+			}),
+			slots: ["default"],
+			description: "Modal dialog triggered by a button. Children become the dialog body content.",
+			example: { triggerLabel: "Open settings", title: "Settings", description: "Configure your preferences", size: "md" },
+		},
+
+		// ── Form Inputs (extended) ────────────────────────
+		DatePicker: {
+			props: z.object({
+				value: z.string().nullable(),
+				placeholder: z.string().nullable(),
+				label: z.string().nullable(),
+				disabled: z.boolean().nullable(),
+			}),
+			slots: [],
+			description: 'Date picker input. Value is an ISO date string (YYYY-MM-DD). Use { "$bindState": "/path" } for two-way binding.',
+			example: { label: "Start date", value: { $bindState: "/startDate" }, placeholder: "Select date" },
+		},
+		InlineEdit: {
+			props: z.object({
+				value: z.string().nullable(),
+				label: z.string().nullable(),
+				placeholder: z.string().nullable(),
+			}),
+			slots: [],
+			description: 'Click-to-edit text field with confirm/cancel buttons. Use { "$bindState": "/path" } for two-way binding.',
+			example: { label: "Project name", value: { $bindState: "/projectName" }, placeholder: "Click to edit" },
+		},
+		InputOTP: {
+			props: z.object({
+				value: z.string().nullable(),
+				length: z.number(),
+				label: z.string().nullable(),
+			}),
+			slots: [],
+			description: 'OTP/verification code input with individual character slots. Use { "$bindState": "/path" } for two-way binding.',
+			example: { label: "Verification code", value: { $bindState: "/otp" }, length: 6 },
+		},
+		Calendar: {
+			props: z.object({
+				selected: z.string().nullable(),
+				label: z.string().nullable(),
+			}),
+			slots: [],
+			description: 'Standalone calendar for date selection. Selected is an ISO date string (YYYY-MM-DD). Use { "$bindState": "/path" } for two-way binding.',
+			example: { selected: { $bindState: "/selectedDate" }, label: "Pick a date" },
+		},
+
+		// ── Navigation ────────────────────────────────────
+		Pagination: {
+			props: z.object({
+				currentPage: z.number(),
+				totalPages: z.number(),
+			}),
+			slots: [],
+			description: 'Page navigation with previous/next and numbered pages. Use { "$bindState": "/path" } on currentPage for two-way binding.',
+			example: { currentPage: { $bindState: "/page" }, totalPages: 10 },
+		},
+
 		// ── 3D ─────────────────────────────────────────────
 		Scene3D: {
 			props: z.object({

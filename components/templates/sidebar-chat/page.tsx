@@ -284,7 +284,7 @@ export default function ChatPanel({
 				initial={false}
 				targetScrollTop={getLatestTurnTargetTop}
 			>
-				<ConversationContent className="gap-0 p-0" style={messagesContainerStyle}>
+				<ConversationContent className="gap-6 p-0" style={messagesContainerStyle}>
 					{messages.length === 0 ? (
 						<div style={chatStyles.emptyState}>
 							<ChatGreeting onSuggestionClick={handleGreetingSuggestionClick} />

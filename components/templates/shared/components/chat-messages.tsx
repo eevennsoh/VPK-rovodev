@@ -263,7 +263,7 @@ export function ChatMessages({
 					/>
 				) : null}
 				{!indicator.shouldShowPreloader && !indicator.shouldShowThinkingStatus && showAwaitingIndicator ? (
-					<div className="mt-6 flex justify-start">
+					<div className="flex justify-start">
 						<Message from="assistant" className="max-w-full">
 							<Reasoning className="mb-0" isStreaming>
 								<AdsReasoningTrigger label={awaitingIndicatorLabel} showChevron={false} streaming />

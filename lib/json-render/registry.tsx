@@ -61,6 +61,30 @@ function toSafeOptionalText(value: unknown): string | undefined {
 	return text.length > 0 ? text : undefined;
 }
 
+const MERMAID_FENCE_BLOCK_REGEX = /```mermaid\b[\s\S]*?```/i;
+
+function isMermaidLanguage(value: unknown): boolean {
+	const normalizedLanguage = toSafeOptionalText(value)?.toLowerCase();
+	return normalizedLanguage === "mermaid" || normalizedLanguage === "mmd";
+}
+
+function hasMermaidFenceBlock(value: string): boolean {
+	return MERMAID_FENCE_BLOCK_REGEX.test(value);
+}
+
+function toMermaidMarkdown(code: string): string {
+	const normalizedCode = code.trim();
+	if (!normalizedCode) {
+		return "";
+	}
+
+	if (hasMermaidFenceBlock(normalizedCode)) {
+		return normalizedCode;
+	}
+
+	return ["```mermaid", normalizedCode, "```"].join("\n");
+}
+
 function cloneStateModel<TState extends Record<string, unknown>>(state: TState): TState {
 	if (typeof structuredClone === "function") {
 		return structuredClone(state);
@@ -103,6 +127,7 @@ import { Lozenge, type LozengeProps } from "@/components/ui/lozenge";
 import { Tag as TagPrimitive, TagGroup } from "@/components/ui/tag";
 import { Spinner } from "@/components/ui/spinner";
 import { CodeBlock as AiCodeBlock } from "@/components/ui-ai/code-block";
+import { MessageResponse } from "@/components/ui-ai/message";
 import { Kbd } from "@/components/ui/kbd";
 import { Comment } from "@/components/ui/comment";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
@@ -113,6 +138,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ButtonGroup as ButtonGroupPrimitive } from "@/components/ui/button-group";
 import { Progress as ProgressBar, ProgressLabel as ProgressBarLabel } from "@/components/ui/progress";
 import { ProgressTracker } from "@/components/ui/progress-tracker";
+import { Collapsible as CollapsibleRoot, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { DatePicker as DatePickerPrimitive } from "@/components/ui/date-picker";
+import { InlineEdit as InlineEditPrimitive } from "@/components/ui/inline-edit";
+import { Pagination as PaginationRoot, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext, PaginationEllipsis } from "@/components/ui/pagination";
+import { InputOTP as InputOTPRoot, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Calendar as CalendarPrimitive } from "@/components/ui/calendar";
+import { TooltipProvider, Tooltip as TooltipRoot, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Dialog as DialogRoot, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 // ── Atlaskit icons ────────────────────────────────────────────
 import ChartTrendUpIcon from "@atlaskit/icon/core/chart-trend-up";
@@ -335,6 +368,15 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			Text: ({ props }) => {
 				const { muted, size = "sm" } = props;
 				const content = toSafeText(props.content);
+				if (hasMermaidFenceBlock(content)) {
+					return (
+						<div className="rounded-md border border-border bg-surface p-3">
+							<MessageResponse mode="static" controls={false} className="text-sm [&_p]:m-0">
+								{content}
+							</MessageResponse>
+						</div>
+					);
+				}
 				const sizeClass =
 					size === "xs"
 						? "text-xs"
@@ -1000,7 +1042,32 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		},
 
 		CodeBlock: ({ props }) => {
-			return <AiCodeBlock code={toSafeText(props.code)} language={(toSafeOptionalText(props.language) ?? "text") as BundledLanguage} />;
+			const code = toSafeText(props.code);
+			const language = toSafeOptionalText(props.language);
+			const shouldRenderMermaid =
+				isMermaidLanguage(language) || hasMermaidFenceBlock(code);
+
+			if (shouldRenderMermaid) {
+				const mermaidMarkdown = toMermaidMarkdown(code);
+				if (!mermaidMarkdown) {
+					return null;
+				}
+
+				return (
+					<div className="rounded-md border border-border bg-surface p-3">
+						<MessageResponse mode="static" controls={false} className="text-sm [&_p]:m-0">
+							{mermaidMarkdown}
+						</MessageResponse>
+					</div>
+				);
+			}
+
+			return (
+				<AiCodeBlock
+					code={code}
+					language={(language ?? "text") as BundledLanguage}
+				/>
+			);
 		},
 
 		Kbd: ({ props }) => {
@@ -1222,6 +1289,160 @@ export const { registry, handlers } = defineRegistry(catalog, {
 						</ToggleGroupItem>
 					))}
 				</ToggleGroupPrimitive>
+			);
+		},
+
+		// ── Overlay & Trigger ─────────────────────────
+		Collapsible: ({ props, children }) => {
+			const { title, defaultOpen } = props;
+			return (
+				<CollapsibleRoot defaultOpen={nu(defaultOpen)}>
+					<CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-text hover:bg-bg-neutral-hovered">
+						{toSafeText(title)}
+					</CollapsibleTrigger>
+					<CollapsibleContent className="px-3 pb-2">
+						{children}
+					</CollapsibleContent>
+				</CollapsibleRoot>
+			);
+		},
+
+		Tooltip: ({ props, children }) => {
+			const text = toSafeText(props.text);
+			return (
+				<TooltipProvider>
+					<TooltipRoot>
+						<TooltipTrigger render={<span className="inline-flex cursor-default" />}>
+							{children}
+						</TooltipTrigger>
+						<TooltipContent>{text}</TooltipContent>
+					</TooltipRoot>
+				</TooltipProvider>
+			);
+		},
+
+		Dialog: ({ props, children }) => {
+			const { triggerLabel, title, description, size = "sm", triggerVariant = "default" } = props;
+			return (
+				<DialogRoot>
+					<DialogTrigger render={<Button variant={nu(triggerVariant)} />}>
+						{toSafeText(triggerLabel)}
+					</DialogTrigger>
+					<DialogContent size={nu(size)}>
+						{title || description ? (
+							<DialogHeader>
+								{title ? <DialogTitle>{toSafeText(title)}</DialogTitle> : null}
+								{description ? <DialogDescription>{toSafeText(description)}</DialogDescription> : null}
+							</DialogHeader>
+						) : null}
+						{children}
+					</DialogContent>
+				</DialogRoot>
+			);
+		},
+
+		// ── Form Inputs (extended) ────────────────────────
+		DatePicker: ({ props, bindings }) => {
+			const { placeholder, label, disabled } = props;
+			const [value, setValue] = useBoundProp<string>(nu(props.value), bindings?.value);
+			const dateValue = value ? new Date(value) : undefined;
+			return (
+				<div className="space-y-2">
+					{label ? <Label>{toSafeText(label)}</Label> : null}
+					<DatePickerPrimitive
+						value={dateValue}
+						onChange={(date) => setValue(date ? date.toISOString().split("T")[0] : "")}
+						placeholder={toSafeOptionalText(placeholder)}
+						disabled={nu(disabled)}
+					/>
+				</div>
+			);
+		},
+
+		InlineEdit: ({ props, bindings }) => {
+			const { label, placeholder } = props;
+			const [value, setValue] = useBoundProp<string>(nu(props.value), bindings?.value);
+			return (
+				<InlineEditPrimitive
+					value={value ?? ""}
+					onConfirm={setValue}
+					label={toSafeOptionalText(label)}
+					placeholder={toSafeOptionalText(placeholder)}
+				/>
+			);
+		},
+
+		InputOTP: ({ props, bindings }) => {
+			const { length, label } = props;
+			const [value, setValue] = useBoundProp<string>(nu(props.value), bindings?.value);
+			const slotCount = length ?? 6;
+			return (
+				<div className="space-y-2">
+					{label ? <Label>{toSafeText(label)}</Label> : null}
+					<InputOTPRoot maxLength={slotCount} value={value ?? ""} onChange={(v) => setValue(v)}>
+						<InputOTPGroup>
+							{Array.from({ length: slotCount }, (_, i) => (
+								<InputOTPSlot key={i} index={i} />
+							))}
+						</InputOTPGroup>
+					</InputOTPRoot>
+				</div>
+			);
+		},
+
+		Calendar: ({ props, bindings }) => {
+			const { label } = props;
+			const [selected, setSelected] = useBoundProp<string>(nu(props.selected), bindings?.selected);
+			const dateValue = selected ? new Date(selected) : undefined;
+			return (
+				<div className="space-y-2">
+					{label ? <p className="text-sm font-medium text-text">{toSafeText(label)}</p> : null}
+					<CalendarPrimitive
+						mode="single"
+						selected={dateValue}
+						onSelect={(date) => setSelected(date ? date.toISOString().split("T")[0] : "")}
+					/>
+				</div>
+			);
+		},
+
+		// ── Navigation ────────────────────────────────────
+		Pagination: ({ props, bindings }) => {
+			const { totalPages } = props;
+			const [currentPage, setCurrentPage] = useBoundProp<number>(props.currentPage ?? 1, bindings?.currentPage);
+			const page = currentPage ?? 1;
+			const pages: (number | "ellipsis")[] = [];
+			for (let i = 1; i <= totalPages; i++) {
+				if (i === 1 || i === totalPages || (i >= page - 1 && i <= page + 1)) {
+					pages.push(i);
+				} else if (pages[pages.length - 1] !== "ellipsis") {
+					pages.push("ellipsis");
+				}
+			}
+			return (
+				<PaginationRoot>
+					<PaginationContent>
+						<PaginationItem>
+							<PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setCurrentPage(Math.max(1, page - 1)); }} />
+						</PaginationItem>
+						{pages.map((p, i) =>
+							p === "ellipsis" ? (
+								<PaginationItem key={`e-${i}`}>
+									<PaginationEllipsis />
+								</PaginationItem>
+							) : (
+								<PaginationItem key={p}>
+									<PaginationLink isActive={p === page} href="#" onClick={(e) => { e.preventDefault(); setCurrentPage(p as number); }}>
+										{p}
+									</PaginationLink>
+								</PaginationItem>
+							),
+						)}
+						<PaginationItem>
+							<PaginationNext href="#" onClick={(e) => { e.preventDefault(); setCurrentPage(Math.min(totalPages, page + 1)); }} />
+						</PaginationItem>
+					</PaginationContent>
+				</PaginationRoot>
 			);
 		},
 

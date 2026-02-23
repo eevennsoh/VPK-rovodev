@@ -2861,7 +2861,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 					writer.write({
 						type: "data-thinking-status",
 						data: {
-							label: "Synthesizing audio",
+							label: "Generating audio",
 							activity: "audio",
 							source: "backend",
 						},
@@ -3827,7 +3827,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 							smartIntentResult.intent === "genui" ||
 							smartIntentResult.intent === "both"
 						) {
-							emitThinkingStatus("Generating UI preview");
+							emitThinkingStatus("Generating results");
 							emitWidgetLoading(genuiWidgetId, SMART_WIDGET_TYPE_GENUI, true);
 							try {
 								throwIfSmartRouteAborted();
@@ -3961,7 +3961,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 										);
 									}
 								} else {
-									emitThinkingStatus("Synthesizing audio");
+									emitThinkingStatus("Generating audio");
 									emitWidgetLoading(audioWidgetId, SMART_WIDGET_TYPE_AUDIO, true);
 									if (!voiceInput) {
 										throw new Error("No text available for audio synthesis");
@@ -4295,7 +4295,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 						writer.write({
 							type: "data-thinking-status",
 							data: {
-								label: "Synthesizing audio",
+								label: "Generating audio",
 								activity: "audio",
 								source: "backend",
 							},
