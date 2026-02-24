@@ -5,6 +5,25 @@ const {
 	buildToolObservationStructuredFallback,
 } = require("./genui-tool-observation-structured-fallback");
 
+function findFirstElementByType(spec, type) {
+	if (!spec || typeof spec !== "object" || typeof type !== "string") {
+		return null;
+	}
+
+	const elements = spec.elements;
+	if (!elements || typeof elements !== "object") {
+		return null;
+	}
+
+	for (const value of Object.values(elements)) {
+		if (value && typeof value === "object" && value.type === type) {
+			return value;
+		}
+	}
+
+	return null;
+}
+
 test("buildToolObservationStructuredFallback renders sections for multiple tools", () => {
 	const result = buildToolObservationStructuredFallback({
 		prompt: "last 7 days of work",
@@ -66,6 +85,87 @@ test("buildToolObservationStructuredFallback renders sections for multiple tools
 	assert.match(serializedSpec, /AIDOPS-101/);
 	assert.match(serializedSpec, /Project Documentation - Draft/);
 	assert.match(serializedSpec, /Design Review/);
+});
+
+test("buildToolObservationStructuredFallback emits WorkSummary when prompt is a Jira/Confluence work summary", () => {
+	const result = buildToolObservationStructuredFallback({
+		prompt: "Summarize my last 7 days of work from Jira and Confluence",
+		observations: [
+			{
+				phase: "result",
+				toolName: "mcp__jira__search_issues",
+				rawOutput: {
+					issues: [
+						{
+							key: "AIDOPS-101",
+							summary: "Agent Logo Change",
+							status: { name: "In Progress" },
+							statusCategory: { key: "in-progress" },
+							priority: { name: "High" },
+							issuetype: { name: "Task" },
+							self: "https://hello.atlassian.net/browse/AIDOPS-101",
+							updated: "2026-02-23T09:10:00.000Z",
+						},
+					],
+				},
+				text: "Returned 1 issue",
+			},
+			{
+				phase: "result",
+				toolName: "mcp__confluence__search_pages",
+				rawOutput: {
+					results: [
+						{
+							title: "Project Documentation - Draft",
+							space: { name: "Playbook Sandbox" },
+							url: "https://hello.atlassian.net/wiki/spaces/PLAY/pages/1234",
+							lastModified: "2026-02-22T15:45:00.000Z",
+						},
+					],
+				},
+				text: "Returned 1 page",
+			},
+		],
+	});
+
+	assert.ok(result);
+	assert.equal(result.source, "tool-observation-work-summary");
+	const workSummaryElement = findFirstElementByType(result.spec, "WorkSummary");
+	assert.ok(workSummaryElement);
+	assert.equal(workSummaryElement.props.jiraItems.length, 1);
+	assert.equal(workSummaryElement.props.jiraItems[0].key, "AIDOPS-101");
+	assert.equal(workSummaryElement.props.confluencePages.length, 1);
+	assert.equal(
+		workSummaryElement.props.confluencePages[0].title,
+		"Project Documentation - Draft"
+	);
+});
+
+test("buildToolObservationStructuredFallback emits WorkSummary with empty arrays when work summary tools return no rows", () => {
+	const result = buildToolObservationStructuredFallback({
+		prompt: "Last 7 days of work from Jira and Confluence",
+		observations: [
+			{
+				phase: "result",
+				toolName: "mcp__jira__search_using_jql",
+				rawOutput: { issues: [] },
+				text: "No issues found for JQL query: assignee = currentUser() AND updated >= -7d",
+			},
+			{
+				phase: "result",
+				toolName: "mcp__confluence__search_pages",
+				rawOutput: { results: [] },
+				text: "No pages found for CQL query.",
+			},
+		],
+	});
+
+	assert.ok(result);
+	assert.equal(result.source, "tool-observation-work-summary");
+	const workSummaryElement = findFirstElementByType(result.spec, "WorkSummary");
+	assert.ok(workSummaryElement);
+	assert.deepEqual(workSummaryElement.props.jiraItems, []);
+	assert.deepEqual(workSummaryElement.props.confluencePages, []);
 });
 
 test("buildToolObservationStructuredFallback falls back to text lines when payload is not JSON", () => {
@@ -229,7 +329,7 @@ test("buildToolObservationStructuredFallback marks error-only payloads with retr
 
 	assert.ok(result);
 	const serializedSpec = JSON.stringify(result.spec);
-	assert.match(serializedSpec, /No successful tool results were returned/i);
+	assert.match(serializedSpec, /no successful results/i);
 });
 
 test("buildToolObservationStructuredFallback uses result-focused description when mixed result and error observations exist", () => {
@@ -250,7 +350,7 @@ test("buildToolObservationStructuredFallback uses result-focused description whe
 
 	assert.ok(result);
 	const serializedSpec = JSON.stringify(result.spec);
-	assert.match(serializedSpec, /Generated from tool execution results\./i);
+	assert.match(serializedSpec, /1 result and 1 error from 1 tool\./i);
 	assert.doesNotMatch(
 		serializedSpec,
 		/Generated from tool execution results and errors\./i

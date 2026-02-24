@@ -262,8 +262,8 @@ function processChartData(
 // ── Gap class mapping ─────────────────────────────────────────
 const GAP_CLASSES: Record<string, string> = {
 	sm: "gap-2",
-	md: "gap-4",
-	lg: "gap-6",
+	md: "gap-3",
+	lg: "gap-4",
 };
 
 const LOZENGE_VARIANT_ALIASES: Record<string, LozengeProps["variant"]> = {
@@ -538,6 +538,42 @@ export const { registry, handlers } = defineRegistry(catalog, {
 		},
 
 		// ── Compound ──────────────────────────────────
+		FigmaDesignContext: ({ props }) => {
+			const code = toSafeOptionalText(props.code);
+			const codeLanguage = toSafeOptionalText(props.codeLanguage) || "tsx";
+			const links = Array.isArray(props.links) ? props.links : [];
+
+			if (!code && links.length === 0) {
+				return null;
+			}
+
+			return (
+				<div className="flex flex-col gap-4">
+					{code ? (
+						<AiCodeBlock
+							code={code}
+							language={codeLanguage as BundledLanguage}
+						/>
+					) : null}
+					{links.length > 0 ? (
+						<div className="flex flex-wrap gap-2">
+							{links.map((link, i) => (
+								<a
+									key={`${link.href}-${i}`}
+									href={link.href}
+									className="text-sm text-link hover:underline"
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									{link.text}
+								</a>
+							))}
+						</div>
+					) : null}
+				</div>
+			);
+		},
+
 		WorkSummary: ({ props }) => {
 			const { jiraItems, confluencePages } = props;
 			const workItemsCount = jiraItems.length;

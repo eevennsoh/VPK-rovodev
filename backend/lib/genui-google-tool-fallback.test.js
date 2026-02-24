@@ -49,13 +49,13 @@ test("buildGoogleStructuredFallback renders top 10 Google Calendar events", () =
 	assert.ok(result);
 	assert.equal(result.source, "tool-observation-google-calendar-structured");
 	assert.match(result.summary, /Rendered 10 Google Calendar events/);
-	assert.equal(result.spec.elements["calendar-events-timeline"]?.type, "Timeline");
+	assert.equal(result.spec.elements["calendar-events-timeline"]?.type, "CalendarTimeline");
 	assert.equal(
-		result.spec.elements["calendar-events-timeline"]?.props?.items?.length,
+		result.spec.elements["calendar-events-timeline"]?.props?.events?.length,
 		10
 	);
 	assert.equal(
-		result.spec.elements["calendar-events-timeline"]?.props?.items?.[0]?.title,
+		result.spec.elements["calendar-events-timeline"]?.props?.events?.[0]?.title,
 		"Event 0"
 	);
 });
@@ -178,9 +178,9 @@ test("buildGoogleStructuredFallback replaces generic tool metadata with Google C
 
 	assert.ok(result);
 	assert.equal(result.spec.elements["summary-card"]?.props?.title, "Google Calendar");
-	assert.equal(
+	assert.match(
 		result.spec.elements["summary-card"]?.props?.description,
-		"Upcoming events from Google Calendar."
+		/1 event .*Google Calendar\./i
 	);
 });
 
@@ -207,8 +207,8 @@ test("buildGoogleStructuredFallback replaces generic tool metadata with Google D
 
 	assert.ok(result);
 	assert.equal(result.spec.elements["summary-card"]?.props?.title, "Google Drive");
-	assert.equal(
+	assert.match(
 		result.spec.elements["summary-card"]?.props?.description,
-		"Files from Google Drive."
+		/1 file from Google Drive/i
 	);
 });

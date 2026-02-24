@@ -33,18 +33,14 @@ const FIGMA_CLARIFICATION_INSTRUCTION = [
 ].join("\n");
 
 const LAST_7_DAYS_WORK_INSTRUCTION = [
-	"[Tool Guardrail]",
-	"For this request, do not call any Teamwork Graph tools.",
-	"Never use tools whose names start with or include: `twg_`, `twg_twg_`, or `teamwork_graph`.",
-	"If TWG is unavailable, continue with a non-TWG best-effort summary instead of failing.",
-	"[End Tool Guardrail]",
-	"",
-	"[Tool Requirement]",
-	"Make these 2 tool calls for this request:",
-	"1. One `search_jira_using_jql` call with `site_url: \"https://product-fabric.atlassian.net\"` for Jira issues assigned to or updated by the current user in the last 7 days.",
-	"2. One `search_confluence_using_cql` call with `site_url: \"https://hello.atlassian.net\"` using `contributor = currentUser()` to cover both created and edited pages.",
-	"If a tool call fails, retry it once. Do not use any other tools. Merge and deduplicate results from both sources in your response.",
-	"[End Tool Requirement]",
+	"[Work Summary Scope]",
+	"For this request, gather the user's last-7-days work activity across both Atlassian sites.",
+	`- Jira site_url: "https://product-fabric.atlassian.net"`,
+	`- Confluence site_url: "https://hello.atlassian.net"`,
+	"Choose the tools needed to fetch Jira and Confluence activity for these sites. Do not assume a fixed tool path.",
+	"If one site has no results or errors, continue with the other site and clearly report coverage and gaps.",
+	"Merge and deduplicate activity before responding.",
+	"[End Work Summary Scope]",
 ].join("\n");
 
 const LAST_7_DAYS_WINDOW_PATTERN = /\b(?:last|past)\s+7\s+days?\b|\b7[-\s]?day\b|\blast\s+week\b/i;
@@ -67,9 +63,9 @@ function hasLast7DaysWorkGuardrail(contextDescription) {
 	}
 
 	return (
-		contextDescription.includes("[Tool Guardrail]") &&
-		contextDescription.includes("Teamwork Graph") &&
-		contextDescription.includes("[Tool Requirement]")
+		contextDescription.includes("[Work Summary Scope]") &&
+		contextDescription.includes("https://product-fabric.atlassian.net") &&
+		contextDescription.includes("https://hello.atlassian.net")
 	);
 }
 

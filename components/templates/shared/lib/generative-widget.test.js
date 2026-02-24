@@ -459,6 +459,182 @@ test("explicit widgetContentType hint takes precedence for message cards", () =>
 	assert.equal(metadata.contentType, "message");
 });
 
+test("parseGenerativeWidget strips leaked system instructions from card metadata text", () => {
+	const widget = parseGenerativeWidget("genui-preview", {
+		summary: "[System Instructions] You are a UI generator that outputs JSON.",
+		spec: {
+			root: "root",
+			elements: {
+				root: {
+					type: "Stack",
+					props: { direction: "vertical", gap: "md" },
+					children: ["summary-card"],
+				},
+				"summary-card": {
+					type: "Card",
+					props: {
+						title: "Today's Calendar",
+						description:
+							"[System Instructions] You are a UI generator that outputs JSON.",
+					},
+					children: [],
+				},
+			},
+		},
+	});
+
+	assert.ok(widget);
+	assert.equal(widget.summary, undefined);
+	assert.equal(widget.spec.elements["summary-card"].props.description, undefined);
+
+	const metadata = resolveGenerativeWidgetMetadata(widget);
+	assert.equal(metadata.title, "Today's Calendar");
+	assert.equal(metadata.description, "Generated from your request");
+});
+
+test("parseGenerativeWidget keeps trailing metadata after system instructions wrapper", () => {
+	const widget = parseGenerativeWidget("genui-preview", {
+		description:
+			"[System Instructions]\nInternal prompt\n[End System Instructions]\nUpcoming events from Google Calendar.",
+		spec: {
+			root: "root",
+			elements: {
+				root: {
+					type: "Stack",
+					props: { direction: "vertical", gap: "md" },
+					children: ["summary-card"],
+				},
+				"summary-card": {
+					type: "Card",
+					props: {
+						title: "Google Calendar",
+						description:
+							"[System Instructions]\nInternal prompt\n[End System Instructions]\nUpcoming events from Google Calendar.",
+					},
+					children: [],
+				},
+			},
+		},
+	});
+
+	assert.ok(widget);
+	assert.equal(widget.description, "Upcoming events from Google Calendar.");
+	assert.equal(
+		widget.spec.elements["summary-card"].props.description,
+		"Upcoming events from Google Calendar."
+	);
+
+	const metadata = resolveGenerativeWidgetMetadata(widget);
+	assert.equal(metadata.description, "Upcoming events from Google Calendar.");
+});
+
+test("resolveGenerativeWidgetMetadata derives dynamic description from WorkSummary data", () => {
+	const widget = parseGenerativeWidget("genui-preview", {
+		spec: {
+			root: "root",
+			elements: {
+				root: {
+					type: "Stack",
+					props: { direction: "vertical", gap: "md" },
+					children: ["summary-card", "work-summary-content"],
+				},
+				"summary-card": {
+					type: "Card",
+					props: {
+						title: "Work Summary — Last 7 Days",
+						description:
+							"[System Instructions] You are a UI generator that outputs JSON.",
+					},
+					children: [],
+				},
+				"work-summary-content": {
+					type: "WorkSummary",
+					props: {
+						jiraItems: [{ key: "A-1" }, { key: "A-2" }, { key: "A-3" }],
+						confluencePages: [{ title: "Roadmap" }],
+					},
+					children: [],
+				},
+			},
+		},
+	});
+
+	assert.ok(widget);
+	const metadata = resolveGenerativeWidgetMetadata(widget);
+	assert.equal(metadata.description, "3 Jira work items and 1 Confluence page found.");
+});
+
+test("resolveGenerativeWidgetMetadata derives dynamic description from CalendarTimeline data", () => {
+	const widget = parseGenerativeWidget("genui-preview", {
+		spec: {
+			root: "root",
+			elements: {
+				root: {
+					type: "Stack",
+					props: { direction: "vertical", gap: "md" },
+					children: ["summary-card", "calendar-events"],
+				},
+				"summary-card": {
+					type: "Card",
+					props: {
+						title: "Today's Calendar",
+						description:
+							"[System Instructions] You are a UI generator that outputs JSON.",
+					},
+					children: [],
+				},
+				"calendar-events": {
+					type: "CalendarTimeline",
+					props: {
+						events: [{ title: "Standup" }, { title: "Planning" }],
+					},
+					children: [],
+				},
+			},
+		},
+	});
+
+	assert.ok(widget);
+	const metadata = resolveGenerativeWidgetMetadata(widget);
+	assert.equal(metadata.description, "2 calendar events in this timeline.");
+});
+
+test("resolveGenerativeWidgetMetadata derives dynamic description from Metric data", () => {
+	const widget = parseGenerativeWidget("genui-preview", {
+		spec: {
+			root: "root",
+			elements: {
+				root: {
+					type: "Stack",
+					props: { direction: "vertical", gap: "md" },
+					children: ["summary-card", "metrics"],
+				},
+				"summary-card": {
+					type: "Card",
+					props: {
+						title: "Work Summary — Last 7 Days",
+						description:
+							"[System Instructions] You are a UI generator that outputs JSON.",
+					},
+					children: [],
+				},
+				metrics: {
+					type: "Metric",
+					props: {
+						title: "Work Items",
+						value: "5",
+					},
+					children: [],
+				},
+			},
+		},
+	});
+
+	assert.ok(widget);
+	const metadata = resolveGenerativeWidgetMetadata(widget);
+	assert.equal(metadata.description, "Work Items: 5");
+});
+
 test("resolveGenerativeWidgetMetadata includes generated button labels for footer actions", () => {
 	const widget = parseGenerativeWidget("genui-preview", {
 		primaryActionLabel: "Edit in Confluence",

@@ -231,6 +231,15 @@ const ELEMENT_TYPE_CONTENT_MATCHERS: ReadonlyArray<{
 	{ pattern: /\bchart\b/i, contentType: "chart" },
 ];
 const DEFAULT_DESCRIPTION = "Generated from your request";
+const LOW_SIGNAL_WIDGET_DESCRIPTION_PATTERNS: ReadonlyArray<RegExp> = [
+	/^generated from\b/i,
+	/^upcoming events from google calendar\b/i,
+	/^calendar information from google calendar\b/i,
+	/^files from google drive\b/i,
+	/^drive account information from google drive\b/i,
+	/^design context extracted from figma\b/i,
+	/^tool results\b/i,
+];
 const PRIMARY_ACTION_PREFERRED_LABEL_PATTERN =
 	/\b(send|submit|save|create|post|publish|run|confirm|continue|apply|start)\b/i;
 const PRIMARY_ACTION_DEPRIORITIZED_LABEL_PATTERN =
@@ -269,9 +278,32 @@ const ACTION_HREF_KEYS = [
 	"editUrl",
 ] as const;
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
+const SYSTEM_INSTRUCTIONS_BLOCK_PATTERN =
+	/\[\s*System Instructions\s*\][\s\S]*?\[\s*End System Instructions\s*\]/gi;
+const SYSTEM_INSTRUCTIONS_MARKER_PATTERN =
+	/\[\s*(?:End\s+)?System Instructions\s*\]/gi;
+const LEAKED_SYSTEM_PROMPT_PATTERN =
+	/^you are (?:an?|the)\s+(?:ui generator|helpful assistant)\b/i;
+const SANITIZED_SPEC_TEXT_PROP_KEYS = [
+	"title",
+	"description",
+	"content",
+	"text",
+	"label",
+	"subtitle",
+	"summary",
+	"caption",
+	"placeholder",
+] as const;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
+}
+
+function stripSystemInstructionArtifacts(value: string): string {
+	return value
+		.replace(SYSTEM_INSTRUCTIONS_BLOCK_PATTERN, " ")
+		.replace(SYSTEM_INSTRUCTIONS_MARKER_PATTERN, " ");
 }
 
 function getNonEmptyString(value: unknown): string | undefined {
@@ -279,8 +311,90 @@ function getNonEmptyString(value: unknown): string | undefined {
 		return undefined;
 	}
 
-	const trimmed = value.trim();
+	const trimmed = stripSystemInstructionArtifacts(value).trim();
+	if (LEAKED_SYSTEM_PROMPT_PATTERN.test(trimmed)) {
+		return undefined;
+	}
 	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeSentence(value: string): string {
+	return value
+		.toLowerCase()
+		.replace(/[.!?]+$/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function isLowSignalWidgetDescription(value: string): boolean {
+	const normalized = normalizeSentence(value);
+	if (!normalized) {
+		return true;
+	}
+
+	if (normalizeSentence(DEFAULT_DESCRIPTION) === normalized) {
+		return true;
+	}
+
+	return LOW_SIGNAL_WIDGET_DESCRIPTION_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function sanitizeSpecElementTextProps(
+	elements: Record<string, unknown>
+): Record<string, unknown> {
+	let hasChanges = false;
+	const sanitizedElements: Record<string, unknown> = {};
+
+	for (const [key, element] of Object.entries(elements)) {
+		if (!isObjectRecord(element)) {
+			sanitizedElements[key] = element;
+			continue;
+		}
+
+		const props = getElementProps(element);
+		if (!props) {
+			sanitizedElements[key] = element;
+			continue;
+		}
+
+		let propsChanged = false;
+		const nextProps: Record<string, unknown> = { ...props };
+		for (const propKey of SANITIZED_SPEC_TEXT_PROP_KEYS) {
+			if (!Object.prototype.hasOwnProperty.call(nextProps, propKey)) {
+				continue;
+			}
+
+			const rawValue = nextProps[propKey];
+			if (typeof rawValue !== "string") {
+				continue;
+			}
+
+			const sanitizedValue = getNonEmptyString(rawValue);
+			if (!sanitizedValue) {
+				delete nextProps[propKey];
+				propsChanged = true;
+				continue;
+			}
+
+			if (sanitizedValue !== rawValue) {
+				nextProps[propKey] = sanitizedValue;
+				propsChanged = true;
+			}
+		}
+
+		if (!propsChanged) {
+			sanitizedElements[key] = element;
+			continue;
+		}
+
+		sanitizedElements[key] = {
+			...element,
+			props: nextProps,
+		};
+		hasChanges = true;
+	}
+
+	return hasChanges ? sanitizedElements : elements;
 }
 
 function normalizeHintText(value: string): string {
@@ -354,7 +468,10 @@ function resolveContentTypeFromElementProps(
 	return resolveContentTypeFromHint(hintText);
 }
 
-function readFirstNonEmptyString(record: Record<string, unknown>, keys: string[]): string | undefined {
+function readFirstNonEmptyString(
+	record: Record<string, unknown>,
+	keys: readonly string[]
+): string | undefined {
 	for (const key of keys) {
 		const value = getNonEmptyString(record[key]);
 		if (value) {
@@ -365,7 +482,10 @@ function readFirstNonEmptyString(record: Record<string, unknown>, keys: string[]
 	return undefined;
 }
 
-function readActionHref(record: Record<string, unknown>, keys = [...ACTION_HREF_KEYS]): string | undefined {
+function readActionHref(
+	record: Record<string, unknown>,
+	keys: readonly string[] = [...ACTION_HREF_KEYS]
+): string | undefined {
 	const href = readFirstNonEmptyString(record, keys);
 	if (!href) {
 		return undefined;
@@ -736,10 +856,11 @@ function parseGenuiPreviewWidgetData(value: unknown): ParsedGenuiPreviewWidget |
 	if (!root.trim() || !elements || Object.keys(elements).length === 0) {
 		return null;
 	}
+	const sanitizedElements = sanitizeSpecElementTextProps(elements);
 
 	const spec = {
 		root,
-		elements,
+		elements: sanitizedElements,
 		...(Object.prototype.hasOwnProperty.call(rawSpec, "state")
 			? { state: rawSpec.state }
 			: {}),
@@ -1238,12 +1359,232 @@ function resolveTitle(
 	return CONTENT_TYPE_FALLBACK_TITLES[contentType] ?? "Generated content";
 }
 
+function countCollectionItems(value: unknown): number {
+	if (!Array.isArray(value)) {
+		return 0;
+	}
+
+	return value.filter((entry) => entry !== null && entry !== undefined).length;
+}
+
+interface CalendarOverviewDetails {
+	displayCount?: number;
+	totalCount?: number;
+	calendarName?: string;
+	timeZone?: string;
+}
+
+function extractCalendarOverviewDetails(widget: ParsedGenuiPreviewWidget): CalendarOverviewDetails {
+	const traversalKeys = getSpecTraversalKeys(widget.spec);
+	const details: CalendarOverviewDetails = {};
+
+	for (const key of traversalKeys) {
+		const element = widget.spec.elements[key];
+		if (!isObjectRecord(element) || getNonEmptyString(element.type) !== "Text") {
+			continue;
+		}
+
+		const props = getElementProps(element);
+		if (!props) {
+			continue;
+		}
+
+		const content = getNonEmptyString(props.content);
+		if (!content) {
+			continue;
+		}
+
+		if (!details.totalCount) {
+			const showingMatch = content.match(/\bshowing\s+(\d+)\s+of\s+(\d+)\s+events?\b/i);
+			if (showingMatch) {
+				details.displayCount = Number.parseInt(showingMatch[1], 10);
+				details.totalCount = Number.parseInt(showingMatch[2], 10);
+			}
+		}
+
+		if (!details.calendarName) {
+			const calendarMatch = content.match(/\bcalendar:\s*([^.\n]+)/i);
+			if (calendarMatch?.[1]) {
+				details.calendarName = calendarMatch[1].trim();
+			}
+		}
+
+		if (!details.timeZone) {
+			const timeZoneMatch = content.match(/\btime\s*zone:\s*([^.\n]+)/i);
+			if (timeZoneMatch?.[1]) {
+				details.timeZone = timeZoneMatch[1].trim();
+			}
+		}
+	}
+
+	return details;
+}
+
+function resolveGenuiContextDescription(
+	widget: ParsedGenuiPreviewWidget
+): string | undefined {
+	const traversalKeys = getSpecTraversalKeys(widget.spec);
+	const calendarOverview = extractCalendarOverviewDetails(widget);
+
+	for (const key of traversalKeys) {
+		const element = widget.spec.elements[key];
+		if (!isObjectRecord(element)) {
+			continue;
+		}
+
+		const elementType = getNonEmptyString(element.type);
+		const props = getElementProps(element);
+		if (!elementType || !props) {
+			continue;
+		}
+
+		if (elementType === "WorkSummary") {
+			const jiraCount = countCollectionItems(props.jiraItems);
+			const confluenceCount = countCollectionItems(props.confluencePages);
+			if (jiraCount > 0 || confluenceCount > 0) {
+				const parts = [
+					jiraCount > 0 ? `${jiraCount} Jira work item${jiraCount === 1 ? "" : "s"}` : null,
+					confluenceCount > 0
+						? `${confluenceCount} Confluence page${confluenceCount === 1 ? "" : "s"}`
+						: null,
+				].filter((part): part is string => Boolean(part));
+				if (parts.length === 2) {
+					return `${parts[0]} and ${parts[1]} found.`;
+				}
+				return `${parts[0]} found.`;
+			}
+		}
+
+		if (elementType === "CalendarTimeline") {
+			const eventCount = countCollectionItems(props.events);
+			if (eventCount > 0) {
+				const resolvedCount =
+					(calendarOverview.totalCount && calendarOverview.totalCount > 0)
+						? calendarOverview.totalCount
+						: eventCount;
+				const countLabel = `${resolvedCount} calendar event${resolvedCount === 1 ? "" : "s"}`;
+				if (calendarOverview.calendarName) {
+					return `${countLabel} in ${calendarOverview.calendarName} calendar.`;
+				}
+				if (calendarOverview.timeZone) {
+					return `${countLabel} (${calendarOverview.timeZone}).`;
+				}
+				return `${countLabel} in this timeline.`;
+			}
+		}
+
+		if (elementType === "Timeline") {
+			const itemCount = countCollectionItems(props.items);
+			if (itemCount > 0) {
+				return `${itemCount} timeline item${itemCount === 1 ? "" : "s"} in this view.`;
+			}
+		}
+
+		if (elementType === "Metric") {
+			const metricTitle =
+				getNonEmptyString(props.title) ??
+				getNonEmptyString(props.label) ??
+				getNonEmptyString(props.name);
+			const metricValue = getNonEmptyString(props.value);
+			if (metricTitle && metricValue) {
+				return `${metricTitle}: ${metricValue}`;
+			}
+			if (metricTitle) {
+				return `${metricTitle} metric available.`;
+			}
+		}
+	}
+
+	for (const key of traversalKeys) {
+		const element = widget.spec.elements[key];
+		if (!isObjectRecord(element)) {
+			continue;
+		}
+
+		if (getNonEmptyString(element.type) !== "Text") {
+			continue;
+		}
+
+		const props = getElementProps(element);
+		if (!props) {
+			continue;
+		}
+
+		const content = getNonEmptyString(props.content);
+		if (!content || content.length < 16) {
+			continue;
+		}
+
+		if (content.toLowerCase() === DEFAULT_DESCRIPTION.toLowerCase()) {
+			continue;
+		}
+
+		return content;
+	}
+
+	return undefined;
+}
+
+function resolvePreferredGenuiDescription({
+	explicitDescription,
+	derivedDescription,
+	summary,
+	contextDescription,
+}: {
+	explicitDescription?: string;
+	derivedDescription?: string;
+	summary?: string;
+	contextDescription?: string;
+}): string | undefined {
+	const prioritizedCandidates = [
+		explicitDescription && !isLowSignalWidgetDescription(explicitDescription)
+			? explicitDescription
+			: undefined,
+		contextDescription,
+		derivedDescription && !isLowSignalWidgetDescription(derivedDescription)
+			? derivedDescription
+			: undefined,
+		summary && !isLowSignalWidgetDescription(summary)
+			? summary
+			: undefined,
+		explicitDescription,
+		derivedDescription,
+		summary,
+	];
+
+	return prioritizedCandidates.find(
+		(candidate): candidate is string =>
+			typeof candidate === "string" && candidate.trim().length > 0
+	);
+}
+
 function resolveDescription(
 	widget: ParsedGenerativeWidget,
 	derivedGenuiDescription?: string
 ): string {
-	if (widget.description) {
-		return clipText(widget.description, 140);
+	const explicitDescription = widget.description
+		? clipText(widget.description, 140)
+		: undefined;
+
+	if (widget.type === "genui-preview") {
+		const contextDescription = resolveGenuiContextDescription(widget);
+		const preferredDescription = resolvePreferredGenuiDescription({
+			explicitDescription,
+			derivedDescription: derivedGenuiDescription
+				? clipText(derivedGenuiDescription, 140)
+				: undefined,
+			summary: widget.summary
+				? clipText(widget.summary, 140)
+				: undefined,
+			contextDescription,
+		});
+		if (preferredDescription) {
+			return clipText(preferredDescription, 140);
+		}
+	}
+
+	if (explicitDescription) {
+		return explicitDescription;
 	}
 
 	if (widget.type === "image-preview") {
@@ -1258,14 +1599,6 @@ function resolveDescription(
 			return clipText(widget.transcript, 140);
 		}
 		return "AI-generated audio";
-	}
-
-	if (widget.type === "genui-preview" && derivedGenuiDescription) {
-		return clipText(derivedGenuiDescription, 140);
-	}
-
-	if (widget.type === "genui-preview" && widget.summary) {
-		return clipText(widget.summary, 140);
 	}
 
 	return DEFAULT_DESCRIPTION;

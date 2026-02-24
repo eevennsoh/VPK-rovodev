@@ -33,6 +33,7 @@ const { buildFallbackGenuiSpecFromText, buildMinimalTextCardSpec } = require("./
 const { buildToolObservationFallback } = require("./lib/genui-tool-observation-fallback");
 const { buildToolObservationStructuredFallback } = require("./lib/genui-tool-observation-structured-fallback");
 const { buildGoogleStructuredFallback } = require("./lib/genui-google-tool-fallback");
+const { buildFigmaStructuredFallback } = require("./lib/genui-figma-tool-fallback");
 const { assessToolFirstGenuiQuality } = require("./lib/tool-first-genui-quality");
 const { looksLikeInabilityResponse } = require("./lib/inability-response-detector");
 const { classifySmartGenerationIntent, preClassifyMediaIntent } = require("./lib/smart-generation-intent");
@@ -5597,6 +5598,24 @@ app.post("/api/chat-sdk", async (req, res) => {
 									observationCount: googleStructuredFallback.observationCount ?? 0,
 									resultCount: googleStructuredFallback.resultCount ?? 0,
 									errorCount: googleStructuredFallback.errorCount ?? 0,
+								};
+							}
+
+							const figmaStructuredFallback = buildFigmaStructuredFallback({
+								observations: resolvedObservations,
+								prompt,
+								title,
+								description,
+							});
+							if (figmaStructuredFallback) {
+								return {
+									spec: figmaStructuredFallback.spec,
+									summary: figmaStructuredFallback.summary || defaultSummary,
+									source: figmaStructuredFallback.source || observationSource,
+									observationUsed: true,
+									observationCount: figmaStructuredFallback.observationCount ?? 0,
+									resultCount: figmaStructuredFallback.resultCount ?? 0,
+									errorCount: figmaStructuredFallback.errorCount ?? 0,
 								};
 							}
 

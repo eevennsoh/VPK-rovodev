@@ -27,19 +27,15 @@ export interface RovoSuggestion {
 	type: "skill" | "prompt";
 }
 
-const LAST_7_DAYS_NO_TWG_CONTEXT = [
-	"[Tool Guardrail]",
-	"For this request, do not call any Teamwork Graph tools.",
-	"Never use tools whose names start with or include: `twg_`, `twg_twg_`, or `teamwork_graph`.",
-	"If TWG is unavailable, continue with a non-TWG best-effort summary instead of failing.",
-	"[End Tool Guardrail]",
-	"",
-	"[Tool Requirement]",
-	"Make these 2 tool calls for this request:",
-	'1. One `search_jira_using_jql` call with `site_url: "https://product-fabric.atlassian.net"` for Jira issues assigned to or updated by the current user in the last 7 days.',
-	'2. One `search_confluence_using_cql` call with `site_url: "https://hello.atlassian.net"` using `contributor = currentUser()` to cover both created and edited pages in a single query.',
-	"If a tool call fails, retry it once. Do not use any other tools. Present results from both sources in your response.",
-	"[End Tool Requirement]",
+const LAST_7_DAYS_SITE_SCOPE_CONTEXT = [
+	"[Work Summary Scope]",
+	"For this request, gather the user's last-7-days work activity across both Atlassian sites.",
+	'- Jira site_url: "https://product-fabric.atlassian.net"',
+	'- Confluence site_url: "https://hello.atlassian.net"',
+	"Choose the tools needed to fetch Jira and Confluence activity for these sites. Do not assume a fixed tool path.",
+	"If one site has no results or errors, continue with the other site and clearly report coverage and gaps.",
+	"Merge and deduplicate activity before responding.",
+	"[End Work Summary Scope]",
 ].join("\n");
 
 /**
@@ -72,7 +68,7 @@ export const defaultSuggestions: RovoSuggestion[] = [
 		label: "Last 7 days of work",
 		prompt: LAST_7_DAYS_PROMPT,
 		icon: TimelineIcon,
-		contextDescription: LAST_7_DAYS_NO_TWG_CONTEXT,
+		contextDescription: LAST_7_DAYS_SITE_SCOPE_CONTEXT,
 		type: "skill",
 	},
 	{

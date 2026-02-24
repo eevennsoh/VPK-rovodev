@@ -1,6 +1,14 @@
 const DEFAULT_MAX_ITEMS = 10;
 const MAX_SCAN_NODES = 240;
 const MAX_LABEL_LENGTH = 180;
+const CALENDAR_SCOPE_PROMPT_PATTERNS = [
+	{ pattern: /\btoday\b/i, label: "Today" },
+	{ pattern: /\btomorrow\b/i, label: "Tomorrow" },
+	{ pattern: /\bthis\s+week\b/i, label: "This week" },
+	{ pattern: /\bnext\s+week\b/i, label: "Next week" },
+	{ pattern: /\bthis\s+month\b/i, label: "This month" },
+	{ pattern: /\bnext\s+month\b/i, label: "Next month" },
+];
 
 function isObjectRecord(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -26,6 +34,10 @@ function clipText(value, maxLength = MAX_LABEL_LENGTH) {
 	}
 
 	return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function pluralize(count, singular, plural) {
+	return count === 1 ? singular : plural;
 }
 
 function normalizeSentence(value) {
@@ -296,6 +308,48 @@ function formatDateRange(startValue, endValue) {
 	return null;
 }
 
+function toValidDate(rawValue) {
+	const resolved = resolveDateValue(rawValue);
+	if (!resolved) {
+		return null;
+	}
+
+	const parsed = new Date(resolved);
+	if (Number.isNaN(parsed.getTime())) {
+		return null;
+	}
+
+	return parsed;
+}
+
+function formatDateWithTimeZone(date, { timeZone, locale = "en-US", options }) {
+	const formatterOptions = {
+		...options,
+		...(timeZone ? { timeZone } : {}),
+	};
+	try {
+		return new Intl.DateTimeFormat(locale, formatterOptions).format(date);
+	} catch {
+		return new Intl.DateTimeFormat(locale, options).format(date);
+	}
+}
+
+function toDateKey(date, timeZone) {
+	return formatDateWithTimeZone(date, {
+		timeZone,
+		locale: "en-CA",
+		options: { year: "numeric", month: "2-digit", day: "2-digit" },
+	});
+}
+
+function toShortDateLabel(date, timeZone) {
+	return formatDateWithTimeZone(date, {
+		timeZone,
+		locale: "en-US",
+		options: { month: "short", day: "numeric" },
+	});
+}
+
 function normalizeCalendarEvent(rawEvent) {
 	if (!isObjectRecord(rawEvent)) {
 		return null;
@@ -304,7 +358,9 @@ function normalizeCalendarEvent(rawEvent) {
 	const rawTitle = firstString(rawEvent, ["summary", "title", "name"]);
 	const rawStart = rawEvent.start ?? rawEvent.startTime ?? rawEvent.begin;
 	const rawEnd = rawEvent.end ?? rawEvent.endTime ?? rawEvent.finish;
-	const when = formatDateRange(rawStart, rawEnd);
+	const startDateValue = resolveDateValue(rawStart);
+	const endDateValue = resolveDateValue(rawEnd);
+	const when = formatDateRange(startDateValue, endDateValue);
 	const startTime = formatTime(rawStart);
 	const duration = computeDuration(rawStart, rawEnd);
 	const location = firstString(rawEvent, ["location"]);
@@ -326,6 +382,7 @@ function normalizeCalendarEvent(rawEvent) {
 		id,
 		title: rawTitle || "Untitled event",
 		when,
+		startDateValue,
 		startTime,
 		duration,
 		location,
@@ -442,6 +499,8 @@ function extractCalendarData(payloads, maxItems) {
 	let calendarId = null;
 	let timeZone = null;
 	let calendarName = null;
+	let timeMin = null;
+	let timeMax = null;
 	let message = null;
 	for (const payload of payloads) {
 		if (isObjectRecord(payload)) {
@@ -453,6 +512,12 @@ function extractCalendarData(payloads, maxItems) {
 			}
 			if (!calendarName) {
 				calendarName = firstString(payload, ["summary", "name", "title"]);
+			}
+			if (!timeMin) {
+				timeMin = firstString(payload, ["timeMin", "rangeStart", "startDate", "startDateTime"]);
+			}
+			if (!timeMax) {
+				timeMax = firstString(payload, ["timeMax", "rangeEnd", "endDate", "endDateTime"]);
 			}
 			if (!message) {
 				message = firstString(payload, ["message", "note", "description"]);
@@ -471,7 +536,21 @@ function extractCalendarData(payloads, maxItems) {
 				timeZone = firstString(node, ["timeZone", "timezone"]);
 			}
 			if (!calendarName) {
-				calendarName = firstString(node, ["summary", "name", "title"]);
+				const hasCalendarContext =
+					Object.prototype.hasOwnProperty.call(node, "calendarId") ||
+					Object.prototype.hasOwnProperty.call(node, "timeZone") ||
+					Object.prototype.hasOwnProperty.call(node, "timezone") ||
+					Object.prototype.hasOwnProperty.call(node, "calendarName") ||
+					Object.prototype.hasOwnProperty.call(node, "calendarSummary");
+				if (hasCalendarContext) {
+					calendarName = firstString(node, ["calendarName", "calendarSummary", "summary", "name", "title"]);
+				}
+			}
+			if (!timeMin) {
+				timeMin = firstString(node, ["timeMin", "rangeStart", "startDate", "startDateTime"]);
+			}
+			if (!timeMax) {
+				timeMax = firstString(node, ["timeMax", "rangeEnd", "endDate", "endDateTime"]);
 			}
 			if (!message) {
 				message = firstString(node, ["message", "note", "description"]);
@@ -486,9 +565,99 @@ function extractCalendarData(payloads, maxItems) {
 			calendarId,
 			timeZone,
 			calendarName,
+			timeMin,
+			timeMax,
 			message,
 		},
 	};
+}
+
+function resolveCalendarScopeLabel(prompt, data) {
+	const promptText = getNonEmptyString(prompt);
+	for (const matcher of CALENDAR_SCOPE_PROMPT_PATTERNS) {
+		if (matcher.pattern.test(promptText ?? "")) {
+			return matcher.label;
+		}
+	}
+
+	const rangeStart = toValidDate(data.info.timeMin);
+	const rangeEnd = toValidDate(data.info.timeMax);
+	if (rangeStart && rangeEnd) {
+		const startLabel = toShortDateLabel(rangeStart, data.info.timeZone);
+		const endLabel = toShortDateLabel(rangeEnd, data.info.timeZone);
+		return startLabel === endLabel ? startLabel : `${startLabel} - ${endLabel}`;
+	}
+
+	const eventDates = data.events
+		.map((event) => toValidDate(event.startDateValue))
+		.filter((value) => value instanceof Date);
+	if (eventDates.length === 0) {
+		return null;
+	}
+
+	const uniqueDateKeys = new Set(
+		eventDates.map((value) => toDateKey(value, data.info.timeZone))
+	);
+	if (uniqueDateKeys.size !== 1) {
+		return null;
+	}
+
+	const eventDayKey = Array.from(uniqueDateKeys)[0];
+	const now = new Date();
+	const todayKey = toDateKey(now, data.info.timeZone);
+	if (eventDayKey === todayKey) {
+		return "Today";
+	}
+
+	const tomorrow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
+	const tomorrowKey = toDateKey(tomorrow, data.info.timeZone);
+	if (eventDayKey === tomorrowKey) {
+		return "Tomorrow";
+	}
+
+	return toShortDateLabel(eventDates[0], data.info.timeZone);
+}
+
+function buildCalendarDescription(prompt, data) {
+	const eventsCount = data.totalEvents > 0 ? data.totalEvents : data.events.length;
+	const calendarName = data.info.calendarName;
+	const scopeLabel = resolveCalendarScopeLabel(prompt, data);
+
+	if (eventsCount > 0) {
+		const eventLabel = `${eventsCount} ${pluralize(eventsCount, "event", "events")}`;
+		const calendarLabel = calendarName
+			? ` in ${calendarName} calendar`
+			: " in Google Calendar";
+		return scopeLabel
+			? `${scopeLabel}: ${eventLabel}${calendarLabel}.`
+			: `${eventLabel}${calendarLabel}.`;
+	}
+
+	const targetLabel = calendarName ? `${calendarName} calendar` : "Google Calendar";
+	const normalizedScopeLabel =
+		/^(Today|Tomorrow|This|Next)\b/.test(scopeLabel ?? "")
+			? scopeLabel.toLowerCase()
+			: scopeLabel;
+	return scopeLabel
+		? `No events ${normalizedScopeLabel} in ${targetLabel}.`
+		: `No events found in ${targetLabel}.`;
+}
+
+function buildDriveDescription(data) {
+	const filesCount = data.totalFiles > 0 ? data.totalFiles : data.files.length;
+	const ownerLabel = data.info.accountName || data.info.email;
+
+	if (filesCount > 0) {
+		return `${filesCount} ${pluralize(filesCount, "file", "files")} from Google Drive${
+			ownerLabel ? ` for ${ownerLabel}` : ""
+		}.`;
+	}
+
+	if (ownerLabel || data.info.storageUsed || data.info.storageLimit) {
+		return `Google Drive account details${ownerLabel ? ` for ${ownerLabel}` : ""}.`;
+	}
+
+	return "Google Drive details.";
 }
 
 function extractDriveData(payloads, maxItems) {
@@ -521,10 +690,13 @@ function extractDriveData(payloads, maxItems) {
 			}
 
 			if (!accountName) {
-				accountName = firstString(node, ["displayName", "name"]);
+				accountName = firstString(node, ["displayName", "accountName", "ownerName"]);
 			}
 			if (!email) {
 				email = firstString(node, ["emailAddress", "email"]);
+			}
+			if (!accountName && email) {
+				accountName = firstString(node, ["name"]);
 			}
 
 			const quota = isObjectRecord(node.storageQuota) ? node.storageQuota : null;
@@ -863,6 +1035,7 @@ function scoreCandidate(candidate, preferredDomain) {
 function buildCalendarCandidate({
 	observations,
 	payloads,
+	prompt,
 	title,
 	description,
 	maxItems,
@@ -881,10 +1054,7 @@ function buildCalendarCandidate({
 
 	const resultCount = observations.filter((entry) => entry.phase === "result").length;
 	const errorCount = observations.filter((entry) => entry.phase === "error").length;
-	const defaultDescription =
-		data.events.length > 0
-			? "Upcoming events from Google Calendar."
-			: "Calendar information from Google Calendar.";
+	const defaultDescription = buildCalendarDescription(prompt, data);
 	const resolvedTitle = resolveCandidateTitle(title, "Google Calendar");
 	const resolvedDescription = resolveCandidateDescription(
 		description,
@@ -946,10 +1116,7 @@ function buildDriveCandidate({
 
 	const resultCount = observations.filter((entry) => entry.phase === "result").length;
 	const errorCount = observations.filter((entry) => entry.phase === "error").length;
-	const defaultDescription =
-		data.files.length > 0
-			? "Files from Google Drive."
-			: "Drive account information from Google Drive.";
+	const defaultDescription = buildDriveDescription(data);
 	const resolvedTitle = resolveCandidateTitle(title, "Google Drive");
 	const resolvedDescription = resolveCandidateDescription(
 		description,
@@ -1037,6 +1204,7 @@ function buildGoogleStructuredFallback({
 	const calendarCandidate = buildCalendarCandidate({
 		observations: calendarObservations,
 		payloads: calendarPayloads,
+		prompt,
 		title: title || "Google Calendar",
 		description,
 		maxItems: boundedMaxItems,

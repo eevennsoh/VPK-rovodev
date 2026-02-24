@@ -20,6 +20,10 @@ function clipText(value, maxChars) {
 	return `${value.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
 }
 
+function pluralize(count, singular, plural) {
+	return count === 1 ? singular : plural;
+}
+
 function normalizeObservationPhase(value) {
 	if (value === "result" || value === "error") {
 		return value;
@@ -74,13 +78,14 @@ function formatSummary({ resultCount, errorCount }) {
 }
 
 function formatDescription({ resultCount, errorCount }) {
+	const totalTools = resultCount + errorCount;
 	if (resultCount > 0 && errorCount > 0) {
-		return "Generated from successful and failed tool executions.";
+		return `${resultCount} ${pluralize(resultCount, "result", "results")} and ${errorCount} ${pluralize(errorCount, "error", "errors")} from ${totalTools} ${pluralize(totalTools, "tool event", "tool events")}.`;
 	}
 	if (resultCount > 0) {
-		return "Generated from successful tool executions.";
+		return `${resultCount} ${pluralize(resultCount, "result", "results")} from tool calls.`;
 	}
-	return "Generated from tool execution errors.";
+	return `${errorCount} ${pluralize(errorCount, "error", "errors")} from tool calls.`;
 }
 
 function buildToolObservationFallback({
@@ -109,7 +114,7 @@ function buildToolObservationFallback({
 			hasObservations: false,
 			text: "",
 			title: "Tool results",
-			description: "Generated from tool executions.",
+			description: "No tool outputs available yet.",
 			summary: "Generated interactive summary from tool results.",
 			resultCount: 0,
 			errorCount: 0,

@@ -387,7 +387,7 @@ function GenuiBody({
 	return (
 		<div
 			className={cn(
-				"rounded-md bg-surface [&>[data-slot=card]]:gap-0 [&>[data-slot=card]]:py-0 [&>[data-slot=card]]:ring-0 [&>[data-slot=card]]:rounded-none [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]>[data-slot=card-content]]:p-0 [&>[data-slot=card]>[data-slot=card-content]>div]:!p-0",
+				"rounded-md",
 				previewMode && "max-h-[65vh] overflow-auto",
 			)}
 		>
@@ -613,7 +613,7 @@ function GenerativeWidgetCardShell({
 	const shouldAnimateDistortion =
 		!previewMode &&
 		bodyWidget.type === "genui-preview" &&
-		(cardAnimation?.distortion ?? true);
+		(cardAnimation?.distortion ?? false);
 	const shouldRenderInnerGlow = !previewMode && Boolean(cardAnimation?.innerGlow);
 	const shouldRenderDistortionTint =
 		shouldAnimateDistortion && Boolean(cardAnimation?.distortionTintEnabled);

@@ -435,6 +435,24 @@ export const catalog = defineCatalog(schema, {
 		},
 
 		// ── Compound ──────────────────────────────────────
+		FigmaDesignContext: {
+			props: z.object({
+				title: z.string().nullable(),
+				description: z.string().nullable(),
+				code: z.string().nullable(),
+				codeLanguage: z.string().nullable(),
+				links: z.array(
+					z.object({
+						text: z.string(),
+						href: z.string(),
+					}),
+				),
+			}),
+			slots: [],
+			description:
+				"Figma design context card. Renders extracted code with syntax highlighting and resource links. Use for Figma MCP tool results.",
+		},
+
 		WorkSummary: {
 			props: z.object({
 				jiraItems: z.array(
