@@ -314,6 +314,41 @@ const questions: QuestionCardQuestion[] = [
 	chatbot: {
 		description: "Full-featured AI chatbot with conversation, messages, reasoning, suggestions, and model selector.",
 	},
+	"yolo-color-blocks": {
+		description: "Simple color block component converted from Figma design with grid and absolute positioning variants.",
+		usage: `import { YoloColorBlocks } from "@/components/blocks/yolo-color-blocks";
+
+// Grid variant (responsive, recommended)
+<YoloColorBlocks variant="grid" blockSize="md" />
+
+// Absolute variant (original Figma design)
+<YoloColorBlocks variant="absolute" />`,
+		props: [
+			{
+				name: "variant",
+				type: '"grid" | "absolute"',
+				default: '"grid"',
+				description: "Layout variant: grid (responsive) or absolute (original design).",
+			},
+			{
+				name: "blockSize",
+				type: '"sm" | "md" | "lg"',
+				default: '"md"',
+				description: "Size of individual color blocks.",
+			},
+			{
+				name: "className",
+				type: "string",
+				description: "Additional CSS classes merged onto the root container.",
+			},
+		],
+		examples: [
+			{ title: "Grid (Small)", description: "Responsive grid layout with small blocks.", demoSlug: "yolo-color-blocks-grid-small" },
+			{ title: "Grid (Medium)", description: "Responsive grid layout with medium blocks.", demoSlug: "yolo-color-blocks-grid-medium" },
+			{ title: "Grid (Large)", description: "Responsive grid layout with large blocks.", demoSlug: "yolo-color-blocks-grid-large" },
+			{ title: "Absolute (Original)", description: "Exact reproduction of Figma design with absolute positioning.", demoSlug: "yolo-color-blocks-absolute" },
+		],
+	},
 	ide: {
 		description: "IDE-style coding agent with file tree, code editor, terminal, and AI chat panel with tool calls.",
 	},

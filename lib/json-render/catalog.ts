@@ -439,6 +439,7 @@ export const catalog = defineCatalog(schema, {
 			props: z.object({
 				title: z.string().nullable(),
 				description: z.string().nullable(),
+				figmaUrl: z.string().nullable(),
 				code: z.string().nullable(),
 				codeLanguage: z.string().nullable(),
 				links: z.array(
@@ -450,7 +451,7 @@ export const catalog = defineCatalog(schema, {
 			}),
 			slots: [],
 			description:
-				"Figma design context card. Renders extracted code with syntax highlighting and resource links. Use for Figma MCP tool results.",
+				"Figma design context card. Renders extracted code with syntax highlighting, a link back to Figma, and resource links. Use for Figma MCP tool results.",
 		},
 
 		WorkSummary: {

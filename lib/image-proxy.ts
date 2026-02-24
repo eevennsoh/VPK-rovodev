@@ -56,6 +56,12 @@ export function resolveImageRenderSrc(value: unknown): string | null {
 		return null;
 	}
 
+	// Reject file:// protocol URLs — these are internal MCP resource references
+	// that browsers cannot load.
+	if (/^file:\/\//i.test(normalizedSource)) {
+		return null;
+	}
+
 	if (isHttpUrl(normalizedSource) && isFigmaMcpAssetUrl(normalizedSource)) {
 		return toImageProxyUrl(normalizedSource);
 	}

@@ -200,3 +200,41 @@ test("extracts code from parseable JSON array text when rawOutput is missing", (
 	const props = getFigmaProps(result);
 	assert.match(props.code, /export default function FromText/);
 });
+
+test("builds figmaUrl from extracted fileKey and nodeId", () => {
+	const result = buildFigmaStructuredFallback({
+		description: "Generated from tool execution results.",
+		observations: [
+			{
+				phase: "result",
+				toolName: "mcp__figma__get_metadata",
+				rawOutput: {
+					figmaUrl: "https://www.figma.com/design/Z7s9yYVT71XrtFPRHJC7pV/Agents-Team?node-id=277-3811",
+				},
+			},
+		],
+	});
+
+	assert.ok(result);
+	const props = getFigmaProps(result);
+	assert.equal(props.figmaUrl, "https://www.figma.com/design/Z7s9yYVT71XrtFPRHJC7pV?node-id=277-3811");
+});
+
+test("figmaUrl is null when no fileKey is available", () => {
+	const result = buildFigmaStructuredFallback({
+		observations: [
+			{
+				phase: "result",
+				toolName: "mcp__plugin_figma_figma__get_design_context",
+				rawOutput: [
+					'export default function Frame() {\n  return <div>Hello</div>;\n}',
+				],
+				text: "preview",
+			},
+		],
+	});
+
+	assert.ok(result);
+	const props = getFigmaProps(result);
+	assert.equal(props.figmaUrl, null);
+});

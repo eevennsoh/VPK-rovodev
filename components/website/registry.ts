@@ -1135,6 +1135,7 @@ const BLOCK_DEMOS: Record<string, ComponentType> = {
 	ide: dynamic(() => import("./demos/blocks/ide-demo"), { ssr: false }),
 	generative: dynamic(() => import("./demos/blocks/generative-demo"), { ssr: false }),
 	workflow: dynamic(() => import("./demos/blocks/workflow-demo"), { ssr: false }),
+	"frame-demo": dynamic(() => import("./demos/blocks/frame-demo"), { ssr: false }),
 };
 
 const BLOCK_VARIANT_DEMOS: Record<string, ComponentType> = {

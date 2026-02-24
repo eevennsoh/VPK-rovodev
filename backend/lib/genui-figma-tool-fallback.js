@@ -529,6 +529,19 @@ function buildFigmaStructuredFallback({
 
 	const data = extractFigmaData(payloads, texts, rawStrings);
 
+	// Build a direct Figma URL from extracted metadata, or find one in links.
+	let figmaUrl = null;
+	if (data.fileKey) {
+		const nodeParam = data.nodeId ? `?node-id=${data.nodeId.replace(/:/g, "-")}` : "";
+		figmaUrl = `https://www.figma.com/design/${data.fileKey}${nodeParam}`;
+	}
+	if (!figmaUrl && data.links.length > 0) {
+		const figmaLink = data.links.find((l) => /figma\.com/i.test(l.href));
+		if (figmaLink) {
+			figmaUrl = figmaLink.href;
+		}
+	}
+
 	const resolvedTitle = clipText(title, 80) || data.componentName || "Figma Design Context";
 	const explicitDescription = clipText(description, 140);
 	const resolvedDescription =
@@ -556,6 +569,7 @@ function buildFigmaStructuredFallback({
 					props: {
 						title: resolvedTitle || null,
 						description: resolvedDescription || null,
+						figmaUrl,
 						code: data.code || null,
 						codeLanguage: data.codeLanguage || null,
 						links: data.links,

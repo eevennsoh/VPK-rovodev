@@ -230,6 +230,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 	blockComponent("agent-summary", "Agent Summary"),
 	blockComponent("approval-card", "Approval Card"),
 	blockComponent("chatbot", "Chatbot"),
+	blockComponent("yolo-color-blocks", "YOLO Color Blocks"),
 	blockComponent("chatgpt", "ChatGPT"),
 	blockComponent("dashboard", "Dashboard"),
 	blockComponent("data-table", "Data Table"),

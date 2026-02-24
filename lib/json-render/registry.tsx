@@ -377,18 +377,25 @@ export const { registry, handlers } = defineRegistry(catalog, {
 			const text = toSafeText(props.text);
 			const normalizedLevel = normalizeHeadingLevel(level);
 			const Tag = normalizedLevel;
+			const normalizedText = text.trim().toLowerCase();
 			const sizes: Record<string, string> = {
 				h1: "text-3xl font-bold",
 				h2: "text-2xl font-semibold",
 				h3: "text-xl font-semibold",
 				h4: "text-lg font-medium",
 			};
-			return <Tag className={cn(sizes[normalizedLevel], "text-text", className)}>{text}</Tag>;
+			const headingSizeClass =
+				normalizedLevel === "h4" && normalizedText === "child elements"
+					? "text-sm font-medium"
+					: sizes[normalizedLevel];
+			return <Tag className={cn(headingSizeClass, "text-text", className)}>{text}</Tag>;
 		},
 
 			Text: ({ props }) => {
 				const { muted, size = "sm" } = props;
 				const content = toSafeText(props.content);
+				const normalizedContent = content.trim().toLowerCase();
+				const isFigmaFrameDimensionsRow = normalizedContent.startsWith("frame dimensions:");
 				if (hasMermaidFenceBlock(content)) {
 					return (
 						<div className="rounded-md border border-border bg-surface p-3">
@@ -402,10 +409,17 @@ export const { registry, handlers } = defineRegistry(catalog, {
 					size === "xs"
 						? "text-xs"
 						: size === "base"
-							? "text-base"
+							? isFigmaFrameDimensionsRow
+								? "text-sm"
+								: "text-base"
 							: "text-sm";
+				const textToneClass = isFigmaFrameDimensionsRow
+					? "text-muted-foreground"
+					: muted
+						? "text-text-subtlest"
+						: "text-text-subtle";
 				return (
-					<p className={cn(sizeClass, muted ? "text-text-subtlest" : "text-text-subtle")}>
+					<p className={cn(sizeClass, textToneClass, isFigmaFrameDimensionsRow ? "-mt-3" : undefined)}>
 						{content}
 					</p>
 				);
@@ -539,16 +553,27 @@ export const { registry, handlers } = defineRegistry(catalog, {
 
 		// ── Compound ──────────────────────────────────
 		FigmaDesignContext: ({ props }) => {
+			const figmaUrl = toSafeOptionalText(props.figmaUrl);
 			const code = toSafeOptionalText(props.code);
 			const codeLanguage = toSafeOptionalText(props.codeLanguage) || "tsx";
 			const links = Array.isArray(props.links) ? props.links : [];
 
-			if (!code && links.length === 0) {
+			if (!figmaUrl && !code && links.length === 0) {
 				return null;
 			}
 
 			return (
 				<div className="flex flex-col gap-4">
+					{figmaUrl ? (
+						<a
+							href={figmaUrl}
+							className="inline-flex items-center gap-1.5 text-sm font-medium text-link hover:underline"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							Open in Figma ↗
+						</a>
+					) : null}
 					{code ? (
 						<AiCodeBlock
 							code={code}
@@ -1161,9 +1186,14 @@ export const { registry, handlers } = defineRegistry(catalog, {
 
 		SectionMessage: ({ props }) => {
 			const { title, description, appearance = "info" } = props;
+			const titleText = toSafeText(title).trim();
+			// Filter out AI-to-AI implementation notes that aren't meant for end users.
+			if (/implementation\s+note/i.test(titleText)) {
+				return null;
+			}
 			return (
 				<Alert variant={appearance}>
-					{title ? <AlertTitle>{toSafeText(title)}</AlertTitle> : null}
+					{titleText ? <AlertTitle>{titleText}</AlertTitle> : null}
 					{description ? <AlertDescription>{toSafeText(description)}</AlertDescription> : null}
 				</Alert>
 			);
