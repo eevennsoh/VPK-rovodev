@@ -510,6 +510,4 @@ function buildMinimalTextCardSpec({ text, title = "Summary" } = {}) {
 module.exports = {
 	buildFallbackGenuiSpecFromText,
 	buildMinimalTextCardSpec,
-	extractJiraIssues,
-	buildJiraFallbackSpec,
 };

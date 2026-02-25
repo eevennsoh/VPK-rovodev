@@ -72,24 +72,3 @@ export const API_ENDPOINTS = {
 	planThread: (threadId: string) =>
 		`${API_BASE_URL}/api/agents-team/threads/${encodeURIComponent(threadId)}`,
 };
-
-/**
- * Get the base API URL
- * Useful for debugging or displaying connection status
- */
-export function getApiBaseUrl(): string {
-	return API_BASE_URL || window.location.origin;
-}
-
-/**
- * Check if running in development mode
- * This checks if we're running on localhost
- */
-export function isLocalDevelopment(): boolean {
-	if (typeof window === 'undefined') {
-		// Server-side: check NODE_ENV
-		return process.env.NODE_ENV === 'development';
-	}
-	// Client-side: check hostname
-	return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-}

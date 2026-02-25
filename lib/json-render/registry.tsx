@@ -304,7 +304,7 @@ function normalizeHeadingLevel(rawLevel: unknown): "h1" | "h2" | "h3" | "h4" {
 
 // ── Registry ───────────────────────────────────────────────────
 
-export const { registry, handlers } = defineRegistry(catalog, {
+export const { registry } = defineRegistry(catalog, {
 	components: {
 		// ── Layout ──────────────────────────────────────
 		Stack: ({ props, children }) => {

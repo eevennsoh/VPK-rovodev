@@ -23,8 +23,7 @@ export default function SidebarEmptyState({ onCreateOne }: Readonly<SidebarEmpty
 					Start with a plan
 				</Heading>
 				<p className="text-sm text-text-subtle">
-					Create a plan with a team of agents and watch your problems get
-					solved while you focus elsewhere.
+					Tell us your goal and we'll break it down into steps and deliver results.
 				</p>
 			</div>
 			<Button

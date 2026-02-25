@@ -25,44 +25,6 @@ export type OutputExperience =
 	| "audio"
 	| "text";
 
-/**
- * Discriminated response envelope carrying the routed experience and its
- * associated payload. The `experience` field acts as the discriminator.
- *
- * - `generative_ui`: payload is a json-render spec object
- * - `question_card`: payload is a question-card widget definition
- * - `image`: payload is an image generation result
- * - `audio`: payload is an audio generation result
- * - `text`: payload is the streamed text (may be absent for pure streaming)
- */
-export type OutputRouteEnvelope =
-	| Readonly<{
-			experience: "generative_ui";
-			payload: Readonly<{ spec: Record<string, unknown>; summary?: string; source?: string }>;
-			reason: RouteDecisionReason;
-			fallbackText?: string;
-	  }>
-	| Readonly<{
-			experience: "question_card";
-			payload: Readonly<{ type: "question-card"; [key: string]: unknown }>;
-			reason: RouteDecisionReason;
-	  }>
-	| Readonly<{
-			experience: "image";
-			payload: Readonly<{ images: ReadonlyArray<{ url: string; alt?: string }> }>;
-			reason: RouteDecisionReason;
-	  }>
-	| Readonly<{
-			experience: "audio";
-			payload: Readonly<{ audioUrl: string; durationMs?: number; mimeType?: string }>;
-			reason: RouteDecisionReason;
-	  }>
-	| Readonly<{
-			experience: "text";
-			payload?: undefined;
-			reason: RouteDecisionReason;
-	  }>;
-
 // ---------------------------------------------------------------------------
 // FND-003: Route-decision reason codes for observability
 // ---------------------------------------------------------------------------
