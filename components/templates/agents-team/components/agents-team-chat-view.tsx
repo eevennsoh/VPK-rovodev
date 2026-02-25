@@ -237,6 +237,7 @@ export default function PlanChatView() {
 		togglePlanMode,
 		removeQueuedPrompt,
 		handleClarificationSubmit,
+		handleClarificationDismiss,
 		handleApprovalSubmit,
 		handleSuggestedQuestionClick,
 		handleWidgetPrimaryAction,
@@ -258,6 +259,7 @@ export default function PlanChatView() {
 	} = useDismissibleCards({
 		activeQuestionCard,
 		activePlanWidget,
+		onDismissQuestionCard: handleClarificationDismiss,
 	});
 
 	const widgetLoadingLabel = getWidgetLoadingLabel(loadingWidgetType);

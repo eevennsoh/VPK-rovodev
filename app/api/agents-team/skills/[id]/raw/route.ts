@@ -5,15 +5,15 @@ interface RouteParams {
 	params: Promise<{ id: string }>;
 }
 
-export async function POST(_request: NextRequest, { params }: RouteParams) {
+export async function GET(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { id } = await params;
 		return await proxyToBackend({
-			method: "POST",
-			path: `/api/agents-team/skills/${encodeURIComponent(id)}/persist`,
+			method: "GET",
+			path: `/api/agents-team/skills/${encodeURIComponent(id)}/raw`,
 		});
 	} catch (error) {
-		console.error("Agents team skill persist proxy error:", error);
+		console.error("Agents team skill raw proxy error:", error);
 		return NextResponse.json(
 			{
 				error: "Internal server error",

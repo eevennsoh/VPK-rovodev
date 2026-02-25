@@ -5,6 +5,8 @@ interface ProxyRequestOptions {
 	method: "GET" | "POST" | "PUT" | "DELETE";
 	path: string;
 	body?: unknown;
+	rawBody?: string;
+	contentType?: string;
 	expectEventStream?: boolean;
 }
 
@@ -51,15 +53,22 @@ export async function proxyToBackend(
 
 	let response: Response;
 	try {
+		const resolvedContentType = options.contentType ?? "application/json";
+		let resolvedBody: string | undefined;
+		if (options.method === "POST" || options.method === "PUT") {
+			if (options.rawBody !== undefined) {
+				resolvedBody = options.rawBody;
+			} else if (options.body !== undefined) {
+				resolvedBody = JSON.stringify(options.body);
+			}
+		}
+
 		response = await fetch(url, {
 			method: options.method,
 			headers: {
-				"Content-Type": "application/json",
+				"Content-Type": resolvedContentType,
 			},
-			body:
-				(options.method === "POST" || options.method === "PUT") && options.body !== undefined
-					? JSON.stringify(options.body)
-					: undefined,
+			body: resolvedBody,
 		});
 	} catch (error) {
 		return NextResponse.json(

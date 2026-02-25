@@ -1163,7 +1163,7 @@ const BLOCK_VARIANT_DEMOS: Record<string, ComponentType> = {
 
 const TEMPLATE_DEMOS: Record<string, ComponentType> = {
 	layout: dynamic(() => import("./demos/templates/layout-demo"), { ssr: false }),
-	"agents-team": dynamic(() => import("./demos/templates/agents-team-demo"), { ssr: false }),
+	plan: dynamic(() => import("./demos/templates/plan-demo"), { ssr: false }),
 	"sidebar-chat": dynamic(() => import("./demos/templates/sidebar-chat-demo"), { ssr: false }),
 	confluence: dynamic(() => import("./demos/templates/confluence-demo"), { ssr: false }),
 	jira: dynamic(() => import("./demos/templates/jira-demo"), { ssr: false }),

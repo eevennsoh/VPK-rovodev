@@ -62,6 +62,12 @@ function PlanLayout() {
 		skillDialogProps,
 		agentDialogProps,
 		sidebarConfigHandlers,
+		importDialog,
+		closeImportDialog,
+		handleImport,
+		deleteAlert,
+		closeDeleteAlert,
+		handleDeleteConfirm,
 	} = usePlanMeta();
 
 	const isSidebarCollapsedAndHovered = !sidebarOpen && sidebarHovered;
@@ -103,6 +109,10 @@ function PlanLayout() {
 				onNewSkill={sidebarConfigHandlers.onNewSkill}
 				onEditAgent={sidebarConfigHandlers.onEditAgent}
 				onNewAgent={sidebarConfigHandlers.onNewAgent}
+				onExportSkill={sidebarConfigHandlers.onExportSkill}
+				onExportAgent={sidebarConfigHandlers.onExportAgent}
+				onImportSkill={sidebarConfigHandlers.onImportSkill}
+				onImportAgent={sidebarConfigHandlers.onImportAgent}
 				onCreatePlan={handleCreatePlan}
 			/>
 			<SidebarInset className={isChatMode ? "h-svh overflow-hidden" : undefined}>
@@ -141,7 +151,16 @@ function PlanLayout() {
 					<PlanInitialView />
 				)}
 			</SidebarInset>
-			<ConfigDialogs skillDialog={skillDialogProps} agentDialog={agentDialogProps} />
+			<ConfigDialogs
+				skillDialog={skillDialogProps}
+				agentDialog={agentDialogProps}
+				importDialog={importDialog}
+				onImportDialogClose={closeImportDialog}
+				onImport={handleImport}
+				deleteAlert={deleteAlert}
+				onDeleteAlertClose={closeDeleteAlert}
+				onDeleteConfirm={handleDeleteConfirm}
+			/>
 		</SidebarProvider>
 	);
 }

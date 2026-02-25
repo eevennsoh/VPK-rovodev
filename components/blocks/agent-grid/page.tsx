@@ -150,15 +150,19 @@ export default function AgentGridPage() {
 	}, []);
 
 	const handleUnusedEditSkill = useCallback((skill: PlanSkill) => {
-		void skill.id;
+		void skill.name;
 	}, []);
 
 	const handleUnusedEditAgent = useCallback((agent: PlanAgent) => {
-		void agent.id;
+		void agent.name;
 	}, []);
 
 	const handleUnusedCreate = useCallback(() => {
 		void 0;
+	}, []);
+
+	const handleUnusedExport = useCallback((name: string) => {
+		void name;
 	}, []);
 
 	useEffect(() => {
@@ -200,6 +204,10 @@ export default function AgentGridPage() {
 				onNewSkill={handleUnusedCreate}
 				onEditAgent={handleUnusedEditAgent}
 				onNewAgent={handleUnusedCreate}
+				onExportSkill={handleUnusedExport}
+				onExportAgent={handleUnusedExport}
+				onImportSkill={handleUnusedCreate}
+				onImportAgent={handleUnusedCreate}
 				onCreatePlan={handleUnusedCreate}
 			/>
 			<SidebarInset className="h-svh min-w-0 overflow-hidden">

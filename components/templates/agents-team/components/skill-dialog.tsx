@@ -12,22 +12,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import type {
-	PlanSkill,
-	PlanSkillInput,
+import type { PlanSkill, PlanSkillInput, PlanAgent } from "@/lib/agents-team-config-types";
+import {
+	generateSlug,
+	validateSkillName,
+	validateSkillDescription,
+	SKILL_DESCRIPTION_MAX,
 } from "@/lib/agents-team-config-types";
 
 interface SkillDialogProps {
 	open: boolean;
 	skill: PlanSkill | null;
+	agents: PlanAgent[];
 	onOpenChange: (open: boolean) => void;
 	onSave: (data: PlanSkillInput) => Promise<unknown>;
-	onDelete?: (id: string) => Promise<unknown>;
+	onDelete?: (name: string) => void;
 }
 
 export default function SkillDialog({
 	open,
 	skill,
+	agents,
 	onOpenChange,
 	onSave,
 	onDelete,
@@ -38,6 +43,7 @@ export default function SkillDialog({
 				{open ? (
 					<SkillDialogForm
 						skill={skill}
+						agents={agents}
 						onOpenChange={onOpenChange}
 						onSave={onSave}
 						onDelete={onDelete}
@@ -50,13 +56,15 @@ export default function SkillDialog({
 
 interface SkillDialogFormProps {
 	skill: PlanSkill | null;
+	agents: PlanAgent[];
 	onOpenChange: (open: boolean) => void;
 	onSave: (data: PlanSkillInput) => Promise<unknown>;
-	onDelete?: (id: string) => Promise<unknown>;
+	onDelete?: (name: string) => void;
 }
 
 function SkillDialogForm({
 	skill,
+	agents,
 	onOpenChange,
 	onSave,
 	onDelete,
@@ -65,24 +73,34 @@ function SkillDialogForm({
 	const [description, setDescription] = useState(skill?.description ?? "");
 	const [content, setContent] = useState(skill?.content ?? "");
 	const [isSaving, setIsSaving] = useState(false);
+	const [nameError, setNameError] = useState<string | null>(null);
+	const [descError, setDescError] = useState<string | null>(null);
 
 	const isEditing = skill !== null;
+	const slug = generateSlug(name);
+	const equippedByAgents = agents.filter((a) => a.skills.includes(skill?.name ?? ""));
 
-	const handleSave = useCallback(async () => {
-		if (!name.trim() || !description.trim()) return;
+	const validateAndSubmit = useCallback(async () => {
+		const nameErr = validateSkillName(name);
+		const descErr = validateSkillDescription(description);
+		setNameError(nameErr);
+		setDescError(descErr);
+		if (nameErr || descErr) return;
+
 		setIsSaving(true);
-		await onSave({ name: name.trim(), description: description.trim(), content: content.trim() });
+		await onSave({
+			name: name.trim(),
+			description: description.trim(),
+			content: content.trim(),
+		});
 		setIsSaving(false);
 		onOpenChange(false);
 	}, [name, description, content, onSave, onOpenChange]);
 
-	const handleDelete = useCallback(async () => {
+	const handleDelete = useCallback(() => {
 		if (!skill || !onDelete) return;
-		setIsSaving(true);
-		await onDelete(skill.id);
-		setIsSaving(false);
-		onOpenChange(false);
-	}, [skill, onDelete, onOpenChange]);
+		onDelete(skill.name);
+	}, [skill, onDelete]);
 
 	return (
 		<>
@@ -95,10 +113,22 @@ function SkillDialogForm({
 					<Label htmlFor="skill-name">Name</Label>
 					<Input
 						id="skill-name"
-						placeholder="e.g. deploy, code-review"
+						placeholder="e.g. Deploy, Code Review"
 						value={name}
-						onChange={(e) => setName(e.currentTarget.value)}
+						onChange={(e) => {
+							setName(e.currentTarget.value);
+							if (nameError) setNameError(null);
+						}}
+						onBlur={() => setNameError(validateSkillName(name))}
 					/>
+					{slug ? (
+						<p className="text-xs text-text-subtlest">
+							Slug: {slug}
+						</p>
+					) : null}
+					{nameError ? (
+						<p className="text-xs text-text-danger">{nameError}</p>
+					) : null}
 				</div>
 
 				<div className="flex flex-col gap-1.5">
@@ -107,8 +137,18 @@ function SkillDialogForm({
 						id="skill-description"
 						placeholder="What this skill does and when to use it"
 						value={description}
-						onChange={(e) => setDescription(e.currentTarget.value)}
+						onChange={(e) => {
+							setDescription(e.currentTarget.value);
+							if (descError) setDescError(null);
+						}}
+						onBlur={() => setDescError(validateSkillDescription(description))}
 					/>
+					<p className="text-xs text-text-subtlest">
+						{description.length}/{SKILL_DESCRIPTION_MAX} characters
+					</p>
+					{descError ? (
+						<p className="text-xs text-text-danger">{descError}</p>
+					) : null}
 				</div>
 
 				<div className="flex flex-col gap-1.5">
@@ -123,10 +163,19 @@ function SkillDialogForm({
 						className="min-h-[200px] max-h-[320px] overflow-y-auto"
 					/>
 				</div>
+
+				{isEditing && equippedByAgents.length > 0 ? (
+					<div className="flex flex-col gap-1">
+						<Label>Equipped by</Label>
+						<p className="text-sm text-text-subtle">
+							{equippedByAgents.map((a) => a.name).join(", ")}
+						</p>
+					</div>
+				) : null}
 			</div>
 
 			<DialogFooter>
-				{isEditing && onDelete && !skill?.isDefault ? (
+				{isEditing && onDelete && !skill?.isBuiltIn ? (
 					<Button
 						variant="destructive"
 						onClick={handleDelete}
@@ -136,9 +185,9 @@ function SkillDialogForm({
 						Delete
 					</Button>
 				) : null}
-				{skill?.isDefault ? (
+				{skill?.isBuiltIn ? (
 					<p className="mr-auto text-xs text-text-subtlest">
-						Default skill — cannot be deleted
+						Built-in skill — cannot be deleted
 					</p>
 				) : null}
 				<Button
@@ -149,7 +198,7 @@ function SkillDialogForm({
 					Cancel
 				</Button>
 				<Button
-					onClick={handleSave}
+					onClick={validateAndSubmit}
 					disabled={isSaving || !name.trim() || !description.trim()}
 				>
 					{isEditing ? "Save" : "Create"}

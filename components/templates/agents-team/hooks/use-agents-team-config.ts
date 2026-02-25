@@ -8,10 +8,7 @@ import type {
 	PlanAgent,
 	PlanAgentInput,
 } from "@/lib/agents-team-config-types";
-import {
-	DEFAULT_SKILLS,
-	DEFAULT_AGENTS,
-} from "@/lib/agents-team-config-seed";
+import { generateSlug } from "@/lib/agents-team-config-types";
 
 async function parseJsonResponse<T>(
 	response: Response,
@@ -36,9 +33,22 @@ async function parseJsonResponse<T>(
 	}
 }
 
+function triggerDownload(content: string, filename: string) {
+	const blob = new Blob([content], { type: "text/markdown" });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
+}
+
 export function usePlanConfig() {
-	const [skills, setSkills] = useState<PlanSkill[]>(DEFAULT_SKILLS);
-	const [agents, setAgents] = useState<PlanAgent[]>(DEFAULT_AGENTS);
+	const [skills, setSkills] = useState<PlanSkill[]>([]);
+	const [agents, setAgents] = useState<PlanAgent[]>([]);
+	const [availableTools, setAvailableTools] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const hasFetchedRef = useRef(false);
 
@@ -78,9 +88,10 @@ export function usePlanConfig() {
 
 		let cancelled = false;
 		async function load() {
-			const [skillsRes, agentsRes] = await Promise.all([
+			const [skillsRes, agentsRes, toolsRes] = await Promise.all([
 				fetch(API_ENDPOINTS.PLAN_SKILLS).catch(() => null),
 				fetch(API_ENDPOINTS.PLAN_AGENTS).catch(() => null),
+				fetch(API_ENDPOINTS.PLAN_TOOLS).catch(() => null),
 			]);
 			if (cancelled) return;
 
@@ -100,6 +111,15 @@ export function usePlanConfig() {
 				);
 				if (data) {
 					setAgents(data.agents);
+				}
+			}
+			if (toolsRes?.ok) {
+				const data = await parseJsonResponse<{ tools: string[] }>(
+					toolsRes,
+					"load tools"
+				);
+				if (data) {
+					setAvailableTools(data.tools);
 				}
 			}
 		}
@@ -125,8 +145,6 @@ export function usePlanConfig() {
 				);
 				if (!result) return null;
 				setSkills((prev) => [...prev, result.skill]);
-				// Persist to seed files in background
-				fetch(API_ENDPOINTS.planSkillPersist(result.skill.id), { method: "POST" }).catch(() => {});
 				return result.skill;
 			} catch (error) {
 				console.error("Failed to create skill:", error);
@@ -137,9 +155,9 @@ export function usePlanConfig() {
 	);
 
 	const updateSkill = useCallback(
-		async (id: string, data: Partial<PlanSkillInput>): Promise<PlanSkill | null> => {
+		async (name: string, data: Partial<PlanSkillInput>): Promise<PlanSkill | null> => {
 			try {
-				const response = await fetch(API_ENDPOINTS.planSkill(id), {
+				const response = await fetch(API_ENDPOINTS.planSkill(name), {
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(data),
@@ -151,7 +169,7 @@ export function usePlanConfig() {
 				);
 				if (!result) return null;
 				setSkills((prev) =>
-					prev.map((s) => (s.id === id ? result.skill : s))
+					prev.map((s) => (s.name === name ? result.skill : s))
 				);
 				return result.skill;
 			} catch (error) {
@@ -162,13 +180,13 @@ export function usePlanConfig() {
 		[]
 	);
 
-	const deleteSkill = useCallback(async (id: string): Promise<boolean> => {
+	const deleteSkill = useCallback(async (name: string): Promise<boolean> => {
 		try {
-			const response = await fetch(API_ENDPOINTS.planSkill(id), {
+			const response = await fetch(API_ENDPOINTS.planSkill(name), {
 				method: "DELETE",
 			});
 			if (!response.ok) return false;
-			setSkills((prev) => prev.filter((s) => s.id !== id));
+			setSkills((prev) => prev.filter((s) => s.name !== name));
 			return true;
 		} catch (error) {
 			console.error("Failed to delete skill:", error);
@@ -191,8 +209,6 @@ export function usePlanConfig() {
 				);
 				if (!result) return null;
 				setAgents((prev) => [...prev, result.agent]);
-				// Persist to seed files in background
-				fetch(API_ENDPOINTS.planAgentPersist(result.agent.id), { method: "POST" }).catch(() => {});
 				return result.agent;
 			} catch (error) {
 				console.error("Failed to create agent:", error);
@@ -203,9 +219,9 @@ export function usePlanConfig() {
 	);
 
 	const updateAgent = useCallback(
-		async (id: string, data: Partial<PlanAgentInput>): Promise<PlanAgent | null> => {
+		async (name: string, data: Partial<PlanAgentInput>): Promise<PlanAgent | null> => {
 			try {
-				const response = await fetch(API_ENDPOINTS.planAgent(id), {
+				const response = await fetch(API_ENDPOINTS.planAgent(name), {
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(data),
@@ -217,7 +233,7 @@ export function usePlanConfig() {
 				);
 				if (!result) return null;
 				setAgents((prev) =>
-					prev.map((a) => (a.id === id ? result.agent : a))
+					prev.map((a) => (a.name === name ? result.agent : a))
 				);
 				return result.agent;
 			} catch (error) {
@@ -228,13 +244,13 @@ export function usePlanConfig() {
 		[]
 	);
 
-	const deleteAgent = useCallback(async (id: string): Promise<boolean> => {
+	const deleteAgent = useCallback(async (name: string): Promise<boolean> => {
 		try {
-			const response = await fetch(API_ENDPOINTS.planAgent(id), {
+			const response = await fetch(API_ENDPOINTS.planAgent(name), {
 				method: "DELETE",
 			});
 			if (!response.ok) return false;
-			setAgents((prev) => prev.filter((a) => a.id !== id));
+			setAgents((prev) => prev.filter((a) => a.name !== name));
 			return true;
 		} catch (error) {
 			console.error("Failed to delete agent:", error);
@@ -242,9 +258,80 @@ export function usePlanConfig() {
 		}
 	}, []);
 
+	const exportSkill = useCallback(async (name: string) => {
+		try {
+			const response = await fetch(API_ENDPOINTS.planSkillRaw(name));
+			if (!response.ok) return;
+			const content = await response.text();
+			triggerDownload(content, `${generateSlug(name)}.md`);
+		} catch (error) {
+			console.error("Failed to export skill:", error);
+		}
+	}, []);
+
+	const exportAgent = useCallback(async (name: string) => {
+		try {
+			const response = await fetch(API_ENDPOINTS.planAgentRaw(name));
+			if (!response.ok) return;
+			const content = await response.text();
+			triggerDownload(content, `${generateSlug(name)}.md`);
+		} catch (error) {
+			console.error("Failed to export agent:", error);
+		}
+	}, []);
+
+	const importSkill = useCallback(
+		async (content: string): Promise<PlanSkill | null> => {
+			try {
+				const response = await fetch(API_ENDPOINTS.PLAN_SKILLS, {
+					method: "POST",
+					headers: { "Content-Type": "text/markdown" },
+					body: content,
+				});
+				if (!response.ok) return null;
+				const result = await parseJsonResponse<{ skill: PlanSkill }>(
+					response,
+					"import skill"
+				);
+				if (!result) return null;
+				setSkills((prev) => [...prev, result.skill]);
+				return result.skill;
+			} catch (error) {
+				console.error("Failed to import skill:", error);
+				return null;
+			}
+		},
+		[]
+	);
+
+	const importAgent = useCallback(
+		async (content: string): Promise<PlanAgent | null> => {
+			try {
+				const response = await fetch(API_ENDPOINTS.PLAN_AGENTS, {
+					method: "POST",
+					headers: { "Content-Type": "text/markdown" },
+					body: content,
+				});
+				if (!response.ok) return null;
+				const result = await parseJsonResponse<{ agent: PlanAgent }>(
+					response,
+					"import agent"
+				);
+				if (!result) return null;
+				setAgents((prev) => [...prev, result.agent]);
+				return result.agent;
+			} catch (error) {
+				console.error("Failed to import agent:", error);
+				return null;
+			}
+		},
+		[]
+	);
+
 	return {
 		skills,
 		agents,
+		availableTools,
 		isLoading,
 		createSkill,
 		updateSkill,
@@ -252,6 +339,10 @@ export function usePlanConfig() {
 		createAgent,
 		updateAgent,
 		deleteAgent,
+		exportSkill,
+		exportAgent,
+		importSkill,
+		importAgent,
 		refresh,
 	};
 }
