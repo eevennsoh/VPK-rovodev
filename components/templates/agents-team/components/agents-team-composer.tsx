@@ -146,7 +146,6 @@ export default function PlanComposer({
 					<PromptInputFooter className="mt-3 justify-between px-0 pb-0">
 						<PromptInputTools>
 							<Button type="button" size="sm" variant="outline" aria-label="Plan mode" aria-pressed={isPlanMode} onClick={onPlanModeToggle}>
-								<AgentIcon label="" size="small" />
 								Plan
 							</Button>
 							<PromptInputActionMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>

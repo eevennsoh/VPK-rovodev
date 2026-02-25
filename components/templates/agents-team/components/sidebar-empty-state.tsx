@@ -20,7 +20,7 @@ export default function SidebarEmptyState({ onCreateOne }: Readonly<SidebarEmpty
 		<div className="flex w-full flex-col items-center gap-4 px-6 text-center">
 			<div className="flex w-full flex-col items-center gap-1">
 				<Heading as="h3" size="xsmall">
-					Your plan is ready
+					Start with a plan
 				</Heading>
 				<p className="text-sm text-text-subtle">
 					Create a plan with a team of agents and watch your problems get

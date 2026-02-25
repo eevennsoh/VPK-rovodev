@@ -276,7 +276,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 ] as const;
 
 export const TEMPLATE_COMPONENTS: ComponentEntry[] = [
-	templateComponent("agents-team", "Plan"),
+	{ ...templateComponent("agents-team", "Plan"), importPath: "@/components/templates/plan" },
 	templateComponent("sidebar-chat", "Sidebar Chat"),
 	templateComponent("confluence", "Confluence Editor"),
 	templateComponent("jira", "Jira Board"),
