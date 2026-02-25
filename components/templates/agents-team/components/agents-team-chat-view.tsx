@@ -19,10 +19,10 @@ import { token } from "@/lib/tokens";
 import { getPlanModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
 import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
 import {
-	useAgentsTeamState,
-	useAgentsTeamActions,
+	usePlanState,
+	usePlanActions,
 } from "@/app/contexts/context-agents-team";
-import AgentsTeamComposer from "./agents-team-composer";
+import PlanComposer from "./agents-team-composer";
 import { PlanCardWidgetInline } from "./plan-card-widget-inline";
 import { useScrollToBottom } from "../hooks/use-scroll-to-bottom";
 import { useDismissibleCards } from "../hooks/use-dismissible-cards";
@@ -158,7 +158,7 @@ function BottomOverlay({
 	}
 
 	if (!hasPendingResponseCard) {
-		return <AgentsTeamComposer {...composerProps} />;
+		return <PlanComposer {...composerProps} />;
 	}
 
 	return null;
@@ -214,7 +214,7 @@ function renderPlanWidget(
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function AgentsTeamChatView() {
+export default function PlanChatView() {
 	const {
 		prompt,
 		isPlanMode,
@@ -228,7 +228,7 @@ export default function AgentsTeamChatView() {
 		activeQuestionCard,
 		activePlanWidget,
 		queuedPrompts,
-	} = useAgentsTeamState();
+	} = usePlanState();
 
 	const {
 		setPrompt,
@@ -240,7 +240,7 @@ export default function AgentsTeamChatView() {
 		handleApprovalSubmit,
 		handleSuggestedQuestionClick,
 		handleWidgetPrimaryAction,
-	} = useAgentsTeamActions();
+	} = usePlanActions();
 
 	const { conversationContextRef, scrollSpacerRef } = useScrollAnchoring({
 		uiMessages,

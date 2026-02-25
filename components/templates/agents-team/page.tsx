@@ -3,28 +3,28 @@
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import {
-	AgentsTeamProvider,
-	useAgentsTeamState,
-	useAgentsTeamActions,
-	useAgentsTeamMeta,
+	PlanProvider,
+	usePlanState,
+	usePlanActions,
+	usePlanMeta,
 } from "@/app/contexts/context-agents-team";
 import { AppSidebar } from "./components/app-sidebar";
-import AgentsTeamInitialView from "./components/agents-team-initial-view";
-import AgentsTeamChatView from "./components/agents-team-chat-view";
+import PlanInitialView from "./components/agents-team-initial-view";
+import PlanChatView from "./components/agents-team-chat-view";
 import { ExecutionGridView } from "./components/execution-grid-view";
 import ChatTitleRow from "./components/chat-title-row";
 import { ConfigDialogs } from "./components/config-dialogs";
 import { CollapsedSidebarBranding } from "./components/collapsed-sidebar-branding";
 
-export default function AgentsTeamView() {
+export default function PlanView() {
 	return (
-		<AgentsTeamProvider>
-			<AgentsTeamLayout />
-		</AgentsTeamProvider>
+		<PlanProvider>
+			<PlanLayout />
+		</PlanProvider>
 	);
 }
 
-function AgentsTeamLayout() {
+function PlanLayout() {
 	const {
 		sidebarOpen,
 		sidebarHovered,
@@ -39,7 +39,7 @@ function AgentsTeamLayout() {
 		pendingTitleChatId,
 		activeChatTitle,
 		isActiveChatTitlePending,
-	} = useAgentsTeamState();
+	} = usePlanState();
 
 	const {
 		setSidebarOpen,
@@ -51,10 +51,10 @@ function AgentsTeamLayout() {
 		handleRetryRunGroup,
 		handleSelectChat,
 		handleDeleteChat,
-		handleCreateAgentTeam,
+		handleCreatePlan,
 		handleNewChat,
 		handleAddTask,
-	} = useAgentsTeamActions();
+	} = usePlanActions();
 
 	const {
 		skills,
@@ -62,7 +62,7 @@ function AgentsTeamLayout() {
 		skillDialogProps,
 		agentDialogProps,
 		sidebarConfigHandlers,
-	} = useAgentsTeamMeta();
+	} = usePlanMeta();
 
 	const isSidebarCollapsedAndHovered = !sidebarOpen && sidebarHovered;
 
@@ -103,7 +103,7 @@ function AgentsTeamLayout() {
 				onNewSkill={sidebarConfigHandlers.onNewSkill}
 				onEditAgent={sidebarConfigHandlers.onEditAgent}
 				onNewAgent={sidebarConfigHandlers.onNewAgent}
-				onCreateAgentTeam={handleCreateAgentTeam}
+				onCreatePlan={handleCreatePlan}
 			/>
 			<SidebarInset className={isChatMode ? "h-svh overflow-hidden" : undefined}>
 				{!isChatMode ? (
@@ -133,12 +133,12 @@ function AgentsTeamLayout() {
 									onAddTask={handleAddTask}
 								/>
 							) : (
-								<AgentsTeamChatView />
+								<PlanChatView />
 							)}
 						</div>
 					</div>
 				) : (
-					<AgentsTeamInitialView />
+					<PlanInitialView />
 				)}
 			</SidebarInset>
 			<ConfigDialogs skillDialog={skillDialogProps} agentDialog={agentDialogProps} />

@@ -32,44 +32,44 @@ export const API_ENDPOINTS = {
 	CHAT_TITLE: `${API_BASE_URL}/api/chat-title`,
 	CHAT_CANCEL: `${API_BASE_URL}/api/chat-cancel`,
 	HEALTH: `${API_BASE_URL}/api/health`,
-	AGENTS_TEAM_RUNS: `${API_BASE_URL}/api/agents-team/runs`,
-	AGENTS_TEAM_SKILLS: `${API_BASE_URL}/api/agents-team/skills`,
-	AGENTS_TEAM_AGENTS: `${API_BASE_URL}/api/agents-team/agents`,
-	AGENTS_TEAM_CONFIG_SUMMARY: `${API_BASE_URL}/api/agents-team/config-summary`,
-	AGENTS_TEAM_THREADS: `${API_BASE_URL}/api/agents-team/threads`,
-	agentsTeamRuns: (limit?: number) =>
+	PLAN_RUNS: `${API_BASE_URL}/api/agents-team/runs`,
+	PLAN_SKILLS: `${API_BASE_URL}/api/agents-team/skills`,
+	PLAN_AGENTS: `${API_BASE_URL}/api/agents-team/agents`,
+	PLAN_CONFIG_SUMMARY: `${API_BASE_URL}/api/agents-team/config-summary`,
+	PLAN_THREADS: `${API_BASE_URL}/api/agents-team/threads`,
+	planRuns: (limit?: number) =>
 		`${API_BASE_URL}/api/agents-team/runs${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
 		}`,
-	agentsTeamRun: (runId: string) =>
+	planRun: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}`,
-	agentsTeamRunStream: (runId: string) =>
+	planRunStream: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/stream`,
-	agentsTeamRunDirectives: (runId: string) =>
+	planRunDirectives: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/directives`,
-	agentsTeamRunSummary: (runId: string) =>
+	planRunSummary: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/summary`,
-	agentsTeamRunVisualSummary: (runId: string) =>
+	planRunVisualSummary: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/visual-summary`,
-	agentsTeamRunTasks: (runId: string) =>
+	planRunTasks: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/tasks`,
-	agentsTeamRunFiles: (runId: string) =>
+	planRunFiles: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/files`,
-	agentsTeamRunShare: (runId: string) =>
+	planRunShare: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/share`,
-	agentsTeamSkill: (id: string) =>
+	planSkill: (id: string) =>
 		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(id)}`,
-	agentsTeamAgent: (id: string) =>
+	planAgent: (id: string) =>
 		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(id)}`,
-	agentsTeamSkillPersist: (id: string) =>
+	planSkillPersist: (id: string) =>
 		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(id)}/persist`,
-	agentsTeamAgentPersist: (id: string) =>
+	planAgentPersist: (id: string) =>
 		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(id)}/persist`,
-	agentsTeamThreads: (limit?: number) =>
+	planThreads: (limit?: number) =>
 		`${API_BASE_URL}/api/agents-team/threads${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
 		}`,
-	agentsTeamThread: (threadId: string) =>
+	planThread: (threadId: string) =>
 		`${API_BASE_URL}/api/agents-team/threads/${encodeURIComponent(threadId)}`,
 };
 

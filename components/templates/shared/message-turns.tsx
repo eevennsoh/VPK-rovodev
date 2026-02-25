@@ -9,7 +9,7 @@ export interface ThreadMessage {
 	id: string;
 }
 
-export function groupMessagesByTurn<MESSAGE extends ThreadMessage>(
+function groupMessagesByTurn<MESSAGE extends ThreadMessage>(
 	messages: ReadonlyArray<MESSAGE>,
 	isUserMessage: (message: MESSAGE) => boolean
 ): MESSAGE[][] {

@@ -5,9 +5,6 @@
  */
 
 // Chat contexts
-export { ChatProvider, useChat } from "./context-chat";
-export type { Message } from "./context-chat";
-
 export { RovoChatProvider, useRovoChat } from "./context-rovo-chat";
 export type { QueuedPromptItem, SendPromptOptions } from "./context-rovo-chat";
 

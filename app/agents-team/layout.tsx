@@ -8,6 +8,6 @@ export const metadata: Metadata = {
 	},
 };
 
-export default function AgentsTeamLayout({ children }: { children: React.ReactNode }) {
+export default function PlanLayout({ children }: { children: React.ReactNode }) {
 	return children;
 }

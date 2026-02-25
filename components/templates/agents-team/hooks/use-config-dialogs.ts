@@ -3,43 +3,43 @@
 import { useCallback, useState } from "react";
 import { useCreationModeActions } from "@/app/contexts/context-creation-mode";
 import type {
-	AgentsTeamSkill,
-	AgentsTeamSkillInput,
-	AgentsTeamAgent,
-	AgentsTeamAgentInput,
+	PlanSkill,
+	PlanSkillInput,
+	PlanAgent,
+	PlanAgentInput,
 } from "@/lib/agents-team-config-types";
 
 interface ConfigDialogsInput {
-	skills: AgentsTeamSkill[];
-	createSkill: (data: AgentsTeamSkillInput) => Promise<unknown>;
-	updateSkill: (id: string, data: Partial<AgentsTeamSkillInput>) => Promise<unknown>;
+	skills: PlanSkill[];
+	createSkill: (data: PlanSkillInput) => Promise<unknown>;
+	updateSkill: (id: string, data: Partial<PlanSkillInput>) => Promise<unknown>;
 	deleteSkill: (id: string) => Promise<unknown>;
-	createAgent: (data: AgentsTeamAgentInput) => Promise<unknown>;
-	updateAgent: (id: string, data: Partial<AgentsTeamAgentInput>) => Promise<unknown>;
+	createAgent: (data: PlanAgentInput) => Promise<unknown>;
+	updateAgent: (id: string, data: Partial<PlanAgentInput>) => Promise<unknown>;
 	deleteAgent: (id: string) => Promise<unknown>;
 }
 
 export interface SkillDialogProps {
 	open: boolean;
-	skill: AgentsTeamSkill | null;
+	skill: PlanSkill | null;
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: AgentsTeamSkillInput) => Promise<unknown>;
+	onSave: (data: PlanSkillInput) => Promise<unknown>;
 	onDelete: (id: string) => Promise<unknown>;
 }
 
 export interface AgentDialogProps {
 	open: boolean;
-	agent: AgentsTeamAgent | null;
-	availableSkills: AgentsTeamSkill[];
+	agent: PlanAgent | null;
+	availableSkills: PlanSkill[];
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: AgentsTeamAgentInput) => Promise<unknown>;
+	onSave: (data: PlanAgentInput) => Promise<unknown>;
 	onDelete: (id: string) => Promise<unknown>;
 }
 
 export interface SidebarConfigHandlers {
-	onEditSkill: (skill: AgentsTeamSkill) => void;
+	onEditSkill: (skill: PlanSkill) => void;
 	onNewSkill: () => void;
-	onEditAgent: (agent: AgentsTeamAgent) => void;
+	onEditAgent: (agent: PlanAgent) => void;
 	onNewAgent: () => void;
 }
 
@@ -54,11 +54,11 @@ export function useConfigDialogs({
 }: ConfigDialogsInput) {
 	const [skillDialogOpen, setSkillDialogOpen] = useState(false);
 	const [agentDialogOpen, setAgentDialogOpen] = useState(false);
-	const [editingSkill, setEditingSkill] = useState<AgentsTeamSkill | null>(null);
-	const [editingAgent, setEditingAgent] = useState<AgentsTeamAgent | null>(null);
+	const [editingSkill, setEditingSkill] = useState<PlanSkill | null>(null);
+	const [editingAgent, setEditingAgent] = useState<PlanAgent | null>(null);
 	const { setSkillCreationMode, setAgentCreationMode } = useCreationModeActions();
 
-	const handleEditSkill = useCallback((skill: AgentsTeamSkill) => {
+	const handleEditSkill = useCallback((skill: PlanSkill) => {
 		setEditingSkill(skill);
 		setSkillDialogOpen(true);
 	}, []);
@@ -68,7 +68,7 @@ export function useConfigDialogs({
 	}, [setSkillCreationMode]);
 
 	const handleSaveSkill = useCallback(
-		async (data: AgentsTeamSkillInput) => {
+		async (data: PlanSkillInput) => {
 			if (editingSkill) {
 				await updateSkill(editingSkill.id, data);
 			} else {
@@ -78,7 +78,7 @@ export function useConfigDialogs({
 		[editingSkill, createSkill, updateSkill]
 	);
 
-	const handleEditAgent = useCallback((agent: AgentsTeamAgent) => {
+	const handleEditAgent = useCallback((agent: PlanAgent) => {
 		setEditingAgent(agent);
 		setAgentDialogOpen(true);
 	}, []);
@@ -88,7 +88,7 @@ export function useConfigDialogs({
 	}, [setAgentCreationMode]);
 
 	const handleSaveAgent = useCallback(
-		async (data: AgentsTeamAgentInput) => {
+		async (data: PlanAgentInput) => {
 			if (editingAgent) {
 				await updateAgent(editingAgent.id, data);
 			} else {

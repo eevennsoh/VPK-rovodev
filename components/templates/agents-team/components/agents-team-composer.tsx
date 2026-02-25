@@ -10,6 +10,7 @@ import {
 	PromptInputActionMenuItem,
 	PromptInputActionMenuTrigger,
 	PromptInputBody,
+	PromptInputButton,
 	PromptInputFooter,
 	PromptInputHeader,
 	PromptInputSubmit,
@@ -18,8 +19,10 @@ import {
 } from "@/components/ui-ai/prompt-input";
 import { Queue, QueueItem, QueueItemActions, QueueItemContent, QueueItemIndicator, QueueList } from "@/components/ui-ai/queue";
 import { SpeechInput } from "@/components/ui-ai/speech-input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { SkillTag } from "@/components/ui/skill-tag";
+import CustomizeMenu from "@/components/blocks/shared-ui/customize-menu";
 import SkillIcon from "@atlaskit/icon-lab/core/skill";
 import { composerUpwardShadow, composerPromptInputClassName, composerTextareaClassName, textareaCSS } from "@/components/blocks/shared-ui/composer-styles";
 import DeleteIcon from "@atlaskit/icon/core/delete";
@@ -30,8 +33,9 @@ import MentionIcon from "@atlaskit/icon/core/mention";
 import PageIcon from "@atlaskit/icon/core/page";
 import UploadIcon from "@atlaskit/icon/core/upload";
 import AgentIcon from "@atlaskit/icon/core/ai-agent";
+import CustomizeIcon from "@atlaskit/icon/core/customize";
 
-interface AgentsTeamComposerProps {
+interface PlanComposerProps {
 	prompt: string;
 	placeholder: string;
 	isStreaming: boolean;
@@ -46,7 +50,7 @@ interface AgentsTeamComposerProps {
 	autoFocus?: boolean;
 }
 
-export default function AgentsTeamComposer({
+export default function PlanComposer({
 	prompt,
 	placeholder,
 	isStreaming,
@@ -59,8 +63,12 @@ export default function AgentsTeamComposer({
 	onRemoveQueuedPrompt,
 	expandedPlaceholder = false,
 	autoFocus = true,
-}: Readonly<AgentsTeamComposerProps>) {
+}: Readonly<PlanComposerProps>) {
 	const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+	const [isCustomizeMenuOpen, setIsCustomizeMenuOpen] = useState(false);
+	const [selectedReasoning, setSelectedReasoning] = useState("standard");
+	const [webResultsEnabled, setWebResultsEnabled] = useState(true);
+	const [companyKnowledgeEnabled, setCompanyKnowledgeEnabled] = useState(true);
 	const { mode: creationMode } = useCreationModeState();
 	const { clearCreationMode } = useCreationModeActions();
 	const hasQueuedPrompts = queuedPrompts.length > 0;
@@ -139,7 +147,7 @@ export default function AgentsTeamComposer({
 						<PromptInputTools>
 							<Button type="button" size="sm" variant="outline" aria-label="Plan mode" aria-pressed={isPlanMode} onClick={onPlanModeToggle}>
 								<AgentIcon label="" size="small" />
-								Agent team
+								Plan
 							</Button>
 							<PromptInputActionMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
 								<PromptInputActionMenuTrigger aria-label="Add" size="icon-sm" variant="ghost">
@@ -178,6 +186,30 @@ export default function AgentsTeamComposer({
 									</PromptInputActionMenuItem>
 								</PromptInputActionMenuContent>
 							</PromptInputActionMenu>
+							<Popover open={isCustomizeMenuOpen} onOpenChange={setIsCustomizeMenuOpen}>
+								<PopoverTrigger
+									render={
+										<PromptInputButton
+											aria-label="Configure"
+											size="icon-sm"
+											variant="ghost"
+										/>
+									}
+								>
+									<CustomizeIcon label="" />
+								</PopoverTrigger>
+								<PopoverContent side="top" align="start" sideOffset={8} className="w-auto p-2">
+									<CustomizeMenu
+										selectedReasoning={selectedReasoning}
+										onReasoningChange={setSelectedReasoning}
+										webResultsEnabled={webResultsEnabled}
+										onWebResultsChange={setWebResultsEnabled}
+										companyKnowledgeEnabled={companyKnowledgeEnabled}
+										onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
+										onClose={() => setIsCustomizeMenuOpen(false)}
+									/>
+								</PopoverContent>
+							</Popover>
 						</PromptInputTools>
 
 						<div className="flex items-center gap-1">

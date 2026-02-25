@@ -44,7 +44,7 @@ import { RunFilesTab } from "@/components/templates/agents-team/components/run-f
 import { RunSummarySection } from "@/app/agents-team/runs/[runId]/run-summary-section";
 import { AppSidebar } from "@/components/templates/agents-team/components/app-sidebar";
 import ChatTitleRow from "@/components/templates/agents-team/components/chat-title-row";
-import { useAgentsTeamConfig } from "@/components/templates/agents-team/hooks/use-agents-team-config";
+import { usePlanConfig } from "@/components/templates/agents-team/hooks/use-agents-team-config";
 import { useConfigDialogs } from "@/components/templates/agents-team/hooks/use-config-dialogs";
 import { ConfigDialogs } from "@/components/templates/agents-team/components/config-dialogs";
 import {
@@ -213,7 +213,7 @@ export function RunWorkspace({
 		createAgent,
 		updateAgent,
 		deleteAgent,
-	} = useAgentsTeamConfig();
+	} = usePlanConfig();
 
 	const { skillDialogProps, agentDialogProps, sidebarConfigHandlers } = useConfigDialogs({
 		skills,
@@ -244,7 +244,7 @@ export function RunWorkspace({
 		setIsHovered(false);
 	}, []);
 
-	const handleNavigateToAgentsTeam = useCallback(() => {
+	const handleNavigateToPlan = useCallback(() => {
 		router.push("/agents-team");
 	}, [router]);
 
@@ -259,7 +259,7 @@ export function RunWorkspace({
 		async (deletedRunId: string) => {
 			try {
 				const response = await fetch(
-					API_ENDPOINTS.agentsTeamRun(deletedRunId),
+					API_ENDPOINTS.planRun(deletedRunId),
 					{ method: "DELETE" }
 				);
 				if (!response.ok) {
@@ -338,7 +338,7 @@ export function RunWorkspace({
 
 	const refreshSummary = useCallback(async () => {
 		try {
-			const response = await fetch(API_ENDPOINTS.agentsTeamRunSummary(runId), {
+			const response = await fetch(API_ENDPOINTS.planRunSummary(runId), {
 				cache: "no-store",
 			});
 			if (!response.ok) {
@@ -363,7 +363,7 @@ export function RunWorkspace({
 	const refreshFiles = useCallback(async () => {
 		setIsFilesLoading(true);
 		try {
-			const response = await fetch(API_ENDPOINTS.agentsTeamRunFiles(runId), {
+			const response = await fetch(API_ENDPOINTS.planRunFiles(runId), {
 				cache: "no-store",
 			});
 			if (!response.ok) {
@@ -407,7 +407,7 @@ export function RunWorkspace({
 		}
 
 		closeEventSource();
-		const source = new EventSource(API_ENDPOINTS.agentsTeamRunStream(runId));
+		const source = new EventSource(API_ENDPOINTS.planRunStream(runId));
 		eventSourceRef.current = source;
 
 		source.onmessage = (messageEvent) => {
@@ -479,7 +479,7 @@ export function RunWorkspace({
 		const loadRunHistory = async () => {
 			try {
 				const response = await fetch(
-					API_ENDPOINTS.agentsTeamRuns(),
+					API_ENDPOINTS.planRuns(),
 					{
 						cache: "no-store",
 					}
@@ -522,7 +522,7 @@ export function RunWorkspace({
 			setActiveTab("chat");
 
 			try {
-				const response = await fetch(API_ENDPOINTS.agentsTeamRunTasks(targetRunId), {
+				const response = await fetch(API_ENDPOINTS.planRunTasks(targetRunId), {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
@@ -667,7 +667,7 @@ export function RunWorkspace({
 
 	const postRunShare = useCallback(
 		async (requestBody: AgentRunShareRequest): Promise<AgentRunShareResponse> => {
-			const response = await fetch(API_ENDPOINTS.agentsTeamRunShare(runId), {
+			const response = await fetch(API_ENDPOINTS.planRunShare(runId), {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -806,7 +806,7 @@ export function RunWorkspace({
 				onNewSkill={sidebarConfigHandlers.onNewSkill}
 				onEditAgent={sidebarConfigHandlers.onEditAgent}
 				onNewAgent={sidebarConfigHandlers.onNewAgent}
-				onCreateAgentTeam={handleNavigateToAgentsTeam}
+				onCreatePlan={handleNavigateToPlan}
 			/>
 			<SidebarInset className="h-svh overflow-hidden">
 				<Tabs
@@ -817,7 +817,7 @@ export function RunWorkspace({
 					<ChatTitleRow
 						title={runDisplayTitle}
 						isTitlePending={false}
-						onNewChat={handleNavigateToAgentsTeam}
+						onNewChat={handleNavigateToPlan}
 						onShareToConfluence={handleOpenConfluenceShareDialog}
 						onShareToSlack={handleShareToSlack}
 						shareDisabled={isShareDisabled}

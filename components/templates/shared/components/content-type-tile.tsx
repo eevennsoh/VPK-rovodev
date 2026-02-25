@@ -118,7 +118,7 @@ function renderGreetingSuggestionIcon(suggestion: RovoSuggestion): ReactNode {
 	);
 }
 
-export function renderContentTypeIcon(contentType: GenerativeContentType): ReactNode {
+function renderContentTypeIcon(contentType: GenerativeContentType): ReactNode {
 	switch (contentType) {
 		case "image": return <ImageIcon label="" size="small" />;
 		case "text": return <TextIcon label="" size="small" />;

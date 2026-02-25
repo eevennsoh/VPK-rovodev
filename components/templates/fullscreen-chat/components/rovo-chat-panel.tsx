@@ -29,17 +29,8 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 		isSubmitPending,
 		queuedPrompts,
 		removeQueuedPrompt,
-		isListening,
-		interimText,
-		toggleDictation,
 		contextEnabled,
 		setContextEnabled,
-		selectedReasoning,
-		setSelectedReasoning,
-		webResultsEnabled,
-		setWebResultsEnabled,
-		companyKnowledgeEnabled,
-		setCompanyKnowledgeEnabled,
 		conversationContextRef,
 		scrollSpacerRef,
 		handleSubmit,
@@ -122,22 +113,14 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 			) : (
 				<RovoChatInput
 					prompt={prompt}
-					interimText={interimText}
-					isListening={isListening}
-					isStreaming={isRequestInFlight}
+					isStreaming={isStreaming}
+					hasInFlightTurn={isRequestInFlight}
 					onPromptChange={setPrompt}
 					onSubmit={handleSubmit}
-					onToggleDictation={toggleDictation}
-					onStopStreaming={stopStreaming}
+					onStop={stopStreaming}
 					contextEnabled={contextEnabled}
 					onContextToggle={setContextEnabled}
 					product={product}
-					selectedReasoning={selectedReasoning}
-					onReasoningChange={setSelectedReasoning}
-					webResultsEnabled={webResultsEnabled}
-					onWebResultsChange={setWebResultsEnabled}
-					companyKnowledgeEnabled={companyKnowledgeEnabled}
-					onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
 					queuedPrompts={queuedPrompts}
 					onRemoveQueuedPrompt={removeQueuedPrompt}
 				/>

@@ -16,7 +16,8 @@ export const chatStyles = {
 	chatPanel: {
 		width: "100%",
 		maxWidth: "400px",
-		height: "100vh",
+		height: "100%",
+		minHeight: 0,
 		maxHeight: "800px",
 		backgroundColor: token("elevation.surface"),
 		border: `1px solid ${token("color.border")}`,

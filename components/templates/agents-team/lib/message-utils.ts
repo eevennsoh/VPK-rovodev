@@ -134,7 +134,7 @@ function isHiddenPlanningSubmissionMessage(message: RovoUIMessage): boolean {
 	);
 }
 
-export function normalizeAgentsTeamMessages(
+export function normalizePlanMessages(
 	rawUiMessages: ReadonlyArray<RovoUIMessage>,
 	isStreaming: boolean
 ): RovoUIMessage[] {

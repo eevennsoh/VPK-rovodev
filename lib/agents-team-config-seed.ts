@@ -1,17 +1,17 @@
 /**
- * Default seed data for agent team skills and agents.
+ * Default seed data for plan skills and agents.
  * Mirrors backend/lib/agents-team-config-seed.js so the frontend
  * can render immediately without waiting for the first fetch.
  */
 
-import type { AgentsTeamSkill, AgentsTeamAgent } from "./agents-team-config-types";
+import type { PlanSkill, PlanAgent } from "./agents-team-config-types";
 
 const now = new Date().toISOString();
 
 const SEED_SKILL_CREATE_PLAN_ID = "seed-skill-create-plan";
 const SEED_SKILL_FRONTEND_DESIGN_ID = "seed-skill-frontend-design";
 
-export const DEFAULT_SKILLS: AgentsTeamSkill[] = [
+export const DEFAULT_SKILLS: PlanSkill[] = [
 	{
 		id: SEED_SKILL_CREATE_PLAN_ID,
 		name: "create-plan",
@@ -135,7 +135,7 @@ Remember: Claude is capable of extraordinary creative work. Don't hold back, sho
 	},
 ];
 
-export const DEFAULT_AGENTS: AgentsTeamAgent[] = [
+export const DEFAULT_AGENTS: PlanAgent[] = [
 	{
 		id: "seed-agent-visual-presenter",
 		name: "Visual Presenter",

@@ -59,7 +59,7 @@ export default function MultiportsDemo(): React.ReactElement {
 			onKeyDown={handleKeyDown}
 		>
 			{Array.from({ length: PORT_COUNT }, (_, i) => (
-				<div key={i} className="flex min-w-0 flex-1 justify-center" style={{ maxWidth: 400 }}>
+				<div key={i} className="flex h-full min-w-0 flex-1 justify-center" style={{ maxWidth: 400 }}>
 					<RovoChatProvider portIndex={i}>
 						<ChatPanel
 							onClose={() => {}}

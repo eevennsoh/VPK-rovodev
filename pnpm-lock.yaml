@@ -103,6 +103,12 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.17.1
         version: 3.17.1
+      '@visual-json/core':
+        specifier: ^0.1.1
+        version: 0.1.1
+      '@visual-json/react':
+        specifier: ^0.1.1
+        version: 0.1.1(react@19.2.3)
       '@xyflow/react':
         specifier: ^12.10.0
         version: 12.10.0(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1897,6 +1903,14 @@ packages:
   '@vercel/oidc@3.1.0':
     resolution: {integrity: sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w==}
     engines: {node: '>= 20'}
+
+  '@visual-json/core@0.1.1':
+    resolution: {integrity: sha512-VLARpQnjJU1SnnYk1NiXScGfp2FyAwyZS2kA8hIJV5OzkaH2oS1dTHsaB8vOiyi14/L7jsbpA4g/EwzRWbxQmg==}
+
+  '@visual-json/react@0.1.1':
+    resolution: {integrity: sha512-KCpFYmBhH5F+xctfvxxVX7mVZK/iwvDwh/ITNkGPzEKXTIJQ16fau+hrG7m7QoTAOxvsdhHtHoCUiEjNHXboUQ==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
 
   '@webgpu/types@0.1.69':
     resolution: {integrity: sha512-RPmm6kgRbI8e98zSD3RVACvnuktIja5+yLgDAkTmxLr90BEwdTXRQWNLF3ETTTyH/8mKhznZuN5AveXYFEsMGQ==}
@@ -6748,6 +6762,13 @@ snapshots:
       react: 19.2.3
 
   '@vercel/oidc@3.1.0': {}
+
+  '@visual-json/core@0.1.1': {}
+
+  '@visual-json/react@0.1.1(react@19.2.3)':
+    dependencies:
+      '@visual-json/core': 0.1.1
+      react: 19.2.3
 
   '@webgpu/types@0.1.69': {}
 

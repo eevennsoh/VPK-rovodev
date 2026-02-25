@@ -112,7 +112,3 @@ export function ModalTitle() {
 		</div>
 	);
 }
-
-export function ModalDescription() {
-	return null;
-}

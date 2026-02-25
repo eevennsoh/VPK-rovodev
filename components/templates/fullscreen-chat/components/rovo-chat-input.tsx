@@ -1,34 +1,49 @@
 "use client";
 
-import { token } from "@/lib/tokens";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { QueuedPromptItem } from "@/app/contexts";
-import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputHeader, PromptInputTextarea } from "@/components/ui-ai/prompt-input";
+import CustomizeMenu from "@/components/blocks/shared-ui/customize-menu";
+import {
+	PromptInput,
+	PromptInputActionMenu,
+	PromptInputActionMenuContent,
+	PromptInputActionMenuItem,
+	PromptInputActionMenuTrigger,
+	PromptInputBody,
+	PromptInputButton,
+	PromptInputFooter,
+	PromptInputSubmit,
+	PromptInputTextarea,
+	PromptInputTools,
+} from "@/components/ui-ai/prompt-input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { composerUpwardShadow, composerPromptInputClassName, composerTextareaClassName, textareaCSS } from "@/components/blocks/shared-ui/composer-styles";
+import { Queue, QueueItem, QueueItemActions, QueueItemContent, QueueItemIndicator, QueueList } from "@/components/ui-ai/queue";
+import { SpeechInput } from "@/components/ui-ai/speech-input";
 import { Button } from "@/components/ui/button";
-import { QueueItem, QueueItemActions, QueueItemContent, QueueItemIndicator, QueueList } from "@/components/ui-ai/queue";
 import DeleteIcon from "@atlaskit/icon/core/delete";
+import { Footer } from "@/components/ui/footer";
+import AddIcon from "@atlaskit/icon/core/add";
+import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
+import CustomizeIcon from "@atlaskit/icon/core/customize";
+import LinkIcon from "@atlaskit/icon/core/link";
+import MentionIcon from "@atlaskit/icon/core/mention";
+import PageIcon from "@atlaskit/icon/core/page";
+import UploadIcon from "@atlaskit/icon/core/upload";
 import InputContextBar from "./input-context-bar";
-import InputFooterTools from "./input-footer-tools";
 import type { Product } from "../types";
 
 interface RovoChatInputProps {
 	prompt: string;
-	interimText: string;
-	isListening: boolean;
 	isStreaming: boolean;
+	hasInFlightTurn: boolean;
 	onPromptChange: (prompt: string) => void;
 	onSubmit: () => void;
-	onToggleDictation: () => void;
-	onStopStreaming: () => void;
+	onStop: () => void;
 	contextEnabled: boolean;
 	onContextToggle: (enabled: boolean) => void;
 	product: Product;
-	selectedReasoning: string;
-	onReasoningChange: (reasoning: string) => void;
-	webResultsEnabled: boolean;
-	onWebResultsChange: (enabled: boolean) => void;
-	companyKnowledgeEnabled: boolean;
-	onCompanyKnowledgeChange: (enabled: boolean) => void;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	onRemoveQueuedPrompt: (id: string) => void;
 	customHeight?: string;
@@ -38,22 +53,14 @@ interface RovoChatInputProps {
 
 export default function RovoChatInput({
 	prompt,
-	interimText,
-	isListening,
 	isStreaming,
+	hasInFlightTurn,
 	onPromptChange,
 	onSubmit,
-	onToggleDictation,
-	onStopStreaming,
+	onStop,
 	contextEnabled,
 	onContextToggle,
 	product,
-	selectedReasoning,
-	onReasoningChange,
-	webResultsEnabled,
-	onWebResultsChange,
-	companyKnowledgeEnabled,
-	onCompanyKnowledgeChange,
 	queuedPrompts,
 	onRemoveQueuedPrompt,
 	customHeight,
@@ -62,88 +69,139 @@ export default function RovoChatInput({
 }: Readonly<RovoChatInputProps>) {
 	void onContextToggle;
 
+	const [selectedReasoning, setSelectedReasoning] = useState("deep-research");
+	const [webResultsEnabled, setWebResultsEnabled] = useState(false);
+	const [companyKnowledgeEnabled, setCompanyKnowledgeEnabled] = useState(true);
+	const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+	const [isCustomizeMenuOpen, setIsCustomizeMenuOpen] = useState(false);
+	const hasQueuedPrompts = queuedPrompts.length > 0;
+	const submitStatus = isStreaming
+		? "streaming"
+		: hasInFlightTurn
+			? "submitted"
+			: "ready";
+
+	const handleSpeechTranscription = (text: string) => {
+		const trimmedTranscription = text.trim();
+		if (!trimmedTranscription) return;
+		const trimmedPrompt = prompt.trimEnd();
+		onPromptChange(trimmedPrompt ? `${trimmedPrompt} ${trimmedTranscription}` : trimmedTranscription);
+	};
+
 	return (
-		<div style={{ padding: "0 12px" }}>
+		<div className="relative px-3">
 			{contextEnabled && (product === "confluence" || product === "jira") ? <InputContextBar product={product} /> : null}
 
+			{hasQueuedPrompts ? (
+				<div className="pointer-events-none absolute bottom-full left-4 right-4 z-0">
+					<Queue className="pointer-events-auto rounded-b-none border-border border-b-0 bg-surface-raised px-2 pt-2 pb-2 shadow-none">
+						<QueueList className="mt-0 mb-0 w-full [&_[data-slot=scroll-area-viewport]>div]:max-h-28 [&_[data-slot=scroll-area-viewport]>div]:pr-0 [&_ul]:w-full">
+							{queuedPrompts.map((queuedPrompt) => (
+								<QueueItem key={queuedPrompt.id} className="w-full bg-surface py-2 hover:bg-surface-hovered">
+									<div className="flex items-center gap-2">
+										<QueueItemIndicator />
+										<QueueItemContent className="text-text-subtle">{queuedPrompt.text}</QueueItemContent>
+										<QueueItemActions>
+											<Button
+												aria-label="Remove queued message"
+												onClick={() => onRemoveQueuedPrompt(queuedPrompt.id)}
+												size="icon-sm"
+												variant="ghost"
+												className="size-7 cursor-pointer rounded-full text-icon-subtle opacity-0 transition-opacity group-hover:opacity-100"
+											>
+												<DeleteIcon label="" size="small" />
+											</Button>
+										</QueueItemActions>
+									</div>
+								</QueueItem>
+							))}
+						</QueueList>
+					</Queue>
+				</div>
+			) : null}
+
 			<div
+				className={cn(
+					"relative z-10 rounded-xl border border-border bg-surface px-4 pb-3 pt-4",
+					customHeight ? "flex flex-col" : undefined,
+				)}
 				style={{
-					backgroundColor: token("elevation.surface"),
-					border: `1px solid ${token("color.border")}`,
-					borderRadius: token("radius.xlarge"),
-					padding: "16px 16px 12px",
-					boxShadow: `0 -2px 50px 8px ${token("color.background.neutral.subtle")}`,
-					display: customHeight ? "flex" : "block",
-					flexDirection: customHeight ? "column" : undefined,
-					transition: "height var(--duration-normal) var(--ease-out)",
-					...(customHeight ? { height: customHeight } : {}),
+					boxShadow: composerUpwardShadow,
+					...(customHeight ? { height: customHeight, transition: "height var(--duration-normal) var(--ease-out)" } : {}),
 				}}
 			>
-				<PromptInput onSubmit={onSubmit} className={cn("relative z-10 w-full", customHeight ? "flex h-full flex-col" : undefined)}>
-					{queuedPrompts.length > 0 ? (
-						<PromptInputHeader className="px-0 pb-2 pt-0">
-							<QueueList className="mt-0 mb-0 w-full [&_[data-slot=scroll-area-viewport]>div]:max-h-28 [&_[data-slot=scroll-area-viewport]>div]:pr-0 [&_ul]:w-full">
-								{queuedPrompts.map((queuedPrompt) => (
-									<QueueItem key={queuedPrompt.id} className="w-full bg-surface py-2 hover:bg-surface-hovered">
-										<div className="flex items-center gap-2">
-											<QueueItemIndicator />
-											<QueueItemContent className="text-text-subtle">{queuedPrompt.text}</QueueItemContent>
-											<QueueItemActions>
-												<Button
-													aria-label="Remove queued message"
-													onClick={() => onRemoveQueuedPrompt(queuedPrompt.id)}
-													size="icon-sm"
-													variant="ghost"
-													className="size-7 cursor-pointer rounded-full text-icon-subtle opacity-0 transition-opacity group-hover:opacity-100"
-												>
-													<DeleteIcon label="" size="small" />
-												</Button>
-											</QueueItemActions>
-										</div>
-									</QueueItem>
-								))}
-							</QueueList>
-						</PromptInputHeader>
-					) : null}
+				<PromptInput
+					allowOverflow
+					onSubmit={onSubmit}
+					className={cn(composerPromptInputClassName, "relative z-10", customHeight ? "flex h-full flex-col [&>[data-slot=input-group]]:h-full" : undefined)}
+				>
 					<PromptInputBody className={cn(customHeight ? "flex-1" : undefined)}>
 						<PromptInputTextarea
-							value={prompt + interimText}
-							onChange={(e) => {
-								const newValue = e.currentTarget.value;
-								if (!isListening || newValue.length < prompt.length) {
-									onPromptChange(newValue);
-								}
-							}}
-							placeholder={isListening ? "Listening..." : (placeholder ?? "Write a prompt, @someone, or use / for actions")}
-							rows={1}
+							value={prompt}
+							onChange={(e) => onPromptChange(e.currentTarget.value)}
+							placeholder={placeholder ?? "Ask, @mention, or / for skills"}
 							aria-label="Chat message input"
-							className={cn("max-h-[120px] min-h-[24px] resize-none border-0 px-0 py-0 shadow-none focus-visible:ring-0", customHeight ? "h-full max-h-none min-h-0" : undefined)}
+							rows={1}
+							className={cn(composerTextareaClassName, customHeight ? "h-full max-h-none min-h-0" : undefined)}
 						/>
 					</PromptInputBody>
 
-					<PromptInputFooter className="mt-2 justify-between px-0 pb-0">
-						<InputFooterTools
-							isListening={isListening}
-							isStreaming={isStreaming}
-							onToggleDictation={onToggleDictation}
-							onStopStreaming={onStopStreaming}
-							prompt={prompt}
-							selectedReasoning={selectedReasoning}
-							onReasoningChange={onReasoningChange}
-							webResultsEnabled={webResultsEnabled}
-							onWebResultsChange={onWebResultsChange}
-							companyKnowledgeEnabled={companyKnowledgeEnabled}
-							onCompanyKnowledgeChange={onCompanyKnowledgeChange}
-						/>
+					<PromptInputFooter className="mt-3 justify-between px-0 pb-0">
+						<PromptInputTools>
+							<PromptInputActionMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+								<PromptInputActionMenuTrigger aria-label="Add" size="icon-sm" variant="ghost">
+									<AddIcon label="" />
+								</PromptInputActionMenuTrigger>
+								<PromptInputActionMenuContent>
+									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)} elemBefore={<UploadIcon label="" />}>
+										Upload file
+									</PromptInputActionMenuItem>
+									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)} elemBefore={<LinkIcon label="" />}>
+										Add a link
+									</PromptInputActionMenuItem>
+									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)} elemBefore={<MentionIcon label="" />}>
+										Mention someone
+									</PromptInputActionMenuItem>
+									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)} elemBefore={<AddIcon label="" />}>
+										More formatting
+									</PromptInputActionMenuItem>
+									<PromptInputActionMenuItem onSelect={() => setIsAddMenuOpen(false)} elemBefore={<PageIcon label="" />}>
+										Add current page as context
+									</PromptInputActionMenuItem>
+								</PromptInputActionMenuContent>
+							</PromptInputActionMenu>
+
+							<Popover open={isCustomizeMenuOpen} onOpenChange={setIsCustomizeMenuOpen}>
+								<PopoverTrigger render={<PromptInputButton aria-label="Customize" size="icon-sm" variant="ghost" />}>
+									<CustomizeIcon label="" />
+								</PopoverTrigger>
+								<PopoverContent side="top" align="start" sideOffset={8} className="w-auto p-2">
+									<CustomizeMenu
+										selectedReasoning={selectedReasoning}
+										onReasoningChange={setSelectedReasoning}
+										webResultsEnabled={webResultsEnabled}
+										onWebResultsChange={setWebResultsEnabled}
+										companyKnowledgeEnabled={companyKnowledgeEnabled}
+										onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
+										onClose={() => setIsCustomizeMenuOpen(false)}
+									/>
+								</PopoverContent>
+							</Popover>
+						</PromptInputTools>
+
+						<div className="flex items-center gap-1">
+							<SpeechInput aria-label="Voice" onTranscriptionChange={handleSpeechTranscription} size="icon" />
+							<PromptInputSubmit aria-label="Submit" disabled={!hasInFlightTurn && !prompt.trim()} onStop={onStop} size="icon-sm" status={submitStatus}>
+								<ArrowUpIcon label="" />
+							</PromptInputSubmit>
+						</div>
 					</PromptInputFooter>
 				</PromptInput>
 			</div>
 
-			{!hideUsesAI ? (
-				<div className="flex items-center justify-center py-2">
-					<span style={{ font: token("font.body.small"), color: token("color.text.subtlest") }}>Uses AI. Verify results.</span>
-				</div>
-			) : null}
+			<style>{textareaCSS}</style>
+
+			{!hideUsesAI ? <Footer /> : null}
 		</div>
 	);
 }

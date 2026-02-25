@@ -7,7 +7,7 @@ export default function SidebarChatPage() {
 	return (
 		<div
 			style={{
-				minHeight: "100vh",
+				height: "100vh",
 				backgroundColor: token("color.background.neutral.subtle"),
 				display: "flex",
 				alignItems: "center",

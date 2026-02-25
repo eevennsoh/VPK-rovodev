@@ -16,7 +16,7 @@ import type { AgentRunListItem, AgentRun } from "@/lib/agents-team-run-types";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 import { isMessageVisibleInTranscript } from "@/lib/rovo-ui-messages";
 import type { QueuedPromptItem } from "@/app/contexts";
-import type { AgentsTeamSkill, AgentsTeamAgent } from "@/lib/agents-team-config-types";
+import type { PlanSkill, PlanAgent } from "@/lib/agents-team-config-types";
 import type { ParsedQuestionCardPayload, ClarificationAnswers } from "@/components/templates/shared/lib/question-card-widget";
 import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
@@ -39,23 +39,23 @@ import {
 	selectRetryTasks,
 } from "@/components/templates/agents-team/lib/retry-task-groups";
 import {
-	normalizeAgentsTeamMessages,
+	normalizePlanMessages,
 	isAnyWidgetCurrentlyLoading,
 	getLoadingWidgetType,
 	isPlanResponseComplete,
 	toConversationItems,
 	getLatestVisibleUserPrompt,
 } from "@/components/templates/agents-team/lib/message-utils";
-import { useAgentsTeamChat } from "@/components/templates/agents-team/hooks/use-agents-team-chat";
+import { usePlanChat } from "@/components/templates/agents-team/hooks/use-agents-team-chat";
 import { useExecutionMode } from "@/components/templates/agents-team/hooks/use-execution-mode";
-import { useAgentsTeamConfig } from "@/components/templates/agents-team/hooks/use-agents-team-config";
+import { usePlanConfig } from "@/components/templates/agents-team/hooks/use-agents-team-config";
 import { useConfigDialogs } from "@/components/templates/agents-team/hooks/use-config-dialogs";
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
-export interface AgentsTeamState {
+export interface PlanState {
 	// Sidebar
 	sidebarOpen: boolean;
 	sidebarHovered: boolean;
@@ -102,7 +102,7 @@ export interface AgentsTeamState {
 // Actions
 // ---------------------------------------------------------------------------
 
-export interface AgentsTeamActions {
+export interface PlanActions {
 	// Sidebar
 	setSidebarOpen: (open: boolean) => void;
 	handleHoverEnter: () => void;
@@ -132,16 +132,16 @@ export interface AgentsTeamActions {
 	handleDeleteRun: (runId: string) => void;
 	handleRetryRunGroup: (runId: string, groupKey: RetryTaskGroupKey, taskIds: string[]) => Promise<void> | void;
 	handleAddTask: (message: string) => void;
-	handleCreateAgentTeam: () => void;
+	handleCreatePlan: () => void;
 }
 
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
 
-export interface AgentsTeamMeta {
-	skills: AgentsTeamSkill[];
-	agents: AgentsTeamAgent[];
+export interface PlanMeta {
+	skills: PlanSkill[];
+	agents: PlanAgent[];
 	skillDialogProps: SkillDialogProps;
 	agentDialogProps: AgentDialogProps;
 	sidebarConfigHandlers: SidebarConfigHandlers;
@@ -151,13 +151,13 @@ export interface AgentsTeamMeta {
 // Context
 // ---------------------------------------------------------------------------
 
-export interface AgentsTeamContextValue {
-	state: AgentsTeamState;
-	actions: AgentsTeamActions;
-	meta: AgentsTeamMeta;
+export interface PlanContextValue {
+	state: PlanState;
+	actions: PlanActions;
+	meta: PlanMeta;
 }
 
-const AgentsTeamContext = createContext<AgentsTeamContextValue | null>(null);
+const PlanContext = createContext<PlanContextValue | null>(null);
 
 // ---------------------------------------------------------------------------
 // Helpers (pure)
@@ -212,11 +212,11 @@ function toErrorMessage(error: unknown): string {
 // Provider
 // ---------------------------------------------------------------------------
 
-interface AgentsTeamProviderProps {
+interface PlanProviderProps {
 	children: ReactNode;
 }
 
-export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
+export function PlanProvider({ children }: PlanProviderProps) {
 	const router = useRouter();
 
 	// ---- Local sidebar state ----
@@ -253,7 +253,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 		handleNewChat,
 		handleSelectChat,
 		handleDeleteChat,
-	} = useAgentsTeamChat();
+	} = usePlanChat();
 
 	const {
 		skills,
@@ -264,7 +264,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 		createAgent,
 		updateAgent,
 		deleteAgent,
-	} = useAgentsTeamConfig();
+	} = usePlanConfig();
 
 	const { skillDialogProps, agentDialogProps, sidebarConfigHandlers } = useConfigDialogs({
 		skills,
@@ -289,7 +289,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 
 	// ---- Derived state (memos) ----
 	const normalizedUiMessages = useMemo(
-		() => normalizeAgentsTeamMessages(rawUiMessages, isStreaming),
+		() => normalizePlanMessages(rawUiMessages, isStreaming),
 		[rawUiMessages, isStreaming],
 	);
 	const uiMessages = useMemo(
@@ -362,7 +362,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 		let cancelled = false;
 		const loadRunHistory = async () => {
 			try {
-				const response = await fetch(API_ENDPOINTS.agentsTeamRuns(), {
+				const response = await fetch(API_ENDPOINTS.planRuns(), {
 					cache: "no-store",
 				});
 				if (!response.ok || cancelled) {
@@ -374,7 +374,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 					setRunHistory(payload.runs);
 				}
 			} catch (error) {
-				console.error("[AGENTS-TEAM] Failed to load sidebar run history:", error);
+				console.error("[PLAN] Failed to load sidebar run history:", error);
 			}
 		};
 
@@ -461,7 +461,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 		[sendDirective],
 	);
 
-	const handleCreateAgentTeam = useCallback(() => {
+	const handleCreatePlan = useCallback(() => {
 		if (!isPlanMode) {
 			togglePlanMode();
 		}
@@ -478,16 +478,16 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 		async (deletedRunId: string) => {
 			try {
 				const response = await fetch(
-					API_ENDPOINTS.agentsTeamRun(deletedRunId),
+					API_ENDPOINTS.planRun(deletedRunId),
 					{ method: "DELETE" },
 				);
 				if (!response.ok) {
-					console.error("[AGENTS-TEAM] Failed to delete run:", response.status);
+					console.error("[PLAN] Failed to delete run:", response.status);
 					return;
 				}
 				setRunHistory((prev) => prev.filter((r) => r.runId !== deletedRunId));
 			} catch (error) {
-				console.error("[AGENTS-TEAM] Failed to delete run:", error);
+				console.error("[PLAN] Failed to delete run:", error);
 			}
 		},
 		[],
@@ -506,7 +506,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 			}
 
 			try {
-				const response = await fetch(API_ENDPOINTS.agentsTeamRunTasks(targetRunId), {
+				const response = await fetch(API_ENDPOINTS.planRunTasks(targetRunId), {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
@@ -535,7 +535,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 				router.push(`/agents-team/runs/${targetRunId}`);
 			} catch (error) {
 				console.error(
-					"[AGENTS-TEAM] Failed to retry run task group:",
+					"[PLAN] Failed to retry run task group:",
 					toErrorMessage(error),
 				);
 			}
@@ -545,7 +545,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 
 	// ---- Context value ----
 
-	const state: AgentsTeamState = useMemo(
+	const state: PlanState = useMemo(
 		() => ({
 			sidebarOpen: isOpen,
 			sidebarHovered: isHovered,
@@ -606,7 +606,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 		],
 	);
 
-	const actions: AgentsTeamActions = useMemo(
+	const actions: PlanActions = useMemo(
 		() => ({
 			setSidebarOpen: setIsOpen,
 			handleHoverEnter,
@@ -628,7 +628,7 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 			handleDeleteRun,
 			handleRetryRunGroup,
 			handleAddTask,
-			handleCreateAgentTeam,
+			handleCreatePlan,
 		}),
 		[
 			handleHoverEnter,
@@ -650,11 +650,11 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 			handleDeleteRun,
 			handleRetryRunGroup,
 			handleAddTask,
-			handleCreateAgentTeam,
+			handleCreatePlan,
 		],
 	);
 
-	const meta: AgentsTeamMeta = useMemo(
+	const meta: PlanMeta = useMemo(
 		() => ({
 			skills,
 			agents,
@@ -665,15 +665,15 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 		[skills, agents, skillDialogProps, agentDialogProps, sidebarConfigHandlers],
 	);
 
-	const contextValue: AgentsTeamContextValue = useMemo(
+	const contextValue: PlanContextValue = useMemo(
 		() => ({ state, actions, meta }),
 		[state, actions, meta],
 	);
 
 	return (
-		<AgentsTeamContext value={contextValue}>
+		<PlanContext value={contextValue}>
 			{children}
-		</AgentsTeamContext>
+		</PlanContext>
 	);
 }
 
@@ -681,22 +681,22 @@ export function AgentsTeamProvider({ children }: AgentsTeamProviderProps) {
 // Hooks
 // ---------------------------------------------------------------------------
 
-export function useAgentsTeam(): AgentsTeamContextValue {
-	const context = use(AgentsTeamContext);
+export function usePlan(): PlanContextValue {
+	const context = use(PlanContext);
 	if (context === null) {
-		throw new Error("useAgentsTeam must be used within an AgentsTeamProvider");
+		throw new Error("usePlan must be used within a PlanProvider");
 	}
 	return context;
 }
 
-export function useAgentsTeamState(): AgentsTeamState {
-	return useAgentsTeam().state;
+export function usePlanState(): PlanState {
+	return usePlan().state;
 }
 
-export function useAgentsTeamActions(): AgentsTeamActions {
-	return useAgentsTeam().actions;
+export function usePlanActions(): PlanActions {
+	return usePlan().actions;
 }
 
-export function useAgentsTeamMeta(): AgentsTeamMeta {
-	return useAgentsTeam().meta;
+export function usePlanMeta(): PlanMeta {
+	return usePlan().meta;
 }

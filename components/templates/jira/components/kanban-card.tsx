@@ -23,7 +23,10 @@ interface KanbanCardProps {
 	tags?: TagData[];
 	priority: "major" | "medium" | "minor";
 	avatarSrc?: string;
+	isDragging?: boolean;
 	onClick?: () => void;
+	onDragStart?: () => void;
+	onDragEnd?: () => void;
 }
 
 function normalizeTagColor(color?: LegacyTagColor): TagColor {
@@ -48,7 +51,17 @@ const PRIORITY_COLORS = {
 	minor: token("color.icon.success"),
 } as const;
 
-export default function KanbanCard({ title, code, tags, priority, avatarSrc, onClick }: Readonly<KanbanCardProps>) {
+export default function KanbanCard({
+	title,
+	code,
+	tags,
+	priority,
+	avatarSrc,
+	isDragging,
+	onClick,
+	onDragStart,
+	onDragEnd,
+}: Readonly<KanbanCardProps>) {
 	const [isHovered, setIsHovered] = useState(false);
 	const isMounted = useIsMounted();
 
@@ -58,19 +71,23 @@ export default function KanbanCard({ title, code, tags, priority, avatarSrc, onC
 	return (
 		<button
 			type="button"
+			draggable
 			onClick={onClick}
+			onDragStart={onDragStart}
+			onDragEnd={onDragEnd}
 			onMouseEnter={() => setIsHovered(true)}
 			onMouseLeave={() => setIsHovered(false)}
 			style={{
 				backgroundColor: isHovered ? token("color.background.neutral.subtle.hovered") : token("elevation.surface"),
 				borderRadius: token("radius.small"),
 				padding: token("space.150"),
-				cursor: "pointer",
+				cursor: isDragging ? "grabbing" : "grab",
 				boxShadow: token("elevation.shadow.raised"),
 				transition: "background-color 0.2s ease",
 				border: "none",
 				textAlign: "left",
 				width: "100%",
+				opacity: isDragging ? 0.5 : 1,
 			}}
 		>
 			<div className="flex flex-col gap-2">

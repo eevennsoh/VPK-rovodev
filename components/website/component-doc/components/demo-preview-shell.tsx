@@ -1,15 +1,41 @@
 import type { ReactNode } from "react";
 import { token } from "@/lib/tokens";
+import { cn } from "@/lib/utils";
 
 const DEMO_SHELL_MIN_HEIGHT_PX = 400;
 const DEMO_SHELL_PADDING_PX = 24;
 const DEMO_CONTENT_MIN_HEIGHT_PX = DEMO_SHELL_MIN_HEIGHT_PX - DEMO_SHELL_PADDING_PX * 2;
+const FULL_PAGE_HEIGHT_PX = 1000;
 
 interface DemoPreviewShellProps {
 	children: ReactNode;
+	/** When true, constrains the shell to a fixed height for full-page demos (templates, sidebars). */
+	fullPage?: boolean;
 }
 
-export function DemoPreviewShell({ children }: Readonly<DemoPreviewShellProps>) {
+export function DemoPreviewShell({ children, fullPage }: Readonly<DemoPreviewShellProps>) {
+	if (fullPage) {
+		return (
+			<div
+				className={cn(
+					"relative w-full overflow-hidden [&>*]:h-full",
+					"[&_[data-slot=sidebar-wrapper]]:!min-h-full [&_[data-slot=sidebar-wrapper]]:!h-full",
+					"[&_[data-slot=sidebar-container]]:!h-full",
+					"[&_[data-slot=sidebar-inset]]:!min-h-0 [&_[data-slot=sidebar-inset]]:!h-full",
+				)}
+				style={{
+					height: FULL_PAGE_HEIGHT_PX,
+					border: `1px solid ${token("color.border")}`,
+					borderRadius: token("radius.large"),
+					backgroundColor: token("elevation.surface"),
+					transform: "translateZ(0)",
+				}}
+			>
+				{children}
+			</div>
+		);
+	}
+
 	return (
 		<div
 			style={{

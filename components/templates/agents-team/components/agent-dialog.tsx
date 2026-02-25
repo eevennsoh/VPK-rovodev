@@ -14,9 +14,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import type {
-	AgentsTeamAgent,
-	AgentsTeamAgentInput,
-	AgentsTeamSkill,
+	PlanAgent,
+	PlanAgentInput,
+	PlanSkill,
 } from "@/lib/agents-team-config-types";
 
 const MODEL_OPTIONS = [
@@ -27,10 +27,10 @@ const MODEL_OPTIONS = [
 
 interface AgentDialogProps {
 	open: boolean;
-	agent: AgentsTeamAgent | null;
-	availableSkills: AgentsTeamSkill[];
+	agent: PlanAgent | null;
+	availableSkills: PlanSkill[];
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: AgentsTeamAgentInput) => Promise<unknown>;
+	onSave: (data: PlanAgentInput) => Promise<unknown>;
 	onDelete?: (id: string) => Promise<unknown>;
 }
 
@@ -60,10 +60,10 @@ export default function AgentDialog({
 }
 
 interface AgentDialogFormProps {
-	agent: AgentsTeamAgent | null;
-	availableSkills: AgentsTeamSkill[];
+	agent: PlanAgent | null;
+	availableSkills: PlanSkill[];
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: AgentsTeamAgentInput) => Promise<unknown>;
+	onSave: (data: PlanAgentInput) => Promise<unknown>;
 	onDelete?: (id: string) => Promise<unknown>;
 }
 

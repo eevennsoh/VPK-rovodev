@@ -4,8 +4,8 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import type {
-	AgentsTeamAgent,
-	AgentsTeamSkill,
+	PlanAgent,
+	PlanSkill,
 } from "@/lib/agents-team-config-types";
 import type {
 	AgentRunListItem,
@@ -149,11 +149,11 @@ export default function AgentGridPage() {
 		void chatId;
 	}, []);
 
-	const handleUnusedEditSkill = useCallback((skill: AgentsTeamSkill) => {
+	const handleUnusedEditSkill = useCallback((skill: PlanSkill) => {
 		void skill.id;
 	}, []);
 
-	const handleUnusedEditAgent = useCallback((agent: AgentsTeamAgent) => {
+	const handleUnusedEditAgent = useCallback((agent: PlanAgent) => {
 		void agent.id;
 	}, []);
 
@@ -200,7 +200,7 @@ export default function AgentGridPage() {
 				onNewSkill={handleUnusedCreate}
 				onEditAgent={handleUnusedEditAgent}
 				onNewAgent={handleUnusedCreate}
-				onCreateAgentTeam={handleUnusedCreate}
+				onCreatePlan={handleUnusedCreate}
 			/>
 			<SidebarInset className="h-svh min-w-0 overflow-hidden">
 				<div className="flex h-full min-h-0 min-w-0 flex-col">

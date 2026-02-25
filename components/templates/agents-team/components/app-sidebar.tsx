@@ -27,7 +27,7 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@/components/ui/empty";
-import type { AgentsTeamSkill, AgentsTeamAgent } from "@/lib/agents-team-config-types";
+import type { PlanSkill, PlanAgent } from "@/lib/agents-team-config-types";
 import type { AgentRunListItem } from "@/lib/agents-team-run-types";
 import type { RetryTaskGroupKey } from "@/components/templates/agents-team/lib/retry-task-groups";
 import { filterItemsBySidebarSearch } from "@/components/templates/agents-team/lib/sidebar-search";
@@ -57,13 +57,13 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	) => Promise<void> | void;
 	onSelectChat: (id: string) => void;
 	onDeleteChat: (id: string) => void;
-	skills: AgentsTeamSkill[];
-	agents: AgentsTeamAgent[];
-	onEditSkill: (skill: AgentsTeamSkill) => void;
+	skills: PlanSkill[];
+	agents: PlanAgent[];
+	onEditSkill: (skill: PlanSkill) => void;
 	onNewSkill: () => void;
-	onEditAgent: (agent: AgentsTeamAgent) => void;
+	onEditAgent: (agent: PlanAgent) => void;
 	onNewAgent: () => void;
-	onCreateAgentTeam: () => void;
+	onCreatePlan: () => void;
 }
 
 export function AppSidebar({
@@ -87,7 +87,7 @@ export function AppSidebar({
 	onNewSkill,
 	onEditAgent,
 	onNewAgent,
-	onCreateAgentTeam,
+	onCreatePlan,
 	...props
 }: Readonly<AppSidebarProps>) {
 	const { toggleSidebar } = useSidebar();
@@ -260,7 +260,7 @@ export function AppSidebar({
 					</div>
 				) : (
 					<div className="flex flex-1 items-center justify-center px-3">
-						<SidebarEmptyState onCreateOne={onCreateAgentTeam} />
+						<SidebarEmptyState onCreateOne={onCreatePlan} />
 					</div>
 				)}
 			</SidebarContent>

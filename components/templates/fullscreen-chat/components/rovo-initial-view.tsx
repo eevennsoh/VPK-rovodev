@@ -11,26 +11,18 @@ import RovoChatInput from "./rovo-chat-input";
 
 const HOME_SUGGESTIONS = DEFAULT_PROMPT_GALLERY_SUGGESTIONS.slice(0, 3);
 
-const DEFAULT_ROVO_PLACEHOLDER = "Write a prompt, @someone, or use / for actions";
+const DEFAULT_ROVO_PLACEHOLDER = "Ask, @mention, or / for skills";
 
 interface RovoInitialViewProps {
 	userName: string | null;
 	prompt: string;
-	interimText: string;
-	isListening: boolean;
 	isStreaming: boolean;
+	hasInFlightTurn: boolean;
 	onPromptChange: (value: string) => void;
 	onSubmit: () => void;
-	onToggleDictation: () => void;
-	onStopStreaming: () => void;
+	onStop: () => void;
 	contextEnabled: boolean;
 	onContextToggle: (enabled: boolean) => void;
-	selectedReasoning: string;
-	onReasoningChange: (value: string) => void;
-	webResultsEnabled: boolean;
-	onWebResultsChange: (enabled: boolean) => void;
-	companyKnowledgeEnabled: boolean;
-	onCompanyKnowledgeChange: (enabled: boolean) => void;
 	queuedPrompts: ReadonlyArray<QueuedPromptItem>;
 	onRemoveQueuedPrompt: (id: string) => void;
 }
@@ -38,21 +30,13 @@ interface RovoInitialViewProps {
 export default function RovoInitialView({
 	userName,
 	prompt,
-	interimText,
-	isListening,
 	isStreaming,
+	hasInFlightTurn,
 	onPromptChange,
 	onSubmit,
-	onToggleDictation,
-	onStopStreaming,
+	onStop,
 	contextEnabled,
 	onContextToggle,
-	selectedReasoning,
-	onReasoningChange,
-	webResultsEnabled,
-	onWebResultsChange,
-	companyKnowledgeEnabled,
-	onCompanyKnowledgeChange,
 	queuedPrompts,
 	onRemoveQueuedPrompt,
 }: Readonly<RovoInitialViewProps>) {
@@ -75,25 +59,17 @@ export default function RovoInitialView({
 				<div style={{ width: "100%", padding: `0 ${token("space.200")}` }}>
 					<RovoChatInput
 						prompt={prompt}
-						interimText={interimText}
-						isListening={isListening}
 						isStreaming={isStreaming}
+						hasInFlightTurn={hasInFlightTurn}
 						onPromptChange={onPromptChange}
 						onSubmit={onSubmit}
-						onToggleDictation={onToggleDictation}
-						onStopStreaming={onStopStreaming}
+						onStop={onStop}
 						contextEnabled={contextEnabled}
 						onContextToggle={onContextToggle}
 						product="rovo"
-						selectedReasoning={selectedReasoning}
-						onReasoningChange={onReasoningChange}
-						webResultsEnabled={webResultsEnabled}
-						onWebResultsChange={onWebResultsChange}
-						companyKnowledgeEnabled={companyKnowledgeEnabled}
-						onCompanyKnowledgeChange={onCompanyKnowledgeChange}
 						queuedPrompts={queuedPrompts}
 						onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-						customHeight={galleryExpanded || previewPrompt ? "155px" : "131px"}
+						customHeight={galleryExpanded || previewPrompt ? "130px" : "106px"}
 						hideUsesAI={true}
 						placeholder={previewPrompt ?? DEFAULT_ROVO_PLACEHOLDER}
 					/>

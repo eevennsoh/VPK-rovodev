@@ -53,4 +53,21 @@ export const UTILITY_DETAILS: Record<string, ComponentDetail> = {
 		description: "A client-side showcase of json-render, rendering structured JSON specs into live UI with data dashboards, interactive forms, chart visualizations, and 3D scenes powered by React Three Fiber.",
 		demoLayout: { previewContentWidth: "full" },
 	},
+	"visual-json": {
+		description: "A schema-aware, embeddable visual JSON editor by Vercel Labs. Provides tree navigation, form editing, diff comparison, search, drag-and-drop reordering, and keyboard navigation for inspecting and editing JSON data.",
+		demoLayout: { previewContentWidth: "full" },
+		usage: `import { JsonEditor, DiffView, VisualJson, TreeView, FormView } from "@visual-json/react";
+
+// All-in-one editor
+<JsonEditor value={data} onChange={setData} schema={schema} height={500} />
+
+// Composable: provider + views
+<VisualJson value={data} onChange={setData} schema={schema}>
+  <TreeView />
+  <FormView />
+</VisualJson>
+
+// Diff comparison
+<DiffView originalJson={original} currentJson={edited} />`,
+	},
 };

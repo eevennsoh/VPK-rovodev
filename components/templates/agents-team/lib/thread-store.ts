@@ -1,9 +1,9 @@
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 
-export const AGENTS_TEAM_THREAD_RETENTION_LIMIT = 30;
+export const PLAN_THREAD_RETENTION_LIMIT = 30;
 const DEFAULT_THREAD_TITLE = "New chat";
 
-export interface AgentsTeamThread {
+export interface PlanThread {
 	id: string;
 	title: string;
 	messages: RovoUIMessage[];
@@ -37,7 +37,7 @@ export function createThreadFromPrompt(options: {
 	now?: number;
 	id?: string;
 	initialMessages?: ReadonlyArray<RovoUIMessage>;
-}): AgentsTeamThread {
+}): PlanThread {
 	const { promptText, now = Date.now(), id = createThreadId(), initialMessages = [] } = options;
 
 	return {
@@ -50,8 +50,8 @@ export function createThreadFromPrompt(options: {
 }
 
 export function sortThreadsByUpdatedAtDesc(
-	threads: ReadonlyArray<AgentsTeamThread>
-): AgentsTeamThread[] {
+	threads: ReadonlyArray<PlanThread>
+): PlanThread[] {
 	return [...threads].sort((left, right) => {
 		if (left.updatedAt !== right.updatedAt) {
 			return right.updatedAt - left.updatedAt;
@@ -62,18 +62,18 @@ export function sortThreadsByUpdatedAtDesc(
 }
 
 export function applyRetentionLimit(
-	threads: ReadonlyArray<AgentsTeamThread>,
+	threads: ReadonlyArray<PlanThread>,
 	maxThreads: number
-): AgentsTeamThread[] {
+): PlanThread[] {
 	return sortThreadsByUpdatedAtDesc(threads).slice(0, Math.max(1, maxThreads));
 }
 
 export function upsertThreadSnapshot(options: {
-	threads: ReadonlyArray<AgentsTeamThread>;
-	thread: AgentsTeamThread;
+	threads: ReadonlyArray<PlanThread>;
+	thread: PlanThread;
 	maxThreads?: number;
-}): AgentsTeamThread[] {
-	const { threads, thread, maxThreads = AGENTS_TEAM_THREAD_RETENTION_LIMIT } = options;
+}): PlanThread[] {
+	const { threads, thread, maxThreads = PLAN_THREAD_RETENTION_LIMIT } = options;
 	const existingIndex = threads.findIndex((item) => item.id === thread.id);
 
 	if (existingIndex === -1) {
@@ -92,12 +92,12 @@ export function upsertThreadSnapshot(options: {
 }
 
 export function updateThreadTitle(options: {
-	threads: ReadonlyArray<AgentsTeamThread>;
+	threads: ReadonlyArray<PlanThread>;
 	chatId: string;
 	title: string;
 	updatedAt?: number;
 	maxThreads?: number;
-}): AgentsTeamThread[] {
+}): PlanThread[] {
 	const { threads, chatId, title, updatedAt = Date.now(), maxThreads } = options;
 	const normalizedTitle = trimTitleText(title);
 	if (!normalizedTitle) {
@@ -109,7 +109,7 @@ export function updateThreadTitle(options: {
 		return [...threads];
 	}
 
-	const nextThread: AgentsTeamThread = {
+	const nextThread: PlanThread = {
 		...existingThread,
 		title: normalizedTitle,
 		updatedAt: Math.max(existingThread.updatedAt, updatedAt),
@@ -119,12 +119,12 @@ export function updateThreadTitle(options: {
 }
 
 export function updateThreadMessages(options: {
-	threads: ReadonlyArray<AgentsTeamThread>;
+	threads: ReadonlyArray<PlanThread>;
 	chatId: string;
 	messages: ReadonlyArray<RovoUIMessage>;
 	updatedAt?: number;
 	maxThreads?: number;
-}): AgentsTeamThread[] {
+}): PlanThread[] {
 	const {
 		threads,
 		chatId,
@@ -137,7 +137,7 @@ export function updateThreadMessages(options: {
 		return [...threads];
 	}
 
-	const nextThread: AgentsTeamThread = {
+	const nextThread: PlanThread = {
 		...existingThread,
 		messages: [...messages],
 		updatedAt: Math.max(existingThread.updatedAt, updatedAt),
@@ -147,17 +147,17 @@ export function updateThreadMessages(options: {
 }
 
 export function deleteThread(options: {
-	threads: ReadonlyArray<AgentsTeamThread>;
+	threads: ReadonlyArray<PlanThread>;
 	chatId: string;
-}): AgentsTeamThread[] {
+}): PlanThread[] {
 	const { threads, chatId } = options;
 	return threads.filter((thread) => thread.id !== chatId);
 }
 
 export function getThreadById(options: {
-	threads: ReadonlyArray<AgentsTeamThread>;
+	threads: ReadonlyArray<PlanThread>;
 	chatId: string;
-}): AgentsTeamThread | null {
+}): PlanThread | null {
 	const { threads, chatId } = options;
 	return threads.find((thread) => thread.id === chatId) ?? null;
 }

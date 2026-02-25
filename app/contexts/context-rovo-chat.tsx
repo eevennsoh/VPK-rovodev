@@ -40,7 +40,7 @@ export interface SendPromptOptions {
 	clarification?: unknown;
 	approval?: unknown;
 	planMode?: boolean;
-	planModeSource?: "agents-team-toggle";
+	planModeSource?: "plan-toggle";
 	planRequestId?: string;
 	creationMode?: "skill" | "agent";
 	smartGeneration?: {

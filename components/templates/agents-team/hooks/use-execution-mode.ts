@@ -278,7 +278,7 @@ export function useExecutionMode(): UseExecutionModeReturn {
 	const connectToRunStream = useCallback(
 		(nextRunId: string) => {
 			closeEventSource();
-			const source = new EventSource(API_ENDPOINTS.agentsTeamRunStream(nextRunId));
+			const source = new EventSource(API_ENDPOINTS.planRunStream(nextRunId));
 			eventSourceRef.current = source;
 
 			source.onmessage = (messageEvent) => {
@@ -324,7 +324,7 @@ export function useExecutionMode(): UseExecutionModeReturn {
 			setStreamedExecutionsByTaskId({});
 			activeRunIdRef.current = null;
 
-			const response = await fetch(API_ENDPOINTS.AGENTS_TEAM_RUNS, {
+			const response = await fetch(API_ENDPOINTS.PLAN_RUNS, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -377,7 +377,7 @@ export function useExecutionMode(): UseExecutionModeReturn {
 			setError(null);
 			try {
 				const response = await fetch(
-					API_ENDPOINTS.agentsTeamRunDirectives(targetRunId),
+					API_ENDPOINTS.planRunDirectives(targetRunId),
 					{
 						method: "POST",
 						headers: {

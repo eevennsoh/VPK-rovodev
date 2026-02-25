@@ -5,7 +5,7 @@ export const TEMPLATE_DETAILS: Record<string, ComponentDetail> = {
 		description: "Application shell layout that composes ADS navigation, sidebar, and floating Rovo chat surfaces around page content.",
 	},
 	"agents-team": {
-		description: "A multi-agent workspace with chat sidebar, team controls, and prompt-driven collaboration flow.",
+		description: "A planning workspace with chat sidebar, team controls, and prompt-driven collaboration flow.",
 	},
 	"sidebar-chat": {
 		description: "A sliding chat panel with message bubbles, greeting view, and integrated composer for conversational AI interfaces.",

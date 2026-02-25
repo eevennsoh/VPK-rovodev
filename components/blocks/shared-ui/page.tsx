@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { token } from "@/lib/tokens";
-import Heading from "./heading";
 import CustomizeMenu from "./customize-menu";
 
 export default function SharedUiAdsPage() {
@@ -15,33 +14,22 @@ export default function SharedUiAdsPage() {
 			style={{
 				minHeight: "100vh",
 				backgroundColor: token("color.background.neutral.subtle"),
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
 				padding: token("space.300"),
 			}}
 		>
 			<div
 				style={{
 					maxWidth: 460,
-					margin: "0 auto",
+					width: "100%",
 					backgroundColor: token("elevation.surface"),
-					border: `1px solid ${token("color.border")}`,
 					borderRadius: token("radius.large"),
-					padding: token("space.250"),
+					padding: token("space.100"),
+					boxShadow: token("elevation.shadow.overlay"),
 				}}
 			>
-				<Heading as="h2" size="small">
-					Shared UI (ADS)
-				</Heading>
-				<p
-					style={{
-						marginTop: token("space.100"),
-						marginBottom: token("space.200"),
-						color: token("color.text.subtle"),
-						font: token("font.body"),
-					}}
-				>
-					Common ADS utilities used across templates.
-				</p>
-
 				<CustomizeMenu
 					selectedReasoning={selectedReasoning}
 					onReasoningChange={setSelectedReasoning}

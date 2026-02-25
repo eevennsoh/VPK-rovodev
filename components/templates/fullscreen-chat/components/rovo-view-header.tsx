@@ -1,10 +1,10 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
-import { RovoIcon } from "@/components/ui/logo";
 import ArrowLeftIcon from "@atlaskit/icon/core/arrow-left";
-import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import EditIcon from "@atlaskit/icon/core/edit";
 import ShowMoreHorizontalIcon from "@atlaskit/icon/core/show-more-horizontal";
 
@@ -31,22 +31,26 @@ export default function RovoViewHeader({
 			}}
 		>
 			<div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: token("space.050") }}>
-				{/* Left side - Back button (when in chat mode), Rovo logo, text, and chevron */}
+				{/* Left side - Back button (when in chat mode) and Rovo brand */}
 				<div className="flex items-center gap-1">
 					{isChatMode && (
 						<Button aria-label="Back" size="icon" variant="ghost" onClick={onBackToStart}>
 							<ArrowLeftIcon label="" />
 						</Button>
 					)}
-					<Button variant="ghost">
-						<div className="flex items-center gap-2">
-							<RovoIcon label="Rovo" size="small" />
-							<span style={{ font: token("font.heading.xsmall"), fontWeight: token("font.weight.semibold") }}>
-								Rovo
-							</span>
-							<ChevronDownIcon label="Expand" size="small" />
-						</div>
-					</Button>
+					<Link
+						href="/agents-team"
+						className="flex items-center gap-2 rounded-md p-1 text-text no-underline transition-colors hover:bg-surface-hovered hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focused"
+						aria-label="Go to agents team"
+					>
+						<Image src="/1p/rovo.svg" alt="" width={20} height={20} aria-hidden />
+						<span
+							style={{ font: token("font.heading.xsmall") }}
+							className="text-text"
+						>
+							Rovo
+						</span>
+					</Link>
 				</div>
 
 				{/* Right side - New chat and More buttons */}

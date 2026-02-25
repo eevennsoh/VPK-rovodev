@@ -1,4 +1,4 @@
-export interface AgentTeamModeCopy {
+export interface PlanModeCopy {
 	heading: string;
 	placeholder: string;
 	illustration: {
@@ -8,7 +8,7 @@ export interface AgentTeamModeCopy {
 	illustrationAlt: string;
 }
 
-const ASK_MODE_COPY: AgentTeamModeCopy = {
+const ASK_MODE_COPY: PlanModeCopy = {
 	heading: "What do you need?",
 	placeholder: "Ask, @mention, or / for actions",
 	illustration: {
@@ -18,7 +18,7 @@ const ASK_MODE_COPY: AgentTeamModeCopy = {
 	illustrationAlt: "Ask mode illustration",
 };
 
-const PLAN_MODE_COPY: AgentTeamModeCopy = {
+const PLAN_MODE_COPY: PlanModeCopy = {
 	heading: "Yo, tell me your problem",
 	placeholder: "Let a team of AI minions solve your problem",
 	illustration: {
@@ -28,6 +28,6 @@ const PLAN_MODE_COPY: AgentTeamModeCopy = {
 	illustrationAlt: "Plan mode illustration",
 };
 
-export function getPlanModeCopy(isPlanMode: boolean): AgentTeamModeCopy {
+export function getPlanModeCopy(isPlanMode: boolean): PlanModeCopy {
 	return isPlanMode ? PLAN_MODE_COPY : ASK_MODE_COPY;
 }

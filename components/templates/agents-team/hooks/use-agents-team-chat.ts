@@ -24,19 +24,19 @@ import {
 } from "@/components/templates/shared/lib/generative-widget";
 import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import {
-	AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
-	AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION,
-	AGENT_TEAM_MODE_PLAN_RETRY_PROMPT,
+	PLAN_MODE_CONTEXT_DESCRIPTION,
+	PLAN_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION,
+	PLAN_MODE_RETRY_PROMPT,
 } from "../lib/agent-team-mode";
 import type { ChatHistoryItem } from "../components/sidebar-chat-history";
 import {
-	AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+	PLAN_THREAD_RETENTION_LIMIT,
 	createThreadFromPrompt,
 	deleteThread,
 	getThreadById,
 	sortThreadsByUpdatedAtDesc,
 	trimTitleText,
-	type AgentsTeamThread,
+	type PlanThread,
 	updateThreadMessages,
 	updateThreadTitle,
 	upsertThreadSnapshot,
@@ -49,20 +49,20 @@ import {
 	deriveTitleFromAssistantMessage,
 	updateUrlThreadParam,
 	areMessageArraysShallowEqual,
-	createAgentTeamRequestId,
+	createPlanRequestId,
 } from "../lib/thread-api";
 
-type AgentTeamPlanningPhase = "awaiting-plan" | "retrying-missing-plan";
-const AGENT_TEAM_PLAN_MODE_SOURCE = "agents-team-toggle" as const;
+type PlanningPhase = "awaiting-plan" | "retrying-missing-plan";
+const PLAN_MODE_SOURCE = "plan-toggle" as const;
 
-interface AgentTeamPlanningSession {
+interface PlanningSession {
 	requestId: string;
-	phase: AgentTeamPlanningPhase;
+	phase: PlanningPhase;
 	hasStreamStarted: boolean;
 	retryUsed: boolean;
 }
 
-interface UseAgentsTeamChatReturn {
+interface UsePlanChatReturn {
 	prompt: string;
 	setPrompt: (value: string) => void;
 	isPlanMode: boolean;
@@ -95,20 +95,20 @@ interface UseAgentsTeamChatReturn {
 	handleDeleteMessage: (messageId: string) => void;
 }
 
-export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
+export function usePlanChat(): UsePlanChatReturn {
 	const [prompt, setPrompt] = useState("");
 	const [isPlanMode, setIsPlanMode] = useState(false);
-	const [agentTeamPlanningSession, setAgentTeamPlanningSession] =
-		useState<AgentTeamPlanningSession | null>(null);
+	const [planningSession, setPlanningSession] =
+		useState<PlanningSession | null>(null);
 	const [isChatMode, setIsChatMode] = useState(false);
-	const [threads, setThreads] = useState<AgentsTeamThread[]>([]);
+	const [threads, setThreads] = useState<PlanThread[]>([]);
 	const [activeChatId, setActiveChatId] = useState<string | null>(null);
 	const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
 	const [pendingTitleChatId, setPendingTitleChatId] = useState<string | null>(null);
 	const pendingTitleChatIdRef = useRef<string | null>(null);
 	const activeChatIdRef = useRef<string | null>(null);
 	const uiMessagesRef = useRef<RovoUIMessage[]>([]);
-	const threadsRef = useRef<AgentsTeamThread[]>([]);
+	const threadsRef = useRef<PlanThread[]>([]);
 	const isRestoringThreadRef = useRef(false);
 	const threadTransitionTokenRef = useRef(0);
 	const threadTransitionQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -186,7 +186,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		}
 
 		let cancelled = false;
-		fetch(API_ENDPOINTS.agentsTeamThreads())
+		fetch(API_ENDPOINTS.planThreads())
 			.then((response) => {
 				if (!response.ok) {
 					throw new Error(`HTTP ${response.status}`);
@@ -240,9 +240,9 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 									updatedAt: Number.isFinite(updatedAt)
 										? updatedAt
 										: Date.now(),
-								} satisfies AgentsTeamThread;
+								} satisfies PlanThread;
 							})
-							.filter(Boolean) as AgentsTeamThread[])
+							.filter(Boolean) as PlanThread[])
 					: [];
 
 				setThreads((previousThreads) =>
@@ -322,7 +322,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 					chatId,
 					messages,
 					updatedAt: Date.now(),
-					maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+					maxThreads: PLAN_THREAD_RETENTION_LIMIT,
 				});
 			});
 
@@ -360,7 +360,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				if (clearPrompt) {
 					setPrompt("");
 				}
-				setAgentTeamPlanningSession(null);
+				setPlanningSession(null);
 				setIsChatMode(nextIsChatMode);
 				setActiveChatId(nextChatId);
 			});
@@ -401,7 +401,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				chatId,
 				title: normalizedTitle,
 				updatedAt: Date.now(),
-				maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+				maxThreads: PLAN_THREAD_RETENTION_LIMIT,
 			})
 		);
 
@@ -451,7 +451,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			upsertThreadSnapshot({
 				threads: previousThreads,
 				thread,
-				maxThreads: AGENTS_TEAM_THREAD_RETENTION_LIMIT,
+				maxThreads: PLAN_THREAD_RETENTION_LIMIT,
 			})
 		);
 		setActiveChatId(thread.id);
@@ -519,7 +519,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	const setPlanModeEnabled = useCallback((enabled: boolean) => {
 		setIsPlanMode(enabled);
 		if (!enabled) {
-			setAgentTeamPlanningSession(null);
+			setPlanningSession(null);
 		}
 	}, []);
 
@@ -532,8 +532,8 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			const activeCreationMode = creationModeRef.current;
 
 			if (isPlanMode) {
-				const requestId = createAgentTeamRequestId();
-				setAgentTeamPlanningSession({
+				const requestId = createPlanRequestId();
+				setPlanningSession({
 					requestId,
 					phase: "awaiting-plan",
 					hasStreamStarted: false,
@@ -541,9 +541,9 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				});
 
 				await sendPrompt(nextPrompt, {
-					contextDescription: AGENT_TEAM_MODE_CONTEXT_DESCRIPTION,
+					contextDescription: PLAN_MODE_CONTEXT_DESCRIPTION,
 					planMode: true,
-					planModeSource: AGENT_TEAM_PLAN_MODE_SOURCE,
+					planModeSource: PLAN_MODE_SOURCE,
 					planRequestId: requestId,
 					creationMode: activeCreationMode ?? undefined,
 				});
@@ -564,14 +564,14 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	);
 
 	useEffect(() => {
-		if (!agentTeamPlanningSession) {
+		if (!planningSession) {
 			return;
 		}
 
 		if (isStreaming) {
-			if (!agentTeamPlanningSession.hasStreamStarted) {
+			if (!planningSession.hasStreamStarted) {
 				queueMicrotask(() => {
-					setAgentTeamPlanningSession((previousSession) => {
+					setPlanningSession((previousSession) => {
 						if (!previousSession || previousSession.hasStreamStarted) {
 							return previousSession;
 						}
@@ -586,7 +586,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			return;
 		}
 
-		if (!agentTeamPlanningSession.hasStreamStarted) {
+		if (!planningSession.hasStreamStarted) {
 			return;
 		}
 
@@ -608,16 +608,16 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			return;
 		}
 
-		if (agentTeamPlanningSession.retryUsed) {
+		if (planningSession.retryUsed) {
 			queueMicrotask(() => {
 				setPlanModeEnabled(false);
 			});
 			return;
 		}
 
-		const retryRequestId = agentTeamPlanningSession.requestId;
+		const retryRequestId = planningSession.requestId;
 		queueMicrotask(() => {
-			setAgentTeamPlanningSession((previousSession) => {
+			setPlanningSession((previousSession) => {
 				if (!previousSession) {
 					return previousSession;
 				}
@@ -631,10 +631,10 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			});
 		});
 
-		void sendPrompt(AGENT_TEAM_MODE_PLAN_RETRY_PROMPT, {
-			contextDescription: AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION,
+		void sendPrompt(PLAN_MODE_RETRY_PROMPT, {
+			contextDescription: PLAN_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION,
 			planMode: true,
-			planModeSource: AGENT_TEAM_PLAN_MODE_SOURCE,
+			planModeSource: PLAN_MODE_SOURCE,
 			planRequestId: retryRequestId,
 			messageMetadata: {
 				visibility: "hidden",
@@ -642,7 +642,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			},
 		});
 	}, [
-		agentTeamPlanningSession,
+		planningSession,
 		isStreaming,
 		sendPrompt,
 		setPlanModeEnabled,
@@ -657,13 +657,13 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 
 			await sendPrompt(promptText, {
 				contextDescription: isPlanMode
-					? AGENT_TEAM_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION
+					? PLAN_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION
 					: undefined,
 				planMode: isPlanMode || undefined,
 				planModeSource: isPlanMode
-					? AGENT_TEAM_PLAN_MODE_SOURCE
+					? PLAN_MODE_SOURCE
 					: undefined,
-				planRequestId: agentTeamPlanningSession?.requestId,
+				planRequestId: planningSession?.requestId,
 				clarification,
 				messageMetadata: {
 					visibility: "hidden",
@@ -671,7 +671,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				},
 			});
 		},
-		[agentTeamPlanningSession?.requestId, isPlanMode, sendPrompt],
+		[planningSession?.requestId, isPlanMode, sendPrompt],
 	);
 
 	const submitPlanApproval = useCallback(
@@ -714,7 +714,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 			return;
 		}
 
-		if (isPlanMode && agentTeamPlanningSession !== null) {
+		if (isPlanMode && planningSession !== null) {
 			return;
 		}
 
@@ -730,7 +730,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 	}, [
 		prompt,
 		isPlanMode,
-		agentTeamPlanningSession,
+		planningSession,
 		isChatMode,
 		sendAgentsPrompt,
 		createChatEntry,
@@ -742,7 +742,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 				return;
 			}
 
-			if (isPlanMode && agentTeamPlanningSession !== null) {
+			if (isPlanMode && planningSession !== null) {
 				return;
 			}
 
@@ -755,7 +755,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		},
 		[
 			isPlanMode,
-			agentTeamPlanningSession,
+			planningSession,
 			isChatMode,
 			sendAgentsPrompt,
 			createChatEntry,
@@ -916,7 +916,7 @@ export function useAgentsTeamChat(): UseAgentsTeamChatReturn {
 		setIsPlanMode((prev) => {
 			const next = !prev;
 			if (!next) {
-				setAgentTeamPlanningSession(null);
+				setPlanningSession(null);
 			}
 			return next;
 		});

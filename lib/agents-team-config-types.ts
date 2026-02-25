@@ -1,4 +1,4 @@
-export interface AgentsTeamSkill {
+export interface PlanSkill {
 	id: string;
 	name: string;
 	description: string;
@@ -8,7 +8,7 @@ export interface AgentsTeamSkill {
 	updatedAt: string;
 }
 
-export interface AgentsTeamAgent {
+export interface PlanAgent {
 	id: string;
 	name: string;
 	description: string;
@@ -22,8 +22,8 @@ export interface AgentsTeamAgent {
 	updatedAt: string;
 }
 
-export type AgentsTeamSkillInput = Pick<AgentsTeamSkill, "name" | "description" | "content">;
-export type AgentsTeamAgentInput = Pick<
-	AgentsTeamAgent,
+export type PlanSkillInput = Pick<PlanSkill, "name" | "description" | "content">;
+export type PlanAgentInput = Pick<
+	PlanAgent,
 	"name" | "description" | "systemPrompt" | "model" | "allowedTools" | "equippedSkills" | "maxTurns"
 >;

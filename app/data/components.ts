@@ -230,7 +230,6 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 	blockComponent("agent-summary", "Agent Summary"),
 	blockComponent("approval-card", "Approval Card"),
 	blockComponent("chatbot", "Chatbot"),
-	blockComponent("yolo-color-blocks", "YOLO Color Blocks"),
 	blockComponent("chatgpt", "ChatGPT"),
 	blockComponent("dashboard", "Dashboard"),
 	blockComponent("data-table", "Data Table"),
@@ -246,7 +245,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 	blockComponent("prompt-gallery", "Prompt Gallery"),
 	blockComponent("question-card", "Question Card"),
 	blockComponent("settings-dialog", "Settings Dialog"),
-	blockComponent("shared-ui", "Shared UI"),
+	{ name: "Chat Configuration", slug: "chat-configuration", importPath: "@/components/blocks/chat-configuration", category: "blocks", detail: BLOCK_DETAILS["chat-configuration"] },
 	{ name: "App Sidebar", slug: "app-sidebar", importPath: "@/components/blocks/sidebar/app-sidebar", category: "blocks", detail: BLOCK_DETAILS["app-sidebar"] },
 	{ name: "Sidebar 01", slug: "sidebar-01", importPath: "@/components/blocks/sidebar/sidebar-01", category: "blocks", detail: BLOCK_DETAILS["sidebar-01"] },
 	{ name: "Sidebar 02", slug: "sidebar-02", importPath: "@/components/blocks/sidebar/sidebar-02", category: "blocks", detail: BLOCK_DETAILS["sidebar-02"] },
@@ -277,7 +276,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 ] as const;
 
 export const TEMPLATE_COMPONENTS: ComponentEntry[] = [
-	templateComponent("agents-team", "Agents Team"),
+	templateComponent("agents-team", "Plan"),
 	templateComponent("sidebar-chat", "Sidebar Chat"),
 	templateComponent("confluence", "Confluence Editor"),
 	templateComponent("jira", "Jira Board"),
@@ -292,6 +291,7 @@ export const UTILITY_COMPONENTS: ComponentEntry[] = [
 	utilityComponent("sound-generation", "Sound Generation"),
 	utilityComponent("streamdown", "Streamdown"),
 	utilityComponent("ui-generation", "UI Generation"),
+	utilityComponent("visual-json", "Visual JSON"),
 ] as const;
 
 export const VISUAL_COMPONENTS: ComponentEntry[] = [

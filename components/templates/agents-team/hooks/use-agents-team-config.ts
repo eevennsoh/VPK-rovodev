@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_ENDPOINTS } from "@/lib/api-config";
 import type {
-	AgentsTeamSkill,
-	AgentsTeamSkillInput,
-	AgentsTeamAgent,
-	AgentsTeamAgentInput,
+	PlanSkill,
+	PlanSkillInput,
+	PlanAgent,
+	PlanAgentInput,
 } from "@/lib/agents-team-config-types";
 import {
 	DEFAULT_SKILLS,
@@ -36,17 +36,17 @@ async function parseJsonResponse<T>(
 	}
 }
 
-export function useAgentsTeamConfig() {
-	const [skills, setSkills] = useState<AgentsTeamSkill[]>(DEFAULT_SKILLS);
-	const [agents, setAgents] = useState<AgentsTeamAgent[]>(DEFAULT_AGENTS);
+export function usePlanConfig() {
+	const [skills, setSkills] = useState<PlanSkill[]>(DEFAULT_SKILLS);
+	const [agents, setAgents] = useState<PlanAgent[]>(DEFAULT_AGENTS);
 	const [isLoading, setIsLoading] = useState(false);
 	const hasFetchedRef = useRef(false);
 
 	const fetchSkills = useCallback(async () => {
 		try {
-			const response = await fetch(API_ENDPOINTS.AGENTS_TEAM_SKILLS);
+			const response = await fetch(API_ENDPOINTS.PLAN_SKILLS);
 			if (!response.ok) return;
-			const data = await parseJsonResponse<{ skills: AgentsTeamSkill[] }>(response, "fetch skills");
+			const data = await parseJsonResponse<{ skills: PlanSkill[] }>(response, "fetch skills");
 			if (!data) return;
 			setSkills(data.skills);
 		} catch (error) {
@@ -56,9 +56,9 @@ export function useAgentsTeamConfig() {
 
 	const fetchAgents = useCallback(async () => {
 		try {
-			const response = await fetch(API_ENDPOINTS.AGENTS_TEAM_AGENTS);
+			const response = await fetch(API_ENDPOINTS.PLAN_AGENTS);
 			if (!response.ok) return;
-			const data = await parseJsonResponse<{ agents: AgentsTeamAgent[] }>(response, "fetch agents");
+			const data = await parseJsonResponse<{ agents: PlanAgent[] }>(response, "fetch agents");
 			if (!data) return;
 			setAgents(data.agents);
 		} catch (error) {
@@ -79,13 +79,13 @@ export function useAgentsTeamConfig() {
 		let cancelled = false;
 		async function load() {
 			const [skillsRes, agentsRes] = await Promise.all([
-				fetch(API_ENDPOINTS.AGENTS_TEAM_SKILLS).catch(() => null),
-				fetch(API_ENDPOINTS.AGENTS_TEAM_AGENTS).catch(() => null),
+				fetch(API_ENDPOINTS.PLAN_SKILLS).catch(() => null),
+				fetch(API_ENDPOINTS.PLAN_AGENTS).catch(() => null),
 			]);
 			if (cancelled) return;
 
 			if (skillsRes?.ok) {
-				const data = await parseJsonResponse<{ skills: AgentsTeamSkill[] }>(
+				const data = await parseJsonResponse<{ skills: PlanSkill[] }>(
 					skillsRes,
 					"load skills"
 				);
@@ -94,7 +94,7 @@ export function useAgentsTeamConfig() {
 				}
 			}
 			if (agentsRes?.ok) {
-				const data = await parseJsonResponse<{ agents: AgentsTeamAgent[] }>(
+				const data = await parseJsonResponse<{ agents: PlanAgent[] }>(
 					agentsRes,
 					"load agents"
 				);
@@ -111,22 +111,22 @@ export function useAgentsTeamConfig() {
 	}, []);
 
 	const createSkill = useCallback(
-		async (data: AgentsTeamSkillInput): Promise<AgentsTeamSkill | null> => {
+		async (data: PlanSkillInput): Promise<PlanSkill | null> => {
 			try {
-				const response = await fetch(API_ENDPOINTS.AGENTS_TEAM_SKILLS, {
+				const response = await fetch(API_ENDPOINTS.PLAN_SKILLS, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(data),
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ skill: AgentsTeamSkill }>(
+				const result = await parseJsonResponse<{ skill: PlanSkill }>(
 					response,
 					"create skill"
 				);
 				if (!result) return null;
 				setSkills((prev) => [...prev, result.skill]);
 				// Persist to seed files in background
-				fetch(API_ENDPOINTS.agentsTeamSkillPersist(result.skill.id), { method: "POST" }).catch(() => {});
+				fetch(API_ENDPOINTS.planSkillPersist(result.skill.id), { method: "POST" }).catch(() => {});
 				return result.skill;
 			} catch (error) {
 				console.error("Failed to create skill:", error);
@@ -137,15 +137,15 @@ export function useAgentsTeamConfig() {
 	);
 
 	const updateSkill = useCallback(
-		async (id: string, data: Partial<AgentsTeamSkillInput>): Promise<AgentsTeamSkill | null> => {
+		async (id: string, data: Partial<PlanSkillInput>): Promise<PlanSkill | null> => {
 			try {
-				const response = await fetch(API_ENDPOINTS.agentsTeamSkill(id), {
+				const response = await fetch(API_ENDPOINTS.planSkill(id), {
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(data),
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ skill: AgentsTeamSkill }>(
+				const result = await parseJsonResponse<{ skill: PlanSkill }>(
 					response,
 					"update skill"
 				);
@@ -164,7 +164,7 @@ export function useAgentsTeamConfig() {
 
 	const deleteSkill = useCallback(async (id: string): Promise<boolean> => {
 		try {
-			const response = await fetch(API_ENDPOINTS.agentsTeamSkill(id), {
+			const response = await fetch(API_ENDPOINTS.planSkill(id), {
 				method: "DELETE",
 			});
 			if (!response.ok) return false;
@@ -177,22 +177,22 @@ export function useAgentsTeamConfig() {
 	}, []);
 
 	const createAgent = useCallback(
-		async (data: AgentsTeamAgentInput): Promise<AgentsTeamAgent | null> => {
+		async (data: PlanAgentInput): Promise<PlanAgent | null> => {
 			try {
-				const response = await fetch(API_ENDPOINTS.AGENTS_TEAM_AGENTS, {
+				const response = await fetch(API_ENDPOINTS.PLAN_AGENTS, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(data),
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ agent: AgentsTeamAgent }>(
+				const result = await parseJsonResponse<{ agent: PlanAgent }>(
 					response,
 					"create agent"
 				);
 				if (!result) return null;
 				setAgents((prev) => [...prev, result.agent]);
 				// Persist to seed files in background
-				fetch(API_ENDPOINTS.agentsTeamAgentPersist(result.agent.id), { method: "POST" }).catch(() => {});
+				fetch(API_ENDPOINTS.planAgentPersist(result.agent.id), { method: "POST" }).catch(() => {});
 				return result.agent;
 			} catch (error) {
 				console.error("Failed to create agent:", error);
@@ -203,15 +203,15 @@ export function useAgentsTeamConfig() {
 	);
 
 	const updateAgent = useCallback(
-		async (id: string, data: Partial<AgentsTeamAgentInput>): Promise<AgentsTeamAgent | null> => {
+		async (id: string, data: Partial<PlanAgentInput>): Promise<PlanAgent | null> => {
 			try {
-				const response = await fetch(API_ENDPOINTS.agentsTeamAgent(id), {
+				const response = await fetch(API_ENDPOINTS.planAgent(id), {
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(data),
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ agent: AgentsTeamAgent }>(
+				const result = await parseJsonResponse<{ agent: PlanAgent }>(
 					response,
 					"update agent"
 				);
@@ -230,7 +230,7 @@ export function useAgentsTeamConfig() {
 
 	const deleteAgent = useCallback(async (id: string): Promise<boolean> => {
 		try {
-			const response = await fetch(API_ENDPOINTS.agentsTeamAgent(id), {
+			const response = await fetch(API_ENDPOINTS.planAgent(id), {
 				method: "DELETE",
 			});
 			if (!response.ok) return false;

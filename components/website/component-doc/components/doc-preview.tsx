@@ -51,9 +51,11 @@ export function DocPreview({ slug, category }: Readonly<DocPreviewProps>) {
 		</Button>
 	);
 
+	const isFullPage = category === "templates" || category === "blocks";
+
 	return (
 		<DocSection id="preview" title="Preview" action={fullViewAction}>
-			<DemoPreviewShell>
+			<DemoPreviewShell fullPage={isFullPage}>
 				<Suspense fallback={<PreviewSkeleton />}>
 					{createElement(Demo)}
 				</Suspense>

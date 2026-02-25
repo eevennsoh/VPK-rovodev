@@ -120,7 +120,7 @@ async function fetchJson<TPayload>(url: string, fallbackMessage: string): Promis
 
 export const dynamic = "force-dynamic";
 
-export default async function AgentsTeamRunSummaryPage({ params }: Readonly<RunSummaryPageProps>) {
+export default async function PlanRunSummaryPage({ params }: Readonly<RunSummaryPageProps>) {
 	const { runId } = await params;
 	const headersList = await headers();
 	const requestOrigin = getRequestOrigin(headersList);

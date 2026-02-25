@@ -4,17 +4,19 @@ import ChatPanel from "@/components/templates/sidebar-chat/page";
 
 export default function SidebarChatDemo() {
 	return (
-		<div className="relative flex h-[600px] justify-center">
-			<ChatPanel
-				onClose={() => {}}
-				enableSmartWidgets={true}
-				sendPromptOptions={{
-					smartGeneration: {
-						enabled: true,
-						surface: "sidebar",
-					},
-				}}
-			/>
+		<div className="flex h-full w-full items-center justify-center p-6">
+			<div className="h-[800px] w-[400px]">
+				<ChatPanel
+					onClose={() => {}}
+					enableSmartWidgets={true}
+					sendPromptOptions={{
+						smartGeneration: {
+							enabled: true,
+							surface: "sidebar",
+						},
+					}}
+				/>
+			</div>
 		</div>
 	);
 }

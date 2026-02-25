@@ -13,6 +13,7 @@
 		"dev:rovodev": "node scripts/dev-rovodev.js",
 		"rovodev:tmux": "./scripts/dev-tmux-8.sh",
 		"rovodev": "concurrently --kill-others-on-fail -n rovodev,backend,frontend -c blue,yellow,green \"node scripts/dev-rovodev.js\" \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
+		"rovodev:solo": "ROVODEV_POOL_SIZE=1 concurrently --kill-others-on-fail -n rovodev,backend,frontend -c blue,yellow,green \"node scripts/dev-rovodev.js\" \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
 		"ports": "node scripts/show-worktree-ports.js",
 		"generate:prompt": "node --experimental-strip-types scripts/generate-catalog-prompt.js"
 	},
@@ -47,6 +48,8 @@
 		"@tiptap/extension-underline": "^3.17.1",
 		"@tiptap/react": "^3.17.1",
 		"@tiptap/starter-kit": "^3.17.1",
+		"@visual-json/core": "^0.1.1",
+		"@visual-json/react": "^0.1.1",
 		"@xyflow/react": "^12.10.0",
 		"agentation": "^2.1.1",
 		"agentation-mcp": "^1.1.0",

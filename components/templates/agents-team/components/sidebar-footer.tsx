@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button";
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import AddIcon from "@atlaskit/icon/core/add";
-import type { AgentsTeamSkill, AgentsTeamAgent } from "@/lib/agents-team-config-types";
+import type { PlanSkill, PlanAgent } from "@/lib/agents-team-config-types";
 import { useState } from "react";
 
 interface SidebarFooterProps {
-	skills: AgentsTeamSkill[];
-	agents: AgentsTeamAgent[];
-	onEditSkill: (skill: AgentsTeamSkill) => void;
+	skills: PlanSkill[];
+	agents: PlanAgent[];
+	onEditSkill: (skill: PlanSkill) => void;
 	onNewSkill: () => void;
-	onEditAgent: (agent: AgentsTeamAgent) => void;
+	onEditAgent: (agent: PlanAgent) => void;
 	onNewAgent: () => void;
 }
 

@@ -20,19 +20,8 @@ export default function RovoView() {
 		isChatMode,
 		uiMessages,
 		userName,
-		isListening,
-		interimText,
-		toggleDictation,
 		contextEnabled,
 		setContextEnabled,
-		selectedReasoning,
-		setSelectedReasoning,
-		handleClarificationSubmit,
-		handleClarificationDismiss,
-		webResultsEnabled,
-		setWebResultsEnabled,
-		companyKnowledgeEnabled,
-		setCompanyKnowledgeEnabled,
 		queuedPrompts,
 		removeQueuedPrompt,
 		activeQuestionCard,
@@ -40,6 +29,8 @@ export default function RovoView() {
 		handleSuggestedQuestionClick,
 		handleWidgetPrimaryAction,
 		handleBackToStart,
+		handleClarificationSubmit,
+		handleClarificationDismiss,
 		isStreaming,
 		isSubmitPending,
 		stopStreaming,
@@ -66,21 +57,13 @@ export default function RovoView() {
 				<RovoInitialView
 					userName={userName}
 					prompt={prompt}
-					interimText={interimText}
-					isListening={isListening}
-					isStreaming={isRequestInFlight}
+					isStreaming={isStreaming}
+					hasInFlightTurn={isRequestInFlight}
 					onPromptChange={setPrompt}
 					onSubmit={handleSubmit}
-					onToggleDictation={toggleDictation}
-					onStopStreaming={stopStreaming}
+					onStop={stopStreaming}
 					contextEnabled={contextEnabled}
 					onContextToggle={setContextEnabled}
-					selectedReasoning={selectedReasoning}
-					onReasoningChange={setSelectedReasoning}
-					webResultsEnabled={webResultsEnabled}
-					onWebResultsChange={setWebResultsEnabled}
-					companyKnowledgeEnabled={companyKnowledgeEnabled}
-					onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
 					queuedPrompts={queuedPrompts}
 					onRemoveQueuedPrompt={removeQueuedPrompt}
 				/>
@@ -126,22 +109,14 @@ export default function RovoView() {
 						) : (
 							<RovoChatInput
 								prompt={prompt}
-								interimText={interimText}
-								isListening={isListening}
-								isStreaming={isRequestInFlight}
+								isStreaming={isStreaming}
+								hasInFlightTurn={isRequestInFlight}
 								onPromptChange={setPrompt}
 								onSubmit={handleSubmit}
-								onToggleDictation={toggleDictation}
-								onStopStreaming={stopStreaming}
+								onStop={stopStreaming}
 								contextEnabled={contextEnabled}
 								onContextToggle={setContextEnabled}
 								product="rovo"
-								selectedReasoning={selectedReasoning}
-								onReasoningChange={setSelectedReasoning}
-								webResultsEnabled={webResultsEnabled}
-								onWebResultsChange={setWebResultsEnabled}
-								companyKnowledgeEnabled={companyKnowledgeEnabled}
-								onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
 								queuedPrompts={queuedPrompts}
 								onRemoveQueuedPrompt={removeQueuedPrompt}
 							/>

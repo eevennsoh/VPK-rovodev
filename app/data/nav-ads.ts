@@ -28,7 +28,7 @@ const ADS_BLOCK_SLUGS = new Set([
 	"agent-summary",
 	"top-navigation",
 	"prompt-gallery",
-	"shared-ui",
+	"chat-configuration",
 	"product-sidebar",
 	"sidebar-rail",
 	"work-item-widget",

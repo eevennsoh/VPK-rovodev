@@ -1,12 +1,12 @@
 import { API_ENDPOINTS } from "@/lib/api-config";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
-import { trimTitleText, type AgentsTeamThread } from "./thread-store";
+import { trimTitleText, type PlanThread } from "./thread-store";
 
 /**
  * Fire-and-forget: persist a full thread snapshot to the server.
  */
-export function persistThreadToServer(thread: AgentsTeamThread): void {
-	fetch(API_ENDPOINTS.agentsTeamThreads(), {
+export function persistThreadToServer(thread: PlanThread): void {
+	fetch(API_ENDPOINTS.planThreads(), {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({
@@ -28,7 +28,7 @@ export function updateThreadOnServer(
 	threadId: string,
 	fields: { title?: string; messages?: ReadonlyArray<RovoUIMessage>; updatedAt?: string },
 ): void {
-	fetch(API_ENDPOINTS.agentsTeamThread(threadId), {
+	fetch(API_ENDPOINTS.planThread(threadId), {
 		method: "PUT",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(fields),
@@ -41,7 +41,7 @@ export function updateThreadOnServer(
  * Fire-and-forget: delete a thread on the server.
  */
 export function deleteThreadOnServer(threadId: string): void {
-	fetch(API_ENDPOINTS.agentsTeamThread(threadId), {
+	fetch(API_ENDPOINTS.planThread(threadId), {
 		method: "DELETE",
 	}).catch(() => {
 		// Fire-and-forget
@@ -139,12 +139,12 @@ export function areMessageArraysShallowEqual(
 }
 
 /**
- * Generate a unique request ID for agent team planning sessions.
+ * Generate a unique request ID for plan sessions.
  */
-export function createAgentTeamRequestId(): string {
+export function createPlanRequestId(): string {
 	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
 		return crypto.randomUUID();
 	}
 
-	return `agent-team-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	return `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }

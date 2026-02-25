@@ -1119,7 +1119,7 @@ const BLOCK_DEMOS: Record<string, ComponentType> = {
 	"data-table": dynamic(() => import("./demos/blocks/data-table-demo"), { ssr: false }),
 	"top-navigation": dynamic(() => import("./demos/blocks/top-navigation-demo"), { ssr: false }),
 	"prompt-gallery": dynamic(() => import("./demos/blocks/prompt-gallery-demo"), { ssr: false }),
-	"shared-ui": dynamic(() => import("./demos/blocks/shared-ui-demo"), { ssr: false }),
+	"chat-configuration": dynamic(() => import("./demos/blocks/shared-ui-demo"), { ssr: false }),
 	"settings-dialog": dynamic(() => import("./demos/blocks/settings-dialog-demo"), { ssr: false }),
 	"product-sidebar": dynamic(() => import("./demos/blocks/product-sidebar-demo"), { ssr: false }),
 	"sidebar-rail": dynamic(() => import("./demos/blocks/sidebar-rail-demo"), { ssr: false }),
@@ -1134,6 +1134,7 @@ const BLOCK_DEMOS: Record<string, ComponentType> = {
 	chatbot: dynamic(() => import("./demos/blocks/chatbot-demo"), { ssr: false }),
 	ide: dynamic(() => import("./demos/blocks/ide-demo"), { ssr: false }),
 	generative: dynamic(() => import("./demos/blocks/generative-demo"), { ssr: false }),
+	"kanban-sprint": dynamic(() => import("./demos/blocks/kanban-sprint-demo"), { ssr: false }),
 	workflow: dynamic(() => import("./demos/blocks/workflow-demo"), { ssr: false }),
 	"frame-demo": dynamic(() => import("./demos/blocks/frame-demo"), { ssr: false }),
 };
@@ -1259,6 +1260,7 @@ const UTILITY_DEMOS: Record<string, ComponentType> = {
 	"sound-generation": dynamic(() => import("./demos/utils/sound-generation-demo"), { ssr: false }),
 	streamdown: dynamic(() => import("./demos/utils/streamdown-demo"), { ssr: false }),
 	"ui-generation": dynamic(() => import("./demos/utils/ui-generation-demo"), { ssr: false }),
+	"visual-json": dynamic(() => import("./demos/utils/visual-json-demo"), { ssr: false }),
 };
 
 const VISUAL_DEMOS: Record<string, ComponentType> = {

@@ -20,11 +20,11 @@ export default function SidebarEmptyState({ onCreateOne }: Readonly<SidebarEmpty
 		<div className="flex w-full flex-col items-center gap-4 px-6 text-center">
 			<div className="flex w-full flex-col items-center gap-1">
 				<Heading as="h3" size="xsmall">
-					Your agent team is waiting
+					Your plan is ready
 				</Heading>
 				<p className="text-sm text-text-subtle">
-					Spin up a team of agents and watch your problems get solved while you
-					focus elsewhere.
+					Create a plan with a team of agents and watch your problems get
+					solved while you focus elsewhere.
 				</p>
 			</div>
 			<Button

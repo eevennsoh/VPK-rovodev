@@ -13,15 +13,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import type {
-	AgentsTeamSkill,
-	AgentsTeamSkillInput,
+	PlanSkill,
+	PlanSkillInput,
 } from "@/lib/agents-team-config-types";
 
 interface SkillDialogProps {
 	open: boolean;
-	skill: AgentsTeamSkill | null;
+	skill: PlanSkill | null;
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: AgentsTeamSkillInput) => Promise<unknown>;
+	onSave: (data: PlanSkillInput) => Promise<unknown>;
 	onDelete?: (id: string) => Promise<unknown>;
 }
 
@@ -49,9 +49,9 @@ export default function SkillDialog({
 }
 
 interface SkillDialogFormProps {
-	skill: AgentsTeamSkill | null;
+	skill: PlanSkill | null;
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: AgentsTeamSkillInput) => Promise<unknown>;
+	onSave: (data: PlanSkillInput) => Promise<unknown>;
 	onDelete?: (id: string) => Promise<unknown>;
 }
 

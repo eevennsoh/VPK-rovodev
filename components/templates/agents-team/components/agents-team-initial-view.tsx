@@ -9,19 +9,19 @@ import { token } from "@/lib/tokens";
 import { useTheme } from "@/components/utils/theme-wrapper";
 import { getPlanModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
 import {
-	useAgentsTeamState,
-	useAgentsTeamActions,
+	usePlanState,
+	usePlanActions,
 } from "@/app/contexts/context-agents-team";
-import AgentsTeamComposer from "./agents-team-composer";
+import PlanComposer from "./agents-team-composer";
 
-export default function AgentsTeamInitialView() {
+export default function PlanInitialView() {
 	const {
 		prompt,
 		isStreaming,
 		isSubmitPending,
 		isPlanMode,
 		queuedPrompts,
-	} = useAgentsTeamState();
+	} = usePlanState();
 
 	const {
 		setPrompt,
@@ -29,7 +29,7 @@ export default function AgentsTeamInitialView() {
 		stopStreaming,
 		togglePlanMode,
 		removeQueuedPrompt,
-	} = useAgentsTeamActions();
+	} = usePlanActions();
 
 	const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
 	const [galleryExpanded, setGalleryExpanded] = useState(false);
@@ -89,7 +89,7 @@ export default function AgentsTeamInitialView() {
 				</div>
 
 				<div ref={composerContainerRef} className="w-full px-1">
-					<AgentsTeamComposer
+					<PlanComposer
 						prompt={prompt}
 						placeholder={previewPrompt ?? modeCopy.placeholder}
 						isStreaming={isRequestInFlight}
