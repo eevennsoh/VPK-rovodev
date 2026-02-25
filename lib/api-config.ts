@@ -35,6 +35,7 @@ export const API_ENDPOINTS = {
 	PLAN_RUNS: `${API_BASE_URL}/api/agents-team/runs`,
 	PLAN_SKILLS: `${API_BASE_URL}/api/agents-team/skills`,
 	PLAN_AGENTS: `${API_BASE_URL}/api/agents-team/agents`,
+	PLAN_TOOLS: `${API_BASE_URL}/api/agents-team/tools`,
 	PLAN_CONFIG_SUMMARY: `${API_BASE_URL}/api/agents-team/config-summary`,
 	PLAN_THREADS: `${API_BASE_URL}/api/agents-team/threads`,
 	planRuns: (limit?: number) =>
@@ -57,14 +58,14 @@ export const API_ENDPOINTS = {
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/files`,
 	planRunShare: (runId: string) =>
 		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/share`,
-	planSkill: (id: string) =>
-		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(id)}`,
-	planAgent: (id: string) =>
-		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(id)}`,
-	planSkillPersist: (id: string) =>
-		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(id)}/persist`,
-	planAgentPersist: (id: string) =>
-		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(id)}/persist`,
+	planSkill: (name: string) =>
+		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(name)}`,
+	planAgent: (name: string) =>
+		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(name)}`,
+	planSkillRaw: (name: string) =>
+		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(name)}/raw`,
+	planAgentRaw: (name: string) =>
+		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(name)}/raw`,
 	planThreads: (limit?: number) =>
 		`${API_BASE_URL}/api/agents-team/threads${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""

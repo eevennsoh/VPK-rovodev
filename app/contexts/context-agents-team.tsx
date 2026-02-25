@@ -24,7 +24,7 @@ import type { GenerativeWidgetPrimaryActionPayload } from "@/components/template
 import type { TaskExecution } from "@/components/templates/agents-team/lib/execution-data";
 import type { ExecutionState } from "@/components/templates/agents-team/hooks/use-execution-mode";
 import type { ChatHistoryItem } from "@/components/templates/agents-team/components/sidebar-chat-history";
-import type { SkillDialogProps, AgentDialogProps, SidebarConfigHandlers } from "@/components/templates/agents-team/hooks/use-config-dialogs";
+import type { SkillDialogProps, AgentDialogProps, SidebarConfigHandlers, ImportDialogState, DeleteAlertState } from "@/components/templates/agents-team/hooks/use-config-dialogs";
 import type { RetryTaskGroupKey } from "@/components/templates/agents-team/lib/retry-task-groups";
 import {
 	buildClarificationSummaryPrompt,
@@ -121,6 +121,7 @@ export interface PlanActions {
 
 	// Clarification / Approval
 	handleClarificationSubmit: (answers: ClarificationAnswers) => void;
+	handleClarificationDismiss: (questionCard: ParsedQuestionCardPayload) => void;
 	handleApprovalSubmit: (selection: PlanApprovalSelection) => void;
 
 	// Suggestions / Widgets
@@ -145,6 +146,12 @@ export interface PlanMeta {
 	skillDialogProps: SkillDialogProps;
 	agentDialogProps: AgentDialogProps;
 	sidebarConfigHandlers: SidebarConfigHandlers;
+	importDialog: ImportDialogState;
+	closeImportDialog: () => void;
+	handleImport: (content: string) => Promise<void>;
+	deleteAlert: DeleteAlertState;
+	closeDeleteAlert: () => void;
+	handleDeleteConfirm: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +256,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 		handleSuggestedQuestionClick,
 		handleWidgetPrimaryAction,
 		submitClarification,
+		dismissClarification,
 		submitPlanApproval,
 		handleNewChat,
 		handleSelectChat,
@@ -258,22 +266,43 @@ export function PlanProvider({ children }: PlanProviderProps) {
 	const {
 		skills,
 		agents,
+		availableTools,
 		createSkill,
 		updateSkill,
 		deleteSkill,
 		createAgent,
 		updateAgent,
 		deleteAgent,
+		exportSkill,
+		exportAgent,
+		importSkill,
+		importAgent,
 	} = usePlanConfig();
 
-	const { skillDialogProps, agentDialogProps, sidebarConfigHandlers } = useConfigDialogs({
+	const {
+		skillDialogProps,
+		agentDialogProps,
+		sidebarConfigHandlers,
+		importDialog,
+		closeImportDialog,
+		handleImport,
+		deleteAlert,
+		closeDeleteAlert,
+		handleDeleteConfirm,
+	} = useConfigDialogs({
 		skills,
+		agents,
 		createSkill,
 		updateSkill,
 		deleteSkill,
 		createAgent,
 		updateAgent,
 		deleteAgent,
+		exportSkill,
+		exportAgent,
+		importSkill,
+		importAgent,
+		availableTools,
 	});
 
 	const {
@@ -404,6 +433,13 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			void submitClarification(clarificationPrompt, clarificationSubmission);
 		},
 		[activeQuestionCard, submitClarification],
+	);
+
+	const handleClarificationDismiss = useCallback(
+		(questionCard: ParsedQuestionCardPayload) => {
+			void dismissClarification(questionCard);
+		},
+		[dismissClarification],
 	);
 
 	const handleApprovalSubmit = useCallback(
@@ -621,6 +657,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			handleSelectChat,
 			handleDeleteChat,
 			handleClarificationSubmit,
+			handleClarificationDismiss,
 			handleApprovalSubmit,
 			handleSuggestedQuestionClick,
 			handleWidgetPrimaryAction,
@@ -643,6 +680,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			handleSelectChat,
 			handleDeleteChat,
 			handleClarificationSubmit,
+			handleClarificationDismiss,
 			handleApprovalSubmit,
 			handleSuggestedQuestionClick,
 			handleWidgetPrimaryAction,
@@ -661,8 +699,14 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			skillDialogProps,
 			agentDialogProps,
 			sidebarConfigHandlers,
+			importDialog,
+			closeImportDialog,
+			handleImport,
+			deleteAlert,
+			closeDeleteAlert,
+			handleDeleteConfirm,
 		}),
-		[skills, agents, skillDialogProps, agentDialogProps, sidebarConfigHandlers],
+		[skills, agents, skillDialogProps, agentDialogProps, sidebarConfigHandlers, importDialog, closeImportDialog, handleImport, deleteAlert, closeDeleteAlert, handleDeleteConfirm],
 	);
 
 	const contextValue: PlanContextValue = useMemo(

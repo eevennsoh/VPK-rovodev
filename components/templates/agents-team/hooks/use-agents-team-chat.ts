@@ -12,7 +12,9 @@ import {
 } from "@/lib/rovo-ui-messages";
 import {
 	getLatestQuestionCardPayload,
+	buildClarificationDismissPrompt,
 	type ClarificationSubmission,
+	type ParsedQuestionCardPayload,
 } from "@/components/templates/shared/lib/question-card-widget";
 import {
 	buildPlanApprovalPrompt,
@@ -86,6 +88,9 @@ interface UsePlanChatReturn {
 	submitClarification: (
 		promptText: string,
 		clarification: ClarificationSubmission
+	) => Promise<void>;
+	dismissClarification: (
+		questionCard: ParsedQuestionCardPayload
 	) => Promise<void>;
 	submitPlanApproval: (approval: PlanApprovalSubmission) => Promise<void>;
 	sendAgentDirective: (agentName: string, message: string) => Promise<void>;
@@ -444,6 +449,10 @@ export function usePlanChat(): UsePlanChatReturn {
 	);
 
 	const createChatEntry = useCallback((firstMessage: string) => {
+		// Prevent the URL-restore effect from firing after we create a new thread.
+		// Without this, the restore effect sees the new thread (with empty messages)
+		// and calls replaceMessages([]), wiping out the in-progress stream.
+		hasRestoredFromUrlRef.current = true;
 		const thread = createThreadFromPrompt({
 			promptText: firstMessage,
 		});
@@ -665,6 +674,27 @@ export function usePlanChat(): UsePlanChatReturn {
 					: undefined,
 				planRequestId: planningSession?.requestId,
 				clarification,
+				messageMetadata: {
+					visibility: "hidden",
+					source: "clarification-submit",
+				},
+			});
+		},
+		[planningSession?.requestId, isPlanMode, sendPrompt],
+	);
+
+	const dismissClarification = useCallback(
+		async (questionCard: ParsedQuestionCardPayload) => {
+			const dismissPrompt = buildClarificationDismissPrompt(questionCard);
+			await sendPrompt(dismissPrompt, {
+				contextDescription: isPlanMode
+					? PLAN_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION
+					: undefined,
+				planMode: isPlanMode || undefined,
+				planModeSource: isPlanMode
+					? PLAN_MODE_SOURCE
+					: undefined,
+				planRequestId: planningSession?.requestId,
 				messageMetadata: {
 					visibility: "hidden",
 					source: "clarification-submit",
@@ -942,6 +972,7 @@ export function usePlanChat(): UsePlanChatReturn {
 		handleSuggestedQuestionClick,
 		handleWidgetPrimaryAction,
 		submitClarification,
+		dismissClarification,
 		submitPlanApproval,
 		sendAgentDirective,
 		handleNewChat,

@@ -63,6 +63,10 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	onNewSkill: () => void;
 	onEditAgent: (agent: PlanAgent) => void;
 	onNewAgent: () => void;
+	onExportSkill: (name: string) => void;
+	onExportAgent: (name: string) => void;
+	onImportSkill: () => void;
+	onImportAgent: () => void;
 	onCreatePlan: () => void;
 }
 
@@ -87,6 +91,10 @@ export function AppSidebar({
 	onNewSkill,
 	onEditAgent,
 	onNewAgent,
+	onExportSkill,
+	onExportAgent,
+	onImportSkill,
+	onImportAgent,
 	onCreatePlan,
 	...props
 }: Readonly<AppSidebarProps>) {
@@ -272,6 +280,10 @@ export function AppSidebar({
 					onNewSkill={onNewSkill}
 					onEditAgent={onEditAgent}
 					onNewAgent={onNewAgent}
+					onExportSkill={onExportSkill}
+					onExportAgent={onExportAgent}
+					onImportSkill={onImportSkill}
+					onImportAgent={onImportAgent}
 				/>
 			</SidebarFooterSlot>
 		</Sidebar>

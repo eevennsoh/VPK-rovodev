@@ -16,7 +16,7 @@ const path = require("path");
 const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
 const { createRunManager } = require("./lib/agents-team-runs");
 const { createThreadManager } = require("./lib/agents-team-threads");
-const { createConfigManager } = require("./lib/agents-team-config");
+const agentsTeamFs = require("./lib/agents-team-filesystem");
 const { genuiChatHandler, generateGenuiFromRovodevResponse } = require("./lib/genui-chat-handler");
 const {
 	streamViaRovoDev,
@@ -656,6 +656,7 @@ async function streamTextViaAIGateway({
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
+app.use(express.text({ limit: "50mb", type: "text/markdown" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use((error, _req, res, next) => {
 	if (error?.type === "entity.too.large" || error?.status === 413) {
@@ -1164,113 +1165,7 @@ function buildSmartClarificationSessionId({ planRequestId, surface }) {
 	return `smart-${safeSurface}-${createClarificationSessionId()}`;
 }
 
-const agentsTeamConfigManager = createConfigManager();
-
-// --- Seed file persistence helpers ---
-
-const fs = require("fs").promises;
-const persistedIds = new Set();
-
-function escapeForTemplate(str) {
-	if (typeof str !== "string") return "";
-	return str.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, "\\$").replace(/\n/g, "\\n").replace(/\r/g, "\\r");
-}
-
-async function appendSkillToSeedFiles(skill) {
-	// Append to frontend seed (TypeScript)
-	const frontendPath = path.join(__dirname, "..", "lib", "agents-team-config-seed.ts");
-	const frontendContent = await fs.readFile(frontendPath, "utf8");
-
-	const tsEntry = `\t{
-\t\tid: "${skill.id}",
-\t\tname: "${escapeForTemplate(skill.name)}",
-\t\tdescription:\n\t\t\t"${escapeForTemplate(skill.description)}",
-\t\tcontent: \`${escapeForTemplate(skill.content)}\`,
-\t\tisDefault: true,
-\t\tcreatedAt: now,
-\t\tupdatedAt: now,
-\t},`;
-
-	const updatedFrontend = frontendContent.replace(
-		/^(export const DEFAULT_SKILLS:\s*AgentsTeamSkill\[\]\s*=\s*\[)([\s\S]*?)(\n\];)/m,
-		(_, open, items, close) => `${open}${items}\n${tsEntry}${close}`
-	);
-	await fs.writeFile(frontendPath, updatedFrontend, "utf8");
-
-	// Append to backend seed (JavaScript)
-	const backendPath = path.join(__dirname, "lib", "agents-team-config-seed.js");
-	const backendContent = await fs.readFile(backendPath, "utf8");
-
-	const jsEntry = `\t{
-\t\tname: "${escapeForTemplate(skill.name)}",
-\t\tdescription:\n\t\t\t"${escapeForTemplate(skill.description)}",
-\t\tcontent: \`${escapeForTemplate(skill.content)}\`,
-\t},`;
-
-	const updatedBackend = backendContent.replace(
-		/^(const DEFAULT_SKILLS\s*=\s*\[)([\s\S]*?)(\n\];)/m,
-		(_, open, items, close) => `${open}${items}\n${jsEntry}${close}`
-	);
-	await fs.writeFile(backendPath, updatedBackend, "utf8");
-
-	console.log(`[AGENTS-CONFIG] Persisted skill "${skill.name}" to seed files`);
-}
-
-async function appendAgentToSeedFiles(agent) {
-	const resolvedSkillNames = (agent.equippedSkills || [])
-		.map((id) => agentsTeamConfigManager.getSkill(id))
-		.filter(Boolean)
-		.map((s) => s.name);
-
-	// Append to frontend seed (TypeScript)
-	const frontendPath = path.join(__dirname, "..", "lib", "agents-team-config-seed.ts");
-	const frontendContent = await fs.readFile(frontendPath, "utf8");
-
-	const equippedSkillsTs = resolvedSkillNames.length > 0
-		? `[${resolvedSkillNames.map((n) => `SEED_SKILL_${n.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_ID`).join(", ")}]`
-		: "[]";
-
-	const tsEntry = `\t{
-\t\tid: "${agent.id}",
-\t\tname: "${escapeForTemplate(agent.name)}",
-\t\tdescription:\n\t\t\t"${escapeForTemplate(agent.description)}",
-\t\tsystemPrompt: \`${escapeForTemplate(agent.systemPrompt)}\`,
-\t\tmodel: "${agent.model || "sonnet"}",
-\t\tallowedTools: ${JSON.stringify(agent.allowedTools || [])},
-\t\tequippedSkills: ${equippedSkillsTs},
-\t\tmaxTurns: undefined,
-\t\tisDefault: true,
-\t\tcreatedAt: now,
-\t\tupdatedAt: now,
-\t},`;
-
-	const updatedFrontend = frontendContent.replace(
-		/^(export const DEFAULT_AGENTS:\s*AgentsTeamAgent\[\]\s*=\s*\[)([\s\S]*?)(\n\];)/m,
-		(_, open, items, close) => `${open}${items}\n${tsEntry}${close}`
-	);
-	await fs.writeFile(frontendPath, updatedFrontend, "utf8");
-
-	// Append to backend seed (JavaScript)
-	const backendPath = path.join(__dirname, "lib", "agents-team-config-seed.js");
-	const backendContent = await fs.readFile(backendPath, "utf8");
-
-	const jsEntry = `\t{
-\t\tname: "${escapeForTemplate(agent.name)}",
-\t\tdescription:\n\t\t\t"${escapeForTemplate(agent.description)}",
-\t\tsystemPrompt: \`${escapeForTemplate(agent.systemPrompt)}\`,
-\t\tmodel: "${agent.model || "sonnet"}",
-\t\tallowedTools: ${JSON.stringify(agent.allowedTools || [])},
-\t\tequippedSkillsByName: ${JSON.stringify(resolvedSkillNames)},
-\t},`;
-
-	const updatedBackend = backendContent.replace(
-		/^(const DEFAULT_AGENTS\s*=\s*\[)([\s\S]*?)(\n\];)/m,
-		(_, open, items, close) => `${open}${items}\n${jsEntry}${close}`
-	);
-	await fs.writeFile(backendPath, updatedBackend, "utf8");
-
-	console.log(`[AGENTS-CONFIG] Persisted agent "${agent.name}" to seed files`);
-}
+const agentsTeamConfigManager = agentsTeamFs.createConfigManagerCompat();
 
 const agentsTeamRunManager = createRunManager({
 	baseDir: path.join(__dirname, "data"),
@@ -2856,7 +2751,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 			try {
 				const fs = require("fs");
 				const instructions = fs.readFileSync(filePath, "utf8");
-				const prefix = `You are in ${creationMode} creation mode. Follow the instructions below to help the user create a new ${creationMode}.\n\nIMPORTANT: Use the request_user_input tool (question cards) to gather requirements from the user. Ask clarifying questions about the ${creationMode} they want to create.\n\nOnce you have enough information, generate the complete ${creationMode} configuration and call the POST /api/agents-team/${creationMode}s endpoint to create it. After successful creation, call POST /api/agents-team/${creationMode}s/{id}/persist to save it permanently.\n\n---\n\n${instructions}`;
+				const prefix = `[${creationMode.toUpperCase()} CREATION MODE]\nYou are in ${creationMode} creation mode. Help the user create a new ${creationMode} definition file.\nThis is a local ${creationMode} definition — not a Confluence page, Jira ticket, or any Atlassian product content.\nAll the ${creationMode} creation instructions you need are provided below.\nOnce ready, call POST /api/agents-team/${creationMode}s to persist it.\n[END ${creationMode.toUpperCase()} CREATION MODE]\n\n---\n\n${instructions}`;
 				contextDescription = contextDescription ? `${prefix}\n\n${contextDescription}` : prefix;
 			} catch (readError) {
 				console.error(`[CHAT-SDK] Failed to read ${fileName}:`, readError.message);
@@ -8563,145 +8458,375 @@ app.get("/api/agents-team/runs/:runId/visual-summary", async (req, res) => {
 });
 
 
-// --- Skills CRUD ---
+// --- Tools list ---
+
+app.get("/api/agents-team/tools", (req, res) => {
+	// Returns available MCP tools. Stub for now — will be populated from MCP server discovery.
+	return res.status(200).json({ tools: [] });
+});
+
+// --- Skills CRUD (filesystem-backed) ---
 
 app.get("/api/agents-team/skills", (req, res) => {
 	try {
-		const skills = agentsTeamConfigManager.listSkills();
+		const skills = agentsTeamFs.listSkills();
 		return res.status(200).json({ skills });
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to list skills:", error);
+		console.error("[AGENTS-FS] Failed to list skills:", error);
 		return res.status(500).json({ error: "Failed to list skills" });
 	}
 });
 
 app.post("/api/agents-team/skills", (req, res) => {
 	try {
+		const contentType = req.headers["content-type"] || "";
+
+		// Handle markdown import (raw SKILL.md content)
+		if (contentType.includes("text/markdown")) {
+			let rawContent = "";
+			if (typeof req.body === "string") {
+				rawContent = req.body;
+			} else if (Buffer.isBuffer(req.body)) {
+				rawContent = req.body.toString("utf8");
+			} else {
+				return res.status(400).json({ error: "Expected markdown content" });
+			}
+
+			const { frontmatter, body } = agentsTeamFs.parseFrontmatter(rawContent);
+			const name = frontmatter.name;
+			const description = typeof frontmatter.description === "string" ? frontmatter.description : "";
+
+			if (!name || typeof name !== "string") {
+				return res.status(400).json({ error: "SKILL.md must have a 'name' field in frontmatter" });
+			}
+
+			const nameError = agentsTeamFs.validateSkillName(name);
+			if (nameError) {
+				return res.status(400).json({ error: nameError });
+			}
+
+			if (agentsTeamFs.skillExists(name)) {
+				return res.status(409).json({ error: `A skill named "${name}" already exists` });
+			}
+
+			const extraFields = {};
+			if (frontmatter.license) extraFields.license = frontmatter.license;
+			if (frontmatter.compatibility) extraFields.compatibility = frontmatter.compatibility;
+			if (frontmatter["allowed-tools"]) extraFields["allowed-tools"] = frontmatter["allowed-tools"];
+
+			const skill = agentsTeamFs.writeSkill(name, description, body.trim(), extraFields);
+			return res.status(201).json({ skill });
+		}
+
 		const { name, description, content } = req.body || {};
-		const skill = agentsTeamConfigManager.createSkill({ name, description, content });
+
+		// Validate name
+		const nameError = agentsTeamFs.validateSkillName(name);
+		if (nameError) {
+			return res.status(400).json({ error: nameError });
+		}
+		if (!agentsTeamFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid skill name" });
+		}
+
+		// Validate description
+		const descError = agentsTeamFs.validateSkillDescription(description);
+		if (descError) {
+			return res.status(400).json({ error: descError });
+		}
+
+		// Check for conflicts
+		if (agentsTeamFs.skillExists(name)) {
+			return res.status(409).json({ error: `A skill named "${name}" already exists` });
+		}
+
+		// Validate content length
+		const resolvedContent = typeof content === "string" ? content.trim() : "";
+		if (resolvedContent.length > agentsTeamFs.SKILL_CONTENT_MAX) {
+			return res.status(400).json({ error: `Content exceeds maximum length of ${agentsTeamFs.SKILL_CONTENT_MAX} characters` });
+		}
+
+		const skill = agentsTeamFs.writeSkill(name, description, resolvedContent);
 		return res.status(201).json({ skill });
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to create skill:", error);
+		console.error("[AGENTS-FS] Failed to create skill:", error);
 		const message = error instanceof Error ? error.message : "Failed to create skill";
-		return res.status(400).json({ error: message });
+		return res.status(500).json({ error: message });
 	}
 });
 
-app.put("/api/agents-team/skills/:id", (req, res) => {
+app.put("/api/agents-team/skills/:name", (req, res) => {
 	try {
-		const id = req.params.id;
-		const { name, description, content } = req.body || {};
-		const skill = agentsTeamConfigManager.updateSkill(id, { name, description, content });
+		const name = req.params.name;
+		if (!agentsTeamFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid skill name" });
+		}
+
+		// Read existing skill
+		const existing = agentsTeamFs.getSkillByName(name);
+		if (!existing) {
+			return res.status(404).json({ error: `Skill not found: ${name}` });
+		}
+
+		// Merge updates
+		const data = req.body || {};
+		const updatedDescription = data.description !== undefined ? data.description : existing.description;
+		const updatedContent = data.content !== undefined ? (typeof data.content === "string" ? data.content.trim() : "") : existing.content;
+
+		// Validate if description changed
+		if (data.description !== undefined) {
+			const descError = agentsTeamFs.validateSkillDescription(updatedDescription);
+			if (descError) {
+				return res.status(400).json({ error: descError });
+			}
+		}
+
+		// Validate content length
+		if (updatedContent.length > agentsTeamFs.SKILL_CONTENT_MAX) {
+			return res.status(400).json({ error: `Content exceeds maximum length of ${agentsTeamFs.SKILL_CONTENT_MAX} characters` });
+		}
+
+		// Preserve extra fields from existing skill
+		const extraFields = {};
+		if (existing.license) extraFields.license = existing.license;
+		if (existing.compatibility) extraFields.compatibility = existing.compatibility;
+		if (existing.allowedTools) extraFields["allowed-tools"] = existing.allowedTools;
+
+		const skill = agentsTeamFs.writeSkill(name, updatedDescription, updatedContent, extraFields);
 		return res.status(200).json({ skill });
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to update skill:", error);
+		console.error("[AGENTS-FS] Failed to update skill:", error);
 		const message = error instanceof Error ? error.message : "Failed to update skill";
-		return res.status(400).json({ error: message });
+		return res.status(500).json({ error: message });
 	}
 });
 
-app.delete("/api/agents-team/skills/:id", (req, res) => {
+app.delete("/api/agents-team/skills/:name", (req, res) => {
 	try {
-		const id = req.params.id;
-		agentsTeamConfigManager.deleteSkill(id);
+		const name = req.params.name;
+		if (!agentsTeamFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid skill name" });
+		}
+		agentsTeamFs.deleteSkill(name);
 		return res.status(200).json({ success: true });
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to delete skill:", error);
+		console.error("[AGENTS-FS] Failed to delete skill:", error);
 		const message = error instanceof Error ? error.message : "Failed to delete skill";
-		return res.status(400).json({ error: message });
+		return res.status(error.message?.includes("not found") ? 404 : 500).json({ error: message });
 	}
 });
 
-// --- Custom Agents CRUD ---
+app.get("/api/agents-team/skills/:name/raw", (req, res) => {
+	try {
+		const name = req.params.name;
+		if (!agentsTeamFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid skill name" });
+		}
+		const raw = agentsTeamFs.readSkillRaw(name);
+		if (!raw) {
+			return res.status(404).json({ error: `Skill not found: ${name}` });
+		}
+		res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+		return res.status(200).send(raw);
+	} catch (error) {
+		console.error("[AGENTS-FS] Failed to read skill raw:", error);
+		return res.status(500).json({ error: "Failed to read skill" });
+	}
+});
+
+// --- Agents/Subagents CRUD (filesystem-backed) ---
 
 app.get("/api/agents-team/agents", (req, res) => {
 	try {
-		const agents = agentsTeamConfigManager.listAgents();
+		const agents = agentsTeamFs.listAgents();
 		return res.status(200).json({ agents });
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to list agents:", error);
+		console.error("[AGENTS-FS] Failed to list agents:", error);
 		return res.status(500).json({ error: "Failed to list agents" });
 	}
 });
 
 app.post("/api/agents-team/agents", (req, res) => {
 	try {
-		const { name, description, systemPrompt, model, allowedTools, equippedSkills, maxTurns } = req.body || {};
-		const agent = agentsTeamConfigManager.createAgent({
-			name, description, systemPrompt, model, allowedTools, equippedSkills, maxTurns,
+		const contentType = req.headers["content-type"] || "";
+
+		// Handle markdown import (raw agent .md content)
+		if (contentType.includes("text/markdown")) {
+			let rawContent = "";
+			if (typeof req.body === "string") {
+				rawContent = req.body;
+			} else if (Buffer.isBuffer(req.body)) {
+				rawContent = req.body.toString("utf8");
+			} else {
+				return res.status(400).json({ error: "Expected markdown content" });
+			}
+
+			const { frontmatter, body } = agentsTeamFs.parseFrontmatter(rawContent);
+			const name = frontmatter.name;
+
+			if (!name || typeof name !== "string") {
+				return res.status(400).json({ error: "Agent .md must have a 'name' field in frontmatter" });
+			}
+
+			const nameError = agentsTeamFs.validateAgentName(name);
+			if (nameError) {
+				return res.status(400).json({ error: nameError });
+			}
+
+			if (agentsTeamFs.agentExists(name)) {
+				return res.status(409).json({ error: `An agent named "${name}" already exists` });
+			}
+
+			// Parse tools and skills from frontmatter
+			let tools = [];
+			if (frontmatter.tools) {
+				if (Array.isArray(frontmatter.tools)) {
+					tools = frontmatter.tools.map((t) => String(t).trim()).filter(Boolean);
+				} else if (typeof frontmatter.tools === "string") {
+					tools = frontmatter.tools.split(",").map((t) => t.trim()).filter(Boolean);
+				}
+			}
+
+			let skills = [];
+			if (frontmatter.skills) {
+				if (Array.isArray(frontmatter.skills)) {
+					skills = frontmatter.skills.map((s) => String(s).trim()).filter(Boolean);
+				} else if (typeof frontmatter.skills === "string") {
+					skills = frontmatter.skills.split(",").map((s) => s.trim()).filter(Boolean);
+				}
+			}
+
+			let disallowedTools = [];
+			if (frontmatter.disallowedTools) {
+				if (Array.isArray(frontmatter.disallowedTools)) {
+					disallowedTools = frontmatter.disallowedTools.map((t) => String(t).trim()).filter(Boolean);
+				} else if (typeof frontmatter.disallowedTools === "string") {
+					disallowedTools = frontmatter.disallowedTools.split(",").map((t) => t.trim()).filter(Boolean);
+				}
+			}
+
+			const agent = agentsTeamFs.writeAgent(name, {
+				description: typeof frontmatter.description === "string" ? frontmatter.description.trim() : "",
+				systemPrompt: body.trim(),
+				model: typeof frontmatter.model === "string" && frontmatter.model.trim() ? frontmatter.model.trim() : "inherit",
+				tools,
+				disallowedTools,
+				skills,
+				maxTurns: frontmatter.maxTurns ? parseInt(String(frontmatter.maxTurns), 10) : undefined,
+				permissionMode: typeof frontmatter.permissionMode === "string" && frontmatter.permissionMode.trim() ? frontmatter.permissionMode.trim() : undefined,
+			});
+			return res.status(201).json({ agent });
+		}
+
+		const { name, description, systemPrompt, model, tools, skills, disallowedTools, maxTurns, permissionMode } = req.body || {};
+
+		// Validate name
+		const nameError = agentsTeamFs.validateAgentName(name);
+		if (nameError) {
+			return res.status(400).json({ error: nameError });
+		}
+		if (!agentsTeamFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid agent name" });
+		}
+
+		// Validate description
+		if (!description || typeof description !== "string" || !description.trim()) {
+			return res.status(400).json({ error: "Description is required" });
+		}
+
+		// Check for conflicts
+		if (agentsTeamFs.agentExists(name)) {
+			return res.status(409).json({ error: `An agent named "${name}" already exists` });
+		}
+
+		const agent = agentsTeamFs.writeAgent(name, {
+			description: description.trim(),
+			systemPrompt: typeof systemPrompt === "string" ? systemPrompt.trim() : "",
+			model: typeof model === "string" && model.trim() ? model.trim() : "inherit",
+			tools: Array.isArray(tools) ? tools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : [],
+			disallowedTools: Array.isArray(disallowedTools) ? disallowedTools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : [],
+			skills: Array.isArray(skills) ? skills.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim()) : [],
+			maxTurns: typeof maxTurns === "number" && Number.isInteger(maxTurns) && maxTurns > 0 ? maxTurns : undefined,
+			permissionMode: typeof permissionMode === "string" && permissionMode.trim() ? permissionMode.trim() : undefined,
 		});
 		return res.status(201).json({ agent });
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to create agent:", error);
+		console.error("[AGENTS-FS] Failed to create agent:", error);
 		const message = error instanceof Error ? error.message : "Failed to create agent";
-		return res.status(400).json({ error: message });
+		return res.status(500).json({ error: message });
 	}
 });
 
-app.put("/api/agents-team/agents/:id", (req, res) => {
+app.put("/api/agents-team/agents/:name", (req, res) => {
 	try {
-		const id = req.params.id;
-		const { name, description, systemPrompt, model, allowedTools, equippedSkills, maxTurns } = req.body || {};
-		const agent = agentsTeamConfigManager.updateAgent(id, {
-			name, description, systemPrompt, model, allowedTools, equippedSkills, maxTurns,
-		});
+		const name = req.params.name;
+		if (!agentsTeamFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid agent name" });
+		}
+
+		// Read existing agent
+		const existing = agentsTeamFs.getAgentByName(name);
+		if (!existing) {
+			return res.status(404).json({ error: `Agent not found: ${name}` });
+		}
+
+		// Merge updates
+		const data = req.body || {};
+		const updated = {
+			description: data.description !== undefined ? (typeof data.description === "string" ? data.description.trim() : existing.description) : existing.description,
+			systemPrompt: data.systemPrompt !== undefined ? (typeof data.systemPrompt === "string" ? data.systemPrompt.trim() : "") : existing.systemPrompt,
+			model: data.model !== undefined ? (typeof data.model === "string" && data.model.trim() ? data.model.trim() : existing.model) : existing.model,
+			tools: data.tools !== undefined ? (Array.isArray(data.tools) ? data.tools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : existing.tools) : existing.tools,
+			disallowedTools: data.disallowedTools !== undefined ? (Array.isArray(data.disallowedTools) ? data.disallowedTools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : existing.disallowedTools) : existing.disallowedTools,
+			skills: data.skills !== undefined ? (Array.isArray(data.skills) ? data.skills.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim()) : existing.skills) : existing.skills,
+			maxTurns: data.maxTurns !== undefined ? (typeof data.maxTurns === "number" && Number.isInteger(data.maxTurns) && data.maxTurns > 0 ? data.maxTurns : undefined) : existing.maxTurns,
+			permissionMode: data.permissionMode !== undefined ? (typeof data.permissionMode === "string" && data.permissionMode.trim() ? data.permissionMode.trim() : undefined) : existing.permissionMode,
+		};
+
+		// Validate description if changed
+		if (data.description !== undefined && (!updated.description || !updated.description.trim())) {
+			return res.status(400).json({ error: "Description is required" });
+		}
+
+		const agent = agentsTeamFs.writeAgent(name, updated);
 		return res.status(200).json({ agent });
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to update agent:", error);
+		console.error("[AGENTS-FS] Failed to update agent:", error);
 		const message = error instanceof Error ? error.message : "Failed to update agent";
-		return res.status(400).json({ error: message });
+		return res.status(500).json({ error: message });
 	}
 });
 
-app.delete("/api/agents-team/agents/:id", (req, res) => {
+app.delete("/api/agents-team/agents/:name", (req, res) => {
 	try {
-		const id = req.params.id;
-		agentsTeamConfigManager.deleteAgent(id);
+		const name = req.params.name;
+		if (!agentsTeamFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid agent name" });
+		}
+		agentsTeamFs.deleteAgent(name);
 		return res.status(200).json({ success: true });
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to delete agent:", error);
+		console.error("[AGENTS-FS] Failed to delete agent:", error);
 		const message = error instanceof Error ? error.message : "Failed to delete agent";
-		return res.status(400).json({ error: message });
+		return res.status(error.message?.includes("not found") ? 404 : 500).json({ error: message });
 	}
 });
 
-// --- Persist skill/agent to seed files (survives server restart) ---
-
-app.post("/api/agents-team/skills/:id/persist", async (req, res) => {
+app.get("/api/agents-team/agents/:name/raw", (req, res) => {
 	try {
-		const skill = agentsTeamConfigManager.getSkill(req.params.id);
-		if (!skill) {
-			return res.status(404).json({ error: "Skill not found" });
+		const name = req.params.name;
+		if (!agentsTeamFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid agent name" });
 		}
-		if (skill.isDefault || persistedIds.has(skill.id)) {
-			return res.status(400).json({ error: "Skill already persisted" });
+		const raw = agentsTeamFs.readAgentRaw(name);
+		if (!raw) {
+			return res.status(404).json({ error: `Agent not found: ${name}` });
 		}
-		await appendSkillToSeedFiles(skill);
-		persistedIds.add(skill.id);
-		return res.status(200).json({ success: true });
+		res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+		return res.status(200).send(raw);
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to persist skill:", error);
-		const message = error instanceof Error ? error.message : "Failed to persist skill";
-		return res.status(500).json({ error: message });
-	}
-});
-
-app.post("/api/agents-team/agents/:id/persist", async (req, res) => {
-	try {
-		const agent = agentsTeamConfigManager.getAgent(req.params.id);
-		if (!agent) {
-			return res.status(404).json({ error: "Agent not found" });
-		}
-		if (agent.isDefault || persistedIds.has(agent.id)) {
-			return res.status(400).json({ error: "Agent already persisted" });
-		}
-		await appendAgentToSeedFiles(agent);
-		persistedIds.add(agent.id);
-		return res.status(200).json({ success: true });
-	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to persist agent:", error);
-		const message = error instanceof Error ? error.message : "Failed to persist agent";
-		return res.status(500).json({ error: message });
+		console.error("[AGENTS-FS] Failed to read agent raw:", error);
+		return res.status(500).json({ error: "Failed to read agent" });
 	}
 });
 
@@ -8709,10 +8834,10 @@ app.post("/api/agents-team/agents/:id/persist", async (req, res) => {
 
 app.get("/api/agents-team/config-summary", (req, res) => {
 	try {
-		const summary = agentsTeamConfigManager.getConfigSummary();
+		const summary = agentsTeamFs.getConfigSummary();
 		return res.status(200).json({ summary });
 	} catch (error) {
-		console.error("[AGENTS-CONFIG] Failed to get config summary:", error);
+		console.error("[AGENTS-FS] Failed to get config summary:", error);
 		return res.status(500).json({ error: "Failed to get config summary" });
 	}
 });

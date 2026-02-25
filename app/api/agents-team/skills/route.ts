@@ -22,6 +22,16 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
 	try {
+		const contentType = request.headers.get("content-type") ?? "";
+		if (contentType.includes("text/markdown")) {
+			const rawBody = await request.text();
+			return await proxyToBackend({
+				method: "POST",
+				path: "/api/agents-team/skills",
+				rawBody: rawBody,
+				contentType: "text/markdown",
+			});
+		}
 		const { body, errorResponse } = await readJsonBody(request);
 		if (errorResponse) {
 			return errorResponse;

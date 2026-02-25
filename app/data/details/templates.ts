@@ -4,7 +4,7 @@ export const TEMPLATE_DETAILS: Record<string, ComponentDetail> = {
 	"layout": {
 		description: "Application shell layout that composes ADS navigation, sidebar, and floating Rovo chat surfaces around page content.",
 	},
-	"agents-team": {
+	"plan": {
 		description: "A planning workspace with chat sidebar, team controls, and prompt-driven collaboration flow.",
 	},
 	"sidebar-chat": {

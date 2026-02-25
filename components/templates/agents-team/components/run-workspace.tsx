@@ -207,22 +207,43 @@ export function RunWorkspace({
 	const {
 		skills,
 		agents,
+		availableTools,
 		createSkill,
 		updateSkill,
 		deleteSkill,
 		createAgent,
 		updateAgent,
 		deleteAgent,
+		exportSkill,
+		exportAgent,
+		importSkill,
+		importAgent,
 	} = usePlanConfig();
 
-	const { skillDialogProps, agentDialogProps, sidebarConfigHandlers } = useConfigDialogs({
+	const {
+		skillDialogProps,
+		agentDialogProps,
+		sidebarConfigHandlers,
+		importDialog,
+		closeImportDialog,
+		handleImport,
+		deleteAlert,
+		closeDeleteAlert,
+		handleDeleteConfirm,
+	} = useConfigDialogs({
 		skills,
+		agents,
 		createSkill,
 		updateSkill,
 		deleteSkill,
 		createAgent,
 		updateAgent,
 		deleteAgent,
+		exportSkill,
+		exportAgent,
+		importSkill,
+		importAgent,
+		availableTools,
 	});
 
 	const handleHoverEnter = useCallback(() => {
@@ -806,6 +827,10 @@ export function RunWorkspace({
 				onNewSkill={sidebarConfigHandlers.onNewSkill}
 				onEditAgent={sidebarConfigHandlers.onEditAgent}
 				onNewAgent={sidebarConfigHandlers.onNewAgent}
+				onExportSkill={sidebarConfigHandlers.onExportSkill}
+				onExportAgent={sidebarConfigHandlers.onExportAgent}
+				onImportSkill={sidebarConfigHandlers.onImportSkill}
+				onImportAgent={sidebarConfigHandlers.onImportAgent}
 				onCreatePlan={handleNavigateToPlan}
 			/>
 			<SidebarInset className="h-svh overflow-hidden">
@@ -991,7 +1016,16 @@ export function RunWorkspace({
 					</DialogContent>
 				</Dialog>
 			</SidebarInset>
-			<ConfigDialogs skillDialog={skillDialogProps} agentDialog={agentDialogProps} />
+			<ConfigDialogs
+				skillDialog={skillDialogProps}
+				agentDialog={agentDialogProps}
+				importDialog={importDialog}
+				onImportDialogClose={closeImportDialog}
+				onImport={handleImport}
+				deleteAlert={deleteAlert}
+				onDeleteAlertClose={closeDeleteAlert}
+				onDeleteConfirm={handleDeleteConfirm}
+			/>
 		</SidebarProvider>
 	);
 }
