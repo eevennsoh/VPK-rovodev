@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 
 interface RouteParams {
 	params: Promise<{ runId: string }>;
@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 		const { runId } = await params;
 		return await proxyToBackend({
 			method: "GET",
-			path: `/api/agents-team/runs/${encodeURIComponent(runId)}`,
+			path: `/api/plan/runs/${encodeURIComponent(runId)}`,
 		});
 	} catch (error) {
 		console.error("Agents team run status proxy error:", error);
@@ -29,7 +29,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 		const { runId } = await params;
 		return await proxyToBackend({
 			method: "DELETE",
-			path: `/api/agents-team/runs/${encodeURIComponent(runId)}`,
+			path: `/api/plan/runs/${encodeURIComponent(runId)}`,
 		});
 	} catch (error) {
 		console.error("Agents team run delete proxy error:", error);

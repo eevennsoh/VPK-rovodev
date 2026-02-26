@@ -20,7 +20,7 @@ import type {
 	AgentRunVisualSummary,
 	AgentRunGenuiSummary,
 	AgentRunGenuiWidget,
-} from "@/lib/agents-team-run-types";
+} from "@/lib/plan-run-types";
 import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
@@ -209,7 +209,7 @@ export function RunSummarySection({
 	const fetchSummary = useCallback(async (): Promise<"pending" | "ready" | "error"> => {
 		try {
 			const response = await fetch(
-				`/api/agents-team/runs/${encodeURIComponent(runId)}/summary`,
+				`/api/plan/runs/${encodeURIComponent(runId)}/summary`,
 				{
 					cache: "no-store",
 				}

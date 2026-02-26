@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-**Problem Statement:** The Plan template (`/agents-team`) has basic CRUD scaffolding for skills and agents, but the experience is shallow — skills are stored as flat text blobs in-memory, agents are simple config objects hardcoded in seed files, and neither follows industry standards. Users cannot create skills or agents that actually extend the main agent's capabilities in a meaningful, reusable way.
+**Problem Statement:** The Plan template (`/plan`) has basic CRUD scaffolding for skills and agents, but the experience is shallow — skills are stored as flat text blobs in-memory, agents are simple config objects hardcoded in seed files, and neither follows industry standards. Users cannot create skills or agents that actually extend the main agent's capabilities in a meaningful, reusable way.
 
 **Proposed Solution:** Replace the in-memory seed-based system with a filesystem-backed architecture that writes real [Agent Skills](https://agentskills.io) SKILL.md files and [Claude Code](https://code.claude.com/docs/en/sub-agents)-format agent .md files directly to `.rovodev/skills/` and `.rovodev/subagents/`. RovoDev Serve consumes these files natively as the agent runtime. The UI provides an AI-first creation flow via question cards, manual editing via modal dialogs, and import/export for portability.
 
@@ -127,7 +127,7 @@ This matches the existing pattern for tool call visibility in the reasoning stre
 ┌─────────────────────────────────────────────────────┐
 │  Frontend (Next.js)                                 │
 │                                                     │
-│  PlanProvider (context-agents-team.tsx)              │
+│  PlanProvider (context-plan.tsx)              │
 │    ├── usePlanConfig() ──── Read from disk API      │
 │    ├── useConfigDialogs() ── Dialog state            │
 │    └── useExecutionMode() ── Run orchestration       │
@@ -273,7 +273,7 @@ Review checklist:
 
 ### Data Models (Frontend TypeScript)
 
-Update `lib/agents-team-config-types.ts` to reflect the filesystem-backed model:
+Update `lib/plan-config-types.ts` to reflect the filesystem-backed model:
 
 ```typescript
 // Skill — parsed from SKILL.md frontmatter + body
@@ -324,27 +324,27 @@ The backend becomes a thin filesystem proxy. No in-memory state. Re-reads from d
 
 | Method | Path | Behavior |
 | ------ | ---- | -------- |
-| `GET` | `/api/agents-team/skills` | List all directories in `.rovodev/skills/`, parse each SKILL.md frontmatter + body, return as JSON array. |
-| `POST` | `/api/agents-team/skills` | Validate input, create directory `.rovodev/skills/{name}/`, write SKILL.md with frontmatter + body. Return 409 if directory already exists. |
-| `PUT` | `/api/agents-team/skills/:name` | Read existing SKILL.md, merge updates, write back. |
-| `DELETE` | `/api/agents-team/skills/:name` | Delete the skill directory and all contents. |
-| `GET` | `/api/agents-team/skills/:name/raw` | Return raw SKILL.md file content (for export). |
+| `GET` | `/api/plan/skills` | List all directories in `.rovodev/skills/`, parse each SKILL.md frontmatter + body, return as JSON array. |
+| `POST` | `/api/plan/skills` | Validate input, create directory `.rovodev/skills/{name}/`, write SKILL.md with frontmatter + body. Return 409 if directory already exists. |
+| `PUT` | `/api/plan/skills/:name` | Read existing SKILL.md, merge updates, write back. |
+| `DELETE` | `/api/plan/skills/:name` | Delete the skill directory and all contents. |
+| `GET` | `/api/plan/skills/:name/raw` | Return raw SKILL.md file content (for export). |
 
 **Agents:**
 
 | Method | Path | Behavior |
 | ------ | ---- | -------- |
-| `GET` | `/api/agents-team/agents` | List all .md files in `.rovodev/subagents/`, parse frontmatter + body, return as JSON array. |
-| `POST` | `/api/agents-team/agents` | Validate input, write `.rovodev/subagents/{name}.md` with YAML frontmatter + markdown body. Return 409 if file already exists. |
-| `PUT` | `/api/agents-team/agents/:name` | Read existing .md, merge updates, write back. |
-| `DELETE` | `/api/agents-team/agents/:name` | Delete the .md file. |
-| `GET` | `/api/agents-team/agents/:name/raw` | Return raw .md file content (for export). |
+| `GET` | `/api/plan/agents` | List all .md files in `.rovodev/subagents/`, parse frontmatter + body, return as JSON array. |
+| `POST` | `/api/plan/agents` | Validate input, write `.rovodev/subagents/{name}.md` with YAML frontmatter + markdown body. Return 409 if file already exists. |
+| `PUT` | `/api/plan/agents/:name` | Read existing .md, merge updates, write back. |
+| `DELETE` | `/api/plan/agents/:name` | Delete the .md file. |
+| `GET` | `/api/plan/agents/:name/raw` | Return raw .md file content (for export). |
 
 **MCP Tools:**
 
 | Method | Path | Behavior |
 | ------ | ---- | -------- |
-| `GET` | `/api/agents-team/tools` | Fetch available tools from the MCP server. Cached at startup. |
+| `GET` | `/api/plan/tools` | Fetch available tools from the MCP server. Cached at startup. |
 
 ### Storage Layout
 
@@ -379,9 +379,9 @@ Remove entirely:
 
 | File | Reason |
 | ---- | ------ |
-| `backend/lib/agents-team-config.js` | In-memory config manager replaced by filesystem reads. |
-| `backend/lib/agents-team-config-seed.js` | Seed data replaced by real SKILL.md / .md files on disk. |
-| `lib/agents-team-config-seed.ts` | Frontend seed data no longer needed. |
+| `backend/lib/plan-config.js` | In-memory config manager replaced by filesystem reads. |
+| `backend/lib/plan-config-seed.js` | Seed data replaced by real SKILL.md / .md files on disk. |
+| `lib/plan-config-seed.ts` | Frontend seed data no longer needed. |
 | Persist endpoints (`POST /skills/:id/persist`, `POST /agents/:id/persist`) | No separate persistence step — files are written directly on create/update. |
 
 Rename:
@@ -682,29 +682,29 @@ All of the following are in scope for the MVP:
 
 | File | Reason |
 | ---- | ------ |
-| `backend/lib/agents-team-config.js` | In-memory config manager. Replaced by filesystem reads. |
-| `backend/lib/agents-team-config-seed.js` | Backend seed data. Replaced by real files in `.rovodev/`. |
-| `lib/agents-team-config-seed.ts` | Frontend seed data. No longer needed. |
+| `backend/lib/plan-config.js` | In-memory config manager. Replaced by filesystem reads. |
+| `backend/lib/plan-config-seed.js` | Backend seed data. Replaced by real files in `.rovodev/`. |
+| `lib/plan-config-seed.ts` | Frontend seed data. No longer needed. |
 
 ### Files to Modify
 
 | File | Changes |
 | ---- | ------- |
-| `backend/server.js` | Replace config manager calls with direct filesystem reads/writes to `.rovodev/`. Remove persist endpoints. Add `/api/agents-team/tools` for MCP tool list. |
-| `lib/agents-team-config-types.ts` | Update `PlanSkill` and `PlanAgent` interfaces to match SKILL.md / subagent .md formats. Add validation constants. Remove `id`, `createdAt`, `updatedAt` (use filesystem metadata). |
-| `components/templates/agents-team/hooks/use-agents-team-config.ts` | Replace in-memory CRUD with API calls to filesystem-backed endpoints. Add slug generation. Add MCP tool list fetch at startup. |
-| `components/templates/agents-team/hooks/use-config-dialogs.ts` | Update dialog handlers for new flow (AI-first creation, manual edit after). |
-| `components/templates/agents-team/components/skill-dialog.tsx` | Add Tiptap editor for content field. Add display name → slug preview. Add "equipped by" agent list. Add inline validation. Update delete to use alert modal with agent reference warning. |
-| `components/templates/agents-team/components/agent-dialog.tsx` | Add MCP tool list checkboxes. Add disallowedTools field. Add permissionMode dropdown. Add skills checkbox with soft limit warning. Add duplicate action. Update delete alert modal. |
-| `components/templates/agents-team/components/sidebar-footer.tsx` | Add download button per item. Add import button. Add "Built-in" text badge for built-in agents. Sort alphabetically. |
-| `components/templates/agents-team/components/config-dialogs.tsx` | Add import dialog component (file picker + paste). |
+| `backend/server.js` | Replace config manager calls with direct filesystem reads/writes to `.rovodev/`. Remove persist endpoints. Add `/api/plan/tools` for MCP tool list. |
+| `lib/plan-config-types.ts` | Update `PlanSkill` and `PlanAgent` interfaces to match SKILL.md / subagent .md formats. Add validation constants. Remove `id`, `createdAt`, `updatedAt` (use filesystem metadata). |
+| `components/templates/plan/hooks/use-plan-config.ts` | Replace in-memory CRUD with API calls to filesystem-backed endpoints. Add slug generation. Add MCP tool list fetch at startup. |
+| `components/templates/plan/hooks/use-config-dialogs.ts` | Update dialog handlers for new flow (AI-first creation, manual edit after). |
+| `components/templates/plan/components/skill-dialog.tsx` | Add Tiptap editor for content field. Add display name → slug preview. Add "equipped by" agent list. Add inline validation. Update delete to use alert modal with agent reference warning. |
+| `components/templates/plan/components/agent-dialog.tsx` | Add MCP tool list checkboxes. Add disallowedTools field. Add permissionMode dropdown. Add skills checkbox with soft limit warning. Add duplicate action. Update delete alert modal. |
+| `components/templates/plan/components/sidebar-footer.tsx` | Add download button per item. Add import button. Add "Built-in" text badge for built-in agents. Sort alphabetically. |
+| `components/templates/plan/components/config-dialogs.tsx` | Add import dialog component (file picker + paste). |
 
 ### Files to Create
 
 | File | Purpose |
 | ---- | ------- |
-| `components/templates/agents-team/components/import-dialog.tsx` | Import dialog with file picker and paste textarea for SKILL.md / agent .md files. |
-| `components/templates/agents-team/components/delete-alert.tsx` | Alert modal for delete confirmation showing affected agent references. |
+| `components/templates/plan/components/import-dialog.tsx` | Import dialog with file picker and paste textarea for SKILL.md / agent .md files. |
+| `components/templates/plan/components/delete-alert.tsx` | Alert modal for delete confirmation showing affected agent references. |
 
 ### Open Questions
 

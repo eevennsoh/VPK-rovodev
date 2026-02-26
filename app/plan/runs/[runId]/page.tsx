@@ -6,8 +6,8 @@ import type {
 	AgentRunSummary,
 	AgentRunVisualSummary,
 	AgentRunGenuiSummary,
-} from "@/lib/agents-team-run-types";
-import { RunWorkspace } from "@/components/templates/agents-team/components/run-workspace";
+} from "@/lib/plan-run-types";
+import { RunWorkspace } from "@/components/templates/plan/components/run-workspace";
 
 interface RunResponse {
 	run?: AgentRun;
@@ -89,7 +89,7 @@ function parseFetchFailure(error: unknown, fallbackMessage: string): string {
 
 	const trimmedMessage = error.message.trim();
 	if (trimmedMessage.toLowerCase().includes("fetch failed")) {
-		return "Unable to reach the agents-team run service. Check that the frontend and backend dev servers are running.";
+		return "Unable to reach the plan run service. Check that the frontend and backend dev servers are running.";
 	}
 
 	return trimmedMessage;
@@ -128,15 +128,15 @@ export default async function PlanRunSummaryPage({ params }: Readonly<RunSummary
 
 	const [runResult, summaryResult, filesResult] = await Promise.all([
 		fetchJson<RunResponse>(
-			`${requestOrigin}/api/agents-team/runs/${encodedRunId}`,
+			`${requestOrigin}/api/plan/runs/${encodedRunId}`,
 			"Failed to load run data."
 		),
 		fetchJson<RunSummaryResponse>(
-			`${requestOrigin}/api/agents-team/runs/${encodedRunId}/summary`,
+			`${requestOrigin}/api/plan/runs/${encodedRunId}/summary`,
 			"Failed to load run summary."
 		),
 		fetchJson<RunFilesResponse>(
-			`${requestOrigin}/api/agents-team/runs/${encodedRunId}/files`,
+			`${requestOrigin}/api/plan/runs/${encodedRunId}/files`,
 			"Failed to load run files."
 		),
 	]);
@@ -155,10 +155,10 @@ export default async function PlanRunSummaryPage({ params }: Readonly<RunSummary
 					</p>
 					<div className="mt-5">
 						<Link
-							href="/agents-team"
+							href="/plan"
 							className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
 						>
-							Back to agents team
+							Back to plan
 						</Link>
 					</div>
 				</div>

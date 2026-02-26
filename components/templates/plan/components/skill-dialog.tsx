@@ -12,13 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import type { PlanSkill, PlanSkillInput, PlanAgent } from "@/lib/agents-team-config-types";
+import type { PlanSkill, PlanSkillInput, PlanAgent } from "@/lib/plan-config-types";
 import {
 	generateSlug,
 	validateSkillName,
 	validateSkillDescription,
 	SKILL_DESCRIPTION_MAX,
-} from "@/lib/agents-team-config-types";
+} from "@/lib/plan-config-types";
 
 interface SkillDialogProps {
 	open: boolean;

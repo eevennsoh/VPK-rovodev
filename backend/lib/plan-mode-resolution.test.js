@@ -2,19 +2,19 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
-	AGENT_TEAM_PLAN_MODE_SOURCE,
+	PLAN_MODE_SOURCE,
 	resolvePlanMode,
 } = require("./plan-mode-resolution");
 
 test("resolvePlanMode enables plan mode only with explicit true and allowed source", () => {
 	const resolved = resolvePlanMode({
 		planMode: true,
-		planModeSource: AGENT_TEAM_PLAN_MODE_SOURCE,
+		planModeSource: PLAN_MODE_SOURCE,
 	});
 
 	assert.equal(resolved.enabled, true);
 	assert.equal(resolved.rejected, false);
-	assert.equal(resolved.source, AGENT_TEAM_PLAN_MODE_SOURCE);
+	assert.equal(resolved.source, PLAN_MODE_SOURCE);
 });
 
 test("resolvePlanMode rejects explicit plan mode when source is missing", () => {
@@ -42,21 +42,21 @@ test("resolvePlanMode rejects explicit plan mode when source is invalid", () => 
 test("resolvePlanMode ignores non-boolean truthy planMode values", () => {
 	const resolved = resolvePlanMode({
 		planMode: "true",
-		planModeSource: AGENT_TEAM_PLAN_MODE_SOURCE,
+		planModeSource: PLAN_MODE_SOURCE,
 	});
 
 	assert.equal(resolved.enabled, false);
 	assert.equal(resolved.rejected, false);
-	assert.equal(resolved.source, AGENT_TEAM_PLAN_MODE_SOURCE);
+	assert.equal(resolved.source, PLAN_MODE_SOURCE);
 });
 
 test("resolvePlanMode ignores false planMode even with allowed source", () => {
 	const resolved = resolvePlanMode({
 		planMode: false,
-		planModeSource: AGENT_TEAM_PLAN_MODE_SOURCE,
+		planModeSource: PLAN_MODE_SOURCE,
 	});
 
 	assert.equal(resolved.enabled, false);
 	assert.equal(resolved.rejected, false);
-	assert.equal(resolved.source, AGENT_TEAM_PLAN_MODE_SOURCE);
+	assert.equal(resolved.source, PLAN_MODE_SOURCE);
 });

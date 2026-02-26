@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 interface RouteParams {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		}
 		return await proxyToBackend({
 			method: "POST",
-			path: `/api/agents-team/runs/${encodeURIComponent(runId)}/directives`,
+			path: `/api/plan/runs/${encodeURIComponent(runId)}/directives`,
 			body,
 		});
 	} catch (error) {

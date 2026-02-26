@@ -7,12 +7,12 @@ import { Footer } from "@/components/ui/footer";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import { useTheme } from "@/components/utils/theme-wrapper";
-import { getPlanModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
+import { getPlanModeCopy } from "@/components/templates/plan/lib/plan-copy";
 import {
 	usePlanState,
 	usePlanActions,
-} from "@/app/contexts/context-agents-team";
-import PlanComposer from "./agents-team-composer";
+} from "@/app/contexts/context-plan";
+import PlanComposer from "./plan-composer";
 
 export default function PlanInitialView() {
 	const {

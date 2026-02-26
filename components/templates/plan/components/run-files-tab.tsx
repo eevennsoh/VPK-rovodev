@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import LinkExternalIcon from "@atlaskit/icon/core/link-external";
 import CopyIcon from "@atlaskit/icon/core/copy";
 import DownloadIcon from "@atlaskit/icon/core/download";
-import type { AgentRunArtifact } from "@/lib/agents-team-run-types";
+import type { AgentRunArtifact } from "@/lib/plan-run-types";
 import { Button } from "@/components/ui/button";
 
 interface RunFilesTabProps {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 export async function GET(request: NextRequest) {
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
 		const query = limit ? `?limit=${encodeURIComponent(limit)}` : "";
 		return await proxyToBackend({
 			method: "GET",
-			path: `/api/agents-team/threads${query}`,
+			path: `/api/plan/threads${query}`,
 		});
 	} catch (error) {
 		console.error("Agents team thread listing proxy error:", error);
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 		}
 		return await proxyToBackend({
 			method: "POST",
-			path: "/api/agents-team/threads",
+			path: "/api/plan/threads",
 			body,
 		});
 	} catch (error) {

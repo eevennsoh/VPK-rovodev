@@ -54,10 +54,10 @@ export function Message({ className, from, ...props }: Readonly<MessageProps>) {
 	return (
 		<div
 			className={cn(
-				"group flex w-full max-w-[80%] flex-col gap-2",
+				"group flex flex-col gap-2",
 				from === "user"
-					? "is-user ml-auto items-end justify-end pr-3"
-					: "is-assistant",
+					? "is-user ml-auto w-fit max-w-[80%] items-end justify-end pr-3"
+					: "is-assistant w-full max-w-[80%]",
 				className,
 			)}
 			{...props}
@@ -75,7 +75,7 @@ export function MessageContent({
 	return (
 		<div
 			className={cn(
-				"is-user:dark flex w-fit min-w-0 max-w-full break-words [overflow-wrap:anywhere] flex-col gap-2 group-[.is-user]:overflow-hidden text-sm",
+				"is-user:dark flex w-fit min-w-0 max-w-full break-words [overflow-wrap:break-word] flex-col gap-2 group-[.is-user]:min-w-max group-[.is-user]:overflow-hidden text-sm",
 				"group-[.is-user]:rounded-xl group-[.is-user]:rounded-br-sm group-[.is-user]:bg-primary group-[.is-user]:px-3 group-[.is-user]:py-2 group-[.is-user]:text-primary-foreground",
 				"group-[.is-assistant]:text-foreground",
 				className,

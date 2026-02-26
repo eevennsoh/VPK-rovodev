@@ -18,13 +18,13 @@ import type {
 	PlanAgent,
 	PlanAgentInput,
 	PlanSkill,
-} from "@/lib/agents-team-config-types";
+} from "@/lib/plan-config-types";
 import {
 	generateSlug,
 	validateSkillName,
 	validateSkillDescription,
 	SKILLS_PER_AGENT_SOFT_LIMIT,
-} from "@/lib/agents-team-config-types";
+} from "@/lib/plan-config-types";
 
 const MODEL_OPTIONS = [
 	{ value: "inherit", label: "Inherit" },

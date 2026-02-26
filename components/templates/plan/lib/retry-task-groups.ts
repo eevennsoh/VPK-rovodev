@@ -1,4 +1,4 @@
-import type { AgentRunTask } from "@/lib/agents-team-run-types";
+import type { AgentRunTask } from "@/lib/plan-run-types";
 
 export type RetryTaskGroupKey = "failed" | "todo";
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 interface RouteParams {
@@ -11,7 +11,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 		const { threadId } = await params;
 		return await proxyToBackend({
 			method: "GET",
-			path: `/api/agents-team/threads/${encodeURIComponent(threadId)}`,
+			path: `/api/plan/threads/${encodeURIComponent(threadId)}`,
 		});
 	} catch (error) {
 		console.error("Agents team thread get proxy error:", error);
@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 		}
 		return await proxyToBackend({
 			method: "PUT",
-			path: `/api/agents-team/threads/${encodeURIComponent(threadId)}`,
+			path: `/api/plan/threads/${encodeURIComponent(threadId)}`,
 			body,
 		});
 	} catch (error) {
@@ -54,7 +54,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 		const { threadId } = await params;
 		return await proxyToBackend({
 			method: "DELETE",
-			path: `/api/agents-team/threads/${encodeURIComponent(threadId)}`,
+			path: `/api/plan/threads/${encodeURIComponent(threadId)}`,
 		});
 	} catch (error) {
 		console.error("Agents team thread delete proxy error:", error);

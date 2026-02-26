@@ -1,4 +1,4 @@
-import type { AgentRunListItem } from "@/lib/agents-team-run-types";
+import type { AgentRunListItem } from "@/lib/plan-run-types";
 
 interface RunTimingInput
 	extends Pick<AgentRunListItem, "status" | "completedAt" | "updatedAt">,

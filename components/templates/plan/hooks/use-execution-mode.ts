@@ -6,7 +6,7 @@ import type { AgentExecutionUpdate } from "@/lib/rovo-ui-messages";
 import type {
 	AgentRun,
 	AgentRunStreamEvent,
-} from "@/lib/agents-team-run-types";
+} from "@/lib/plan-run-types";
 import {
 	computeTaskStatusGroupsFromRun,
 	deriveTaskExecutionsFromRun,

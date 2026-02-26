@@ -7,7 +7,7 @@ import type {
 	PlanSkillInput,
 	PlanAgent,
 	PlanAgentInput,
-} from "@/lib/agents-team-config-types";
+} from "@/lib/plan-config-types";
 
 interface ConfigDialogsInput {
 	skills: PlanSkill[];

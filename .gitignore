@@ -88,8 +88,8 @@ secrets*
 
 # Task management (session-local working state)
 tasks/
-!app/api/agents-team/runs/*/tasks/
-!app/api/agents-team/runs/*/tasks/route.ts
+!app/api/plan/runs/*/tasks/
+!app/api/plan/runs/*/tasks/route.ts
 /backend/data/
 
 # IDE settings

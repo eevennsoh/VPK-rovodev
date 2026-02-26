@@ -29,7 +29,7 @@ import {
 	PLAN_MODE_CONTEXT_DESCRIPTION,
 	PLAN_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION,
 	PLAN_MODE_RETRY_PROMPT,
-} from "../lib/agent-team-mode";
+} from "../lib/plan-mode";
 import type { ChatHistoryItem } from "../components/sidebar-chat-history";
 import {
 	PLAN_THREAD_RETENTION_LIMIT,
@@ -647,7 +647,7 @@ export function usePlanChat(): UsePlanChatReturn {
 			planRequestId: retryRequestId,
 			messageMetadata: {
 				visibility: "hidden",
-				source: "agent-team-plan-retry",
+				source: "plan-retry",
 			},
 		});
 	}, [

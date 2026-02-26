@@ -38,8 +38,8 @@ Prefer reading these references over relying on pre-trained knowledge.
 | Session corrections log                | `AGENTS-LESSONS.md`                                         |
 | AI SDK chat integration                | `rovo/config.js`, `app/contexts/context-rovo-chat.tsx`      |
 | RovoDev Serve gateway (agent loop)     | `backend/lib/rovodev-gateway.js`, `backend/lib/rovodev-client.js` |
-| Agent team run types                   | `lib/agents-team-run-types.ts`                              |
-| Agent team run manager                 | `backend/lib/agents-team-runs.js`                           |
+| Agent team run types                   | `lib/plan-run-types.ts`                              |
+| Agent team run manager                 | `backend/lib/plan-runs.js`                           |
 | UI message types and data parts        | `lib/rovo-ui-messages.ts`                                   |
 
 **Global Skills** — installed agent skills (outside repo):
@@ -114,13 +114,13 @@ The `rovodev` script starts all three processes concurrently. The `dev` script s
 
 - `app/` - Next.js App Router routes, providers, and dev proxy handlers
 - `backend/` - Express production runtime and API handlers
-- `components/templates/` - ADS-themed feature surfaces (agents-team, confluence, fullscreen-chat, jira, search, sidebar-chat)
+- `components/templates/` - ADS-themed feature surfaces (plan, confluence, fullscreen-chat, jira, search, sidebar-chat)
 - `components/blocks/` - standalone block surfaces (app-sidebar, approval-card, chat, chat-composer, chatbot, chatgpt, dashboard, data-table, generative, ide, login, product-sidebar, prompt-gallery, question-card, settings-dialog, shared-ui, sidebar, sidebar-rail, signup, top-navigation, work-items-widget, workflow)
 - `components/charts/` - chart components (area, bar, line, pie, radar, radial, tooltip)
 - `components/ui/` - shared shadcn/Base UI primitives
 - `components/website/` - component documentation and demo site
 - `lib/` - shared utilities and token helpers
-- `backend/lib/` - backend utilities (agents-team run manager, RovoDev gateway and client)
+- `backend/lib/` - backend utilities (plan run manager, RovoDev gateway and client)
 - `public/` - static assets (illustrations, product logos, third-party logos, avatars)
 - `.cursor/`, `.claude/`, `.codex/` - assistant config, skills, agents, and rules
 
@@ -155,26 +155,26 @@ Backend (`backend/server.js`):
 - `GET /api/health`
 - `GET /healthcheck`
 - `POST /api/sound-generation`
-- `POST /api/agents-team/runs`
-- `GET /api/agents-team/runs/:runId`
-- `GET /api/agents-team/runs/:runId/stream`
-- `POST /api/agents-team/runs/:runId/directives`
-- `GET /api/agents-team/runs/:runId/summary`
-- `GET /api/agents-team/runs/:runId/visual-summary`
-- `GET /api/agents-team/skills`
-- `POST /api/agents-team/skills`
-- `PUT /api/agents-team/skills/:id`
-- `DELETE /api/agents-team/skills/:id`
-- `GET /api/agents-team/agents`
-- `POST /api/agents-team/agents`
-- `PUT /api/agents-team/agents/:id`
-- `DELETE /api/agents-team/agents/:id`
-- `GET /api/agents-team/config-summary`
-- `GET /api/agents-team/threads`
-- `GET /api/agents-team/threads/:threadId`
-- `POST /api/agents-team/threads`
-- `PUT /api/agents-team/threads/:threadId`
-- `DELETE /api/agents-team/threads/:threadId`
+- `POST /api/plan/runs`
+- `GET /api/plan/runs/:runId`
+- `GET /api/plan/runs/:runId/stream`
+- `POST /api/plan/runs/:runId/directives`
+- `GET /api/plan/runs/:runId/summary`
+- `GET /api/plan/runs/:runId/visual-summary`
+- `GET /api/plan/skills`
+- `POST /api/plan/skills`
+- `PUT /api/plan/skills/:id`
+- `DELETE /api/plan/skills/:id`
+- `GET /api/plan/agents`
+- `POST /api/plan/agents`
+- `PUT /api/plan/agents/:id`
+- `DELETE /api/plan/agents/:id`
+- `GET /api/plan/config-summary`
+- `GET /api/plan/threads`
+- `GET /api/plan/threads/:threadId`
+- `POST /api/plan/threads`
+- `PUT /api/plan/threads/:threadId`
+- `DELETE /api/plan/threads/:threadId`
 
 Orchestrator (cross-panel debugging):
 
@@ -190,19 +190,19 @@ Dev proxy routes (`app/api/*/route.ts`) forward to backend:
 - `app/api/health/route.ts`
 - `app/api/sound-generation/route.ts`
 - `app/api/generate-image/route.ts`
-- `app/api/agents-team/runs/route.ts`
-- `app/api/agents-team/runs/[runId]/route.ts`
-- `app/api/agents-team/runs/[runId]/stream/route.ts`
-- `app/api/agents-team/runs/[runId]/directives/route.ts`
-- `app/api/agents-team/runs/[runId]/summary/route.ts`
-- `app/api/agents-team/runs/[runId]/visual-summary/route.ts`
-- `app/api/agents-team/agents/route.ts`
-- `app/api/agents-team/agents/[id]/route.ts`
-- `app/api/agents-team/skills/route.ts`
-- `app/api/agents-team/skills/[id]/route.ts`
-- `app/api/agents-team/config-summary/route.ts`
-- `app/api/agents-team/threads/route.ts`
-- `app/api/agents-team/threads/[threadId]/route.ts`
+- `app/api/plan/runs/route.ts`
+- `app/api/plan/runs/[runId]/route.ts`
+- `app/api/plan/runs/[runId]/stream/route.ts`
+- `app/api/plan/runs/[runId]/directives/route.ts`
+- `app/api/plan/runs/[runId]/summary/route.ts`
+- `app/api/plan/runs/[runId]/visual-summary/route.ts`
+- `app/api/plan/agents/route.ts`
+- `app/api/plan/agents/[id]/route.ts`
+- `app/api/plan/skills/route.ts`
+- `app/api/plan/skills/[id]/route.ts`
+- `app/api/plan/config-summary/route.ts`
+- `app/api/plan/threads/route.ts`
+- `app/api/plan/threads/[threadId]/route.ts`
 
 ### AI SDK / Chat Architecture
 
@@ -250,7 +250,7 @@ Key files:
 Common routes:
 
 - `/` -> `app/page.tsx`
-- `/agents-team` -> `components/templates/agents-team/`
+- `/plan` -> `components/templates/plan/`
 - `/sidebar-chat` -> `components/templates/sidebar-chat/`
 - `/fullscreen-chat` -> `components/templates/fullscreen-chat/`
 - `/confluence` -> `components/templates/confluence/`
@@ -569,13 +569,13 @@ app/
   preview/                     # Component preview routes (blocks, templates)
   providers.tsx                # Client-side provider composition
   [category]/page.tsx          # Category landing routes (ui, ui-ai, blocks, templates)
-  [page routes]/               # agents-team/, confluence/, fullscreen-chat/, jira/, search/, sidebar-chat/
+  [page routes]/               # plan/, confluence/, fullscreen-chat/, jira/, search/, sidebar-chat/
   layout.tsx                   # Root layout (server component)
 
 backend/
   server.js                    # Express server (production runtime)
   lib/                         # Backend utilities
-    agents-team-runs.js         # Agent team run manager (task tracking, SSE streaming)
+    plan-runs.js         # Agent team run manager (task tracking, SSE streaming)
     rovodev-gateway.js          # RovoDev Serve streaming/text bridge
     rovodev-client.js           # Low-level V3 REST + SSE client for rovodev serve
     rovodev-pool.js             # Port pool manager for concurrent RovoDev sessions
@@ -587,7 +587,7 @@ backend/
 
 components/
   templates/                   # ADS-themed feature surfaces
-    agents-team/               # Agent team interface
+    plan/               # Agent team interface
     confluence/                # Document editing
     fullscreen-chat/           # Full-screen AI chat
     jira/                      # Kanban board
@@ -649,7 +649,7 @@ Optional environment variables:
 | Rovo chat       | `app/contexts/context-rovo-chat.tsx`       | AI chat via AI SDK `useChat` with streaming/widgets |
 | Creation mode   | `app/contexts/context-creation-mode.tsx`   | Creation mode state                                 |
 | Sidebar         | `app/contexts/context-sidebar.tsx`         | Sidebar visibility and route                        |
-| Agents team     | `app/contexts/context-agents-team.tsx`     | Agent team State/Actions/Meta (route-level mount)   |
+| Agents team     | `app/contexts/context-plan.tsx`     | Agent team State/Actions/Meta (route-level mount)   |
 | Work item modal | `app/contexts/context-work-item-modal.tsx` | Work item detail modal using State/Actions/Meta     |
 | Theme           | `components/utils/theme-wrapper.tsx`       | Light/dark/system mode                              |
 

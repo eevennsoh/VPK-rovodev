@@ -155,7 +155,7 @@ test("isChatInProgressError does not match unrelated 409 responses", () => {
 		isChatInProgressError({
 			message: "Share summary failed with status 409",
 			status: 409,
-			endpoint: "/api/agents-team/runs/abc/share",
+			endpoint: "/api/plan/runs/abc/share",
 		}),
 		false
 	);

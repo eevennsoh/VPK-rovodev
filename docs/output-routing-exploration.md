@@ -15,7 +15,7 @@
 7. [backend/lib/rovodev-client.js — V3 API Client](#7-backendlibrovodev-clientjs--v3-api-client)
 8. [backend/lib/question-card-extractor.js — Question Card Extraction](#8-backendlibquestion-card-extractorjs--question-card-extraction)
 9. [lib/rovo-ui-messages.ts — Data Part Types](#9-librovo-ui-messagests--data-part-types)
-10. [lib/agents-team-run-types.ts — Agent Run Types](#10-libagents-team-run-typests--agent-run-types)
+10. [lib/plan-run-types.ts — Agent Run Types](#10-libplan-run-typests--agent-run-types)
 11. [app/contexts/context-rovo-chat.tsx — Frontend Chat Context](#11-appcontextscontext-rovo-chattsx--frontend-chat-context)
 12. [components/templates/shared/hooks/use-dismissible-cards.ts — Card Dismiss](#12-componentstemplatessharedhooksuse-dismissible-cardsts--card-dismiss)
 13. [components/templates/shared/lib/question-card-widget.ts — Question Card Widget Lib](#13-componentstemplatessharedlibquestion-card-widgetts--question-card-widget-lib)
@@ -281,7 +281,7 @@ getGenuiSystemPrompt({ strict?, webContext?, layoutContext? })
 // Returns: string (full system prompt with catalog + VPK rules + companion examples + layout context)
 
 getGenuiSummarySystemPrompt()
-// Returns: string (for agents-team visual summary generation)
+// Returns: string (for plan visual summary generation)
 ```
 
 ### Layout Context
@@ -467,7 +467,7 @@ type ThinkingStatusSource = "backend" | "fallback";
 
 interface RovoMessageMetadata {
     visibility?: "visible" | "hidden";
-    source?: "clarification-submit" | "plan-approval-submit" | "agent-directive" | "agent-team-plan-retry";
+    source?: "clarification-submit" | "plan-approval-submit" | "agent-directive" | "plan-retry";
 }
 ```
 
@@ -488,9 +488,9 @@ May need new data part types or extensions for:
 
 ---
 
-## 10. lib/agents-team-run-types.ts — Agent Run Types
+## 10. lib/plan-run-types.ts — Agent Run Types
 
-**File**: `lib/agents-team-run-types.ts` (~300 lines)
+**File**: `lib/plan-run-types.ts` (~300 lines)
 
 Contains type definitions for agent team runs. Not directly involved in the output routing feature, but shares the data part system.
 
@@ -514,7 +514,7 @@ interface SendPromptOptions {
     clarification?: unknown;        // ClarificationSubmission
     approval?: unknown;
     planMode?: boolean;
-    planModeSource?: "agents-team-toggle";
+    planModeSource?: "plan-toggle";
     planRequestId?: string;
     creationMode?: "skill" | "agent";
     smartGeneration?: {

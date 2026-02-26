@@ -16,13 +16,13 @@ import { Footer } from "@/components/ui/footer";
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
 import { Button } from "@/components/ui/button";
 import { token } from "@/lib/tokens";
-import { getPlanModeCopy } from "@/components/templates/agents-team/lib/agent-team-copy";
+import { getPlanModeCopy } from "@/components/templates/plan/lib/plan-copy";
 import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
 import {
 	usePlanState,
 	usePlanActions,
-} from "@/app/contexts/context-agents-team";
-import PlanComposer from "./agents-team-composer";
+} from "@/app/contexts/context-plan";
+import PlanComposer from "./plan-composer";
 import { PlanCardWidgetInline } from "./plan-card-widget-inline";
 import { useScrollToBottom } from "../hooks/use-scroll-to-bottom";
 import { useDismissibleCards } from "../hooks/use-dismissible-cards";

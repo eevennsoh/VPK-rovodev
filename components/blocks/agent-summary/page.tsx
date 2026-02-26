@@ -22,7 +22,7 @@ import { SpeechInput } from "@/components/ui-ai/speech-input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import type { AgentRun, AgentRunSummary, AgentRunVisualSummary, AgentRunGenuiSummary } from "@/lib/agents-team-run-types";
+import type { AgentRun, AgentRunSummary, AgentRunVisualSummary, AgentRunGenuiSummary } from "@/lib/plan-run-types";
 import { token } from "@/lib/tokens";
 import { AgentSummarySidebar } from "./components/agent-summary-sidebar";
 import SummaryTitleRow from "./components/summary-title-row";

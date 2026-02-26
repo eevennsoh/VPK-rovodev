@@ -32,44 +32,84 @@ export const API_ENDPOINTS = {
 	CHAT_TITLE: `${API_BASE_URL}/api/chat-title`,
 	CHAT_CANCEL: `${API_BASE_URL}/api/chat-cancel`,
 	HEALTH: `${API_BASE_URL}/api/health`,
-	PLAN_RUNS: `${API_BASE_URL}/api/agents-team/runs`,
-	PLAN_SKILLS: `${API_BASE_URL}/api/agents-team/skills`,
-	PLAN_AGENTS: `${API_BASE_URL}/api/agents-team/agents`,
-	PLAN_TOOLS: `${API_BASE_URL}/api/agents-team/tools`,
-	PLAN_CONFIG_SUMMARY: `${API_BASE_URL}/api/agents-team/config-summary`,
-	PLAN_THREADS: `${API_BASE_URL}/api/agents-team/threads`,
+	PLAN_RUNS: `${API_BASE_URL}/api/plan/runs`,
+	PLAN_SKILLS: `${API_BASE_URL}/api/plan/skills`,
+	PLAN_AGENTS: `${API_BASE_URL}/api/plan/agents`,
+	PLAN_TOOLS: `${API_BASE_URL}/api/plan/tools`,
+	PLAN_CONFIG_SUMMARY: `${API_BASE_URL}/api/plan/config-summary`,
+	PLAN_THREADS: `${API_BASE_URL}/api/plan/threads`,
 	planRuns: (limit?: number) =>
-		`${API_BASE_URL}/api/agents-team/runs${
+		`${API_BASE_URL}/api/plan/runs${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
 		}`,
 	planRun: (runId: string) =>
-		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}`,
+		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}`,
 	planRunStream: (runId: string) =>
-		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/stream`,
+		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/stream`,
 	planRunDirectives: (runId: string) =>
-		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/directives`,
+		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/directives`,
 	planRunSummary: (runId: string) =>
-		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/summary`,
+		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/summary`,
 	planRunVisualSummary: (runId: string) =>
-		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/visual-summary`,
+		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/visual-summary`,
 	planRunTasks: (runId: string) =>
-		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/tasks`,
+		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/tasks`,
 	planRunFiles: (runId: string) =>
-		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/files`,
+		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/files`,
 	planRunShare: (runId: string) =>
-		`${API_BASE_URL}/api/agents-team/runs/${encodeURIComponent(runId)}/share`,
+		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/share`,
 	planSkill: (name: string) =>
-		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(name)}`,
+		`${API_BASE_URL}/api/plan/skills/${encodeURIComponent(name)}`,
 	planAgent: (name: string) =>
-		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(name)}`,
+		`${API_BASE_URL}/api/plan/agents/${encodeURIComponent(name)}`,
 	planSkillRaw: (name: string) =>
-		`${API_BASE_URL}/api/agents-team/skills/${encodeURIComponent(name)}/raw`,
+		`${API_BASE_URL}/api/plan/skills/${encodeURIComponent(name)}/raw`,
 	planAgentRaw: (name: string) =>
-		`${API_BASE_URL}/api/agents-team/agents/${encodeURIComponent(name)}/raw`,
+		`${API_BASE_URL}/api/plan/agents/${encodeURIComponent(name)}/raw`,
 	planThreads: (limit?: number) =>
-		`${API_BASE_URL}/api/agents-team/threads${
+		`${API_BASE_URL}/api/plan/threads${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
 		}`,
 	planThread: (threadId: string) =>
-		`${API_BASE_URL}/api/agents-team/threads/${encodeURIComponent(threadId)}`,
+		`${API_BASE_URL}/api/plan/threads/${encodeURIComponent(threadId)}`,
+	MAKER_RUNS: `${API_BASE_URL}/api/maker/runs`,
+	MAKER_SKILLS: `${API_BASE_URL}/api/maker/skills`,
+	MAKER_AGENTS: `${API_BASE_URL}/api/maker/agents`,
+	MAKER_TOOLS: `${API_BASE_URL}/api/maker/tools`,
+	MAKER_CONFIG_SUMMARY: `${API_BASE_URL}/api/maker/config-summary`,
+	MAKER_THREADS: `${API_BASE_URL}/api/maker/threads`,
+	makerRuns: (limit?: number) =>
+		`${API_BASE_URL}/api/maker/runs${
+			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
+		}`,
+	makerRun: (runId: string) =>
+		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}`,
+	makerRunStream: (runId: string) =>
+		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/stream`,
+	makerRunDirectives: (runId: string) =>
+		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/directives`,
+	makerRunSummary: (runId: string) =>
+		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/summary`,
+	makerRunVisualSummary: (runId: string) =>
+		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/visual-summary`,
+	makerRunTasks: (runId: string) =>
+		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/tasks`,
+	makerRunFiles: (runId: string) =>
+		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/files`,
+	makerRunShare: (runId: string) =>
+		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/share`,
+	makerSkill: (name: string) =>
+		`${API_BASE_URL}/api/maker/skills/${encodeURIComponent(name)}`,
+	makerAgent: (name: string) =>
+		`${API_BASE_URL}/api/maker/agents/${encodeURIComponent(name)}`,
+	makerSkillRaw: (name: string) =>
+		`${API_BASE_URL}/api/maker/skills/${encodeURIComponent(name)}/raw`,
+	makerAgentRaw: (name: string) =>
+		`${API_BASE_URL}/api/maker/agents/${encodeURIComponent(name)}/raw`,
+	makerThreads: (limit?: number) =>
+		`${API_BASE_URL}/api/maker/threads${
+			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
+		}`,
+	makerThread: (threadId: string) =>
+		`${API_BASE_URL}/api/maker/threads/${encodeURIComponent(threadId)}`,
 };

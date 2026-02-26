@@ -632,7 +632,7 @@ import { Message as UiMessage, MessageContent, MessageResponse } from "@/compone
 
 ### Source Demo as Source of Truth
 
-When adding or modifying ui-ai sub-components (e.g., adding `PromptInputMicrophone`), always update the canonical demo in `components/website/demos/ai/` first. Feature pages (`/chat`, `/agents-team`, `/rovo`) copy the demo's composer pattern. Fixing consumers individually without updating the source demo means every new consumer will miss the change.
+When adding or modifying ui-ai sub-components (e.g., adding `PromptInputMicrophone`), always update the canonical demo in `components/website/demos/ai/` first. Feature pages (`/chat`, `/plan`, `/rovo`) copy the demo's composer pattern. Fixing consumers individually without updating the source demo means every new consumer will miss the change.
 
 **Rule:** Source demo → feature pages, not the other way around.
 

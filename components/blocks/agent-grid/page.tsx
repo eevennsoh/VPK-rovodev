@@ -6,15 +6,15 @@ import { cn } from "@/lib/utils";
 import type {
 	PlanAgent,
 	PlanSkill,
-} from "@/lib/agents-team-config-types";
+} from "@/lib/plan-config-types";
 import type {
 	AgentRunListItem,
 	AgentRunTask,
-} from "@/lib/agents-team-run-types";
-import { type TaskExecution } from "@/components/templates/agents-team/lib/execution-data";
-import { ExecutionGridView } from "@/components/templates/agents-team/components/execution-grid-view";
-import { AppSidebar } from "@/components/templates/agents-team/components/app-sidebar";
-import ChatTitleRow from "@/components/templates/agents-team/components/chat-title-row";
+} from "@/lib/plan-run-types";
+import { type TaskExecution } from "@/components/templates/plan/lib/execution-data";
+import { ExecutionGridView } from "@/components/templates/plan/components/execution-grid-view";
+import { AppSidebar } from "@/components/templates/plan/components/app-sidebar";
+import ChatTitleRow from "@/components/templates/plan/components/chat-title-row";
 
 const MOCK_EXECUTIONS: TaskExecution[] = [
 	{

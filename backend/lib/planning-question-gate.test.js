@@ -11,7 +11,7 @@ const {
 const PLANNING_GATE_SKIP_SOURCES = new Set([
 	"clarification-submit",
 	"plan-approval-submit",
-	"agent-team-plan-retry",
+	"plan-retry",
 ]);
 
 function createPlanWidgetMessage(taskCount) {

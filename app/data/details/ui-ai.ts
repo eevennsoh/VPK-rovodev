@@ -2854,7 +2854,7 @@ const edgeTypes = {
 			{ name: "Suggestion", description: "Individual clickable suggestion button rendered as a rounded pill." },
 		],
 		examples: [
-			{ title: "Vertical", description: "Right-aligned vertical stack with icons, matching the agents-team follow-up suggestion pattern.", demoSlug: "suggestion-demo-vertical" },
+			{ title: "Vertical", description: "Right-aligned vertical stack with icons, matching the plan follow-up suggestion pattern.", demoSlug: "suggestion-demo-vertical" },
 			{ title: "With icons", description: "Horizontal suggestions with leading icons and secondary variant.", demoSlug: "suggestion-demo-with-icons" },
 		],
 	},

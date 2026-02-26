@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 
 interface RouteParams {
 	params: Promise<{ id: string }>;
@@ -10,7 +10,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 		const { id } = await params;
 		return await proxyToBackend({
 			method: "POST",
-			path: `/api/agents-team/agents/${encodeURIComponent(id)}/persist`,
+			path: `/api/plan/agents/${encodeURIComponent(id)}/persist`,
 		});
 	} catch (error) {
 		console.error("Agents team agent persist proxy error:", error);

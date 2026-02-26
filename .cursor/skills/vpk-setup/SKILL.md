@@ -162,7 +162,7 @@ AUTO_FALLBACK_TO_AI_GATEWAY=true
 # Default billing site for rovodev serve (override if needed)
 ROVODEV_SITE_URL=https://hello.atlassian.net
 
-# RovoDev pool size (agents-team parallel runs, default: 6)
+# RovoDev pool size (plan parallel runs, default: 6)
 # ROVODEV_POOL_SIZE=6
 ```
 

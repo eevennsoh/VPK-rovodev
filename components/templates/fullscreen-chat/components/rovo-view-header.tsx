@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
 import ArrowLeftIcon from "@atlaskit/icon/core/arrow-left";
@@ -31,26 +29,13 @@ export default function RovoViewHeader({
 			}}
 		>
 			<div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: token("space.050") }}>
-				{/* Left side - Back button (when in chat mode) and Rovo brand */}
+				{/* Left side - Back button (when in chat mode) */}
 				<div className="flex items-center gap-1">
 					{isChatMode && (
 						<Button aria-label="Back" size="icon" variant="ghost" onClick={onBackToStart}>
 							<ArrowLeftIcon label="" />
 						</Button>
 					)}
-					<Link
-						href="/agents-team"
-						className="flex items-center gap-2 rounded-md p-1 text-text no-underline transition-colors hover:bg-surface-hovered hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focused"
-						aria-label="Go to agents team"
-					>
-						<Image src="/1p/rovo.svg" alt="" width={20} height={20} aria-hidden />
-						<span
-							style={{ font: token("font.heading.xsmall") }}
-							className="text-text"
-						>
-							Rovo
-						</span>
-					</Link>
 				</div>
 
 				{/* Right side - New chat and More buttons */}

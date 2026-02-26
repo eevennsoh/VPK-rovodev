@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 		const { runId } = await params;
 		return await proxyToBackend({
 			method: "GET",
-			path: `/api/agents-team/runs/${encodeURIComponent(runId)}/stream`,
+			path: `/api/plan/runs/${encodeURIComponent(runId)}/stream`,
 			expectEventStream: true,
 		});
 	} catch (error) {

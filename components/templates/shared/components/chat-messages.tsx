@@ -173,7 +173,7 @@ export function ChatMessages({
 			targetScrollTop={handleTargetScrollTop}
 		>
 			<ConversationContent
-				className="flex shrink-0 flex-col gap-6 p-3"
+				className="flex w-full shrink-0 flex-col gap-6 p-3"
 				style={{
 					paddingTop: contentTopPadding,
 					paddingBottom: contentBottomPadding ?? "80px",
@@ -184,6 +184,7 @@ export function ChatMessages({
 				) : (
 					<MessageTurns
 						isUserMessage={(message) => message.role === "user"}
+						getTurnContainerClassName={() => "w-full"}
 						getTurnContainerStyle={(_turn, turnIndex) => ({
 							marginTop: turnIndex > 0 ? "24px" : "0",
 						})}

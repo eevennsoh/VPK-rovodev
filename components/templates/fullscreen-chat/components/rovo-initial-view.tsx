@@ -7,6 +7,7 @@ import Image from "next/image";
 import Heading from "@/components/blocks/shared-ui/heading";
 import PromptGallery from "@/components/blocks/prompt-gallery/page";
 import { DEFAULT_PROMPT_GALLERY_SUGGESTIONS } from "@/components/blocks/prompt-gallery/data/suggestions";
+import { Footer } from "@/components/ui/footer";
 import RovoChatInput from "./rovo-chat-input";
 
 const HOME_SUGGESTIONS = DEFAULT_PROMPT_GALLERY_SUGGESTIONS.slice(0, 3);
@@ -92,18 +93,8 @@ export default function RovoInitialView({
 				</div>
 			</div>
 
-			<div
-				style={{
-					position: "fixed",
-					bottom: token("space.300"),
-					left: "50%",
-					transform: "translateX(-50%)",
-					textAlign: "center",
-				}}
-			>
-				<span className="text-xs text-text-subtlest">
-					Uses AI. Verify results.
-				</span>
+			<div className="absolute inset-x-0 bottom-0 z-10 flex justify-center">
+				<Footer />
 			</div>
 		</>
 	);

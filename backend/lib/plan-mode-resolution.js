@@ -1,4 +1,4 @@
-const AGENT_TEAM_PLAN_MODE_SOURCE = "agents-team-toggle";
+const PLAN_MODE_SOURCE = "plan-toggle";
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -16,7 +16,7 @@ function resolvePlanMode({
 	const requestedPlanMode = planMode === true;
 	const normalizedSource = getNonEmptyString(planModeSource);
 	const hasAllowedSource =
-		normalizedSource === AGENT_TEAM_PLAN_MODE_SOURCE;
+		normalizedSource === PLAN_MODE_SOURCE;
 
 	return {
 		enabled: requestedPlanMode && hasAllowedSource,
@@ -26,6 +26,6 @@ function resolvePlanMode({
 }
 
 module.exports = {
-	AGENT_TEAM_PLAN_MODE_SOURCE,
+	PLAN_MODE_SOURCE,
 	resolvePlanMode,
 };

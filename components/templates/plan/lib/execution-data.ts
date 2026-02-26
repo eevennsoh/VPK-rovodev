@@ -4,7 +4,7 @@ import type {
 	RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
 import type { ParsedPlanTask } from "@/components/templates/shared/lib/plan-widget";
-import type { AgentRun, AgentRunTask } from "@/lib/agents-team-run-types";
+import type { AgentRun, AgentRunTask } from "@/lib/plan-run-types";
 
 export type TaskStatus = "todo" | "in-progress" | "in-review" | "failed" | "done";
 

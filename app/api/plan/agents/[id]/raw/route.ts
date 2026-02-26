@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 
 interface RouteParams {
 	params: Promise<{ id: string }>;
@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 		const { id } = await params;
 		return await proxyToBackend({
 			method: "GET",
-			path: `/api/agents-team/agents/${encodeURIComponent(id)}/raw`,
+			path: `/api/plan/agents/${encodeURIComponent(id)}/raw`,
 		});
 	} catch (error) {
 		console.error("Agents team agent raw proxy error:", error);

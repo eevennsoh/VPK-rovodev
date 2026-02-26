@@ -2,7 +2,7 @@
 
 import AgentsProgress from "@/components/blocks/agent-progress/page";
 import { token } from "@/lib/tokens";
-import type { AgentRunListItem } from "@/lib/agents-team-run-types";
+import type { AgentRunListItem } from "@/lib/plan-run-types";
 import {
 	computeTaskStatusGroupsFromRun,
 	toProgressDisplayStatusGroups,

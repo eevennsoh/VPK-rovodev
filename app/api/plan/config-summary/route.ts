@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 
 export async function GET() {
 	try {
 		return await proxyToBackend({
 			method: "GET",
-			path: "/api/agents-team/config-summary",
+			path: "/api/plan/config-summary",
 		});
 	} catch (error) {
 		console.error("Agents team config summary proxy error:", error);

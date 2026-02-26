@@ -36,10 +36,10 @@ function buildErrorMessage(rawText: string, requestPath?: string): string {
 	}
 
 	if (
-		(requestPath?.startsWith("/api/agents-team/runs") ?? false) &&
-		/Cannot (GET|POST) \/api\/agents-team\/runs/i.test(trimmedText)
+		(requestPath?.startsWith("/api/plan/runs") ?? false) &&
+		/Cannot (GET|POST) \/api\/plan\/runs/i.test(trimmedText)
 	) {
-		return "Backend is running without agents-team run routes. Restart the backend dev server to load the latest code.";
+		return "Backend is running without plan run routes. Restart the backend dev server to load the latest code.";
 	}
 
 	return trimmedText;

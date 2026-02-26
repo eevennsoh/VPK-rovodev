@@ -7,6 +7,9 @@ export const TEMPLATE_DETAILS: Record<string, ComponentDetail> = {
 	"plan": {
 		description: "A planning workspace with chat sidebar, team controls, and prompt-driven collaboration flow.",
 	},
+	"maker": {
+		description: "A maker workspace with chat sidebar, team controls, and prompt-driven collaboration flow.",
+	},
 	"sidebar-chat": {
 		description: "A sliding chat panel with message bubbles, greeting view, and integrated composer for conversational AI interfaces.",
 	},

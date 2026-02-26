@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useMemo, RefObject } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { token } from "@/lib/tokens";
 import { useClickOutside } from "@/components/hooks/use-click-outside";
@@ -48,6 +49,7 @@ export function LeftNavigation({
 	useClickOutside(appSwitcherRefs, onCloseAppSwitcher, isAppSwitcherOpen);
 
 	const { Icon, name } = PRODUCT_CONFIG[product];
+	const isRovoProduct = product === "rovo";
 
 	const containerStyle = useMemo(() => {
 		const base = {
@@ -102,7 +104,17 @@ export function LeftNavigation({
 				}}
 			>
 				<div style={{ display: "flex", alignItems: "center", gap: token("space.100") }}>
-					<Icon size="small" />
+					{isRovoProduct ? (
+						<Image
+							src="/1p/rovo.svg"
+							alt=""
+							width={20}
+							height={20}
+							aria-hidden
+						/>
+					) : (
+						<Icon size="small" />
+					)}
 					{windowWidth >= 1028 && <span style={{ font: token("font.heading.xsmall") }}>{name}</span>}
 				</div>
 			</div>

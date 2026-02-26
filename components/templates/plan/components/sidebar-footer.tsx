@@ -9,7 +9,7 @@ import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import AddIcon from "@atlaskit/icon/core/add";
 import DownloadIcon from "@atlaskit/icon/core/download";
 import UploadIcon from "@atlaskit/icon/core/upload";
-import type { PlanSkill, PlanAgent } from "@/lib/agents-team-config-types";
+import type { PlanSkill, PlanAgent } from "@/lib/plan-config-types";
 
 interface SidebarFooterProps {
 	skills: PlanSkill[];

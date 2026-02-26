@@ -1139,7 +1139,7 @@ function createRunManager(options) {
 		getPositiveInteger(process.env.AGENTS_TEAM_MAX_CONCURRENT) ||
 		DEFAULT_MAX_CONCURRENT_AGENTS;
 	const runsById = new Map();
-	const runRootsDir = path.join(baseDir, "agents-team-runs");
+	const runRootsDir = path.join(baseDir, "plan-runs");
 	const aiGatewayProvider = createAIGatewayProvider({ logger });
 
 	const ensureRunDirectories = async (runId) => {
@@ -1165,7 +1165,7 @@ function createRunManager(options) {
 	};
 
 	const buildArtifactUrl = (runId, artifactId) =>
-		`/api/agents-team/runs/${encodeURIComponent(runId)}/files?id=${encodeURIComponent(artifactId)}`;
+		`/api/plan/runs/${encodeURIComponent(runId)}/files?id=${encodeURIComponent(artifactId)}`;
 
 	const replaceIterationArtifacts = (run, iteration, nextArtifacts) => {
 		run.artifacts = [

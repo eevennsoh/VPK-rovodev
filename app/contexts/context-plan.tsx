@@ -12,20 +12,20 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { API_ENDPOINTS } from "@/lib/api-config";
-import type { AgentRunListItem, AgentRun } from "@/lib/agents-team-run-types";
+import type { AgentRunListItem, AgentRun } from "@/lib/plan-run-types";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 import { isMessageVisibleInTranscript } from "@/lib/rovo-ui-messages";
 import type { QueuedPromptItem } from "@/app/contexts";
-import type { PlanSkill, PlanAgent } from "@/lib/agents-team-config-types";
+import type { PlanSkill, PlanAgent } from "@/lib/plan-config-types";
 import type { ParsedQuestionCardPayload, ClarificationAnswers } from "@/components/templates/shared/lib/question-card-widget";
 import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
 import type { GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
-import type { TaskExecution } from "@/components/templates/agents-team/lib/execution-data";
-import type { ExecutionState } from "@/components/templates/agents-team/hooks/use-execution-mode";
-import type { ChatHistoryItem } from "@/components/templates/agents-team/components/sidebar-chat-history";
-import type { SkillDialogProps, AgentDialogProps, SidebarConfigHandlers, ImportDialogState, DeleteAlertState } from "@/components/templates/agents-team/hooks/use-config-dialogs";
-import type { RetryTaskGroupKey } from "@/components/templates/agents-team/lib/retry-task-groups";
+import type { TaskExecution } from "@/components/templates/plan/lib/execution-data";
+import type { ExecutionState } from "@/components/templates/plan/hooks/use-execution-mode";
+import type { ChatHistoryItem } from "@/components/templates/plan/components/sidebar-chat-history";
+import type { SkillDialogProps, AgentDialogProps, SidebarConfigHandlers, ImportDialogState, DeleteAlertState } from "@/components/templates/plan/hooks/use-config-dialogs";
+import type { RetryTaskGroupKey } from "@/components/templates/plan/lib/retry-task-groups";
 import {
 	buildClarificationSummaryPrompt,
 	createClarificationSubmission,
@@ -37,7 +37,7 @@ import {
 import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import {
 	selectRetryTasks,
-} from "@/components/templates/agents-team/lib/retry-task-groups";
+} from "@/components/templates/plan/lib/retry-task-groups";
 import {
 	normalizePlanMessages,
 	isAnyWidgetCurrentlyLoading,
@@ -45,11 +45,11 @@ import {
 	isPlanResponseComplete,
 	toConversationItems,
 	getLatestVisibleUserPrompt,
-} from "@/components/templates/agents-team/lib/message-utils";
-import { usePlanChat } from "@/components/templates/agents-team/hooks/use-agents-team-chat";
-import { useExecutionMode } from "@/components/templates/agents-team/hooks/use-execution-mode";
-import { usePlanConfig } from "@/components/templates/agents-team/hooks/use-agents-team-config";
-import { useConfigDialogs } from "@/components/templates/agents-team/hooks/use-config-dialogs";
+} from "@/components/templates/plan/lib/message-utils";
+import { usePlanChat } from "@/components/templates/plan/hooks/use-plan-chat";
+import { useExecutionMode } from "@/components/templates/plan/hooks/use-execution-mode";
+import { usePlanConfig } from "@/components/templates/plan/hooks/use-plan-config";
+import { useConfigDialogs } from "@/components/templates/plan/hooks/use-config-dialogs";
 
 // ---------------------------------------------------------------------------
 // State
@@ -383,7 +383,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 
 		if (!hasNavigatedToSummaryRef.current) {
 			hasNavigatedToSummaryRef.current = true;
-			router.push(`/agents-team/runs/${runId}`);
+			router.push(`/plan/runs/${runId}`);
 		}
 	}, [executionState, router, runId]);
 
@@ -505,7 +505,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 
 	const handleSelectRun = useCallback(
 		(selectedRunId: string) => {
-			router.push(`/agents-team/runs/${selectedRunId}`);
+			router.push(`/plan/runs/${selectedRunId}`);
 		},
 		[router],
 	);
@@ -568,7 +568,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 					});
 				}
 
-				router.push(`/agents-team/runs/${targetRunId}`);
+				router.push(`/plan/runs/${targetRunId}`);
 			} catch (error) {
 				console.error(
 					"[PLAN] Failed to retry run task group:",

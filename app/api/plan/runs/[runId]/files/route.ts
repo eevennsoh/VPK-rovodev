@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 
 interface RouteParams {
 	params: Promise<{ runId: string }>;
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		const queryString = request.nextUrl.search;
 		return await proxyToBackend({
 			method: "GET",
-			path: `/api/agents-team/runs/${encodeURIComponent(runId)}/files${queryString}`,
+			path: `/api/plan/runs/${encodeURIComponent(runId)}/files${queryString}`,
 		});
 	} catch (error) {
 		console.error("Agents team files proxy error:", error);

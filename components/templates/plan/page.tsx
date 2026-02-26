@@ -7,10 +7,10 @@ import {
 	usePlanState,
 	usePlanActions,
 	usePlanMeta,
-} from "@/app/contexts/context-agents-team";
+} from "@/app/contexts/context-plan";
 import { AppSidebar } from "./components/app-sidebar";
-import PlanInitialView from "./components/agents-team-initial-view";
-import PlanChatView from "./components/agents-team-chat-view";
+import PlanInitialView from "./components/plan-initial-view";
+import PlanChatView from "./components/plan-chat-view";
 import { ExecutionGridView } from "./components/execution-grid-view";
 import ChatTitleRow from "./components/chat-title-row";
 import { ConfigDialogs } from "./components/config-dialogs";

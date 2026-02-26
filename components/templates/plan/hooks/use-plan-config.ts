@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { API_ENDPOINTS } from "@/lib/api-config";
 import type {
 	PlanSkill,
 	PlanSkillInput,
 	PlanAgent,
 	PlanAgentInput,
-} from "@/lib/agents-team-config-types";
-import { generateSlug } from "@/lib/agents-team-config-types";
+} from "@/lib/plan-config-types";
+import { generateSlug } from "@/lib/plan-config-types";
 
 async function parseJsonResponse<T>(
 	response: Response,
@@ -50,7 +50,6 @@ export function usePlanConfig() {
 	const [agents, setAgents] = useState<PlanAgent[]>([]);
 	const [availableTools, setAvailableTools] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
-	const hasFetchedRef = useRef(false);
 
 	const fetchSkills = useCallback(async () => {
 		try {
@@ -83,9 +82,6 @@ export function usePlanConfig() {
 	}, [fetchSkills, fetchAgents]);
 
 	useEffect(() => {
-		if (hasFetchedRef.current) return;
-		hasFetchedRef.current = true;
-
 		let cancelled = false;
 		async function load() {
 			const [skillsRes, agentsRes, toolsRes] = await Promise.all([

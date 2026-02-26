@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 interface RouteParams {
@@ -15,7 +15,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 		}
 		return await proxyToBackend({
 			method: "PUT",
-			path: `/api/agents-team/skills/${encodeURIComponent(id)}`,
+			path: `/api/plan/skills/${encodeURIComponent(id)}`,
 			body,
 		});
 	} catch (error) {
@@ -35,7 +35,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 		const { id } = await params;
 		return await proxyToBackend({
 			method: "DELETE",
-			path: `/api/agents-team/skills/${encodeURIComponent(id)}`,
+			path: `/api/plan/skills/${encodeURIComponent(id)}`,
 		});
 	} catch (error) {
 		console.error("Agents team skill delete proxy error:", error);

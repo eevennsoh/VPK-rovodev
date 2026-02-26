@@ -14,9 +14,12 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
-const { createRunManager } = require("./lib/agents-team-runs");
-const { createThreadManager } = require("./lib/agents-team-threads");
-const agentsTeamFs = require("./lib/agents-team-filesystem");
+const { createRunManager } = require("./lib/plan-runs");
+const { createRunManager: createMakerRunManager } = require("./lib/maker-runs");
+const { createThreadManager } = require("./lib/plan-threads");
+const { createThreadManager: createMakerThreadManager } = require("./lib/maker-threads");
+const planFs = require("./lib/plan-filesystem");
+const makerFs = require("./lib/maker-filesystem");
 const { genuiChatHandler, generateGenuiFromRovodevResponse } = require("./lib/genui-chat-handler");
 const {
 	streamViaRovoDev,
@@ -391,7 +394,7 @@ const CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER = "Tell Rovo what to do...";
 const PLANNING_GATE_SKIP_SOURCES = new Set([
 	"clarification-submit",
 	"plan-approval-submit",
-	"agent-team-plan-retry",
+	"plan-retry",
 ]);
 const TOOL_FIRST_GATE_SKIP_SOURCES = new Set([
 	"clarification-submit",
@@ -1165,19 +1168,35 @@ function buildSmartClarificationSessionId({ planRequestId, surface }) {
 	return `smart-${safeSurface}-${createClarificationSessionId()}`;
 }
 
-const agentsTeamConfigManager = agentsTeamFs.createConfigManagerCompat();
+const planConfigManager = planFs.createConfigManagerCompat();
 
-const agentsTeamRunManager = createRunManager({
+const planRunManager = createRunManager({
 	baseDir: path.join(__dirname, "data"),
 	buildSystemPrompt: null, // Not used in RovoDev-only mode
-	configManager: agentsTeamConfigManager,
+	configManager: planConfigManager,
 	logger: console,
 	isRovoDevAvailable,
 	isAIGatewayFallbackEnabled: () => false,
 });
 
-const agentsTeamThreadManager = createThreadManager({
+const planThreadManager = createThreadManager({
 	baseDir: path.join(__dirname, "data"),
+	logger: console,
+});
+
+const makerConfigManager = makerFs.createConfigManagerCompat();
+
+const makerRunManager = createMakerRunManager({
+	baseDir: path.join(__dirname, "data", "maker"),
+	buildSystemPrompt: null, // Not used in RovoDev-only mode
+	configManager: makerConfigManager,
+	logger: console,
+	isRovoDevAvailable,
+	isAIGatewayFallbackEnabled: () => false,
+});
+
+const makerThreadManager = createMakerThreadManager({
+	baseDir: path.join(__dirname, "data", "maker"),
 	logger: console,
 });
 
@@ -2743,18 +2762,16 @@ app.post("/api/chat-sdk", async (req, res) => {
 			);
 		}
 
-		// If creationMode is set, load the instruction file and prepend to contextDescription
+		// If creationMode is set, load the skill content and prepend to contextDescription
 		let contextDescription = rawContextDescription;
 		if (creationMode === "skill" || creationMode === "agent") {
-			const fileName = creationMode === "skill" ? "skill-development.md" : "agent-development.md";
-			const filePath = path.join(__dirname, "..", "custom", fileName);
-			try {
-				const fs = require("fs");
-				const instructions = fs.readFileSync(filePath, "utf8");
-				const prefix = `[${creationMode.toUpperCase()} CREATION MODE]\nYou are in ${creationMode} creation mode. Help the user create a new ${creationMode} definition file.\nThis is a local ${creationMode} definition — not a Confluence page, Jira ticket, or any Atlassian product content.\nAll the ${creationMode} creation instructions you need are provided below.\nOnce ready, call POST /api/agents-team/${creationMode}s to persist it.\n[END ${creationMode.toUpperCase()} CREATION MODE]\n\n---\n\n${instructions}`;
+			const skillName = creationMode === "skill" ? "skill-development" : "agent-development";
+			const skill = planFs.getSkillByName(skillName);
+			if (skill && skill.content) {
+				const prefix = `[${creationMode.toUpperCase()} CREATION MODE]\nYou are in ${creationMode} creation mode. Help the user create a new ${creationMode} definition file.\nThis is a local ${creationMode} definition — not a Confluence page, Jira ticket, or any Atlassian product content.\nAll the ${creationMode} creation instructions you need are provided below.\nOnce ready, call POST /api/plan/${creationMode}s to persist it.\n[END ${creationMode.toUpperCase()} CREATION MODE]\n\n---\n\n${skill.content}`;
 				contextDescription = contextDescription ? `${prefix}\n\n${contextDescription}` : prefix;
-			} catch (readError) {
-				console.error(`[CHAT-SDK] Failed to read ${fileName}:`, readError.message);
+			} else {
+				console.error(`[CHAT-SDK] Skill "${skillName}" not found in skill system`);
 			}
 		}
 
@@ -8121,7 +8138,7 @@ app.delete("/api/orchestrator/log", (_req, res) => {
 
 // ─── Agents Team Endpoints ──────────────────────────────────────────────────
 
-app.post("/api/agents-team/runs", async (req, res) => {
+app.post("/api/plan/runs", async (req, res) => {
 	try {
 		const {
 			plan,
@@ -8130,7 +8147,7 @@ app.post("/api/agents-team/runs", async (req, res) => {
 			customInstruction,
 		} = req.body || {};
 
-		const run = await agentsTeamRunManager.createRun({
+		const run = await planRunManager.createRun({
 			plan,
 			userPrompt,
 			conversation,
@@ -8144,10 +8161,10 @@ app.post("/api/agents-team/runs", async (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/runs", async (req, res) => {
+app.get("/api/plan/runs", async (req, res) => {
 	try {
 		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
-		const runs = await agentsTeamRunManager.listRuns({ limit: rawLimit });
+		const runs = await planRunManager.listRuns({ limit: rawLimit });
 		return res.status(200).json({ runs });
 	} catch (error) {
 		console.error("[AGENTS-RUN] Failed to list runs:", error);
@@ -8156,10 +8173,10 @@ app.get("/api/agents-team/runs", async (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/runs/:runId", async (req, res) => {
+app.get("/api/plan/runs/:runId", async (req, res) => {
 	try {
 		const runId = req.params.runId;
-		const run = await agentsTeamRunManager.getRun(runId);
+		const run = await planRunManager.getRun(runId);
 		if (!run) {
 			return res.status(404).json({ error: "Run not found" });
 		}
@@ -8171,10 +8188,10 @@ app.get("/api/agents-team/runs/:runId", async (req, res) => {
 	}
 });
 
-app.delete("/api/agents-team/runs/:runId", async (req, res) => {
+app.delete("/api/plan/runs/:runId", async (req, res) => {
 	try {
 		const runId = req.params.runId;
-		await agentsTeamRunManager.deleteRun(runId);
+		await planRunManager.deleteRun(runId);
 		return res.status(200).json({ deleted: true });
 	} catch (error) {
 		console.error("[AGENTS-RUN] Failed to delete run:", error);
@@ -8182,11 +8199,11 @@ app.delete("/api/agents-team/runs/:runId", async (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/threads", async (req, res) => {
+app.get("/api/plan/threads", async (req, res) => {
 	try {
 		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
 		const limit = rawLimit ? Number(rawLimit) : undefined;
-		const threads = await agentsTeamThreadManager.listThreads({ limit });
+		const threads = await planThreadManager.listThreads({ limit });
 		return res.status(200).json({ threads });
 	} catch (error) {
 		console.error("[AGENTS-THREAD] Failed to list threads:", error);
@@ -8195,10 +8212,10 @@ app.get("/api/agents-team/threads", async (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/threads/:threadId", async (req, res) => {
+app.get("/api/plan/threads/:threadId", async (req, res) => {
 	try {
 		const threadId = req.params.threadId;
-		const thread = await agentsTeamThreadManager.getThread(threadId);
+		const thread = await planThreadManager.getThread(threadId);
 		if (!thread) {
 			return res.status(404).json({ error: "Thread not found" });
 		}
@@ -8210,10 +8227,10 @@ app.get("/api/agents-team/threads/:threadId", async (req, res) => {
 	}
 });
 
-app.post("/api/agents-team/threads", async (req, res) => {
+app.post("/api/plan/threads", async (req, res) => {
 	try {
 		const { id, title, messages, createdAt, updatedAt } = req.body || {};
-		const thread = await agentsTeamThreadManager.createThread({
+		const thread = await planThreadManager.createThread({
 			id,
 			title,
 			messages,
@@ -8228,11 +8245,11 @@ app.post("/api/agents-team/threads", async (req, res) => {
 	}
 });
 
-app.put("/api/agents-team/threads/:threadId", async (req, res) => {
+app.put("/api/plan/threads/:threadId", async (req, res) => {
 	try {
 		const threadId = req.params.threadId;
 		const { title, messages, updatedAt } = req.body || {};
-		const thread = await agentsTeamThreadManager.updateThread(threadId, {
+		const thread = await planThreadManager.updateThread(threadId, {
 			title,
 			messages,
 			updatedAt,
@@ -8248,10 +8265,10 @@ app.put("/api/agents-team/threads/:threadId", async (req, res) => {
 	}
 });
 
-app.delete("/api/agents-team/threads/:threadId", async (req, res) => {
+app.delete("/api/plan/threads/:threadId", async (req, res) => {
 	try {
 		const threadId = req.params.threadId;
-		await agentsTeamThreadManager.deleteThread(threadId);
+		await planThreadManager.deleteThread(threadId);
 		return res.status(200).json({ deleted: true });
 	} catch (error) {
 		console.error("[AGENTS-THREAD] Failed to delete thread:", error);
@@ -8259,7 +8276,7 @@ app.delete("/api/agents-team/threads/:threadId", async (req, res) => {
 	}
 });
 
-app.post("/api/agents-team/runs/:runId/tasks", async (req, res) => {
+app.post("/api/plan/runs/:runId/tasks", async (req, res) => {
 	try {
 		const runId = req.params.runId;
 		const {
@@ -8270,7 +8287,7 @@ app.post("/api/agents-team/runs/:runId/tasks", async (req, res) => {
 			customInstruction,
 			retryTaskIds,
 		} = req.body || {};
-		const result = await agentsTeamRunManager.appendTasks(runId, {
+		const result = await planRunManager.appendTasks(runId, {
 			planDelta,
 			prompt,
 			contextPrompt,
@@ -8291,7 +8308,7 @@ app.post("/api/agents-team/runs/:runId/tasks", async (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/runs/:runId/files", async (req, res) => {
+app.get("/api/plan/runs/:runId/files", async (req, res) => {
 	try {
 		const runId = req.params.runId;
 		const rawArtifactId = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
@@ -8302,7 +8319,7 @@ app.get("/api/agents-team/runs/:runId/files", async (req, res) => {
 		const shouldDownload = rawDownload === "1" || rawDownload === "true";
 
 		if (artifactId) {
-			const artifactFile = await agentsTeamRunManager.getRunFile(runId, artifactId);
+			const artifactFile = await planRunManager.getRunFile(runId, artifactId);
 			if (!artifactFile) {
 				return res.status(404).json({ error: "Artifact not found" });
 			}
@@ -8320,7 +8337,7 @@ app.get("/api/agents-team/runs/:runId/files", async (req, res) => {
 			return res.status(200).send(artifactFile.buffer);
 		}
 
-		const filesPayload = await agentsTeamRunManager.getRunFiles(runId);
+		const filesPayload = await planRunManager.getRunFiles(runId);
 		if (!filesPayload) {
 			return res.status(404).json({ error: "Run not found" });
 		}
@@ -8333,10 +8350,10 @@ app.get("/api/agents-team/runs/:runId/files", async (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/runs/:runId/stream", async (req, res) => {
+app.get("/api/plan/runs/:runId/stream", async (req, res) => {
 	try {
 		const runId = req.params.runId;
-		await agentsTeamRunManager.streamRunEvents(req, res, runId);
+		await planRunManager.streamRunEvents(req, res, runId);
 	} catch (error) {
 		console.error("[AGENTS-RUN] Failed to stream run events:", error);
 		if (!res.headersSent) {
@@ -8345,11 +8362,11 @@ app.get("/api/agents-team/runs/:runId/stream", async (req, res) => {
 	}
 });
 
-app.post("/api/agents-team/runs/:runId/directives", async (req, res) => {
+app.post("/api/plan/runs/:runId/directives", async (req, res) => {
 	try {
 		const runId = req.params.runId;
 		const { agentName, message } = req.body || {};
-		const result = await agentsTeamRunManager.addDirective(runId, {
+		const result = await planRunManager.addDirective(runId, {
 			agentName,
 			message,
 		});
@@ -8365,7 +8382,7 @@ app.post("/api/agents-team/runs/:runId/directives", async (req, res) => {
 	}
 });
 
-app.post("/api/agents-team/runs/:runId/share", async (req, res) => {
+app.post("/api/plan/runs/:runId/share", async (req, res) => {
 	try {
 		const runId = req.params.runId;
 		const requestBody = req.body && typeof req.body === "object" ? req.body : {};
@@ -8376,7 +8393,7 @@ app.post("/api/agents-team/runs/:runId/share", async (req, res) => {
 			});
 		}
 
-		const runSummary = await agentsTeamRunManager.getRunSummary(runId);
+		const runSummary = await planRunManager.getRunSummary(runId);
 		if (!runSummary || !runSummary.run) {
 			return res.status(404).json({ error: "Run not found" });
 		}
@@ -8427,10 +8444,10 @@ app.post("/api/agents-team/runs/:runId/share", async (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/runs/:runId/summary", async (req, res) => {
+app.get("/api/plan/runs/:runId/summary", async (req, res) => {
 	try {
 		const runId = req.params.runId;
-		const summary = await agentsTeamRunManager.getRunSummary(runId);
+		const summary = await planRunManager.getRunSummary(runId);
 		if (!summary) {
 			return res.status(404).json({ error: "Run not found" });
 		}
@@ -8442,10 +8459,10 @@ app.get("/api/agents-team/runs/:runId/summary", async (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/runs/:runId/visual-summary", async (req, res) => {
+app.get("/api/plan/runs/:runId/visual-summary", async (req, res) => {
 	try {
 		const runId = req.params.runId;
-		const summary = await agentsTeamRunManager.getRunVisualSummary(runId);
+		const summary = await planRunManager.getRunVisualSummary(runId);
 		if (!summary) {
 			return res.status(404).json({ error: "Run not found" });
 		}
@@ -8460,16 +8477,16 @@ app.get("/api/agents-team/runs/:runId/visual-summary", async (req, res) => {
 
 // --- Tools list ---
 
-app.get("/api/agents-team/tools", (req, res) => {
+app.get("/api/plan/tools", (req, res) => {
 	// Returns available MCP tools. Stub for now — will be populated from MCP server discovery.
 	return res.status(200).json({ tools: [] });
 });
 
 // --- Skills CRUD (filesystem-backed) ---
 
-app.get("/api/agents-team/skills", (req, res) => {
+app.get("/api/plan/skills", (req, res) => {
 	try {
-		const skills = agentsTeamFs.listSkills();
+		const skills = planFs.listSkills();
 		return res.status(200).json({ skills });
 	} catch (error) {
 		console.error("[AGENTS-FS] Failed to list skills:", error);
@@ -8477,7 +8494,7 @@ app.get("/api/agents-team/skills", (req, res) => {
 	}
 });
 
-app.post("/api/agents-team/skills", (req, res) => {
+app.post("/api/plan/skills", (req, res) => {
 	try {
 		const contentType = req.headers["content-type"] || "";
 
@@ -8492,7 +8509,7 @@ app.post("/api/agents-team/skills", (req, res) => {
 				return res.status(400).json({ error: "Expected markdown content" });
 			}
 
-			const { frontmatter, body } = agentsTeamFs.parseFrontmatter(rawContent);
+			const { frontmatter, body } = planFs.parseFrontmatter(rawContent);
 			const name = frontmatter.name;
 			const description = typeof frontmatter.description === "string" ? frontmatter.description : "";
 
@@ -8500,12 +8517,12 @@ app.post("/api/agents-team/skills", (req, res) => {
 				return res.status(400).json({ error: "SKILL.md must have a 'name' field in frontmatter" });
 			}
 
-			const nameError = agentsTeamFs.validateSkillName(name);
+			const nameError = planFs.validateSkillName(name);
 			if (nameError) {
 				return res.status(400).json({ error: nameError });
 			}
 
-			if (agentsTeamFs.skillExists(name)) {
+			if (planFs.skillExists(name)) {
 				return res.status(409).json({ error: `A skill named "${name}" already exists` });
 			}
 
@@ -8514,39 +8531,39 @@ app.post("/api/agents-team/skills", (req, res) => {
 			if (frontmatter.compatibility) extraFields.compatibility = frontmatter.compatibility;
 			if (frontmatter["allowed-tools"]) extraFields["allowed-tools"] = frontmatter["allowed-tools"];
 
-			const skill = agentsTeamFs.writeSkill(name, description, body.trim(), extraFields);
+			const skill = planFs.writeSkill(name, description, body.trim(), extraFields);
 			return res.status(201).json({ skill });
 		}
 
 		const { name, description, content } = req.body || {};
 
 		// Validate name
-		const nameError = agentsTeamFs.validateSkillName(name);
+		const nameError = planFs.validateSkillName(name);
 		if (nameError) {
 			return res.status(400).json({ error: nameError });
 		}
-		if (!agentsTeamFs.validatePathComponent(name)) {
+		if (!planFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid skill name" });
 		}
 
 		// Validate description
-		const descError = agentsTeamFs.validateSkillDescription(description);
+		const descError = planFs.validateSkillDescription(description);
 		if (descError) {
 			return res.status(400).json({ error: descError });
 		}
 
 		// Check for conflicts
-		if (agentsTeamFs.skillExists(name)) {
+		if (planFs.skillExists(name)) {
 			return res.status(409).json({ error: `A skill named "${name}" already exists` });
 		}
 
 		// Validate content length
 		const resolvedContent = typeof content === "string" ? content.trim() : "";
-		if (resolvedContent.length > agentsTeamFs.SKILL_CONTENT_MAX) {
-			return res.status(400).json({ error: `Content exceeds maximum length of ${agentsTeamFs.SKILL_CONTENT_MAX} characters` });
+		if (resolvedContent.length > planFs.SKILL_CONTENT_MAX) {
+			return res.status(400).json({ error: `Content exceeds maximum length of ${planFs.SKILL_CONTENT_MAX} characters` });
 		}
 
-		const skill = agentsTeamFs.writeSkill(name, description, resolvedContent);
+		const skill = planFs.writeSkill(name, description, resolvedContent);
 		return res.status(201).json({ skill });
 	} catch (error) {
 		console.error("[AGENTS-FS] Failed to create skill:", error);
@@ -8555,15 +8572,15 @@ app.post("/api/agents-team/skills", (req, res) => {
 	}
 });
 
-app.put("/api/agents-team/skills/:name", (req, res) => {
+app.put("/api/plan/skills/:name", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!agentsTeamFs.validatePathComponent(name)) {
+		if (!planFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid skill name" });
 		}
 
 		// Read existing skill
-		const existing = agentsTeamFs.getSkillByName(name);
+		const existing = planFs.getSkillByName(name);
 		if (!existing) {
 			return res.status(404).json({ error: `Skill not found: ${name}` });
 		}
@@ -8575,15 +8592,15 @@ app.put("/api/agents-team/skills/:name", (req, res) => {
 
 		// Validate if description changed
 		if (data.description !== undefined) {
-			const descError = agentsTeamFs.validateSkillDescription(updatedDescription);
+			const descError = planFs.validateSkillDescription(updatedDescription);
 			if (descError) {
 				return res.status(400).json({ error: descError });
 			}
 		}
 
 		// Validate content length
-		if (updatedContent.length > agentsTeamFs.SKILL_CONTENT_MAX) {
-			return res.status(400).json({ error: `Content exceeds maximum length of ${agentsTeamFs.SKILL_CONTENT_MAX} characters` });
+		if (updatedContent.length > planFs.SKILL_CONTENT_MAX) {
+			return res.status(400).json({ error: `Content exceeds maximum length of ${planFs.SKILL_CONTENT_MAX} characters` });
 		}
 
 		// Preserve extra fields from existing skill
@@ -8592,7 +8609,7 @@ app.put("/api/agents-team/skills/:name", (req, res) => {
 		if (existing.compatibility) extraFields.compatibility = existing.compatibility;
 		if (existing.allowedTools) extraFields["allowed-tools"] = existing.allowedTools;
 
-		const skill = agentsTeamFs.writeSkill(name, updatedDescription, updatedContent, extraFields);
+		const skill = planFs.writeSkill(name, updatedDescription, updatedContent, extraFields);
 		return res.status(200).json({ skill });
 	} catch (error) {
 		console.error("[AGENTS-FS] Failed to update skill:", error);
@@ -8601,13 +8618,13 @@ app.put("/api/agents-team/skills/:name", (req, res) => {
 	}
 });
 
-app.delete("/api/agents-team/skills/:name", (req, res) => {
+app.delete("/api/plan/skills/:name", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!agentsTeamFs.validatePathComponent(name)) {
+		if (!planFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid skill name" });
 		}
-		agentsTeamFs.deleteSkill(name);
+		planFs.deleteSkill(name);
 		return res.status(200).json({ success: true });
 	} catch (error) {
 		console.error("[AGENTS-FS] Failed to delete skill:", error);
@@ -8616,13 +8633,13 @@ app.delete("/api/agents-team/skills/:name", (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/skills/:name/raw", (req, res) => {
+app.get("/api/plan/skills/:name/raw", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!agentsTeamFs.validatePathComponent(name)) {
+		if (!planFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid skill name" });
 		}
-		const raw = agentsTeamFs.readSkillRaw(name);
+		const raw = planFs.readSkillRaw(name);
 		if (!raw) {
 			return res.status(404).json({ error: `Skill not found: ${name}` });
 		}
@@ -8636,9 +8653,9 @@ app.get("/api/agents-team/skills/:name/raw", (req, res) => {
 
 // --- Agents/Subagents CRUD (filesystem-backed) ---
 
-app.get("/api/agents-team/agents", (req, res) => {
+app.get("/api/plan/agents", (req, res) => {
 	try {
-		const agents = agentsTeamFs.listAgents();
+		const agents = planFs.listAgents();
 		return res.status(200).json({ agents });
 	} catch (error) {
 		console.error("[AGENTS-FS] Failed to list agents:", error);
@@ -8646,7 +8663,7 @@ app.get("/api/agents-team/agents", (req, res) => {
 	}
 });
 
-app.post("/api/agents-team/agents", (req, res) => {
+app.post("/api/plan/agents", (req, res) => {
 	try {
 		const contentType = req.headers["content-type"] || "";
 
@@ -8661,19 +8678,19 @@ app.post("/api/agents-team/agents", (req, res) => {
 				return res.status(400).json({ error: "Expected markdown content" });
 			}
 
-			const { frontmatter, body } = agentsTeamFs.parseFrontmatter(rawContent);
+			const { frontmatter, body } = planFs.parseFrontmatter(rawContent);
 			const name = frontmatter.name;
 
 			if (!name || typeof name !== "string") {
 				return res.status(400).json({ error: "Agent .md must have a 'name' field in frontmatter" });
 			}
 
-			const nameError = agentsTeamFs.validateAgentName(name);
+			const nameError = planFs.validateAgentName(name);
 			if (nameError) {
 				return res.status(400).json({ error: nameError });
 			}
 
-			if (agentsTeamFs.agentExists(name)) {
+			if (planFs.agentExists(name)) {
 				return res.status(409).json({ error: `An agent named "${name}" already exists` });
 			}
 
@@ -8705,7 +8722,7 @@ app.post("/api/agents-team/agents", (req, res) => {
 				}
 			}
 
-			const agent = agentsTeamFs.writeAgent(name, {
+			const agent = planFs.writeAgent(name, {
 				description: typeof frontmatter.description === "string" ? frontmatter.description.trim() : "",
 				systemPrompt: body.trim(),
 				model: typeof frontmatter.model === "string" && frontmatter.model.trim() ? frontmatter.model.trim() : "inherit",
@@ -8721,11 +8738,11 @@ app.post("/api/agents-team/agents", (req, res) => {
 		const { name, description, systemPrompt, model, tools, skills, disallowedTools, maxTurns, permissionMode } = req.body || {};
 
 		// Validate name
-		const nameError = agentsTeamFs.validateAgentName(name);
+		const nameError = planFs.validateAgentName(name);
 		if (nameError) {
 			return res.status(400).json({ error: nameError });
 		}
-		if (!agentsTeamFs.validatePathComponent(name)) {
+		if (!planFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid agent name" });
 		}
 
@@ -8735,11 +8752,11 @@ app.post("/api/agents-team/agents", (req, res) => {
 		}
 
 		// Check for conflicts
-		if (agentsTeamFs.agentExists(name)) {
+		if (planFs.agentExists(name)) {
 			return res.status(409).json({ error: `An agent named "${name}" already exists` });
 		}
 
-		const agent = agentsTeamFs.writeAgent(name, {
+		const agent = planFs.writeAgent(name, {
 			description: description.trim(),
 			systemPrompt: typeof systemPrompt === "string" ? systemPrompt.trim() : "",
 			model: typeof model === "string" && model.trim() ? model.trim() : "inherit",
@@ -8757,15 +8774,15 @@ app.post("/api/agents-team/agents", (req, res) => {
 	}
 });
 
-app.put("/api/agents-team/agents/:name", (req, res) => {
+app.put("/api/plan/agents/:name", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!agentsTeamFs.validatePathComponent(name)) {
+		if (!planFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid agent name" });
 		}
 
 		// Read existing agent
-		const existing = agentsTeamFs.getAgentByName(name);
+		const existing = planFs.getAgentByName(name);
 		if (!existing) {
 			return res.status(404).json({ error: `Agent not found: ${name}` });
 		}
@@ -8788,7 +8805,7 @@ app.put("/api/agents-team/agents/:name", (req, res) => {
 			return res.status(400).json({ error: "Description is required" });
 		}
 
-		const agent = agentsTeamFs.writeAgent(name, updated);
+		const agent = planFs.writeAgent(name, updated);
 		return res.status(200).json({ agent });
 	} catch (error) {
 		console.error("[AGENTS-FS] Failed to update agent:", error);
@@ -8797,13 +8814,13 @@ app.put("/api/agents-team/agents/:name", (req, res) => {
 	}
 });
 
-app.delete("/api/agents-team/agents/:name", (req, res) => {
+app.delete("/api/plan/agents/:name", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!agentsTeamFs.validatePathComponent(name)) {
+		if (!planFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid agent name" });
 		}
-		agentsTeamFs.deleteAgent(name);
+		planFs.deleteAgent(name);
 		return res.status(200).json({ success: true });
 	} catch (error) {
 		console.error("[AGENTS-FS] Failed to delete agent:", error);
@@ -8812,13 +8829,13 @@ app.delete("/api/agents-team/agents/:name", (req, res) => {
 	}
 });
 
-app.get("/api/agents-team/agents/:name/raw", (req, res) => {
+app.get("/api/plan/agents/:name/raw", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!agentsTeamFs.validatePathComponent(name)) {
+		if (!planFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid agent name" });
 		}
-		const raw = agentsTeamFs.readAgentRaw(name);
+		const raw = planFs.readAgentRaw(name);
 		if (!raw) {
 			return res.status(404).json({ error: `Agent not found: ${name}` });
 		}
@@ -8832,12 +8849,735 @@ app.get("/api/agents-team/agents/:name/raw", (req, res) => {
 
 // --- Config summary (for plan context injection) ---
 
-app.get("/api/agents-team/config-summary", (req, res) => {
+app.get("/api/plan/config-summary", (req, res) => {
 	try {
-		const summary = agentsTeamFs.getConfigSummary();
+		const summary = planFs.getConfigSummary();
 		return res.status(200).json({ summary });
 	} catch (error) {
 		console.error("[AGENTS-FS] Failed to get config summary:", error);
+		return res.status(500).json({ error: "Failed to get config summary" });
+	}
+});
+
+// ─── Maker Endpoints ──────────────────────────────────────────────────
+
+app.post("/api/maker/runs", async (req, res) => {
+	try {
+		const {
+			plan,
+			userPrompt,
+			conversation,
+			customInstruction,
+		} = req.body || {};
+
+		const run = await makerRunManager.createRun({
+			plan,
+			userPrompt,
+			conversation,
+			customInstruction,
+		});
+		return res.status(201).json({ run });
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to create run:", error);
+		const message = error instanceof Error ? error.message : "Failed to create run";
+		return res.status(400).json({ error: message });
+	}
+});
+
+app.get("/api/maker/runs", async (req, res) => {
+	try {
+		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+		const runs = await makerRunManager.listRuns({ limit: rawLimit });
+		return res.status(200).json({ runs });
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to list runs:", error);
+		const message = error instanceof Error ? error.message : "Failed to list runs";
+		return res.status(500).json({ error: message });
+	}
+});
+
+app.get("/api/maker/runs/:runId", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const run = await makerRunManager.getRun(runId);
+		if (!run) {
+			return res.status(404).json({ error: "Run not found" });
+		}
+
+		return res.status(200).json({ run });
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to get run:", error);
+		return res.status(500).json({ error: "Failed to load run" });
+	}
+});
+
+app.delete("/api/maker/runs/:runId", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		await makerRunManager.deleteRun(runId);
+		return res.status(200).json({ deleted: true });
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to delete run:", error);
+		return res.status(500).json({ error: "Failed to delete run" });
+	}
+});
+
+app.get("/api/maker/threads", async (req, res) => {
+	try {
+		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+		const limit = rawLimit ? Number(rawLimit) : undefined;
+		const threads = await makerThreadManager.listThreads({ limit });
+		return res.status(200).json({ threads });
+	} catch (error) {
+		console.error("[MAKER-THREAD] Failed to list threads:", error);
+		const message = error instanceof Error ? error.message : "Failed to list threads";
+		return res.status(500).json({ error: message });
+	}
+});
+
+app.get("/api/maker/threads/:threadId", async (req, res) => {
+	try {
+		const threadId = req.params.threadId;
+		const thread = await makerThreadManager.getThread(threadId);
+		if (!thread) {
+			return res.status(404).json({ error: "Thread not found" });
+		}
+
+		return res.status(200).json({ thread });
+	} catch (error) {
+		console.error("[MAKER-THREAD] Failed to get thread:", error);
+		return res.status(500).json({ error: "Failed to load thread" });
+	}
+});
+
+app.post("/api/maker/threads", async (req, res) => {
+	try {
+		const { id, title, messages, createdAt, updatedAt } = req.body || {};
+		const thread = await makerThreadManager.createThread({
+			id,
+			title,
+			messages,
+			createdAt,
+			updatedAt,
+		});
+		return res.status(201).json({ thread });
+	} catch (error) {
+		console.error("[MAKER-THREAD] Failed to create thread:", error);
+		const message = error instanceof Error ? error.message : "Failed to create thread";
+		return res.status(400).json({ error: message });
+	}
+});
+
+app.put("/api/maker/threads/:threadId", async (req, res) => {
+	try {
+		const threadId = req.params.threadId;
+		const { title, messages, updatedAt } = req.body || {};
+		const thread = await makerThreadManager.updateThread(threadId, {
+			title,
+			messages,
+			updatedAt,
+		});
+		if (!thread) {
+			return res.status(404).json({ error: "Thread not found" });
+		}
+
+		return res.status(200).json({ thread });
+	} catch (error) {
+		console.error("[MAKER-THREAD] Failed to update thread:", error);
+		return res.status(500).json({ error: "Failed to update thread" });
+	}
+});
+
+app.delete("/api/maker/threads/:threadId", async (req, res) => {
+	try {
+		const threadId = req.params.threadId;
+		await makerThreadManager.deleteThread(threadId);
+		return res.status(200).json({ deleted: true });
+	} catch (error) {
+		console.error("[MAKER-THREAD] Failed to delete thread:", error);
+		return res.status(500).json({ error: "Failed to delete thread" });
+	}
+});
+
+app.post("/api/maker/runs/:runId/tasks", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const {
+			planDelta,
+			prompt,
+			contextPrompt,
+			conversation,
+			customInstruction,
+			retryTaskIds,
+		} = req.body || {};
+		const result = await makerRunManager.appendTasks(runId, {
+			planDelta,
+			prompt,
+			contextPrompt,
+			conversation,
+			customInstruction,
+			retryTaskIds,
+		});
+
+		if (result?.error) {
+			return res.status(400).json({ error: result.error });
+		}
+
+		return res.status(200).json(result);
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to append run tasks:", error);
+		const message = error instanceof Error ? error.message : "Failed to append tasks";
+		return res.status(400).json({ error: message });
+	}
+});
+
+app.get("/api/maker/runs/:runId/files", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const rawArtifactId = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
+		const artifactId = getNonEmptyString(rawArtifactId);
+		const rawDownload = Array.isArray(req.query.download)
+			? req.query.download[0]
+			: req.query.download;
+		const shouldDownload = rawDownload === "1" || rawDownload === "true";
+
+		if (artifactId) {
+			const artifactFile = await makerRunManager.getRunFile(runId, artifactId);
+			if (!artifactFile) {
+				return res.status(404).json({ error: "Artifact not found" });
+			}
+
+			if (artifactFile.type === "redirect") {
+				return res.redirect(artifactFile.url);
+			}
+
+			res.setHeader("Content-Type", artifactFile.mimeType || "application/octet-stream");
+			res.setHeader("Content-Length", String(artifactFile.buffer.length));
+			res.setHeader(
+				"Content-Disposition",
+				`${shouldDownload ? "attachment" : "inline"}; filename="${artifactFile.fileName}"`
+			);
+			return res.status(200).send(artifactFile.buffer);
+		}
+
+		const filesPayload = await makerRunManager.getRunFiles(runId);
+		if (!filesPayload) {
+			return res.status(404).json({ error: "Run not found" });
+		}
+
+		return res.status(200).json(filesPayload);
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to load run files:", error);
+		const message = error instanceof Error ? error.message : "Failed to load run files";
+		return res.status(500).json({ error: message });
+	}
+});
+
+app.get("/api/maker/runs/:runId/stream", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		await makerRunManager.streamRunEvents(req, res, runId);
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to stream run events:", error);
+		if (!res.headersSent) {
+			res.status(500).json({ error: "Failed to stream run events" });
+		}
+	}
+});
+
+app.post("/api/maker/runs/:runId/directives", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const { agentName, message } = req.body || {};
+		const result = await makerRunManager.addDirective(runId, {
+			agentName,
+			message,
+		});
+
+		if (result.error) {
+			return res.status(400).json({ error: result.error });
+		}
+
+		return res.status(200).json(result);
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to add directive:", error);
+		return res.status(500).json({ error: "Failed to add directive" });
+	}
+});
+
+app.post("/api/maker/runs/:runId/share", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const requestBody = req.body && typeof req.body === "object" ? req.body : {};
+		const target = getNonEmptyString(requestBody.target)?.toLowerCase();
+		if (target !== "confluence" && target !== "slack") {
+			return res.status(400).json({
+				error: "Invalid share target. Use 'confluence' or 'slack'.",
+			});
+		}
+
+		const runSummary = await makerRunManager.getRunSummary(runId);
+		if (!runSummary || !runSummary.run) {
+			return res.status(404).json({ error: "Run not found" });
+		}
+
+		const summaryContent = getNonEmptyString(runSummary.summary?.content);
+		if (!summaryContent) {
+			return res.status(409).json({
+				error: "Final synthesis is not ready yet. Try again after summary generation completes.",
+			});
+		}
+
+		if (target === "confluence") {
+			const confluenceInput =
+				requestBody.confluence && typeof requestBody.confluence === "object"
+					? requestBody.confluence
+					: {};
+			const result = await createConfluenceSummaryPage({
+				run: runSummary.run,
+				summary: runSummary.summary,
+				summaryContent,
+				confluence: confluenceInput,
+			});
+			return res.status(200).json({
+				ok: true,
+				target: "confluence",
+				externalUrl: result.externalUrl,
+			});
+		}
+
+		const slackResult = await sendSlackSummaryDm({
+			run: runSummary.run,
+			summary: runSummary.summary,
+			summaryContent,
+		});
+		return res.status(200).json({
+			ok: true,
+			target: "slack",
+			messageTs: slackResult.messageTs,
+		});
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to share run summary:", error);
+		const status = typeof error?.status === "number" ? error.status : 500;
+		const message =
+			error instanceof Error && error.message.trim()
+				? error.message.trim()
+				: "Failed to share run summary";
+		return res.status(status).json({ error: message });
+	}
+});
+
+app.get("/api/maker/runs/:runId/summary", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const summary = await makerRunManager.getRunSummary(runId);
+		if (!summary) {
+			return res.status(404).json({ error: "Run not found" });
+		}
+
+		return res.status(200).json(summary);
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to load run summary:", error);
+		return res.status(500).json({ error: "Failed to load run summary" });
+	}
+});
+
+app.get("/api/maker/runs/:runId/visual-summary", async (req, res) => {
+	try {
+		const runId = req.params.runId;
+		const summary = await makerRunManager.getRunVisualSummary(runId);
+		if (!summary) {
+			return res.status(404).json({ error: "Run not found" });
+		}
+
+		return res.status(200).json(summary);
+	} catch (error) {
+		console.error("[MAKER-RUN] Failed to load run visual summary:", error);
+		return res.status(500).json({ error: "Failed to load run visual summary" });
+	}
+});
+
+
+// --- Tools list ---
+
+app.get("/api/maker/tools", (req, res) => {
+	// Returns available MCP tools. Stub for now — will be populated from MCP server discovery.
+	return res.status(200).json({ tools: [] });
+});
+
+// --- Skills CRUD (filesystem-backed) ---
+
+app.get("/api/maker/skills", (req, res) => {
+	try {
+		const skills = makerFs.listSkills();
+		return res.status(200).json({ skills });
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to list skills:", error);
+		return res.status(500).json({ error: "Failed to list skills" });
+	}
+});
+
+app.post("/api/maker/skills", (req, res) => {
+	try {
+		const contentType = req.headers["content-type"] || "";
+
+		// Handle markdown import (raw SKILL.md content)
+		if (contentType.includes("text/markdown")) {
+			let rawContent = "";
+			if (typeof req.body === "string") {
+				rawContent = req.body;
+			} else if (Buffer.isBuffer(req.body)) {
+				rawContent = req.body.toString("utf8");
+			} else {
+				return res.status(400).json({ error: "Expected markdown content" });
+			}
+
+			const { frontmatter, body } = makerFs.parseFrontmatter(rawContent);
+			const name = frontmatter.name;
+			const description = typeof frontmatter.description === "string" ? frontmatter.description : "";
+
+			if (!name || typeof name !== "string") {
+				return res.status(400).json({ error: "SKILL.md must have a 'name' field in frontmatter" });
+			}
+
+			const nameError = makerFs.validateSkillName(name);
+			if (nameError) {
+				return res.status(400).json({ error: nameError });
+			}
+
+			if (makerFs.skillExists(name)) {
+				return res.status(409).json({ error: `A skill named "${name}" already exists` });
+			}
+
+			const extraFields = {};
+			if (frontmatter.license) extraFields.license = frontmatter.license;
+			if (frontmatter.compatibility) extraFields.compatibility = frontmatter.compatibility;
+			if (frontmatter["allowed-tools"]) extraFields["allowed-tools"] = frontmatter["allowed-tools"];
+
+			const skill = makerFs.writeSkill(name, description, body.trim(), extraFields);
+			return res.status(201).json({ skill });
+		}
+
+		const { name, description, content } = req.body || {};
+
+		// Validate name
+		const nameError = makerFs.validateSkillName(name);
+		if (nameError) {
+			return res.status(400).json({ error: nameError });
+		}
+		if (!makerFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid skill name" });
+		}
+
+		// Validate description
+		const descError = makerFs.validateSkillDescription(description);
+		if (descError) {
+			return res.status(400).json({ error: descError });
+		}
+
+		// Check for conflicts
+		if (makerFs.skillExists(name)) {
+			return res.status(409).json({ error: `A skill named "${name}" already exists` });
+		}
+
+		// Validate content length
+		const resolvedContent = typeof content === "string" ? content.trim() : "";
+		if (resolvedContent.length > makerFs.SKILL_CONTENT_MAX) {
+			return res.status(400).json({ error: `Content exceeds maximum length of ${makerFs.SKILL_CONTENT_MAX} characters` });
+		}
+
+		const skill = makerFs.writeSkill(name, description, resolvedContent);
+		return res.status(201).json({ skill });
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to create skill:", error);
+		const message = error instanceof Error ? error.message : "Failed to create skill";
+		return res.status(500).json({ error: message });
+	}
+});
+
+app.put("/api/maker/skills/:name", (req, res) => {
+	try {
+		const name = req.params.name;
+		if (!makerFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid skill name" });
+		}
+
+		// Read existing skill
+		const existing = makerFs.getSkillByName(name);
+		if (!existing) {
+			return res.status(404).json({ error: `Skill not found: ${name}` });
+		}
+
+		// Merge updates
+		const data = req.body || {};
+		const updatedDescription = data.description !== undefined ? data.description : existing.description;
+		const updatedContent = data.content !== undefined ? (typeof data.content === "string" ? data.content.trim() : "") : existing.content;
+
+		// Validate if description changed
+		if (data.description !== undefined) {
+			const descError = makerFs.validateSkillDescription(updatedDescription);
+			if (descError) {
+				return res.status(400).json({ error: descError });
+			}
+		}
+
+		// Validate content length
+		if (updatedContent.length > makerFs.SKILL_CONTENT_MAX) {
+			return res.status(400).json({ error: `Content exceeds maximum length of ${makerFs.SKILL_CONTENT_MAX} characters` });
+		}
+
+		// Preserve extra fields from existing skill
+		const extraFields = {};
+		if (existing.license) extraFields.license = existing.license;
+		if (existing.compatibility) extraFields.compatibility = existing.compatibility;
+		if (existing.allowedTools) extraFields["allowed-tools"] = existing.allowedTools;
+
+		const skill = makerFs.writeSkill(name, updatedDescription, updatedContent, extraFields);
+		return res.status(200).json({ skill });
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to update skill:", error);
+		const message = error instanceof Error ? error.message : "Failed to update skill";
+		return res.status(500).json({ error: message });
+	}
+});
+
+app.delete("/api/maker/skills/:name", (req, res) => {
+	try {
+		const name = req.params.name;
+		if (!makerFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid skill name" });
+		}
+		makerFs.deleteSkill(name);
+		return res.status(200).json({ success: true });
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to delete skill:", error);
+		const message = error instanceof Error ? error.message : "Failed to delete skill";
+		return res.status(error.message?.includes("not found") ? 404 : 500).json({ error: message });
+	}
+});
+
+app.get("/api/maker/skills/:name/raw", (req, res) => {
+	try {
+		const name = req.params.name;
+		if (!makerFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid skill name" });
+		}
+		const raw = makerFs.readSkillRaw(name);
+		if (!raw) {
+			return res.status(404).json({ error: `Skill not found: ${name}` });
+		}
+		res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+		return res.status(200).send(raw);
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to read skill raw:", error);
+		return res.status(500).json({ error: "Failed to read skill" });
+	}
+});
+
+// --- Agents/Subagents CRUD (filesystem-backed) ---
+
+app.get("/api/maker/agents", (req, res) => {
+	try {
+		const agents = makerFs.listAgents();
+		return res.status(200).json({ agents });
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to list agents:", error);
+		return res.status(500).json({ error: "Failed to list agents" });
+	}
+});
+
+app.post("/api/maker/agents", (req, res) => {
+	try {
+		const contentType = req.headers["content-type"] || "";
+
+		// Handle markdown import (raw agent .md content)
+		if (contentType.includes("text/markdown")) {
+			let rawContent = "";
+			if (typeof req.body === "string") {
+				rawContent = req.body;
+			} else if (Buffer.isBuffer(req.body)) {
+				rawContent = req.body.toString("utf8");
+			} else {
+				return res.status(400).json({ error: "Expected markdown content" });
+			}
+
+			const { frontmatter, body } = makerFs.parseFrontmatter(rawContent);
+			const name = frontmatter.name;
+
+			if (!name || typeof name !== "string") {
+				return res.status(400).json({ error: "Agent .md must have a 'name' field in frontmatter" });
+			}
+
+			const nameError = makerFs.validateAgentName(name);
+			if (nameError) {
+				return res.status(400).json({ error: nameError });
+			}
+
+			if (makerFs.agentExists(name)) {
+				return res.status(409).json({ error: `An agent named "${name}" already exists` });
+			}
+
+			// Parse tools and skills from frontmatter
+			let tools = [];
+			if (frontmatter.tools) {
+				if (Array.isArray(frontmatter.tools)) {
+					tools = frontmatter.tools.map((t) => String(t).trim()).filter(Boolean);
+				} else if (typeof frontmatter.tools === "string") {
+					tools = frontmatter.tools.split(",").map((t) => t.trim()).filter(Boolean);
+				}
+			}
+
+			let skills = [];
+			if (frontmatter.skills) {
+				if (Array.isArray(frontmatter.skills)) {
+					skills = frontmatter.skills.map((s) => String(s).trim()).filter(Boolean);
+				} else if (typeof frontmatter.skills === "string") {
+					skills = frontmatter.skills.split(",").map((s) => s.trim()).filter(Boolean);
+				}
+			}
+
+			let disallowedTools = [];
+			if (frontmatter.disallowedTools) {
+				if (Array.isArray(frontmatter.disallowedTools)) {
+					disallowedTools = frontmatter.disallowedTools.map((t) => String(t).trim()).filter(Boolean);
+				} else if (typeof frontmatter.disallowedTools === "string") {
+					disallowedTools = frontmatter.disallowedTools.split(",").map((t) => t.trim()).filter(Boolean);
+				}
+			}
+
+			const agent = makerFs.writeAgent(name, {
+				description: typeof frontmatter.description === "string" ? frontmatter.description.trim() : "",
+				systemPrompt: body.trim(),
+				model: typeof frontmatter.model === "string" && frontmatter.model.trim() ? frontmatter.model.trim() : "inherit",
+				tools,
+				disallowedTools,
+				skills,
+				maxTurns: frontmatter.maxTurns ? parseInt(String(frontmatter.maxTurns), 10) : undefined,
+				permissionMode: typeof frontmatter.permissionMode === "string" && frontmatter.permissionMode.trim() ? frontmatter.permissionMode.trim() : undefined,
+			});
+			return res.status(201).json({ agent });
+		}
+
+		const { name, description, systemPrompt, model, tools, skills, disallowedTools, maxTurns, permissionMode } = req.body || {};
+
+		// Validate name
+		const nameError = makerFs.validateAgentName(name);
+		if (nameError) {
+			return res.status(400).json({ error: nameError });
+		}
+		if (!makerFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid agent name" });
+		}
+
+		// Validate description
+		if (!description || typeof description !== "string" || !description.trim()) {
+			return res.status(400).json({ error: "Description is required" });
+		}
+
+		// Check for conflicts
+		if (makerFs.agentExists(name)) {
+			return res.status(409).json({ error: `An agent named "${name}" already exists` });
+		}
+
+		const agent = makerFs.writeAgent(name, {
+			description: description.trim(),
+			systemPrompt: typeof systemPrompt === "string" ? systemPrompt.trim() : "",
+			model: typeof model === "string" && model.trim() ? model.trim() : "inherit",
+			tools: Array.isArray(tools) ? tools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : [],
+			disallowedTools: Array.isArray(disallowedTools) ? disallowedTools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : [],
+			skills: Array.isArray(skills) ? skills.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim()) : [],
+			maxTurns: typeof maxTurns === "number" && Number.isInteger(maxTurns) && maxTurns > 0 ? maxTurns : undefined,
+			permissionMode: typeof permissionMode === "string" && permissionMode.trim() ? permissionMode.trim() : undefined,
+		});
+		return res.status(201).json({ agent });
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to create agent:", error);
+		const message = error instanceof Error ? error.message : "Failed to create agent";
+		return res.status(500).json({ error: message });
+	}
+});
+
+app.put("/api/maker/agents/:name", (req, res) => {
+	try {
+		const name = req.params.name;
+		if (!makerFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid agent name" });
+		}
+
+		// Read existing agent
+		const existing = makerFs.getAgentByName(name);
+		if (!existing) {
+			return res.status(404).json({ error: `Agent not found: ${name}` });
+		}
+
+		// Merge updates
+		const data = req.body || {};
+		const updated = {
+			description: data.description !== undefined ? (typeof data.description === "string" ? data.description.trim() : existing.description) : existing.description,
+			systemPrompt: data.systemPrompt !== undefined ? (typeof data.systemPrompt === "string" ? data.systemPrompt.trim() : "") : existing.systemPrompt,
+			model: data.model !== undefined ? (typeof data.model === "string" && data.model.trim() ? data.model.trim() : existing.model) : existing.model,
+			tools: data.tools !== undefined ? (Array.isArray(data.tools) ? data.tools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : existing.tools) : existing.tools,
+			disallowedTools: data.disallowedTools !== undefined ? (Array.isArray(data.disallowedTools) ? data.disallowedTools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : existing.disallowedTools) : existing.disallowedTools,
+			skills: data.skills !== undefined ? (Array.isArray(data.skills) ? data.skills.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim()) : existing.skills) : existing.skills,
+			maxTurns: data.maxTurns !== undefined ? (typeof data.maxTurns === "number" && Number.isInteger(data.maxTurns) && data.maxTurns > 0 ? data.maxTurns : undefined) : existing.maxTurns,
+			permissionMode: data.permissionMode !== undefined ? (typeof data.permissionMode === "string" && data.permissionMode.trim() ? data.permissionMode.trim() : undefined) : existing.permissionMode,
+		};
+
+		// Validate description if changed
+		if (data.description !== undefined && (!updated.description || !updated.description.trim())) {
+			return res.status(400).json({ error: "Description is required" });
+		}
+
+		const agent = makerFs.writeAgent(name, updated);
+		return res.status(200).json({ agent });
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to update agent:", error);
+		const message = error instanceof Error ? error.message : "Failed to update agent";
+		return res.status(500).json({ error: message });
+	}
+});
+
+app.delete("/api/maker/agents/:name", (req, res) => {
+	try {
+		const name = req.params.name;
+		if (!makerFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid agent name" });
+		}
+		makerFs.deleteAgent(name);
+		return res.status(200).json({ success: true });
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to delete agent:", error);
+		const message = error instanceof Error ? error.message : "Failed to delete agent";
+		return res.status(error.message?.includes("not found") ? 404 : 500).json({ error: message });
+	}
+});
+
+app.get("/api/maker/agents/:name/raw", (req, res) => {
+	try {
+		const name = req.params.name;
+		if (!makerFs.validatePathComponent(name)) {
+			return res.status(400).json({ error: "Invalid agent name" });
+		}
+		const raw = makerFs.readAgentRaw(name);
+		if (!raw) {
+			return res.status(404).json({ error: `Agent not found: ${name}` });
+		}
+		res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+		return res.status(200).send(raw);
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to read agent raw:", error);
+		return res.status(500).json({ error: "Failed to read agent" });
+	}
+});
+
+// --- Config summary (for maker context injection) ---
+
+app.get("/api/maker/config-summary", (req, res) => {
+	try {
+		const summary = makerFs.getConfigSummary();
+		return res.status(200).json({ summary });
+	} catch (error) {
+		console.error("[MAKER-FS] Failed to get config summary:", error);
 		return res.status(500).json({ error: "Failed to get config summary" });
 	}
 });

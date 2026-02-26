@@ -30,27 +30,27 @@ import type {
 	AgentRunVisualSummary,
 	AgentRunGenuiSummary,
 	AgentRunStreamEvent,
-} from "@/lib/agents-team-run-types";
-import { isAgentRunStreamEvent } from "@/lib/agents-team-run-types";
+} from "@/lib/plan-run-types";
+import { isAgentRunStreamEvent } from "@/lib/plan-run-types";
 import type { AgentExecutionUpdate } from "@/lib/rovo-ui-messages";
-import { deriveTaskExecutionsFromRun } from "@/components/templates/agents-team/lib/execution-data";
+import { deriveTaskExecutionsFromRun } from "@/components/templates/plan/lib/execution-data";
 import {
 	applyExecutionUpdate,
 	mergeStreamedExecutions,
 	type TaskExecutionByTaskId,
-} from "@/components/templates/agents-team/lib/task-execution-stream";
-import { ExecutionGridView } from "@/components/templates/agents-team/components/execution-grid-view";
-import { RunFilesTab } from "@/components/templates/agents-team/components/run-files-tab";
-import { RunSummarySection } from "@/app/agents-team/runs/[runId]/run-summary-section";
-import { AppSidebar } from "@/components/templates/agents-team/components/app-sidebar";
-import ChatTitleRow from "@/components/templates/agents-team/components/chat-title-row";
-import { usePlanConfig } from "@/components/templates/agents-team/hooks/use-agents-team-config";
-import { useConfigDialogs } from "@/components/templates/agents-team/hooks/use-config-dialogs";
-import { ConfigDialogs } from "@/components/templates/agents-team/components/config-dialogs";
+} from "@/components/templates/plan/lib/task-execution-stream";
+import { ExecutionGridView } from "@/components/templates/plan/components/execution-grid-view";
+import { RunFilesTab } from "@/components/templates/plan/components/run-files-tab";
+import { RunSummarySection } from "@/app/plan/runs/[runId]/run-summary-section";
+import { AppSidebar } from "@/components/templates/plan/components/app-sidebar";
+import ChatTitleRow from "@/components/templates/plan/components/chat-title-row";
+import { usePlanConfig } from "@/components/templates/plan/hooks/use-plan-config";
+import { useConfigDialogs } from "@/components/templates/plan/hooks/use-config-dialogs";
+import { ConfigDialogs } from "@/components/templates/plan/components/config-dialogs";
 import {
 	selectRetryTasks,
 	type RetryTaskGroupKey,
-} from "@/components/templates/agents-team/lib/retry-task-groups";
+} from "@/components/templates/plan/lib/retry-task-groups";
 import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
@@ -266,12 +266,12 @@ export function RunWorkspace({
 	}, []);
 
 	const handleNavigateToPlan = useCallback(() => {
-		router.push("/agents-team");
+		router.push("/plan");
 	}, [router]);
 
 	const handleSelectRun = useCallback(
 		(targetRunId: string) => {
-			router.push(`/agents-team/runs/${targetRunId}`);
+			router.push(`/plan/runs/${targetRunId}`);
 		},
 		[router]
 	);
@@ -284,15 +284,15 @@ export function RunWorkspace({
 					{ method: "DELETE" }
 				);
 				if (!response.ok) {
-					console.error("[AGENTS-TEAM] Failed to delete run:", response.status);
+					console.error("[PLAN] Failed to delete run:", response.status);
 					return;
 				}
 				setRunHistory((prev) => prev.filter((r) => r.runId !== deletedRunId));
 				if (deletedRunId === runId) {
-					router.push("/agents-team");
+					router.push("/plan");
 				}
 			} catch (error) {
-				console.error("[AGENTS-TEAM] Failed to delete run:", error);
+				console.error("[PLAN] Failed to delete run:", error);
 			}
 		},
 		[router, runId]
@@ -514,7 +514,7 @@ export function RunWorkspace({
 					setRunHistory(payload.runs);
 				}
 			} catch (error) {
-				console.error("[AGENTS-TEAM] Failed to load sidebar run history:", error);
+				console.error("[PLAN] Failed to load sidebar run history:", error);
 			}
 		};
 
@@ -618,7 +618,7 @@ export function RunWorkspace({
 			}
 
 			if (targetRunId !== run.runId) {
-				router.push(`/agents-team/runs/${targetRunId}`);
+				router.push(`/plan/runs/${targetRunId}`);
 			}
 		},
 		[appendTasksToRun, router, run, runHistory]

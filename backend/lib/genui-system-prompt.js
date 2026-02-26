@@ -288,7 +288,7 @@ function getGenuiSystemPrompt(options = {}) {
 }
 
 /**
- * Build a system prompt for genui summary generation in agents-team runs.
+ * Build a system prompt for genui summary generation in plan runs.
  *
  * Uses the same catalog prompt and VPK rules as the chat mode,
  * but with summary-specific instructions layered on top.

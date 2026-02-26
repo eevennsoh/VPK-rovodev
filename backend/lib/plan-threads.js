@@ -1,8 +1,8 @@
 /**
- * Thread persistence for agents-team chat threads.
+ * Thread persistence for plan chat threads.
  *
  * Storage layout:
- *   backend/data/agents-team-threads/{threadId}/thread.json
+ *   backend/data/plan-threads/{threadId}/thread.json
  *
  * Each thread.json: { id, title, messages, createdAt, updatedAt }
  * Timestamps are ISO-8601 strings on disk.
@@ -46,7 +46,7 @@ function buildThreadPaths(baseDir, threadId) {
 }
 
 function createThreadManager({ baseDir, logger }) {
-	const threadsRootDir = path.join(baseDir, "agents-team-threads");
+	const threadsRootDir = path.join(baseDir, "plan-threads");
 
 	const writeJsonFile = async (filePath, payload) => {
 		await fs.mkdir(path.dirname(filePath), { recursive: true });

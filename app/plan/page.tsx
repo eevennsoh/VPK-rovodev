@@ -1,6 +1,6 @@
 "use client";
 
-import PlanView from "@/components/templates/agents-team/page";
+import PlanView from "@/components/templates/plan/page";
 
 export default function PlanPage() {
 	return <PlanView />;

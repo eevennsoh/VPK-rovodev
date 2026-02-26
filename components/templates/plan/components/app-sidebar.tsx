@@ -27,10 +27,10 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@/components/ui/empty";
-import type { PlanSkill, PlanAgent } from "@/lib/agents-team-config-types";
-import type { AgentRunListItem } from "@/lib/agents-team-run-types";
-import type { RetryTaskGroupKey } from "@/components/templates/agents-team/lib/retry-task-groups";
-import { filterItemsBySidebarSearch } from "@/components/templates/agents-team/lib/sidebar-search";
+import type { PlanSkill, PlanAgent } from "@/lib/plan-config-types";
+import type { AgentRunListItem } from "@/lib/plan-run-types";
+import type { RetryTaskGroupKey } from "@/components/templates/plan/lib/retry-task-groups";
+import { filterItemsBySidebarSearch } from "@/components/templates/plan/lib/sidebar-search";
 import SidebarChatHistory, {
 	type ChatHistoryItem,
 } from "./sidebar-chat-history";
@@ -143,9 +143,9 @@ export function AppSidebar({
 							</Button>
 						</div>
 						<Link
-							href="/agents-team"
+							href="/plan"
 							className="flex items-center gap-2 rounded-md p-1 text-text no-underline transition-colors hover:bg-surface-hovered hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focused"
-							aria-label="Go to agents team"
+							aria-label="Go to plan"
 						>
 							<Image src="/1p/rovo.svg" alt="" width={20} height={20} aria-hidden />
 							<span

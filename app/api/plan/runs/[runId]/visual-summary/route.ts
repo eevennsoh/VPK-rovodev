@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/agents-team/_utils/proxy";
+import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
 
 interface RouteParams {
 	params: Promise<{ runId: string }>;
@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 		const { runId } = await params;
 		return await proxyToBackend({
 			method: "GET",
-			path: `/api/agents-team/runs/${encodeURIComponent(runId)}/visual-summary`,
+			path: `/api/plan/runs/${encodeURIComponent(runId)}/visual-summary`,
 		});
 	} catch (error) {
 		console.error("Agents team visual summary proxy error:", error);
