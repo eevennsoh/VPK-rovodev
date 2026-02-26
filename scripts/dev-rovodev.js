@@ -5,8 +5,15 @@ const { getRovodevBasePort } = require("./lib/worktree-ports");
 const { isPortAvailable, checkRovodevHealth, resolveRovodevBin } = require("./lib/rovodev-utils");
 const { dedupeAllowedMcpServersInConfig } = require("./lib/rovodev-config");
 
+const envLocalPath = path.join(process.cwd(), ".env.local");
+const envExamplePath = path.join(process.cwd(), ".env.local.example");
+if (!fs.existsSync(envLocalPath) && fs.existsSync(envExamplePath)) {
+	fs.copyFileSync(envExamplePath, envLocalPath);
+	console.log("[rovodev] Created .env.local from .env.local.example");
+}
+
 try {
-	require("dotenv").config({ path: path.join(process.cwd(), ".env.local") });
+	require("dotenv").config({ path: envLocalPath });
 } catch {
 	// ignore dotenv loading failures
 }
@@ -15,12 +22,11 @@ const basePort = getRovodevBasePort();
 const maxTries = Number.parseInt(process.env.PORT_SEARCH_MAX ?? "20", 10);
 const poolSize = Math.max(1, Number.parseInt(process.env.ROVODEV_POOL_SIZE ?? "6", 10));
 const forceCleanStart = process.env.ROVODEV_FORCE_CLEAN_START === "true";
-const defaultBillingSiteUrl = "https://hello.atlassian.net";
-const configuredBillingSiteUrl =
-	typeof process.env.ROVODEV_SITE_URL === "string" &&
-	process.env.ROVODEV_SITE_URL.trim().length > 0
-		? process.env.ROVODEV_SITE_URL.trim()
-		: defaultBillingSiteUrl;
+const configuredBillingSiteUrl = (process.env.ROVODEV_BILLING_URL ?? "").trim();
+if (!configuredBillingSiteUrl) {
+	console.error("[rovodev] ROVODEV_BILLING_URL is not set in .env.local");
+	process.exit(1);
+}
 const portFile = path.join(process.cwd(), ".dev-rovodev-port");
 const portsFile = path.join(process.cwd(), ".dev-rovodev-ports");
 
@@ -291,7 +297,7 @@ const run = async () => {
 	const { bin: rovodevBin, servePrefix } = resolveRovodevBin();
 	console.log(
 		`[rovodev] Billing site URL: ${configuredBillingSiteUrl}` +
-			` (override with ROVODEV_SITE_URL)`
+			` (override with ROVODEV_BILLING_URL)`
 	);
 
 	// Spawn one child per port and keep each port supervised so a single stuck

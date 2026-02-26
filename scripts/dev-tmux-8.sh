@@ -12,7 +12,7 @@ fi
 
 WINDOW_NAME="ports"
 POOL_SIZE="${ROVODEV_POOL_SIZE:-6}"
-SITE_URL="${ROVODEV_SITE_URL:-https://hello.atlassian.net}"
+SITE_URL="${ROVODEV_BILLING_URL:?ROVODEV_BILLING_URL is not set in .env.local}"
 
 PORT_FILE=".dev-rovodev-port"
 PORTS_FILE=".dev-rovodev-ports"

@@ -32,11 +32,13 @@ const FIGMA_CLARIFICATION_INSTRUCTION = [
 	"[End Figma Tool Protocol]",
 ].join("\n");
 
+const rovodevSiteUrl = process.env.ROVODEV_SITE_URL || "https://hello.atlassian.net";
+
 const LAST_7_DAYS_WORK_INSTRUCTION = [
 	"[Work Summary Scope]",
 	"For this request, gather the user's last-7-days work activity across both Atlassian sites.",
 	`- Jira site_url: "https://product-fabric.atlassian.net"`,
-	`- Confluence site_url: "https://hello.atlassian.net"`,
+	`- Confluence site_url: "${rovodevSiteUrl}"`,
 	"Choose the tools needed to fetch Jira and Confluence activity for these sites. Do not assume a fixed tool path.",
 	"If one site has no results or errors, continue with the other site and clearly report coverage and gaps.",
 	"Merge and deduplicate activity before responding.",
@@ -65,7 +67,7 @@ function hasLast7DaysWorkGuardrail(contextDescription) {
 	return (
 		contextDescription.includes("[Work Summary Scope]") &&
 		contextDescription.includes("https://product-fabric.atlassian.net") &&
-		contextDescription.includes("https://hello.atlassian.net")
+		contextDescription.includes(rovodevSiteUrl)
 	);
 }
 

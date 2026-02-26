@@ -2,6 +2,10 @@
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/utils/theme-wrapper";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import NotificationIcon from "@atlaskit/icon/core/notification";
 import {
 	MakerProvider,
 	useMakerState,
@@ -111,11 +115,29 @@ function MakerLayout() {
 				onNewAgent={sidebarConfigHandlers.onNewAgent}
 				onExportSkill={sidebarConfigHandlers.onExportSkill}
 				onExportAgent={sidebarConfigHandlers.onExportAgent}
-				onImportSkill={sidebarConfigHandlers.onImportSkill}
-				onImportAgent={sidebarConfigHandlers.onImportAgent}
 				onCreatePlan={handleCreatePlan}
+				onNewChat={handleNewChat}
 			/>
 			<SidebarInset className={isChatMode ? "h-svh overflow-hidden" : undefined}>
+				<div className="pointer-events-none absolute top-0 right-0 z-20 flex h-14 items-center gap-0.5 pr-4 text-icon-subtle">
+					<div className="pointer-events-auto">
+						<ThemeToggle />
+					</div>
+					<Button
+						aria-label="Notifications"
+						size="icon"
+						variant="ghost"
+						className="pointer-events-auto"
+					>
+						<NotificationIcon label="" />
+					</Button>
+					<div className="pointer-events-auto flex size-8 items-center justify-center">
+						<Avatar size="sm" className="cursor-pointer">
+							<AvatarImage src="/avatar-human/austin-lambert.png" alt="User avatar" />
+							<AvatarFallback>U</AvatarFallback>
+						</Avatar>
+					</div>
+				</div>
 				{!isChatMode ? (
 					<CollapsedSidebarBranding
 						isVisible={!sidebarOpen && !sidebarHovered}
@@ -129,7 +151,6 @@ function MakerLayout() {
 						<ChatTitleRow
 							title={activeChatTitle}
 							isTitlePending={isActiveChatTitlePending}
-							onNewChat={handleNewChat}
 							sidebarOpen={sidebarOpen}
 							sidebarHovered={sidebarHovered}
 							onExpandSidebar={() => setSidebarOpen(true)}

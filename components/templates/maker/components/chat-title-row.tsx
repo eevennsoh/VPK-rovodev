@@ -14,14 +14,12 @@ import { Shimmer } from "@/components/ui-ai/shimmer";
 import { ConfluenceIcon } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
-import AddIcon from "@atlaskit/icon/core/add";
 import ShareIcon from "@atlaskit/icon/core/share";
 import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
 
 interface ChatTitleRowProps {
 	title: string | null;
 	isTitlePending: boolean;
-	onNewChat: () => void;
 	centerSlot?: ReactNode;
 	sidebarOpen: boolean;
 	sidebarHovered: boolean;
@@ -37,7 +35,6 @@ interface ChatTitleRowProps {
 export default function ChatTitleRow({
 	title,
 	isTitlePending,
-	onNewChat,
 	centerSlot,
 	sidebarOpen,
 	sidebarHovered,
@@ -169,12 +166,6 @@ export default function ChatTitleRow({
 						</DropdownMenuContent>
 					</DropdownMenu>
 				) : null}
-				<Button aria-label="New chat" variant="outline" className="shrink-0" onClick={onNewChat}>
-					<span className="inline-flex size-3 items-center justify-center [&_svg]:size-3">
-						<AddIcon label="" size="small" />
-					</span>
-					<span>New chat</span>
-				</Button>
 			</div>
 		</div>
 	);

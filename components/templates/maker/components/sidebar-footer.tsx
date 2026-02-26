@@ -3,12 +3,16 @@
 import { useState } from "react";
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "@/components/ui/empty";
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import AddIcon from "@atlaskit/icon/core/add";
 import DownloadIcon from "@atlaskit/icon/core/download";
-import UploadIcon from "@atlaskit/icon/core/upload";
 import type { MakerSkill, MakerAgent } from "@/lib/maker-config-types";
 
 interface SidebarFooterProps {
@@ -20,8 +24,6 @@ interface SidebarFooterProps {
 	onNewAgent: () => void;
 	onExportSkill: (name: string) => void;
 	onExportAgent: (name: string) => void;
-	onImportSkill: () => void;
-	onImportAgent: () => void;
 }
 
 function focusComposerInput() {
@@ -42,11 +44,11 @@ export default function SidebarFooter({
 	onNewAgent,
 	onExportSkill,
 	onExportAgent,
-	onImportSkill,
-	onImportAgent,
 }: Readonly<SidebarFooterProps>) {
 	const [skillsOpen, setSkillsOpen] = useState(false);
 	const [agentsOpen, setAgentsOpen] = useState(false);
+	const [appsOpen, setAppsOpen] = useState(false);
+	const [automationOpen, setAutomationOpen] = useState(false);
 
 	const sortedSkills = [...skills].sort((a, b) => a.name.localeCompare(b.name));
 	const sortedAgents = [...agents].sort((a, b) => a.name.localeCompare(b.name));
@@ -63,48 +65,25 @@ export default function SidebarFooter({
 
 	return (
 		<div className="flex flex-col">
-			{/* Skills section */}
+			{/* Apps section */}
 			<CollapsibleSection
-				title="Skills"
-				open={skillsOpen}
-				onToggle={() => setSkillsOpen((prev) => !prev)}
+				title="Apps"
+				open={appsOpen}
+				onToggle={() => setAppsOpen((prev) => !prev)}
 			>
-				{sortedSkills.map((skill) => (
-					<SidebarItemRow
-						key={skill.name}
-						name={skill.name}
-						isBuiltIn={skill.isBuiltIn}
-						onEdit={() => onEditSkill(skill)}
-						onExport={() => onExportSkill(skill.name)}
-					/>
-				))}
-				<div className="flex gap-1">
-					<Button
-						variant="ghost"
-						size="sm"
-						className="flex-1 justify-start gap-2 text-text-subtlest"
-						onClick={handleNewSkill}
-					>
-						<AddIcon label="" size="small" />
-						Add skill
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						className="text-text-subtlest"
-						onClick={onImportSkill}
-						title="Import skill"
-					>
-						<UploadIcon label="Import" size="small" />
-					</Button>
-				</div>
+				<SectionEmptyState
+					title="No apps yet"
+					description="Build and publish apps to see them here."
+				/>
 			</CollapsibleSection>
 
 			{/* Agents section */}
 			<CollapsibleSection
 				title="Agents"
+				badge={sortedAgents.length}
 				open={agentsOpen}
 				onToggle={() => setAgentsOpen((prev) => !prev)}
+				onAdd={handleNewAgent}
 			>
 				{sortedAgents.map((agent) => (
 					<SidebarItemRow
@@ -115,32 +94,43 @@ export default function SidebarFooter({
 						onExport={() => onExportAgent(agent.name)}
 					/>
 				))}
-				<div className="flex gap-1">
-					<Button
-						variant="ghost"
-						size="sm"
-						className="flex-1 justify-start gap-2 text-text-subtlest"
-						onClick={handleNewAgent}
-					>
-						<AddIcon label="" size="small" />
-						Add agent
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						className="text-text-subtlest"
-						onClick={onImportAgent}
-						title="Import agent"
-					>
-						<UploadIcon label="Import" size="small" />
-					</Button>
-				</div>
+			</CollapsibleSection>
+
+			{/* Automation section */}
+			<CollapsibleSection
+				title="Automation"
+				open={automationOpen}
+				onToggle={() => setAutomationOpen((prev) => !prev)}
+			>
+				<SectionEmptyState
+					title="No automations yet"
+					description="Create automations to run tasks on a schedule."
+				/>
+			</CollapsibleSection>
+
+			{/* Skills section */}
+			<CollapsibleSection
+				title="Skills"
+				badge={sortedSkills.length}
+				open={skillsOpen}
+				onToggle={() => setSkillsOpen((prev) => !prev)}
+				onAdd={handleNewSkill}
+			>
+				{sortedSkills.map((skill) => (
+					<SidebarItemRow
+						key={skill.name}
+						name={skill.name}
+						isBuiltIn={skill.isBuiltIn}
+						onEdit={() => onEditSkill(skill)}
+						onExport={() => onExportSkill(skill.name)}
+					/>
+				))}
 			</CollapsibleSection>
 
 			{/* Bottom label */}
 			<div className="flex items-center justify-center border-t border-border p-3">
 				<span className="text-xs text-text-subtlest">
-					Rovo • Concept
+					Maker • Concept
 				</span>
 			</div>
 		</div>
@@ -153,17 +143,21 @@ export default function SidebarFooter({
 
 function CollapsibleSection({
 	title,
+	badge,
 	open,
 	onToggle,
+	onAdd,
 	children,
 }: Readonly<{
 	title: string;
+	badge?: number;
 	open: boolean;
 	onToggle: () => void;
-	children: React.ReactNode;
+	onAdd?: () => void;
+	children?: React.ReactNode;
 }>) {
 	return (
-		<div className="border-t border-border">
+		<div className="group/section border-t border-border">
 			<button
 				type="button"
 				className="flex h-10 w-full items-center justify-between px-4 pr-3 text-left transition-colors hover:bg-bg-neutral"
@@ -175,14 +169,41 @@ function CollapsibleSection({
 				>
 					{title}
 				</span>
-				{open ? (
-					<ChevronDownIcon label="" color="currentColor" size="small" />
-				) : (
-					<ChevronRightIcon label="" color="currentColor" size="small" />
-				)}
+				<div className="flex items-center gap-1">
+					{badge != null ? (
+						<span className="inline-flex min-w-[24px] items-center justify-center rounded-xs bg-bg-neutral px-1 text-xs text-text transition-[margin] duration-normal ease-out group-hover/section:mr-0" style={{ height: 16 }}>
+							{badge}
+						</span>
+					) : null}
+					<div
+						className="w-0 overflow-hidden opacity-0 transition-all duration-normal ease-out group-hover/section:w-5 group-hover/section:opacity-100"
+					>
+						<span
+							role="button"
+							tabIndex={-1}
+							className="flex size-5 items-center justify-center rounded text-icon-subtle transition-colors hover:bg-bg-neutral-hovered hover:text-text"
+							onClick={(e) => {
+								e.stopPropagation();
+								onAdd?.();
+							}}
+							aria-label={`Add ${title.toLowerCase()}`}
+						>
+							<AddIcon label="" size="small" />
+						</span>
+					</div>
+					{open ? (
+						<span className="flex size-5 items-center justify-center rounded text-icon-subtle">
+							<ChevronDownIcon label="" color="currentColor" size="small" />
+						</span>
+					) : (
+						<span className="flex size-5 items-center justify-center rounded text-icon-subtle">
+							<ChevronRightIcon label="" color="currentColor" size="small" />
+						</span>
+					)}
+				</div>
 			</button>
 			{open ? (
-				<div className="flex flex-col gap-0.5 px-2 pb-2">
+				<div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
 					{children}
 				</div>
 			) : null}
@@ -228,5 +249,16 @@ function SidebarItemRow({
 				<DownloadIcon label="Download" size="small" />
 			</button>
 		</div>
+	);
+}
+
+function SectionEmptyState({ title, description }: Readonly<{ title: string; description: string }>) {
+	return (
+		<Empty width="narrow" className="gap-3 py-4">
+			<EmptyHeader>
+				<EmptyTitle headingSize="xsmall">{title}</EmptyTitle>
+				<EmptyDescription>{description}</EmptyDescription>
+			</EmptyHeader>
+		</Empty>
 	);
 }

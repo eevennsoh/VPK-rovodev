@@ -8,26 +8,16 @@ export interface PlanModeCopy {
 	illustrationAlt: string;
 }
 
-const ASK_MODE_COPY: PlanModeCopy = {
-	heading: "What do you need?",
+const DEFAULT_COPY: PlanModeCopy = {
+	heading: "What are we building?",
 	placeholder: "Ask, @mention, or / for actions",
 	illustration: {
-		light: "/illustration-ai/chat/light.svg",
-		dark: "/illustration-ai/chat/dark.svg",
+		light: "/illustration-ai/code/light.svg",
+		dark: "/illustration-ai/code/dark.svg",
 	},
-	illustrationAlt: "Ask mode illustration",
+	illustrationAlt: "Maker illustration",
 };
 
-const MAKER_MODE_COPY: PlanModeCopy = {
-	heading: "Yo, tell me your problem",
-	placeholder: "Let a team of AI minions solve your problem",
-	illustration: {
-		light: "/illustration-ai/write/light.svg",
-		dark: "/illustration-ai/write/dark.svg",
-	},
-	illustrationAlt: "Plan mode illustration",
-};
-
-export function getPlanModeCopy(isPlanMode: boolean): PlanModeCopy {
-	return isPlanMode ? MAKER_MODE_COPY : ASK_MODE_COPY;
+export function getPlanModeCopy(_isPlanMode: boolean): PlanModeCopy {
+	return DEFAULT_COPY;
 }

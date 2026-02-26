@@ -81,20 +81,27 @@ ADS motion tokens are defined as CSS custom properties in `app/tailwind-theme.cs
 | `--ease-in-out` | `cubic-bezier(0.4, 0, 0, 1)` | Sidebar, modals, position swaps |
 | `--ease-cubic` | `cubic-bezier(0.33, 1, 0.68, 1)` | Flag dismiss, snappy exits |
 
-**Pattern:** Use `var()` in inline styles, Tailwind classes when available:
+**Pattern:** Since these are `@theme inline` variables, Tailwind v4 maps them directly as utility classes. Always prefer the token class over arbitrary values or raw `var()`:
 
 ```tsx
-// Inline style
-style={{ transition: "left var(--duration-medium) var(--ease-in-out)" }}
+// Tailwind class (preferred)
+className="duration-normal ease-out"
+className="duration-medium ease-in-out"
 
-// Tailwind class (overriding a component default)
-className="ease-in-out duration-200"
+// Inline style (only when no Tailwind utility exists, e.g. specific property transitions)
+style={{ transition: "left var(--duration-medium) var(--ease-in-out)" }}
 ```
 
 **Common mistakes:**
 
 | Wrong | Correct |
 |---|---|
+| `duration-[var(--duration-normal)]` | `duration-normal` |
+| `duration-[var(--duration-medium)]` | `duration-medium` |
+| `ease-[var(--ease-in-out)]` | `ease-in-out` |
+| `ease-[var(--ease-out)]` | `ease-out` |
+| `duration-200` (hardcoded) | `duration-medium` (token) |
+| `duration-150` (hardcoded) | `duration-normal` (token) |
 | `transition: "left 0.15s cubic-bezier(0.4, 0, 0.2, 1)"` | `transition: "left var(--duration-medium) var(--ease-in-out)"` |
 | `ease-linear` on sidebar open/close | `ease-in-out` (sidebar's default `ease-linear` is mechanical) |
 | Hardcoded `200ms` or `0.2s` | `var(--duration-medium)` |

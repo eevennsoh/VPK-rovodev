@@ -74,7 +74,7 @@ rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
 ```
 
 RovoDev Serve handles primary chat. AI Gateway fallback is always enabled, and Google endpoint variables are always configured for `provider: "google"` image and TTS routes.
-RovoDev billing defaults to `https://hello.atlassian.net` and can be overridden via `ROVODEV_SITE_URL`.
+RovoDev billing site is set via `ROVODEV_BILLING_URL` in `.env.local` (required, no hardcoded fallback).
 
 ### Multiport / tmux Mode
 
@@ -160,7 +160,7 @@ ASAP_ISSUER=your-use-case-id
 AUTO_FALLBACK_TO_AI_GATEWAY=true
 
 # Default billing site for rovodev serve (override if needed)
-ROVODEV_SITE_URL=https://hello.atlassian.net
+ROVODEV_BILLING_URL=https://product-fabric.atlassian.net
 
 # RovoDev pool size (plan parallel runs, default: 6)
 # ROVODEV_POOL_SIZE=6
@@ -171,7 +171,7 @@ ROVODEV_SITE_URL=https://hello.atlassian.net
 | Variable | Required | Purpose |
 | -------- | -------- | ------- |
 | `AUTO_FALLBACK_TO_AI_GATEWAY` | Yes | Must be `true` to route to AI Gateway when RovoDev is unavailable |
-| `ROVODEV_SITE_URL` | Yes | Billing site URL for `rovodev serve` (default: `https://hello.atlassian.net`) |
+| `ROVODEV_BILLING_URL` | Yes | Billing site URL for `rovodev serve` (default: `https://product-fabric.atlassian.net`) |
 | `ROVODEV_POOL_SIZE` | Optional | Concurrent RovoDev instances for agents team (default: 6) |
 | `ROVODEV_FORCE_CLEAN_START` | Optional | Set `true` to kill all RovoDev instances on startup (default: `false` — reuses healthy instances) |
 | `ROVODEV_SUPERVISOR` | Optional | Set to `tmux` when running via `pnpm run rovodev:tmux` — prevents port recovery from killing processes in tmux panes (auto-set by `dev-tmux-8.sh`) |
@@ -223,7 +223,7 @@ For full model switching details, see [references/guide-model-switch.md](referen
 - [ ] **ASAP credentials generated (timestamp generated ONCE)**
 - [ ] `.env.local` created via `create-env-local.js`
 - [ ] `AUTO_FALLBACK_TO_AI_GATEWAY=true` enabled in `.env.local`
-- [ ] `ROVODEV_SITE_URL` is set (default: `https://hello.atlassian.net`)
+- [ ] `ROVODEV_BILLING_URL` is set (default: `https://product-fabric.atlassian.net`)
 - [ ] Google endpoints enabled in `.env.local`
 - [ ] Dev servers started with `pnpm run rovodev`
 - [ ] Health check passes at http://localhost:8080/api/health

@@ -829,9 +829,8 @@ export function RunWorkspace({
 				onNewAgent={sidebarConfigHandlers.onNewAgent}
 				onExportSkill={sidebarConfigHandlers.onExportSkill}
 				onExportAgent={sidebarConfigHandlers.onExportAgent}
-				onImportSkill={sidebarConfigHandlers.onImportSkill}
-				onImportAgent={sidebarConfigHandlers.onImportAgent}
 				onCreatePlan={handleNavigateToPlan}
+				onNewChat={handleNavigateToPlan}
 			/>
 			<SidebarInset className="h-svh overflow-hidden">
 				<Tabs
@@ -842,7 +841,6 @@ export function RunWorkspace({
 					<ChatTitleRow
 						title={runDisplayTitle}
 						isTitlePending={false}
-						onNewChat={handleNavigateToPlan}
 						onShareToConfluence={handleOpenConfluenceShareDialog}
 						onShareToSlack={handleShareToSlack}
 						shareDisabled={isShareDisabled}

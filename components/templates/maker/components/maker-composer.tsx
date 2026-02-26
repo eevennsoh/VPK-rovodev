@@ -3,14 +3,10 @@
 import { useState } from "react";
 import type { QueuedPromptItem } from "@/app/contexts";
 import { useCreationModeState, useCreationModeActions } from "@/app/contexts/context-creation-mode";
+import { cn } from "@/lib/utils";
 import {
 	PromptInput,
-	PromptInputActionMenu,
-	PromptInputActionMenuContent,
-	PromptInputActionMenuItem,
-	PromptInputActionMenuTrigger,
 	PromptInputBody,
-	PromptInputButton,
 	PromptInputFooter,
 	PromptInputHeader,
 	PromptInputSubmit,
@@ -22,18 +18,19 @@ import { SpeechInput } from "@/components/ui-ai/speech-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { SkillTag } from "@/components/ui/skill-tag";
-import CustomizeMenu from "@/components/blocks/shared-ui/customize-menu";
 import SkillIcon from "@atlaskit/icon-lab/core/skill";
 import { composerUpwardShadow, composerPromptInputClassName, composerTextareaClassName, textareaCSS } from "@/components/blocks/shared-ui/composer-styles";
 import DeleteIcon from "@atlaskit/icon/core/delete";
-import AddIcon from "@atlaskit/icon/core/add";
 import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
-import LinkIcon from "@atlaskit/icon/core/link";
-import MentionIcon from "@atlaskit/icon/core/mention";
-import PageIcon from "@atlaskit/icon/core/page";
-import UploadIcon from "@atlaskit/icon/core/upload";
 import AgentIcon from "@atlaskit/icon/core/ai-agent";
-import CustomizeIcon from "@atlaskit/icon/core/customize";
+import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
+
+const ITERATION_OPTIONS = [
+	{ value: "1", label: "1x" },
+	{ value: "2", label: "2x" },
+	{ value: "3", label: "3x" },
+	{ value: "4", label: "4x" },
+] as const;
 
 interface MakerComposerProps {
 	prompt: string;
@@ -64,11 +61,8 @@ export default function MakerComposer({
 	expandedPlaceholder = false,
 	autoFocus = true,
 }: Readonly<MakerComposerProps>) {
-	const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-	const [isCustomizeMenuOpen, setIsCustomizeMenuOpen] = useState(false);
-	const [selectedReasoning, setSelectedReasoning] = useState("standard");
-	const [webResultsEnabled, setWebResultsEnabled] = useState(true);
-	const [companyKnowledgeEnabled, setCompanyKnowledgeEnabled] = useState(true);
+	const [isIterationsOpen, setIsIterationsOpen] = useState(false);
+	const [selectedIterations, setSelectedIterations] = useState("1");
 	const { mode: creationMode } = useCreationModeState();
 	const { clearCreationMode } = useCreationModeActions();
 	const hasQueuedPrompts = queuedPrompts.length > 0;
@@ -148,65 +142,39 @@ export default function MakerComposer({
 							<Button type="button" size="sm" variant="outline" aria-label="Plan mode" aria-pressed={isPlanMode} onClick={onPlanModeToggle}>
 								Plan
 							</Button>
-							<PromptInputActionMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-								<PromptInputActionMenuTrigger aria-label="Add" size="icon-sm" variant="ghost">
-									<AddIcon label="" />
-								</PromptInputActionMenuTrigger>
-								<PromptInputActionMenuContent>
-									<PromptInputActionMenuItem
-										onSelect={() => setIsAddMenuOpen(false)}
-										elemBefore={<UploadIcon label="" />}
-									>
-										Upload file
-									</PromptInputActionMenuItem>
-									<PromptInputActionMenuItem
-										onSelect={() => setIsAddMenuOpen(false)}
-										elemBefore={<LinkIcon label="" />}
-									>
-										Add a link
-									</PromptInputActionMenuItem>
-									<PromptInputActionMenuItem
-										onSelect={() => setIsAddMenuOpen(false)}
-										elemBefore={<MentionIcon label="" />}
-									>
-										Mention someone
-									</PromptInputActionMenuItem>
-									<PromptInputActionMenuItem
-										onSelect={() => setIsAddMenuOpen(false)}
-										elemBefore={<AddIcon label="" />}
-									>
-										More formatting
-									</PromptInputActionMenuItem>
-									<PromptInputActionMenuItem
-										onSelect={() => setIsAddMenuOpen(false)}
-										elemBefore={<PageIcon label="" />}
-									>
-										Add current page as context
-									</PromptInputActionMenuItem>
-								</PromptInputActionMenuContent>
-							</PromptInputActionMenu>
-							<Popover open={isCustomizeMenuOpen} onOpenChange={setIsCustomizeMenuOpen}>
+							<Popover open={isIterationsOpen} onOpenChange={setIsIterationsOpen}>
 								<PopoverTrigger
 									render={
-										<PromptInputButton
-											aria-label="Configure"
-											size="icon-sm"
-											variant="ghost"
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											className="gap-1"
 										/>
 									}
 								>
-									<CustomizeIcon label="" />
+									<ChevronDownIcon label="" size="small" />
+									{selectedIterations}x
 								</PopoverTrigger>
-								<PopoverContent side="top" align="start" sideOffset={8} className="w-auto p-2">
-									<CustomizeMenu
-										selectedReasoning={selectedReasoning}
-										onReasoningChange={setSelectedReasoning}
-										webResultsEnabled={webResultsEnabled}
-										onWebResultsChange={setWebResultsEnabled}
-										companyKnowledgeEnabled={companyKnowledgeEnabled}
-										onCompanyKnowledgeChange={setCompanyKnowledgeEnabled}
-										onClose={() => setIsCustomizeMenuOpen(false)}
-									/>
+								<PopoverContent side="top" align="start" sideOffset={8} className="w-auto p-1">
+									<div className="flex flex-col">
+										{ITERATION_OPTIONS.map((option) => (
+											<button
+												key={option.value}
+												type="button"
+												className={cn(
+													"rounded-md px-3 py-1.5 text-left text-sm transition-colors hover:bg-bg-neutral",
+													selectedIterations === option.value ? "bg-bg-selected text-text-selected" : "text-text"
+												)}
+												onClick={() => {
+													setSelectedIterations(option.value);
+													setIsIterationsOpen(false);
+												}}
+											>
+												{option.label}
+											</button>
+										))}
+									</div>
 								</PopoverContent>
 							</Popover>
 						</PromptInputTools>
