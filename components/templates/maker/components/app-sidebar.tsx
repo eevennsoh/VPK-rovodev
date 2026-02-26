@@ -12,7 +12,6 @@ import {
 	SidebarHeader,
 	useSidebar,
 } from "@/components/ui/sidebar";
-import { ThemeToggle } from "@/components/utils/theme-wrapper";
 import { token } from "@/lib/tokens";
 import CrossIcon from "@atlaskit/icon/core/cross";
 import SearchIcon from "@atlaskit/icon/core/search";
@@ -65,9 +64,8 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	onNewAgent: () => void;
 	onExportSkill: (name: string) => void;
 	onExportAgent: (name: string) => void;
-	onImportSkill: () => void;
-	onImportAgent: () => void;
 	onCreatePlan: () => void;
+	onNewChat: () => void;
 }
 
 export function AppSidebar({
@@ -93,9 +91,8 @@ export function AppSidebar({
 	onNewAgent,
 	onExportSkill,
 	onExportAgent,
-	onImportSkill,
-	onImportAgent,
 	onCreatePlan,
+	onNewChat,
 	...props
 }: Readonly<AppSidebarProps>) {
 	const { toggleSidebar } = useSidebar();
@@ -129,7 +126,7 @@ export function AppSidebar({
 					<div className="flex items-center text-icon-subtle">
 						<div
 							className={cn(
-								"w-9 overflow-hidden transition-all duration-[var(--duration-normal)] ease-out",
+								"w-9 overflow-hidden transition-all duration-normal ease-out",
 								!isHoverReveal && !isOverlay && "w-0 opacity-0",
 							)}
 						>
@@ -156,23 +153,20 @@ export function AppSidebar({
 							</span>
 						</Link>
 					</div>
-					<div className="flex items-center text-icon-subtle">
-						<ThemeToggle />
-						<div
-							className={cn(
-								"w-9 overflow-hidden transition-all duration-[var(--duration-normal)] ease-out",
-								(isOverlay || isHoverReveal) && "w-0 opacity-0",
-							)}
+					<div
+						className={cn(
+							"w-9 overflow-hidden text-icon-subtle transition-all duration-normal ease-out",
+							(isOverlay || isHoverReveal) && "w-0 opacity-0",
+						)}
+					>
+						<Button
+							aria-label="Collapse sidebar"
+							size="icon"
+							variant="ghost"
+							onClick={toggleSidebar}
 						>
-							<Button
-								aria-label="Collapse sidebar"
-								size="icon"
-								variant="ghost"
-								onClick={toggleSidebar}
-							>
-								<SidebarCollapseIcon label="" />
-							</Button>
-						</div>
+							<SidebarCollapseIcon label="" />
+						</Button>
 					</div>
 				</div>
 			</SidebarHeader>
@@ -205,6 +199,13 @@ export function AppSidebar({
 									</InputGroupAddon>
 								)}
 							</InputGroup>
+							<button
+								type="button"
+								onClick={onNewChat}
+								className="mt-3 flex w-full cursor-pointer items-center justify-center rounded-full border border-dashed border-border bg-bg-neutral-subtle px-3 py-1.5 text-sm font-medium text-text-subtle transition-colors hover:bg-surface-hovered"
+							>
+								New chat
+							</button>
 						</div>
 						{hasRunHistory ? (
 							<SidebarRunHistory
@@ -282,8 +283,6 @@ export function AppSidebar({
 					onNewAgent={onNewAgent}
 					onExportSkill={onExportSkill}
 					onExportAgent={onExportAgent}
-					onImportSkill={onImportSkill}
-					onImportAgent={onImportAgent}
 				/>
 			</SidebarFooterSlot>
 		</Sidebar>

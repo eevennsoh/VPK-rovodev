@@ -10,7 +10,7 @@ const fs = require('fs');
 const { execSync } = require('child_process');
 const DEFAULT_GOOGLE_GATEWAY_URL =
 	'https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publishers/google/v1/chat/completions';
-const DEFAULT_ROVODEV_SITE_URL = 'https://hello.atlassian.net';
+const DEFAULT_ROVODEV_BILLING_URL = 'https://product-fabric.atlassian.net';
 
 function getEnvValueFromText(envText, key) {
 	if (!envText || typeof envText !== 'string') {
@@ -77,14 +77,14 @@ const preservedDebug = getEnvValueFromText(existingEnvText, 'DEBUG');
 const preservedPort = getEnvValueFromText(existingEnvText, 'PORT');
 const preservedBackendUrl = getEnvValueFromText(existingEnvText, 'BACKEND_URL');
 const preservedPublicApiUrl = getEnvValueFromText(existingEnvText, 'NEXT_PUBLIC_API_URL');
-const preservedRovodevSiteUrl = getEnvValueFromText(existingEnvText, 'ROVODEV_SITE_URL');
+const preservedRovodevSiteUrl = getEnvValueFromText(existingEnvText, 'ROVODEV_BILLING_URL');
 const resolvedGoogleGatewayUrl = isGoogleGatewayUrl(preservedGoogleUrl)
 	? preservedGoogleUrl
 	: DEFAULT_GOOGLE_GATEWAY_URL;
 const resolvedRovodevSiteUrl =
 	typeof preservedRovodevSiteUrl === 'string' && preservedRovodevSiteUrl.trim().length > 0
 		? preservedRovodevSiteUrl.trim()
-		: DEFAULT_ROVODEV_SITE_URL;
+		: DEFAULT_ROVODEV_BILLING_URL;
 
 const envContent = `# AI Gateway Configuration
 # Default: Claude via Bedrock (to switch to OpenAI, see guide-model-switch.md)
@@ -113,7 +113,7 @@ ASAP_ISSUER=${config.issuer}
 AUTO_FALLBACK_TO_AI_GATEWAY=true
 
 # Default billing site for rovodev serve (override as needed)
-ROVODEV_SITE_URL=${resolvedRovodevSiteUrl}
+ROVODEV_BILLING_URL=${resolvedRovodevSiteUrl}
 
 # RovoDev Serve pool size (number of concurrent RovoDev instances for agents team, default: 6)${preservedRovodevPoolSize ? `\nROVODEV_POOL_SIZE=${preservedRovodevPoolSize}` : '\n# ROVODEV_POOL_SIZE=6'}
 
@@ -127,7 +127,7 @@ console.log('✅ Created .env.local with AI Gateway configuration (Claude/Bedroc
 console.log(`   AI_GATEWAY_USE_CASE_ID: ${useCaseId}`);
 console.log(`   AI_GATEWAY_USER_ID: ${email}`);
 console.log('   AUTO_FALLBACK_TO_AI_GATEWAY: enabled');
-console.log(`   ROVODEV_SITE_URL: ${resolvedRovodevSiteUrl}`);
+console.log(`   ROVODEV_BILLING_URL: ${resolvedRovodevSiteUrl}`);
 console.log('   Google image + voice endpoints: enabled');
 if (preservedGoogleUrl && !isGoogleGatewayUrl(preservedGoogleUrl)) {
 	console.warn('⚠️  Existing AI_GATEWAY_URL_GOOGLE was not a Google endpoint and was reset to default.');

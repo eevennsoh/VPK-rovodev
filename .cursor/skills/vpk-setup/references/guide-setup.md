@@ -234,7 +234,7 @@ Add this alongside `AI_GATEWAY_URL` to enable Google routing for features that r
 **Default RovoDev billing site (recommended):**
 
 ```
-ROVODEV_SITE_URL=https://hello.atlassian.net
+ROVODEV_BILLING_URL=https://product-fabric.atlassian.net
 ```
 
 `scripts/dev-rovodev.js` passes this value as `--site-url` to `rovodev serve`. Override this value when you need a different billing site.
