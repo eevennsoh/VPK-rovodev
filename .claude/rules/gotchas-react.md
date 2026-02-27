@@ -1,0 +1,1 @@
+../../.cursor/rules/gotchas-react.md

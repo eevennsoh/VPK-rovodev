@@ -1,0 +1,94 @@
+# Agent Operations
+
+## Skills and Agents
+
+Primary locations:
+
+- Skills: `.cursor/skills/*/SKILL.md`
+- Agents: `.cursor/agents/*`
+
+Provider mirrors:
+
+- `.claude/agents` and `.codex/agents` mirror `.cursor/agents`
+
+Skill types:
+
+- Workflow: multi-step procedures
+- Utility: single-purpose helpers
+
+Current VPK skills (see Appendix for details):
+
+- `/vpk-setup`
+- `/vpk-deploy`
+- `/vpk-design`
+- `/vpk-tidy`
+- `/vpk-share`
+- `/vpk-sync`
+- `/vpk-component`
+- `/vpk-component-ai`
+- `/vpk-lesson`
+
+> **Note:** Slash commands (e.g., `/vpk-deploy`) are Cursor IDE features. In other environments, reference the skill definitions in `.cursor/skills/` directly.
+
+## Parallel Work Model
+
+Choose one model based on communication needs:
+
+| Mode        | Best for                                           | Coordination                              | Cost   |
+| ----------- | -------------------------------------------------- | ----------------------------------------- | ------ |
+| Subagents   | Independent tasks where only results matter        | Main agent coordinates                    | Lower  |
+| Agent teams | Cross-area work needing direct teammate discussion | Shared task list + teammate collaboration | Higher |
+
+Subagent rule:
+
+- Always wait for all subagents before yielding results
+
+## Agent Teams Management
+
+Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+
+Controls:
+
+- In-process mode: select teammate with Shift+Up/Down, toggle task list with Ctrl+T
+- Split pane mode: set `"teammateMode": "tmux"`
+- Delegate mode: Shift+Tab
+
+Default team lifecycle:
+
+```text
+Explore -> Implement -> Test -> Tidy
+```
+
+Detailed ownership and phase guidance is in `## Appendix -> Agent Team Workflow Reference`.
+
+## Behavioral Rules
+
+- Verify exact file location before UI edits by searching for distinctive text/classes.
+- Use macOS/BSD-safe shell patterns (for example `sed -i ''`).
+- For Figma work, front-load key specs: spacing, radius, width constraints, shadow token.
+- When editing icons, check consistency across all icons in the component.
+- Prefer flexible AI-driven implementations over narrow hardcoded matching.
+- Prefer the simplest viable implementation before introducing abstractions.
+- If implementation gets unstable, stop and re-plan instead of patching repeatedly.
+- Before completion, perform a staff-level quality gate: root-cause fixes, clean architecture, no band-aids.
+- When fixing a bug, add a regression test that reproduces the original failure.
+
+## Lessons Tracking
+
+Maintain `AGENTS-LESSONS.md`:
+
+- Append after every user correction
+- Record prevention rule, not just the symptom
+- Review at session start for relevant patterns
+- Promote recurring lessons into this `AGENTS.md`
+
+## Local Overrides
+
+You can add gitignored local overrides:
+
+```text
+.cursor/skills/vpk-deploy/SKILL.local.md
+.claude.local.md
+```
+
+Note: `.claude.local.md` should be added to `.gitignore` if used for personal/local settings.

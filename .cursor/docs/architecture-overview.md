@@ -1,0 +1,72 @@
+# Architecture Overview
+
+## Runtime Modes
+
+Local development — single command starts all three processes:
+
+```text
+pnpm run rovodev → rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
+
+Browser -> Next.js (:3000) -> app/api/* proxy -> Express (:8080) -> rovodev serve (:8000)
+```
+
+Production with static export (single process, requires `NEXT_OUTPUT=export` during build):
+
+```text
+Browser -> Express (:8080) -> static export + /api/* -> RovoDev Serve
+```
+
+The `rovodev` script starts all three processes concurrently. The `dev` script starts only backend + frontend (requires RovoDev Serve already running). The backend auto-detects RovoDev Serve via `.dev-rovodev-port` (single) or `.dev-rovodev-ports` (pool) files and will reject chat requests if it's unavailable unless `AUTO_FALLBACK_TO_AI_GATEWAY=true` is enabled and AI Gateway env vars are configured.
+
+## Key Directories
+
+- `app/` - Next.js App Router routes, providers, and dev proxy handlers
+- `backend/` - Express production runtime and API handlers
+- `components/templates/` - ADS-themed feature surfaces (plan, confluence, fullscreen-chat, jira, search, sidebar-chat)
+- `components/blocks/` - standalone block surfaces (app-sidebar, approval-card, chat, chat-composer, chatbot, chatgpt, dashboard, data-table, generative, ide, login, product-sidebar, prompt-gallery, question-card, settings-dialog, shared-ui, sidebar, sidebar-rail, signup, top-navigation, work-items-widget, workflow)
+- `components/charts/` - chart components (area, bar, line, pie, radar, radial, tooltip)
+- `components/ui/` - shared shadcn/Base UI primitives
+- `components/website/` - component documentation and demo site
+- `lib/` - shared utilities and token helpers
+- `backend/lib/` - backend utilities (plan run manager, RovoDev gateway and client)
+- `public/` - static assets (illustrations, product logos, third-party logos, avatars)
+- `.cursor/`, `.claude/`, `.codex/` - assistant config, skills, agents, and rules
+
+See `## Appendix -> Detailed Directory Structure` for expanded layout.
+
+## Component Topology
+
+- Feature components live under `components/{templates,blocks}/[feature]/`
+- `page.tsx` is the public API for feature entrypoints
+- Sub-components belong in local `components/` folders
+- Optional local folders: `hooks/`, `data/`, `lib/`
+- Shared template utilities live in `components/templates/shared/`
+
+## Provider Composition
+
+Provider order in `app/providers.tsx`:
+
+```text
+ThemeWrapper
+  -> SidebarProvider
+    -> CreationModeProvider
+      -> RovoChatProvider
+```
+
+## Route Overview
+
+Common routes:
+
+- `/` -> `app/page.tsx`
+- `/plan` -> `components/templates/plan/`
+- `/sidebar-chat` -> `components/templates/sidebar-chat/`
+- `/fullscreen-chat` -> `components/templates/fullscreen-chat/`
+- `/confluence` -> `components/templates/confluence/`
+- `/jira` -> `components/templates/jira/`
+- `/search` -> `components/templates/search/`
+- `/components/[category]/[slug]` -> `app/components/[category]/[slug]/page.tsx`
+- `/preview/blocks/[slug]` -> `app/preview/blocks/[slug]/`
+- `/preview/templates/[slug]` -> `app/preview/templates/[slug]/`
+- `/[category]` -> `app/[category]/page.tsx`
+
+See `## Appendix -> Full Route Mapping` for the complete table.
