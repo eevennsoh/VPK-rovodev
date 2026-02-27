@@ -1,6 +1,7 @@
 "use client";
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/utils/theme-wrapper";
@@ -11,6 +12,7 @@ import {
 	useMakerState,
 	useMakerActions,
 	useMakerMeta,
+	type MakerTab,
 } from "@/app/contexts/context-maker";
 import { AppSidebar } from "./components/app-sidebar";
 import MakerInitialView from "./components/maker-initial-view";
@@ -18,7 +20,7 @@ import MakerChatView from "./components/maker-chat-view";
 import { ExecutionGridView } from "./components/execution-grid-view";
 import ChatTitleRow from "./components/chat-title-row";
 import { ConfigDialogs } from "./components/config-dialogs";
-import { CollapsedSidebarBranding } from "./components/collapsed-sidebar-branding";
+import { MakerSearchPlaceholder } from "./components/maker-search-placeholder";
 
 export default function MakerView() {
 	return (
@@ -32,6 +34,7 @@ function MakerLayout() {
 	const {
 		sidebarOpen,
 		sidebarHovered,
+		activeTab,
 		isChatMode,
 		isExecutionActive,
 		taskExecutions,
@@ -41,12 +44,11 @@ function MakerLayout() {
 		runId,
 		isGeneratingTitle,
 		pendingTitleChatId,
-		activeChatTitle,
-		isActiveChatTitlePending,
 	} = useMakerState();
 
 	const {
 		setSidebarOpen,
+		setActiveTab,
 		handleHoverEnter,
 		handleHoverLeave,
 		handlePinSidebar,
@@ -87,12 +89,12 @@ function MakerLayout() {
 			}
 			className={cn(
 				"[&_[data-slot=sidebar-gap]]:ease-[var(--ease-in-out)] [&_[data-slot=sidebar-container]]:ease-[var(--ease-in-out)]",
-				isSidebarCollapsedAndHovered && !isChatMode && "[&_[data-slot=sidebar-gap]]:w-0!",
+				isSidebarCollapsedAndHovered && activeTab === "make" && "[&_[data-slot=sidebar-gap]]:w-0!",
 			)}
 		>
 			<AppSidebar
-				isOverlay={isSidebarCollapsedAndHovered && !isChatMode}
-				isHoverReveal={isSidebarCollapsedAndHovered && isChatMode}
+				isOverlay={isSidebarCollapsedAndHovered && activeTab === "make"}
+				isHoverReveal={isSidebarCollapsedAndHovered && activeTab !== "make"}
 				onPinSidebar={handlePinSidebar}
 				chatHistory={chatHistory}
 				activeChatId={activeChatId}
@@ -118,7 +120,7 @@ function MakerLayout() {
 				onCreatePlan={handleCreatePlan}
 				onNewChat={handleNewChat}
 			/>
-			<SidebarInset className={isChatMode ? "h-svh overflow-hidden" : undefined}>
+			<SidebarInset className="h-svh overflow-hidden">
 				<div className="pointer-events-none absolute top-0 right-0 z-20 flex h-14 items-center gap-0.5 pr-4 text-icon-subtle">
 					<div className="pointer-events-auto">
 						<ThemeToggle />
@@ -138,39 +140,56 @@ function MakerLayout() {
 						</Avatar>
 					</div>
 				</div>
-				{!isChatMode ? (
-					<CollapsedSidebarBranding
-						isVisible={!sidebarOpen && !sidebarHovered}
-						onExpandClick={() => setSidebarOpen(true)}
+				<Tabs
+					value={activeTab}
+					onValueChange={(value) => setActiveTab(value as MakerTab)}
+					className="flex h-full min-h-0 flex-col gap-0"
+				>
+					<ChatTitleRow
+						title={null}
+						isTitlePending={false}
+						leftSlot={(
+							<TabsList className="mr-3 w-fit shrink-0">
+								<TabsTrigger value="home">Home</TabsTrigger>
+								<TabsTrigger value="make">Make</TabsTrigger>
+								<TabsTrigger value="chat">Chat</TabsTrigger>
+								<TabsTrigger value="search">Search</TabsTrigger>
+							</TabsList>
+						)}
+						sidebarOpen={sidebarOpen}
+						sidebarHovered={sidebarHovered}
+						onExpandSidebar={() => setSidebarOpen(true)}
 						onHoverEnter={handleHoverEnter}
 						onHoverLeave={handleHoverLeave}
 					/>
-				) : null}
-				{isChatMode ? (
-					<div className="flex h-full min-h-0 flex-col">
-						<ChatTitleRow
-							title={activeChatTitle}
-							isTitlePending={isActiveChatTitlePending}
-							sidebarOpen={sidebarOpen}
-							sidebarHovered={sidebarHovered}
-							onExpandSidebar={() => setSidebarOpen(true)}
-							onHoverEnter={handleHoverEnter}
-							onHoverLeave={handleHoverLeave}
-						/>
-						<div className="min-h-0 flex-1">
-							{isExecutionActive ? (
-								<ExecutionGridView
-									taskExecutions={taskExecutions}
-									onAddTask={handleAddTask}
-								/>
-							) : (
-								<MakerChatView />
-							)}
+					<TabsContent value="home" className="min-h-0 flex-1 overflow-hidden">
+						<div className="flex h-full flex-col items-center justify-center gap-3 text-text-subtlest">
+							<p className="text-sm">Home</p>
 						</div>
-					</div>
-				) : (
-					<MakerInitialView />
-				)}
+					</TabsContent>
+					<TabsContent value="make" className="min-h-0 flex-1 overflow-hidden">
+						{isExecutionActive ? (
+							<ExecutionGridView
+								taskExecutions={taskExecutions}
+								onAddTask={handleAddTask}
+							/>
+						) : (
+							<MakerInitialView />
+						)}
+					</TabsContent>
+					<TabsContent value="chat" className="min-h-0 flex-1 overflow-hidden">
+						{isChatMode ? (
+							<MakerChatView />
+						) : (
+							<div className="flex h-full flex-col items-center justify-center gap-3 text-text-subtlest">
+								<p className="text-sm">Start a conversation from the Home tab</p>
+							</div>
+						)}
+					</TabsContent>
+					<TabsContent value="search" className="min-h-0 flex-1 overflow-hidden">
+						<MakerSearchPlaceholder />
+					</TabsContent>
+				</Tabs>
 			</SidebarInset>
 			<ConfigDialogs
 				skillDialog={skillDialogProps}

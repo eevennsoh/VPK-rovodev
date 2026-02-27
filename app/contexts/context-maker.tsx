@@ -55,10 +55,15 @@ import { useConfigDialogs } from "@/components/templates/maker/hooks/use-config-
 // State
 // ---------------------------------------------------------------------------
 
+export type MakerTab = "home" | "make" | "chat" | "search";
+
 export interface MakerState {
 	// Sidebar
 	sidebarOpen: boolean;
 	sidebarHovered: boolean;
+
+	// Navigation
+	activeTab: MakerTab;
 
 	// Chat
 	prompt: string;
@@ -108,6 +113,9 @@ export interface MakerActions {
 	handleHoverEnter: () => void;
 	handleHoverLeave: () => void;
 	handlePinSidebar: () => void;
+
+	// Navigation
+	setActiveTab: (tab: MakerTab) => void;
 
 	// Chat
 	setPrompt: (value: string) => void;
@@ -230,6 +238,9 @@ export function MakerProvider({ children }: MakerProviderProps) {
 	const [isOpen, setIsOpen] = useState(true);
 	const [isHovered, setIsHovered] = useState(false);
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// ---- Navigation tab ----
+	const [activeTab, setActiveTab] = useState<MakerTab>("make");
 
 	// ---- Run history ----
 	const [runHistory, setRunHistory] = useState<AgentRunListItem[]>([]);
@@ -374,6 +385,20 @@ export function MakerProvider({ children }: MakerProviderProps) {
 	}, [run, runHistory]);
 
 	// ---- Effects ----
+
+	// Auto-sync tab when isChatMode transitions to true
+	const prevIsChatModeRef = useRef(isChatMode);
+	useEffect(() => {
+		const wasChatMode = prevIsChatModeRef.current;
+		prevIsChatModeRef.current = isChatMode;
+
+		if (!wasChatMode && isChatMode) {
+			setActiveTab("chat");
+		}
+		if (wasChatMode && !isChatMode) {
+			setActiveTab("make");
+		}
+	}, [isChatMode]);
 
 	useEffect(() => {
 		if (!runId || executionState === "idle") {
@@ -585,6 +610,7 @@ export function MakerProvider({ children }: MakerProviderProps) {
 		() => ({
 			sidebarOpen: isOpen,
 			sidebarHovered: isHovered,
+			activeTab,
 			prompt,
 			isPlanMode,
 			isChatMode,
@@ -614,6 +640,7 @@ export function MakerProvider({ children }: MakerProviderProps) {
 		[
 			isOpen,
 			isHovered,
+			activeTab,
 			prompt,
 			isPlanMode,
 			isChatMode,
@@ -648,6 +675,7 @@ export function MakerProvider({ children }: MakerProviderProps) {
 			handleHoverEnter,
 			handleHoverLeave,
 			handlePinSidebar,
+			setActiveTab,
 			setPrompt,
 			handleSubmit,
 			stopStreaming,

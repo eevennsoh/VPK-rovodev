@@ -20,6 +20,7 @@ import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
 interface ChatTitleRowProps {
 	title: string | null;
 	isTitlePending: boolean;
+	leftSlot?: ReactNode;
 	centerSlot?: ReactNode;
 	sidebarOpen: boolean;
 	sidebarHovered: boolean;
@@ -35,6 +36,7 @@ interface ChatTitleRowProps {
 export default function ChatTitleRow({
 	title,
 	isTitlePending,
+	leftSlot,
 	centerSlot,
 	sidebarOpen,
 	sidebarHovered,
@@ -80,30 +82,33 @@ export default function ChatTitleRow({
 					</div>
 					<div className="mx-1 h-5 w-px shrink-0 bg-border" />
 				</div>
-				<div
-					className="min-w-0 max-w-full"
-					style={{ font: token("font.heading.xsmall") }}
-					title={displayTitle}
-				>
-					{isTitlePending ? (
-						<Shimmer
-							key={displayTitle}
-							as="span"
-							duration={1}
-							className="max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
-						>
-							{displayTitle}
-						</Shimmer>
-					) : (
-						<p
-							key={displayTitle}
-							className="truncate text-text motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
-							title={displayTitle}
-						>
-							{displayTitle}
-						</p>
-					)}
-				</div>
+				{leftSlot}
+				{title !== null ? (
+					<div
+						className="min-w-0 max-w-full"
+						style={{ font: token("font.heading.xsmall") }}
+						title={displayTitle}
+					>
+						{isTitlePending ? (
+							<Shimmer
+								key={displayTitle}
+								as="span"
+								duration={1}
+								className="max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+							>
+								{displayTitle}
+							</Shimmer>
+						) : (
+							<p
+								key={displayTitle}
+								className="truncate text-text motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+								title={displayTitle}
+							>
+								{displayTitle}
+							</p>
+						)}
+					</div>
+				) : null}
 			</div>
 			<div className="justify-self-center">{centerSlot}</div>
 			<div className="flex items-center gap-2 justify-self-end">
