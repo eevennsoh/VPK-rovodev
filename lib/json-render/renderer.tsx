@@ -104,7 +104,7 @@ interface JsonRenderViewProps {
 	spec: Spec | null;
 	loading?: boolean;
 	skipValidation?: boolean;
-	onStateChange?: (path: string, value: unknown) => void;
+	onStateChange?: (changes: Array<{ path: string; value: unknown }>) => void;
 	handlers?: Record<
 		string,
 		(params: Record<string, unknown>) => Promise<unknown> | unknown

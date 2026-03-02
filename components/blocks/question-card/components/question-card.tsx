@@ -202,7 +202,7 @@ function QuestionInput({
 						onChange={(event) => onAnswerChange((event.target as HTMLInputElement).value)}
 						onFocus={() => onFocusIndex(customOptionIndex)}
 						disabled={isSubmitting}
-						placeholder={customInputPlaceholder}
+						placeholder={question.placeholder ?? customInputPlaceholder}
 						className="h-8 border-input bg-bg-input text-sm leading-5"
 					/>
 				</li>
@@ -267,13 +267,16 @@ function QuestionCard({
 			aria-modal="true"
 			aria-label={`Question ${safeQuestionIndex + 1} of ${totalQuestions}: ${currentQuestion.label}`}
 			onKeyDown={handleKeyDown}
-			className={cn("mx-auto w-full max-w-[776px] overflow-hidden rounded-xl border border-border bg-surface shadow-[0_-2px_50px_8px_rgba(30,31,33,0.08)] outline-none", className)}
+			className={cn("mx-auto w-full overflow-hidden rounded-xl border border-border bg-surface shadow-[0_-2px_50px_8px_rgba(30,31,33,0.08)] outline-none", className)}
 			{...props}
 		>
-			<header data-slot="question-card-header" className="px-4 pb-2 pt-4">
+			<header data-slot="question-card-header" className="px-4 pb-4 pt-4">
 				<div className="flex items-start justify-between gap-2">
 					<div className="min-w-0">
 						<h2 className="text-sm leading-5 font-medium text-text">{currentQuestion.label}</h2>
+						{currentQuestion.description ? (
+							<p className="mt-0.5 text-sm leading-5 font-normal text-text-subtle">{currentQuestion.description}</p>
+						) : null}
 					</div>
 					{onDismiss ? (
 						<Button aria-label="Dismiss questions" size="icon" variant="ghost" disabled={isSubmitting} className="-mr-1 -mt-1 shrink-0" onClick={onDismiss} tabIndex={-1}>

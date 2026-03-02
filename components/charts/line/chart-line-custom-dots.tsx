@@ -55,7 +55,7 @@ export function ChartLineDotsCustom() {
 							strokeWidth={2}
 							dot={({ cx, cy, payload }) => {
 								const r = 24;
-								return <GitCommitVertical key={payload.month} x={cx - r / 2} y={cy - r / 2} width={r} height={r} fill="hsl(var(--background))" stroke="var(--color-desktop)" />;
+								return <GitCommitVertical key={payload.month} x={(cx ?? 0) - r / 2} y={(cy ?? 0) - r / 2} width={r} height={r} fill="hsl(var(--background))" stroke="var(--color-desktop)" />;
 							}}
 						/>
 					</LineChart>

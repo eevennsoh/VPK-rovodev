@@ -39,6 +39,10 @@ export interface SendPromptOptions {
 	messageMetadata?: RovoMessageMetadata;
 	clarification?: unknown;
 	approval?: unknown;
+	deferredToolResponse?: {
+		tool_call_id: string;
+		result: Record<string, string | string[]>;
+	};
 	planMode?: boolean;
 	planModeSource?: "plan-toggle";
 	planRequestId?: string;
@@ -91,6 +95,7 @@ function buildSendMessageBody(
 		clientTimeZone: resolveClientTimeZone(options?.clientTimeZone),
 		clarification: options?.clarification,
 		approval: options?.approval,
+		deferredToolResponse: options?.deferredToolResponse,
 		planMode: options?.planMode,
 		planModeSource: options?.planModeSource,
 		planRequestId: options?.planRequestId,

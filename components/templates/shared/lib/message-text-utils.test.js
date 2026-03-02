@@ -112,6 +112,26 @@ Action items
 	assert.equal(output.mermaid, "");
 });
 
+test("extracts summary without trailing tool-results suppression phrase", () => {
+	const input = `# Plan
+
+Rebuild the sprint board at /sprint-board with a clean 4-column layout.
+The existing route, data types, and dependencies are already in place.
+Tool results were large and are omitted for performance. Open Tools for details.`;
+
+	const output = extractPlanRenderableText(input, { maxSummaryLines: 3 });
+	assert.equal(
+		output.summary,
+		`Rebuild the sprint board at /sprint-board with a clean 4-column layout.
+The existing route, data types, and dependencies are already in place.`
+	);
+	assert.equal(
+		output.text,
+		`Rebuild the sprint board at /sprint-board with a clean 4-column layout.
+The existing route, data types, and dependencies are already in place.`
+	);
+});
+
 test("suppresses raw tool json and preserves summary narrative", () => {
 	const input = `I'll help you list your Google Calendar events.
 {

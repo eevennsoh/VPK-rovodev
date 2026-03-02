@@ -3,11 +3,11 @@ export const CONTAINER_STYLES = {
 		display: "flex",
 		flexDirection: "column" as const,
 		alignItems: "center",
-		justifyContent: "center",
 		minHeight: "calc(100vh - 48px)",
 		height: "calc(100vh - 48px)",
 		position: "relative" as const,
-		padding: "24px",
+		padding: "24px 24px 0",
+		overflowY: "auto" as const,
 	},
 	chatMode: {
 		display: "flex",

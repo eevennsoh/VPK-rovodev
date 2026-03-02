@@ -10,12 +10,11 @@ import {
 } from "@/components/ui-ai/agent"
 import {
 	Plan,
-	PlanAction,
+	PlanAvatar,
 	PlanContent,
 	PlanDescription,
 	PlanHeader,
 	PlanTitle,
-	PlanTrigger,
 } from "@/components/ui-ai/plan"
 import {
 	Tool,
@@ -106,15 +105,11 @@ export default function AIWorkflowBlock() {
 									{/* Plan rendering */}
 									{msg.plan && (
 										<Plan defaultOpen className="mb-4">
-											<PlanHeader>
-												<div>
-													<PlanTitle>{msg.plan.title}</PlanTitle>
-													<PlanDescription>{msg.plan.description}</PlanDescription>
-												</div>
-												<PlanAction>
-													<PlanTrigger />
-												</PlanAction>
-											</PlanHeader>
+											<PlanHeader
+												leading={<PlanAvatar emoji="✌️" />}
+												title={<PlanTitle>{msg.plan.title}</PlanTitle>}
+												description={<PlanDescription>{msg.plan.description}</PlanDescription>}
+											/>
 											<PlanContent>
 												<div className="space-y-2">
 													{MOCK_PLAN_STEPS.steps.map((step) => (

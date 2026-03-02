@@ -192,7 +192,6 @@ export function ChatMessages({
 							return {
 								display: "flex",
 								justifyContent: message.role === "user" ? "flex-end" : "flex-start",
-								paddingLeft: message.role === "user" ? "24px" : "0",
 								marginTop:
 									message.role === "assistant" &&
 									messageIndex > 0 &&

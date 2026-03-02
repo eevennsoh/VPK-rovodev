@@ -6,10 +6,26 @@ interface ShouldSuppressQuestionCardMessageTextOptions {
 	messageText?: string;
 }
 
+interface SanitizeQuestionCardMessageTextOptions {
+	widgetPayload: unknown;
+	messageText?: string;
+}
+
 const TRANSLATION_CLARIFICATION_SESSION_PREFIX = "translation-clarification-";
 const TRANSLATION_CLARIFICATION_LEGACY_SESSION_ID = "translation-clarification";
 const TRANSLATION_SIGNAL_PATTERN =
 	/\b(translate|translation|target language|source language|text to translate|what text should i translate|which language should i translate)\b/i;
+const QUESTION_CARD_BOILERPLATE_PATTERNS = [
+	/^great idea[!.]?$/i,
+	/\blet me ask(?: you)?(?: a few| some)? questions?\b/i,
+	/\bi(?:'|’)?ve shared some questions\b/i,
+	/\b(?:these questions|they) cover\b/i,
+	/\bonce you answer(?: those| these)?\b/i,
+	/\bwhat are your preferences\??$/i,
+	/\bi(?:'|’)?d love to understand your vision\b/i,
+	/\bbefore (?:putting together|building|drafting) (?:a|the) plan\b/i,
+	/\bi(?:'|’)?ll put together (?:a|the) detailed implementation plan\b/i,
+];
 
 function getQuestionCardSessionId(payload: unknown): string | null {
 	if (!payload || typeof payload !== "object") {
@@ -96,6 +112,70 @@ function includesTranslationSignal(value: string): boolean {
 	return TRANSLATION_SIGNAL_PATTERN.test(value);
 }
 
+function toDedupeKey(value: string): string {
+	return value
+		.toLowerCase()
+		.replace(/\s+/g, " ")
+		.replace(/[^\p{L}\p{N}\s]/gu, "")
+		.trim();
+}
+
+function isQuestionCardBoilerplateSentence(value: string): boolean {
+	const normalized = value
+		.replace(/\s+/g, " ")
+		.replace(/:(?=[A-Z])/g, ": ")
+		.trim();
+	if (!normalized) {
+		return false;
+	}
+
+	return QUESTION_CARD_BOILERPLATE_PATTERNS.some((pattern) =>
+		pattern.test(normalized)
+	);
+}
+
+function sanitizeLineSentences(line: string): string {
+	const normalizedLine = line
+		.replace(/\s+/g, " ")
+		.replace(/:(?=[A-Z])/g, ": ")
+		.trim();
+	if (!normalizedLine) {
+		return "";
+	}
+
+	const fragments = normalizedLine.match(/[^.!?]+[.!?]?/g) ?? [normalizedLine];
+	const keptFragments = fragments
+		.map((fragment) => fragment.trim())
+		.filter((fragment) => fragment.length > 0)
+		.filter(
+			(fragment) => !isQuestionCardBoilerplateSentence(fragment)
+		);
+	if (keptFragments.length === 0) {
+		return "";
+	}
+
+	return keptFragments.join(" ").replace(/\s+([,.;!?])/g, "$1").trim();
+}
+
+function compactLines(lines: string[]): string[] {
+	const compacted: string[] = [];
+	for (const line of lines) {
+		if (line.length === 0 && compacted[compacted.length - 1]?.length === 0) {
+			continue;
+		}
+		compacted.push(line);
+	}
+
+	while (compacted[0]?.length === 0) {
+		compacted.shift();
+	}
+	while (compacted[compacted.length - 1]?.length === 0) {
+		compacted.pop();
+	}
+
+	return compacted;
+}
+
 export function isTranslationClarificationQuestionCard(
 	payload: unknown,
 	messageText?: string
@@ -124,6 +204,48 @@ export function isTranslationClarificationQuestionCard(
 	return collectTranslationSignalsFromPayload(payload).some(includesTranslationSignal);
 }
 
+export function sanitizeQuestionCardMessageText({
+	widgetPayload,
+	messageText,
+}: Readonly<SanitizeQuestionCardMessageTextOptions>): string {
+	const normalizedMessageText = getNonEmptyString(messageText);
+	if (!normalizedMessageText) {
+		return "";
+	}
+
+	if (isTranslationClarificationQuestionCard(widgetPayload, normalizedMessageText)) {
+		return normalizedMessageText;
+	}
+
+	const lines = normalizedMessageText.split(/\r?\n/);
+	const dedupeKeys = new Set<string>();
+	const sanitizedLines: string[] = [];
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+		if (!trimmedLine) {
+			sanitizedLines.push("");
+			continue;
+		}
+
+		const sanitizedLine = sanitizeLineSentences(trimmedLine);
+		if (!sanitizedLine) {
+			continue;
+		}
+
+		const dedupeKey = toDedupeKey(sanitizedLine);
+		if (!dedupeKey) {
+			continue;
+		}
+		if (dedupeKeys.has(dedupeKey)) {
+			continue;
+		}
+		dedupeKeys.add(dedupeKey);
+		sanitizedLines.push(sanitizedLine);
+	}
+
+	return compactLines(sanitizedLines).join("\n").trim();
+}
+
 export function shouldSuppressQuestionCardMessageText({
 	shouldShowWidgetSections,
 	widgetType,
@@ -135,5 +257,10 @@ export function shouldSuppressQuestionCardMessageText({
 		return false;
 	}
 
-	return !isTranslationClarificationQuestionCard(widgetPayload, messageText);
+	return (
+		sanitizeQuestionCardMessageText({
+			widgetPayload,
+			messageText,
+		}).length === 0
+	);
 }

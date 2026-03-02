@@ -342,6 +342,7 @@ export type ToolInputProps = ComponentProps<"div"> & {
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
   const inputPreview = toToolValuePreview(input);
+  if (!inputPreview.text) return null;
 
   return (
     <div className={cn("space-y-2 overflow-hidden", className)} {...props}>

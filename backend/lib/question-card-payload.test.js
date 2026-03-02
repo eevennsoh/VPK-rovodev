@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
 	sanitizeQuestionCardPayload,
 	buildQuestionCardPayloadFromRequestUserInput,
+	findRequestUserInputQuestionContainer,
 } = require("./question-card-payload");
 
 test("keeps generated options even when questions share identical option sets", () => {
@@ -236,4 +237,78 @@ test("request_user_input conversion supports 8 preset options for clarification 
 	assert.equal(payload.questions[0].options.length, 8);
 	assert.equal(payload.questions[0].options[0].label, "site-1.atlassian.net");
 	assert.equal(payload.questions[0].options[7].label, "site-8.atlassian.net");
+});
+
+// ── findRequestUserInputQuestionContainer tests ──
+
+test("findRequestUserInputQuestionContainer detects question JSON in a plain object", () => {
+	const result = findRequestUserInputQuestionContainer({
+		title: "Help me clarify",
+		questions: [
+			{ question: "Which site?", options: ["Site A", "Site B"] },
+		],
+	});
+
+	assert.ok(result);
+	assert.equal(result.questions.length, 1);
+});
+
+test("findRequestUserInputQuestionContainer detects question JSON in a stringified object", () => {
+	const jsonStr = JSON.stringify({
+		title: "Pick a scope",
+		questions: [
+			{ question: "Which team?", options: ["Team A"] },
+		],
+	});
+
+	const result = findRequestUserInputQuestionContainer(jsonStr);
+
+	assert.ok(result);
+	assert.equal(result.questions.length, 1);
+});
+
+test("findRequestUserInputQuestionContainer detects questions nested under tool input keys", () => {
+	const result = findRequestUserInputQuestionContainer({
+		input: {
+			payload: {
+				questions: [
+					{ question: "Which integration?", options: ["Slack", "Email"] },
+				],
+			},
+		},
+	});
+
+	assert.ok(result);
+	assert.equal(result.questions.length, 1);
+});
+
+test("findRequestUserInputQuestionContainer returns null for non-question content", () => {
+	assert.equal(findRequestUserInputQuestionContainer("echo hello"), null);
+	assert.equal(findRequestUserInputQuestionContainer({ command: "ls -la" }), null);
+	assert.equal(findRequestUserInputQuestionContainer(null), null);
+	assert.equal(findRequestUserInputQuestionContainer(undefined), null);
+	assert.equal(findRequestUserInputQuestionContainer(""), null);
+});
+
+test("findRequestUserInputQuestionContainer detects questions embedded in bash cat heredoc output", () => {
+	const bashOutput = `cat << 'EOF'\n${JSON.stringify({
+		questions: [
+			{ question: "Which deployment target?", options: ["Staging", "Production"] },
+		],
+	})}\nEOF`;
+
+	const result = findRequestUserInputQuestionContainer(bashOutput);
+
+	assert.ok(result);
+	assert.equal(result.questions.length, 1);
+});
+
+test("findRequestUserInputQuestionContainer accepts an array of questions directly", () => {
+	const result = findRequestUserInputQuestionContainer([
+		{ question: "Which site?", options: ["A", "B"] },
+		{ question: "Which team?", options: ["X", "Y"] },
+	]);
+
+	assert.ok(result);
+	assert.equal(result.questions.length, 2);
 });

@@ -47,7 +47,7 @@ function ToggleGroup({
 			className={cn(
 				"rounded-md group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] data-vertical:flex-col data-vertical:items-stretch",
 				spacing === 0 && [
-					"*:data-slot:rounded-none *:data-slot:px-2",
+					"*:data-slot:rounded-none *:data-slot:px-3",
 					orientation === "horizontal" &&
 						"[&>[data-slot]:first-child]:rounded-l-md! [&>[data-slot]:not(:has(~[data-slot]))]:rounded-r-md!",
 					orientation === "vertical" &&

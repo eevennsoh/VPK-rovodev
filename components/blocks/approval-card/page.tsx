@@ -220,9 +220,15 @@ export function ApprovalCard({ onSubmit, onDismiss, isSubmitting = false }: Read
 
 			{onSubmit ? (
 				<footer className="flex items-center justify-end border-t border-border px-4 py-3">
-					<Button type="button" variant="outline" disabled={isSubmitting || !isCustomSelected} onClick={handleSubmit}>
-						{isSubmitting ? "Submitting..." : "Submit"}
-					</Button>
+					{isCustomSelected ? (
+						<Button type="button" disabled={isSubmitting} onClick={handleSubmit}>
+							{isSubmitting ? "Submitting..." : "Submit"}
+						</Button>
+					) : (
+						<Button type="button" variant="outline" disabled={isSubmitting} onClick={handleDismiss}>
+							Skip
+						</Button>
+					)}
 				</footer>
 			) : null}
 		</div>

@@ -6,7 +6,7 @@ import { ChatMessages } from "@/components/templates/shared/components/chat-mess
 import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
 import type { GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
 import ChatEmptyState from "./chat-empty-state";
-import LoadingWidget from "./loading-widget";
+import LoadingWidget from "@/components/templates/shared/components/loading-widget";
 import type { PanelVariant } from "../types";
 
 interface RovoChatMessagesProps {

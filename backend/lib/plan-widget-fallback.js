@@ -395,6 +395,174 @@ function collectPlanTasks(lines, startIndex, maxTasks) {
 	return tasks;
 }
 
+function normalizeScopeLineCandidate(line) {
+	const listLabel = parseListItemLabel(line);
+	const baseLine = typeof listLabel === "string" ? listLabel : line;
+
+	return normalizeWhitespace(
+		stripMarkdownDecorators(
+			(baseLine || "")
+				.replace(/^#{1,6}\s*/, "")
+				.replace(/:$/, "")
+		)
+	);
+}
+
+function isScopeHeading(line) {
+	const normalized = normalizeScopeLineCandidate(line).toLowerCase();
+	if (!normalized) {
+		return false;
+	}
+
+	return /^scope(?:\s*&\s*boundaries)?$/.test(normalized);
+}
+
+function extractScopeInValue(line) {
+	const normalized = normalizeScopeLineCandidate(line);
+	if (!normalized) {
+		return null;
+	}
+
+	const inMatch = normalized.match(/^in(?:\s*scope)?\s*:\s*(.+)$/i);
+	if (!inMatch?.[1]) {
+		return null;
+	}
+
+	return normalizeWhitespace(inMatch[1]);
+}
+
+function splitScopeInItems(value, maxItems) {
+	if (typeof value !== "string") {
+		return [];
+	}
+
+	const parts = [];
+	let buffer = "";
+	let nestedDepth = 0;
+	for (const char of value) {
+		if (char === "(" || char === "[" || char === "{") {
+			nestedDepth += 1;
+			buffer += char;
+			continue;
+		}
+		if (char === ")" || char === "]" || char === "}") {
+			nestedDepth = Math.max(nestedDepth - 1, 0);
+			buffer += char;
+			continue;
+		}
+
+		if (char === "," && nestedDepth === 0) {
+			parts.push(buffer);
+			buffer = "";
+			continue;
+		}
+
+		buffer += char;
+	}
+	if (buffer.trim().length > 0) {
+		parts.push(buffer);
+	}
+
+	const seen = new Set();
+	const items = [];
+	for (const part of parts) {
+		const normalized = normalizeWhitespace(
+			part
+				.replace(/^[\-•*\s]+/, "")
+				.replace(/^(?:and|or)\s+/i, "")
+				.replace(/[.;:,]+$/, "")
+		);
+		if (!normalized) {
+			continue;
+		}
+
+		const dedupeKey = normalized.toLowerCase();
+		if (seen.has(dedupeKey)) {
+			continue;
+		}
+		seen.add(dedupeKey);
+
+		items.push(normalized);
+		if (items.length >= maxItems) {
+			break;
+		}
+	}
+
+	return items;
+}
+
+function collectScopeInTasks(lines, maxTasks) {
+	if (!Array.isArray(lines) || lines.length === 0) {
+		return null;
+	}
+
+	const scopeHeadingIndex = lines.findIndex((line) => isScopeHeading(line));
+	const searchStartIndex = scopeHeadingIndex === -1 ? 0 : scopeHeadingIndex + 1;
+
+	for (let index = searchStartIndex; index < lines.length; index += 1) {
+		const line = lines[index];
+		const trimmedLine = line.trim();
+		if (!trimmedLine) {
+			continue;
+		}
+		if (
+			scopeHeadingIndex !== -1 &&
+			index > searchStartIndex &&
+			isLikelySectionHeading(trimmedLine)
+		) {
+			break;
+		}
+
+		const inValue = extractScopeInValue(line);
+		if (!inValue) {
+			continue;
+		}
+
+		const taskLabels = splitScopeInItems(inValue, maxTasks);
+		if (taskLabels.length === 0) {
+			return null;
+		}
+
+		return {
+			listStartIndex: index,
+			tasks: taskLabels.map((label, taskIndex) => ({
+				id: `task-${taskIndex + 1}`,
+				label,
+				blockedBy: [],
+			})),
+		};
+	}
+
+	return null;
+}
+
+function extractScopeBasedPlanPayload(lines, { minTasks, maxTasks }) {
+	const scopeTaskCollection = collectScopeInTasks(lines, maxTasks);
+	if (!scopeTaskCollection) {
+		return null;
+	}
+
+	const tasks = inferTaskDependencies(scopeTaskCollection.tasks);
+	if (tasks.length < minTasks) {
+		return null;
+	}
+
+	const derivedTitle = deriveStructuredPlanTitle(
+		lines,
+		scopeTaskCollection.listStartIndex,
+		tasks
+	);
+	const title = isGenericPlanTitle(derivedTitle)
+		? derivePlanTitleFromTasks(tasks)
+		: derivedTitle;
+
+	return {
+		type: "plan",
+		title,
+		tasks,
+	};
+}
+
 function extractPlanWidgetPayloadFromText(rawText, options = {}) {
 	if (typeof rawText !== "string") {
 		return null;
@@ -419,7 +587,11 @@ function extractPlanWidgetPayloadFromText(rawText, options = {}) {
 		isActionItemsHeading(line)
 	);
 	if (actionItemsHeadingIndex === -1) {
-		return null;
+		if (!hasPlanSignal(normalizedText)) {
+			return null;
+		}
+
+		return extractScopeBasedPlanPayload(lines, { minTasks, maxTasks });
 	}
 
 	const tasks = inferTaskDependencies(
@@ -468,7 +640,11 @@ function extractProgressivePlanWidgetPayloadFromText(rawText, options = {}) {
 		isActionItemsHeading(line)
 	);
 	if (requireActionItemsHeading && actionItemsHeadingIndex === -1) {
-		return null;
+		if (requirePlanSignal && !hasPlanSignal(normalizedText)) {
+			return null;
+		}
+
+		return extractScopeBasedPlanPayload(lines, { minTasks, maxTasks });
 	}
 	if (actionItemsHeadingIndex === -1 && requirePlanSignal && !hasPlanSignal(normalizedText)) {
 		return null;

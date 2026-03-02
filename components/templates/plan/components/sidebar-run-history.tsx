@@ -68,7 +68,7 @@ export default function SidebarRunHistory({
 		<div className="flex w-full flex-col px-2 pt-3 pb-2">
 			<div className="px-2.5 pb-2">
 				<span style={{ font: token("font.heading.xxsmall") }} className="text-text-subtlest">
-					Runs
+					Make
 				</span>
 			</div>
 			<div className="flex flex-col gap-3 px-0.5">

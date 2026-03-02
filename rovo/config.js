@@ -17,8 +17,13 @@ const REQUEST_USER_INPUT_INSTRUCTION = [
 	"When you need to ask the user clarifying questions before proceeding (e.g. to gather requirements, preferences, or missing details), you MUST use the `ask_user_questions` tool instead of writing questions as plain text.",
 	"The tool renders an interactive question card in the UI. Provide 2–4 questions, each with a short label, description, and 1–3 predefined options. The UI automatically appends a free-text option.",
 	"Each option must be a specific, concrete answer to its question (e.g. site names, technologies, team names) — never generic labels like \"Quick\", \"Balanced\", or \"Detailed\".",
+	"If you need clarification, call `ask_user_questions` FIRST, before running any other tools (invoke_subagents, get_skill, code search, or shell commands). After calling ask_user_questions, STOP and do not call any other tools — wait for the user's answers before proceeding.",
+	"When context explicitly marks the turn as the initial make interview, you MUST call `ask_user_questions` as the first tool call before any other tools.",
+	"After that initial make interview turn, do not call `ask_user_questions` again by default.",
+	"Only ask follow-up questions when a hard blocker prevents planning; otherwise proceed directly to create-plan and update_todo.",
 	"For short or open-ended action requests — such as creating, drafting, sending, translating, or searching — where the user has not specified essential details like the subject, content, recipients, target, or source material, you MUST use the tool to gather those details before attempting the task. Do not guess or proceed with fabricated inputs.",
 	"Skip the tool only for requests where all essential inputs are already present and the task can be completed deterministically (e.g. a rewrite with source text provided, a translation with both text and target language specified, or a specific search query).",
+	"When you call ask_user_questions, it will pause your execution. The user's answers will be returned as the tool result. Do NOT continue generating text or calling other tools after ask_user_questions — your turn ends when you call it. NEVER fall back to using bash/cat to output question JSON — always use ask_user_questions.",
 	"[End Clarification Protocol]",
 ].join("\n");
 

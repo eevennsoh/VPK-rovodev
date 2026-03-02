@@ -27,6 +27,12 @@ function Switch({
 	"aria-label": ariaLabel,
 	...props
 }: Readonly<SwitchProps>) {
+	const controlledProps =
+		checked !== undefined
+			? { checked, onCheckedChange }
+			: onCheckedChange
+				? { onCheckedChange }
+				: {};
 
 	return (
 		<SwitchPrimitive.Root
@@ -38,21 +44,20 @@ function Switch({
 			)}
 			{...props}
 			aria-label={label ?? ariaLabel}
-			checked={checked}
 			disabled={disabled}
-			onCheckedChange={onCheckedChange}
+			{...controlledProps}
 		>
 			<Icon
 				aria-hidden="true"
 				render={<CrossIcon label="" size="small" color="currentColor" />}
 				label="Off"
-				className="pointer-events-none absolute top-1/2 right-[3px] -translate-y-1/2 text-icon-inverse transition-opacity duration-200 ease-out group-data-[size=sm]/switch:right-0.5 group-data-unchecked/switch:opacity-100 group-data-checked/switch:opacity-0 group-data-disabled/switch:text-icon-disabled group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=lg]/switch:size-5"
+				className="pointer-events-none absolute top-1/2 right-[3px] -translate-y-1/2 text-icon-inverse transition-opacity duration-200 ease-out [&_svg]:size-full group-data-[size=sm]/switch:right-0.5 group-data-[size=sm]/switch:scale-75 group-data-unchecked/switch:opacity-100 group-data-checked/switch:opacity-0 group-data-disabled/switch:text-icon-disabled group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=lg]/switch:size-5"
 			/>
 			<Icon
 				aria-hidden="true"
 				render={<CheckMarkIcon label="" size="small" color="currentColor" />}
 				label="On"
-				className="pointer-events-none absolute top-1/2 left-[3px] -translate-y-1/2 text-icon-inverse transition-opacity duration-200 ease-out group-data-[size=sm]/switch:left-0.5 group-data-checked/switch:opacity-100 group-data-unchecked/switch:opacity-0 group-data-disabled/switch:text-icon-disabled group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=lg]/switch:size-5"
+				className="pointer-events-none absolute top-1/2 left-[3px] -translate-y-1/2 text-icon-inverse transition-opacity duration-200 ease-out [&_svg]:size-full group-data-[size=sm]/switch:scale-75 group-data-checked/switch:opacity-100 group-data-unchecked/switch:opacity-0 group-data-disabled/switch:text-icon-disabled group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=lg]/switch:size-5"
 			/>
 			<SwitchPrimitive.Thumb
 				data-slot="switch-thumb"

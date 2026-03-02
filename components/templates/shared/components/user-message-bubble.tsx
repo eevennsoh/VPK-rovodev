@@ -12,7 +12,7 @@ export function UserMessageBubble({
 	onDelete,
 }: Readonly<UserMessageBubbleProps>): React.ReactElement {
 	return (
-		<div className="group/user-msg relative">
+		<div className="group/user-msg relative w-full">
 			{onDelete ? (
 				<span className="absolute -left-8 top-1/2 hidden -translate-y-1/2 group-hover/user-msg:block">
 					<Button

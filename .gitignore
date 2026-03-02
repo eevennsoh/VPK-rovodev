@@ -92,6 +92,9 @@ tasks/
 !app/api/plan/runs/*/tasks/route.ts
 /backend/data/
 
+# Output artifacts (screenshots, videos, playwright captures)
+/output/
+
 # IDE settings
 .idea/
 .vscode/settings.json

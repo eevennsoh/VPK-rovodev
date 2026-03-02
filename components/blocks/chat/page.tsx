@@ -156,7 +156,7 @@ export default function ChatPanel({ onClose }: Readonly<ChatPanelProps>): React.
 	};
 
 	return (
-		<div style={chatStyles.chatPanel}>
+		<div style={{ ...chatStyles.chatPanel, maxWidth: "400px", maxHeight: "800px" }}>
 			<ChatHeader onClose={onClose} />
 
 			<div ref={scrollRef} style={chatStyles.scrollContainer}>

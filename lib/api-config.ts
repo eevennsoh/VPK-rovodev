@@ -37,7 +37,7 @@ export const API_ENDPOINTS = {
 	PLAN_AGENTS: `${API_BASE_URL}/api/plan/agents`,
 	PLAN_TOOLS: `${API_BASE_URL}/api/plan/tools`,
 	PLAN_CONFIG_SUMMARY: `${API_BASE_URL}/api/plan/config-summary`,
-	PLAN_THREADS: `${API_BASE_URL}/api/plan/threads`,
+	CHAT_THREADS: `${API_BASE_URL}/api/chat/threads`,
 	planRuns: (limit?: number) =>
 		`${API_BASE_URL}/api/plan/runs${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
@@ -66,50 +66,39 @@ export const API_ENDPOINTS = {
 		`${API_BASE_URL}/api/plan/skills/${encodeURIComponent(name)}/raw`,
 	planAgentRaw: (name: string) =>
 		`${API_BASE_URL}/api/plan/agents/${encodeURIComponent(name)}/raw`,
-	planThreads: (limit?: number) =>
-		`${API_BASE_URL}/api/plan/threads${
+	chatThreads: (limit?: number) =>
+		`${API_BASE_URL}/api/chat/threads${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
 		}`,
-	planThread: (threadId: string) =>
-		`${API_BASE_URL}/api/plan/threads/${encodeURIComponent(threadId)}`,
-	MAKER_RUNS: `${API_BASE_URL}/api/maker/runs`,
-	MAKER_SKILLS: `${API_BASE_URL}/api/maker/skills`,
-	MAKER_AGENTS: `${API_BASE_URL}/api/maker/agents`,
-	MAKER_TOOLS: `${API_BASE_URL}/api/maker/tools`,
-	MAKER_CONFIG_SUMMARY: `${API_BASE_URL}/api/maker/config-summary`,
-	MAKER_THREADS: `${API_BASE_URL}/api/maker/threads`,
-	makerRuns: (limit?: number) =>
-		`${API_BASE_URL}/api/maker/runs${
+	chatThread: (threadId: string) =>
+		`${API_BASE_URL}/api/chat/threads/${encodeURIComponent(threadId)}`,
+	MAKE_RUNS: `${API_BASE_URL}/api/make/runs`,
+	MAKE_SKILLS: `${API_BASE_URL}/api/make/skills`,
+	MAKE_AGENTS: `${API_BASE_URL}/api/make/agents`,
+	MAKE_TOOLS: `${API_BASE_URL}/api/make/tools`,
+	MAKE_CONFIG_SUMMARY: `${API_BASE_URL}/api/make/config-summary`,
+	makeRuns: (limit?: number) =>
+		`${API_BASE_URL}/api/make/runs${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
 		}`,
-	makerRun: (runId: string) =>
-		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}`,
-	makerRunStream: (runId: string) =>
-		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/stream`,
-	makerRunDirectives: (runId: string) =>
-		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/directives`,
-	makerRunSummary: (runId: string) =>
-		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/summary`,
-	makerRunVisualSummary: (runId: string) =>
-		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/visual-summary`,
-	makerRunTasks: (runId: string) =>
-		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/tasks`,
-	makerRunFiles: (runId: string) =>
-		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/files`,
-	makerRunShare: (runId: string) =>
-		`${API_BASE_URL}/api/maker/runs/${encodeURIComponent(runId)}/share`,
-	makerSkill: (name: string) =>
-		`${API_BASE_URL}/api/maker/skills/${encodeURIComponent(name)}`,
-	makerAgent: (name: string) =>
-		`${API_BASE_URL}/api/maker/agents/${encodeURIComponent(name)}`,
-	makerSkillRaw: (name: string) =>
-		`${API_BASE_URL}/api/maker/skills/${encodeURIComponent(name)}/raw`,
-	makerAgentRaw: (name: string) =>
-		`${API_BASE_URL}/api/maker/agents/${encodeURIComponent(name)}/raw`,
-	makerThreads: (limit?: number) =>
-		`${API_BASE_URL}/api/maker/threads${
-			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
-		}`,
-	makerThread: (threadId: string) =>
-		`${API_BASE_URL}/api/maker/threads/${encodeURIComponent(threadId)}`,
+	makeRun: (runId: string) =>
+		`${API_BASE_URL}/api/make/runs/${encodeURIComponent(runId)}`,
+	makeRunStream: (runId: string) =>
+		`${API_BASE_URL}/api/make/runs/${encodeURIComponent(runId)}/stream`,
+	makeRunDirectives: (runId: string) =>
+		`${API_BASE_URL}/api/make/runs/${encodeURIComponent(runId)}/directives`,
+	makeRunSummary: (runId: string) =>
+		`${API_BASE_URL}/api/make/runs/${encodeURIComponent(runId)}/summary`,
+	makeRunTasks: (runId: string) =>
+		`${API_BASE_URL}/api/make/runs/${encodeURIComponent(runId)}/tasks`,
+	makeRunShare: (runId: string) =>
+		`${API_BASE_URL}/api/make/runs/${encodeURIComponent(runId)}/share`,
+	makeSkill: (name: string) =>
+		`${API_BASE_URL}/api/make/skills/${encodeURIComponent(name)}`,
+	makeAgent: (name: string) =>
+		`${API_BASE_URL}/api/make/agents/${encodeURIComponent(name)}`,
+	makeSkillRaw: (name: string) =>
+		`${API_BASE_URL}/api/make/skills/${encodeURIComponent(name)}/raw`,
+	makeAgentRaw: (name: string) =>
+		`${API_BASE_URL}/api/make/agents/${encodeURIComponent(name)}/raw`,
 };

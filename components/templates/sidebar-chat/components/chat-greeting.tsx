@@ -51,17 +51,17 @@ function SkillListItem({
 					) : null
 				}
 			/>
-			<span className="text-sm text-text-subtle">{suggestion.label}</span>
+			<span className="text-left text-sm text-text-subtle">{suggestion.label}</span>
 		</button>
 	);
 }
 
 export default function ChatGreeting({
-	heading = "Let's do this together",
+	heading = "How can I help?",
 	onSuggestionClick,
 }: Readonly<ChatGreetingProps>) {
 	return (
-		<div className="w-full">
+		<div className="w-full max-w-80">
 			<div className="flex flex-col gap-6">
 				<div className="flex flex-col items-center gap-2">
 					<Image

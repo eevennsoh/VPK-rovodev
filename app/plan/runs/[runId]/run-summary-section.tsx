@@ -13,6 +13,7 @@ import {
 	AudioPlayerTimeDisplay,
 	AudioPlayerTimeRange,
 } from "@/components/ui-ai/audio-player";
+import { MessageResponse } from "@/components/ui-ai/message";
 import { Spinner } from "@/components/ui/spinner";
 import type {
 	AgentRun,
@@ -372,7 +373,9 @@ export function RunSummarySection({
 						</p>
 						<div className="mt-3 rounded-lg bg-surface-sunken p-4">
 							{summary ? (
-								<pre className="whitespace-pre-wrap text-sm text-text">{summary.content}</pre>
+								<MessageResponse className="text-sm leading-6 text-text">
+									{summary.content}
+								</MessageResponse>
 							) : (
 								<div aria-live="polite" className="flex flex-col gap-3">
 									<p className="text-sm text-text">

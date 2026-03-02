@@ -82,7 +82,7 @@ export default function PlanComposer({
 		onPromptChange(trimmedPrompt ? `${trimmedPrompt} ${trimmedTranscription}` : trimmedTranscription);
 	};
 
-	const creationModeLabel = creationMode === "skill" ? "skill-development" : creationMode === "agent" ? "agent-development" : null;
+	const creationModeLabel = creationMode === "skill" ? "Create skill" : creationMode === "agent" ? "Create agent" : null;
 	const creationModeIcon = creationMode === "skill"
 		? <SkillIcon label="" size="small" />
 		: <AgentIcon label="" size="small" />;

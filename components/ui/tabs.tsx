@@ -35,7 +35,7 @@ const tabsListVariants = cva(
 		variants: {
 			variant: {
 				default: "rounded-lg p-[3px] bg-muted",
-				line: "gap-1 bg-transparent",
+				line: "gap-0 bg-transparent border-b border-border",
 			},
 		},
 		defaultVariants: {
@@ -70,13 +70,13 @@ function TabsTrigger({ className, ...props }: Readonly<TabsTriggerProps>) {
 		<TabsPrimitive.Tab
 			data-slot="tabs-trigger"
 			className={cn(
-				"gap-1.5 rounded-md border border-transparent px-3 py-0.5 text-sm font-medium [&_svg:not([class*='size-'])]:size-4 focus-visible:border-ring focus-visible:ring-ring/50 text-text-subtle relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start group-data-[variant=line]/tabs-list:h-full group-data-[variant=line]/tabs-list:rounded-none focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-(--opacity-disabled) aria-disabled:pointer-events-none aria-disabled:opacity-(--opacity-disabled) [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				"gap-1.5 rounded-md border border-transparent px-3 py-0.5 text-sm font-medium [&_svg:not([class*='size-'])]:size-4 focus-visible:border-ring focus-visible:ring-ring/50 text-text-subtle relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start group-data-[variant=line]/tabs-list:h-full group-data-[variant=line]/tabs-list:rounded-none group-data-[variant=line]/tabs-list:border-0 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-(--opacity-disabled) aria-disabled:pointer-events-none aria-disabled:opacity-(--opacity-disabled) [&_svg]:pointer-events-none [&_svg]:shrink-0",
 				// Default (pill) variant states
 				"group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=default]/tabs-list:hover:bg-bg-neutral-subtle-hovered group-data-[variant=default]/tabs-list:active:bg-bg-neutral-subtle-pressed group-data-[variant=default]/tabs-list:data-active:bg-surface group-data-[variant=default]/tabs-list:data-active:text-text",
 				// Line variant states — selected uses blue text (ADS text.selected)
 				"group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:hover:bg-bg-neutral-subtle-hovered group-data-[variant=line]/tabs-list:hover:rounded-[6px] group-data-[variant=line]/tabs-list:active:bg-bg-neutral-subtle-pressed group-data-[variant=line]/tabs-list:active:rounded-[6px] group-data-[variant=line]/tabs-list:data-active:bg-transparent group-data-[variant=line]/tabs-list:data-active:text-text-selected",
 				// Selected indicator (underline for line variant)
-				"after:content-[''] after:pointer-events-none after:bg-border-selected after:absolute after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-0 group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:right-0 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
+				"after:content-[''] after:pointer-events-none after:bg-border-selected after:absolute after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:right-0 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
 				className
 			)}
 			{...props}

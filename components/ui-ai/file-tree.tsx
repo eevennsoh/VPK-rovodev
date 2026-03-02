@@ -83,13 +83,13 @@ export function FileTree({
     <FileTreeContext value={contextValue}>
       <div
         className={cn(
-          "rounded-lg border bg-background font-mono text-sm",
+          "rounded-lg bg-background font-mono text-sm",
           className
         )}
         role="tree"
         {...props}
       >
-        <div className="p-2">{children}</div>
+        <div>{children}</div>
       </div>
     </FileTreeContext>
   );

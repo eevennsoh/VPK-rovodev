@@ -12,7 +12,6 @@ import {
 	SidebarHeader,
 	useSidebar,
 } from "@/components/ui/sidebar";
-import { ThemeToggle } from "@/components/utils/theme-wrapper";
 import { token } from "@/lib/tokens";
 import CrossIcon from "@atlaskit/icon/core/cross";
 import SearchIcon from "@atlaskit/icon/core/search";
@@ -67,6 +66,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	onExportAgent: (name: string) => void;
 	onImportSkill: () => void;
 	onImportAgent: () => void;
+	onNewChat: () => void;
 	onCreatePlan: () => void;
 }
 
@@ -95,6 +95,7 @@ export function AppSidebar({
 	onExportAgent,
 	onImportSkill,
 	onImportAgent,
+	onNewChat,
 	onCreatePlan,
 	...props
 }: Readonly<AppSidebarProps>) {
@@ -156,27 +157,24 @@ export function AppSidebar({
 							</span>
 						</Link>
 					</div>
-					<div className="flex items-center text-icon-subtle">
-						<ThemeToggle />
-						<div
-							className={cn(
-								"w-9 overflow-hidden transition-all duration-[var(--duration-normal)] ease-out",
-								(isOverlay || isHoverReveal) && "w-0 opacity-0",
-							)}
+					<div
+						className={cn(
+							"w-9 overflow-hidden text-icon-subtle transition-all duration-[var(--duration-normal)] ease-out",
+							(isOverlay || isHoverReveal) && "w-0 opacity-0",
+						)}
+					>
+						<Button
+							aria-label="Collapse sidebar"
+							size="icon"
+							variant="ghost"
+							onClick={toggleSidebar}
 						>
-							<Button
-								aria-label="Collapse sidebar"
-								size="icon"
-								variant="ghost"
-								onClick={toggleSidebar}
-							>
-								<SidebarCollapseIcon label="" />
-							</Button>
-						</div>
+							<SidebarCollapseIcon label="" />
+						</Button>
 					</div>
 				</div>
 			</SidebarHeader>
-			<SidebarContent className="bg-bg-neutral-subtle pb-[7.5rem]">
+			<SidebarContent className="bg-bg-neutral-subtle">
 				{hasAnyHistory ? (
 					<div className="flex flex-col">
 						<div className="p-3">
@@ -205,16 +203,23 @@ export function AppSidebar({
 									</InputGroupAddon>
 								)}
 							</InputGroup>
+							<div className="mt-3 grid grid-cols-2 gap-2">
+								<button
+									type="button"
+									onClick={onNewChat}
+									className="flex cursor-pointer items-center justify-center rounded-full border border-dashed border-border bg-bg-neutral-subtle px-3 py-1.5 text-sm font-medium text-text-subtle transition-colors hover:bg-surface-hovered"
+								>
+									Chat
+								</button>
+								<button
+									type="button"
+									onClick={onCreatePlan}
+									className="flex cursor-pointer items-center justify-center rounded-full border border-dashed border-border bg-bg-neutral-subtle px-3 py-1.5 text-sm font-medium text-text-subtle transition-colors hover:bg-surface-hovered"
+								>
+									Make
+								</button>
+							</div>
 						</div>
-						{hasRunHistory ? (
-							<SidebarRunHistory
-								items={filteredRunHistory}
-								activeRunId={activeRunId}
-								onSelectRun={onSelectRun}
-								onDeleteRun={onDeleteRun}
-								onRetryRunGroup={onRetryRunGroup}
-							/>
-						) : null}
 						{hasChatHistory ? (
 							<SidebarChatHistory
 								items={filteredChatHistory}
@@ -224,6 +229,15 @@ export function AppSidebar({
 								sectionLabel="Chats"
 								onSelectChat={onSelectChat}
 								onDeleteChat={onDeleteChat}
+							/>
+						) : null}
+						{hasRunHistory ? (
+							<SidebarRunHistory
+								items={filteredRunHistory}
+								activeRunId={activeRunId}
+								onSelectRun={onSelectRun}
+								onDeleteRun={onDeleteRun}
+								onRetryRunGroup={onRetryRunGroup}
 							/>
 						) : null}
 						{showNoResults ? (
@@ -268,11 +282,11 @@ export function AppSidebar({
 					</div>
 				) : (
 					<div className="flex flex-1 items-center justify-center px-3">
-						<SidebarEmptyState onCreateOne={onCreatePlan} />
+						<SidebarEmptyState onNewChat={onNewChat} onNewPlan={onCreatePlan} />
 					</div>
 				)}
 			</SidebarContent>
-			<SidebarFooterSlot className="absolute bottom-0 left-0 right-0 z-10 bg-surface p-0">
+			<SidebarFooterSlot className="max-h-[50%] overflow-y-auto bg-surface p-0">
 				<SidebarFooter
 					skills={skills}
 					agents={agents}

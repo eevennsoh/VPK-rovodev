@@ -71,7 +71,7 @@ export default function PlanInitialView() {
 				galleryExpanded ? "justify-start pt-16" : "justify-center",
 			)}
 		>
-			<div className="flex w-full max-w-[800px] flex-col items-center gap-2">
+			<div className="flex w-full flex-col items-center gap-2">
 				<div className="flex flex-col items-center gap-6 px-4 py-6">
 					<Image
 						src={illustrationSrc}

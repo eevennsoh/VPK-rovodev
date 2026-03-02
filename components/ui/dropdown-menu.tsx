@@ -9,6 +9,21 @@ import ChevronRightIcon from "@atlaskit/icon/core/chevron-right"
 import { Icon } from "@/components/ui/icon"
 import { cn } from "@/lib/utils"
 
+/**
+ * Shared visual style tokens used by both DropdownMenu and Select components.
+ * Select imports these directly so popup, item, group, label, and separator
+ * styling stays in sync without duplication.
+ */
+export const dropdownStyles = {
+	popup: "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2 bg-popover text-popover-foreground z-50 max-h-(--available-height) min-w-56 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg shadow-xl outline-none duration-100 data-closed:overflow-hidden",
+	group: "p-1",
+	selectableItem: "data-[highlighted]:bg-bg-neutral-subtle-hovered data-[highlighted]:text-text data-disabled:pointer-events-none data-disabled:text-text-disabled relative flex w-full cursor-default items-center rounded-sm py-2 pr-3 pl-8 text-[13px] leading-5 outline-none select-none active:bg-bg-neutral-subtle-pressed [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+	checkedState: "data-checked:bg-bg-selected data-checked:data-[highlighted]:bg-bg-selected-hovered data-checked:active:bg-bg-selected-pressed",
+	label: "text-text-subtle px-3 py-2 text-xs leading-4 font-medium",
+	separator: "bg-border mx-1 my-1 h-px",
+	indicator: "pointer-events-none absolute left-2 inline-flex items-center justify-center",
+} as const
+
 type DropdownMenuProps = MenuPrimitive.Root.Props
 
 function DropdownMenu({ ...props }: Readonly<DropdownMenuProps>) {
@@ -72,7 +87,7 @@ function DropdownMenuContent({
 			<MenuPrimitive.Popup
 				data-slot="dropdown-menu-content"
 				className={cn(
-					"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2 bg-popover text-popover-foreground z-50 max-h-(--available-height) min-w-56 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg shadow-xl outline-none duration-100 data-closed:overflow-hidden",
+					dropdownStyles.popup,
 					className
 				)}
 				{...props}
@@ -110,7 +125,7 @@ function DropdownMenuGroup({
 	return (
 		<MenuPrimitive.Group
 			data-slot="dropdown-menu-group"
-			className={cn("p-1", className)}
+			className={cn(dropdownStyles.group, className)}
 			{...props}
 		/>
 	)
@@ -130,7 +145,8 @@ function DropdownMenuLabel({
 			data-slot="dropdown-menu-label"
 			data-inset={inset}
 			className={cn(
-				"text-text-subtle px-3 py-2 text-xs leading-4 font-medium data-inset:pl-8",
+				dropdownStyles.label,
+				"data-inset:pl-8",
 				className
 			)}
 			{...props}
@@ -266,14 +282,16 @@ function DropdownMenuCheckboxItem({
 			data-slot="dropdown-menu-checkbox-item"
 			data-inset={inset}
 			className={cn(
-				"data-[highlighted]:bg-bg-neutral-subtle-hovered data-[highlighted]:text-text data-checked:bg-bg-selected data-checked:data-[highlighted]:bg-bg-selected-hovered data-checked:active:bg-bg-selected-pressed data-disabled:pointer-events-none data-disabled:text-text-disabled relative flex w-full cursor-default items-center rounded-sm py-2 pr-3 pl-8 text-[13px] leading-5 outline-none select-none active:bg-bg-neutral-subtle-pressed data-inset:pl-8 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				dropdownStyles.selectableItem,
+				dropdownStyles.checkedState,
+				"data-inset:pl-8",
 				className
 			)}
 			checked={checked}
 			{...props}
 		>
 			<span
-				className="pointer-events-none absolute left-2 inline-flex items-center justify-center"
+				className={dropdownStyles.indicator}
 				data-slot="dropdown-menu-checkbox-item-indicator"
 			>
 				<MenuPrimitive.CheckboxItemIndicator>
@@ -317,13 +335,15 @@ function DropdownMenuRadioItem({
 			data-slot="dropdown-menu-radio-item"
 			data-inset={inset}
 			className={cn(
-				"data-[highlighted]:bg-bg-neutral-subtle-hovered data-[highlighted]:text-text data-checked:bg-bg-selected data-checked:data-[highlighted]:bg-bg-selected-hovered data-checked:active:bg-bg-selected-pressed data-disabled:pointer-events-none data-disabled:text-text-disabled relative flex w-full cursor-default items-center rounded-sm py-2 pr-3 pl-8 text-[13px] leading-5 outline-none select-none active:bg-bg-neutral-subtle-pressed data-inset:pl-8 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				dropdownStyles.selectableItem,
+				dropdownStyles.checkedState,
+				"data-inset:pl-8",
 				className
 			)}
 			{...props}
 		>
 			<span
-				className="pointer-events-none absolute left-2 inline-flex items-center justify-center"
+				className={dropdownStyles.indicator}
 				data-slot="dropdown-menu-radio-item-indicator"
 			>
 				<MenuPrimitive.RadioItemIndicator>
@@ -348,7 +368,7 @@ function DropdownMenuSeparator({
 	return (
 		<MenuPrimitive.Separator
 			data-slot="dropdown-menu-separator"
-			className={cn("bg-border mx-1 my-1 h-px", className)}
+			className={cn(dropdownStyles.separator, className)}
 			{...props}
 		/>
 	)

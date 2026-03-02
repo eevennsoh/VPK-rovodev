@@ -1,7 +1,6 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { ThemeToggle } from "@/components/utils/theme-wrapper";
 
 export interface WebsiteHeaderProps {
 	/** Package name to display */
@@ -36,7 +35,6 @@ export function WebsiteHeader({
 						v{version}
 					</span>
 				</div>
-				<ThemeToggle />
 			</div>
 		</header>
 	);

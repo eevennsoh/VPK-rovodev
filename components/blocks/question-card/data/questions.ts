@@ -7,6 +7,7 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "participation-model",
 		label: "How should teams participate?",
+		description: "Select the participation model that best fits your organization's culture and workflow.",
 		kind: "single-select",
 		options: [
 			{
@@ -29,6 +30,7 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "communication-plan",
 		label: "How should rollout communication happen?",
+		description: "Choose the channels and rituals that will make the launch clear, consistent, and easy to adopt.",
 		kind: "multi-select",
 		options: [
 			{
@@ -51,6 +53,7 @@ export const QUESTION_CARD_DEMO_QUESTIONS: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "success-metric",
 		label: "Which success signal should we prioritize first?",
+		description: "Pick the primary metric we should use to evaluate whether Flexible Fridays are working.",
 		kind: "single-select",
 		options: [
 			{
@@ -76,6 +79,7 @@ export const QUESTION_CARD_SINGLE_SELECT_DEMO: ReadonlyArray<QuestionCardDemoQue
 	{
 		id: "deployment-strategy",
 		label: "Which deployment strategy should we use?",
+		description: "Select the release approach that best balances rollout safety, speed, and operational complexity.",
 		kind: "single-select",
 		options: [
 			{
@@ -101,6 +105,7 @@ export const QUESTION_CARD_TEXT_ONLY_DEMO: ReadonlyArray<QuestionCardDemoQuestio
 	{
 		id: "custom-instructions",
 		label: "What would you like Rovo to do?",
+		description: "Describe your goal in plain language so Rovo can tailor the plan and output to your intent.",
 		kind: "text",
 		options: [],
 	},
@@ -110,6 +115,7 @@ export const QUESTION_CARD_MULTI_SELECT_DEMO: ReadonlyArray<QuestionCardDemoQues
 	{
 		id: "notification-channels",
 		label: "Which notification channels should we enable?",
+		description: "Select every channel where users should receive timely updates from the product.",
 		kind: "multi-select",
 		options: [
 			{

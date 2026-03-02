@@ -15,11 +15,10 @@ const cors = require("cors");
 const path = require("path");
 const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
 const { createRunManager } = require("./lib/plan-runs");
-const { createRunManager: createMakerRunManager } = require("./lib/maker-runs");
-const { createThreadManager } = require("./lib/plan-threads");
-const { createThreadManager: createMakerThreadManager } = require("./lib/maker-threads");
+const { createRunManager: createMakeRunManager } = require("./make/make-runs");
+const { createThreadManager } = require("./lib/chat");
 const planFs = require("./lib/plan-filesystem");
-const makerFs = require("./lib/maker-filesystem");
+const makeFs = require("./make/make-filesystem");
 const { genuiChatHandler, generateGenuiFromRovodevResponse } = require("./lib/genui-chat-handler");
 const {
 	streamViaRovoDev,
@@ -134,6 +133,9 @@ const {
 	extractProgressivePlanWidgetPayloadFromText,
 	extractPlanWidgetPayloadFromStructuredText,
 } = require("./lib/plan-widget-fallback");
+const {
+	extractUpdateTodoPlanPayloadFromObservations,
+} = require("./lib/update-todo-plan-payload");
 const { detectPlanningIntent } = require("./lib/planning-intent");
 const {
 	shouldGatePlanningQuestionCard,
@@ -150,6 +152,7 @@ const {
 const {
 	sanitizeQuestionCardPayload,
 	buildQuestionCardPayloadFromRequestUserInput,
+	findRequestUserInputQuestionContainer,
 } = require("./lib/question-card-payload");
 const {
 	shouldGateToolFirstQuestionCard,
@@ -391,6 +394,11 @@ const CLARIFICATION_WIDGET_TYPE = "question-card";
 const CLARIFICATION_MAX_ROUNDS = 3;
 const CLARIFICATION_MAX_PRESET_OPTIONS = 8;
 const CLARIFICATION_CUSTOM_OPTION_PLACEHOLDER = "Tell Rovo what to do...";
+// Tool-only question-card routing: do not auto-convert plain assistant text
+// into question cards unless explicitly re-enabled for legacy behavior.
+const QUESTION_CARD_TEXT_EXTRACTION_FALLBACK_ENABLED = isTruthyFlag(
+	process.env.ENABLE_LEGACY_TEXT_QUESTION_CARD_FALLBACK
+);
 const PLANNING_GATE_SKIP_SOURCES = new Set([
 	"clarification-submit",
 	"plan-approval-submit",
@@ -1179,25 +1187,19 @@ const planRunManager = createRunManager({
 	isAIGatewayFallbackEnabled: () => false,
 });
 
-const planThreadManager = createThreadManager({
+const chatThreadManager = createThreadManager({
 	baseDir: path.join(__dirname, "data"),
 	logger: console,
 });
 
-const makerConfigManager = makerFs.createConfigManagerCompat();
-
-const makerRunManager = createMakerRunManager({
-	baseDir: path.join(__dirname, "data", "maker"),
+const makeConfigManager = makeFs.createConfigManagerCompat();
+const makeRunManager = createMakeRunManager({
+	baseDir: path.join(__dirname, "data", "make"),
 	buildSystemPrompt: null, // Not used in RovoDev-only mode
-	configManager: makerConfigManager,
+	configManager: makeConfigManager,
 	logger: console,
 	isRovoDevAvailable,
 	isAIGatewayFallbackEnabled: () => false,
-});
-
-const makerThreadManager = createMakerThreadManager({
-	baseDir: path.join(__dirname, "data", "maker"),
-	logger: console,
 });
 
 const orchestratorLog = createOrchestratorLog({
@@ -1848,6 +1850,15 @@ function isRequestUserInputTool(toolName) {
 	);
 }
 
+function isBashQuestionCardWorkaround(toolName, toolInput) {
+	if (!toolName || toolName.toLowerCase() !== "bash") return false;
+	const inputStr = typeof toolInput === "string"
+		? toolInput
+		: JSON.stringify(toolInput);
+	if (!inputStr) return false;
+	return findRequestUserInputQuestionContainer(inputStr) !== null;
+}
+
 function normalizeClarificationAnswerValue(value) {
 	if (typeof value === "string") {
 		const normalizedValue = value.trim();
@@ -2021,6 +2032,11 @@ function parsePlanWidgetPayload(value) {
 			"Plan",
 		tasks,
 	};
+}
+
+function getPlanWidgetTaskCount(value) {
+	const parsedPayload = parsePlanWidgetPayload(value);
+	return parsedPayload ? parsedPayload.tasks.length : 0;
 }
 
 function sanitizeMermaidNodeId(value) {
@@ -2703,6 +2719,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 			model: rawModel,
 			clarification: rawClarification,
 			approval: rawApproval,
+			deferredToolResponse: rawDeferredToolResponse,
 			planMode: rawPlanMode,
 			planModeSource: rawPlanModeSource,
 			planRequestId,
@@ -2762,17 +2779,17 @@ app.post("/api/chat-sdk", async (req, res) => {
 			);
 		}
 
-		// If creationMode is set, load the skill content and prepend to contextDescription
+		// If creationMode is set, prepend generic creation guidance to contextDescription.
 		let contextDescription = rawContextDescription;
 		if (creationMode === "skill" || creationMode === "agent") {
-			const skillName = creationMode === "skill" ? "skill-development" : "agent-development";
-			const skill = planFs.getSkillByName(skillName);
-			if (skill && skill.content) {
-				const prefix = `[${creationMode.toUpperCase()} CREATION MODE]\nYou are in ${creationMode} creation mode. Help the user create a new ${creationMode} definition file.\nThis is a local ${creationMode} definition — not a Confluence page, Jira ticket, or any Atlassian product content.\nAll the ${creationMode} creation instructions you need are provided below.\nOnce ready, call POST /api/plan/${creationMode}s to persist it.\n[END ${creationMode.toUpperCase()} CREATION MODE]\n\n---\n\n${skill.content}`;
-				contextDescription = contextDescription ? `${prefix}\n\n${contextDescription}` : prefix;
-			} else {
-				console.error(`[CHAT-SDK] Skill "${skillName}" not found in skill system`);
-			}
+			const prefix = `[${creationMode.toUpperCase()} CREATION MODE]
+You are in ${creationMode} creation mode. Help the user create a new ${creationMode} definition file.
+This is a local ${creationMode} definition - not a Confluence page, Jira ticket, or any Atlassian product content.
+Ask clarifying questions when required fields are missing.
+Return a complete, production-ready definition that can be persisted directly.
+Once ready, call POST /api/plan/${creationMode}s to persist it.
+[END ${creationMode.toUpperCase()} CREATION MODE]`;
+			contextDescription = contextDescription ? `${prefix}\n\n${contextDescription}` : prefix;
 		}
 
 		const latestVisibleUserMessage = getLatestVisibleUserMessage(messages);
@@ -3603,6 +3620,8 @@ app.post("/api/chat-sdk", async (req, res) => {
 		}
 
 		let enrichedContextDescription = contextDescription;
+		let deferredToolResponseForRovoDev = null;
+
 		if (clarificationSubmission) {
 			const serialized = JSON.stringify(
 				adaptClarificationAnswersForToolContract(
@@ -3610,10 +3629,39 @@ app.post("/api/chat-sdk", async (req, res) => {
 					clarificationSubmission.answers
 				)
 			);
+			const answerBlock = `[ask_user_questions Result]\nThe user answered your ask_user_questions tool call. Here are their answers:\n${serialized}\n[End ask_user_questions Result]`;
 			enrichedContextDescription = enrichedContextDescription
-				? `${enrichedContextDescription}\n\nClarification answers: ${serialized}`
-				: `Clarification answers: ${serialized}`;
+				? `${enrichedContextDescription}\n\n${answerBlock}`
+				: answerBlock;
 		}
+
+		// Handle deferred tool response from RovoDev
+		if (rawDeferredToolResponse && typeof rawDeferredToolResponse === "object") {
+			const toolCallId = getNonEmptyString(rawDeferredToolResponse.tool_call_id);
+			const result = rawDeferredToolResponse.result;
+			if (toolCallId && result && typeof result === "object") {
+				// Adapt ID-keyed answers to label-keyed answers matching the
+				// ask_user_questions tool contract. Session ID follows the pattern
+				// set in emitRequestUserInputQuestionCard (line 5848).
+				const deferredSessionId = `request-user-input-${toolCallId}`;
+				const adaptedResult = adaptClarificationAnswersForToolContract(
+					deferredSessionId,
+					result
+				);
+				deferredToolResponseForRovoDev = {
+					tool_call_id: toolCallId,
+					result: adaptedResult,
+				};
+			}
+		}
+
+		if (deferredToolResponseForRovoDev) {
+			console.info("[CHAT-SDK] Deferred tool response prepared", {
+				toolCallId: deferredToolResponseForRovoDev.tool_call_id,
+				resultKeys: Object.keys(deferredToolResponseForRovoDev.result),
+			});
+		}
+
 		if (approvalSubmission) {
 			const serialized = JSON.stringify({
 				decision: approvalSubmission.decision,
@@ -4998,7 +5046,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 					const requestUserInputQuestionMeta = new Map();
 					let pendingQuestionCardLoadingWidgetId = null;
 					let hasSuppressedLargeAssistantJson = false;
-					let hasObservedToolExecution = false;
+						let hasObservedToolExecution = false;
+						/** @type {Set<string>} */
+						const bashQuestionCardWorkaroundCallIds = new Set();
+						let hasObservedDeferredToolRequest = false;
 					// ── Output Routing: Two-step GenUI state ──
 					// Track whether non-question-card tool calls were observed during
 					// the RovoDev stream. When true, post-stream processing triggers
@@ -5364,13 +5415,22 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 					hasObservedToolExecution = true;
 
-					const toolName = getNonEmptyString(value.toolName) ?? "Tool";
+					let toolName = getNonEmptyString(value.toolName) ?? "Tool";
 					const eventId =
 						getNonEmptyString(value.eventId) ??
 						`thinking-event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 					const timestamp =
 						getNonEmptyString(value.timestamp) ?? new Date().toISOString();
 					const toolCallId = getNonEmptyString(value.toolCallId) ?? undefined;
+
+					// Rewrite bash → ask_user_questions for workaround calls
+					if (
+						toolCallId &&
+						bashQuestionCardWorkaroundCallIds.has(toolCallId) &&
+						toolName.toLowerCase() === "bash"
+					) {
+						toolName = "ask_user_questions";
+					}
 
 					const payload = {
 						eventId,
@@ -5677,6 +5737,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 							payload,
 						},
 					});
+					hasEmittedPlanWidget = true;
 					hasSeenPlanWidgetSignal = true;
 				};
 
@@ -5704,10 +5765,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 					});
 				};
 
-				const maybeEmitProgressivePlanUpdate = () => {
-					if (hasEmittedQuestionCard || hasExplicitPlanPayload) {
-						return;
-					}
+					const maybeEmitProgressivePlanUpdate = () => {
+						if (hasExplicitPlanPayload) {
+							return;
+						}
 
 					const progressivePlanPayload = extractProgressivePlanWidgetPayloadFromText(
 						assistantText,
@@ -5815,6 +5876,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 							createSessionId: createClarificationSessionId,
 						}
 					);
+
 					if (!payload) {
 						return false;
 					}
@@ -5865,7 +5927,10 @@ app.post("/api/chat-sdk", async (req, res) => {
 						id: questionCardWidgetId,
 						data: {
 							type: CLARIFICATION_WIDGET_TYPE,
-							payload,
+							payload: {
+								...payload,
+								tool_call_id: normalizedToolCallId || undefined,
+							},
 						},
 					});
 
@@ -6310,7 +6375,7 @@ app.post("/api/chat-sdk", async (req, res) => {
 						: 0;
 					const totalToolFirstAttempts = toolFirstRetryLimit + 1;
 					let currentToolFirstAttempt = 1;
-					let activeAttemptMessage = userMessageText;
+					let activeAttemptMessage = deferredToolResponseForRovoDev || userMessageText;
 					let shouldContinueToolFirstRetry = true;
 					let forcePortRecoveryAttemptCount = 0;
 
@@ -6334,7 +6399,52 @@ app.post("/api/chat-sdk", async (req, res) => {
 										return;
 									}
 
+									// Handle deferred tool requests (e.g., ask_user_questions from RovoDev)
+									if (toolCall.isDeferredToolRequest === true) {
+										hasObservedDeferredToolRequest = true;
+										if (isRequestUserInputTool(toolCall.toolName) && toolCall.toolInput) {
+											emitRequestUserInputQuestionCard({
+												toolName: "ask_user_questions",
+												toolCallId: toolCall.toolCallId,
+												questionInput: toolCall.toolInput,
+												source: "deferred_tool_request",
+											});
+										}
+										return;
+									}
+
 									if (isRequestUserInputTool(toolCall.toolName)) {
+										// Proactively emit question card at tool-call
+										// start — before tool_result arrives — so the
+										// card appears immediately with the model's
+										// actual questions and options.  This handles
+										// MCP-wrapped calls (mcp_invoke_tool) where the
+										// resolved tool name is available here but
+										// onToolCallInputResolved may not fire in time.
+										if (toolCall.toolInput) {
+											emitRequestUserInputQuestionCard({
+												toolName: toolCall.toolName,
+												toolCallId: toolCall.toolCallId,
+												questionInput: toolCall.toolInput,
+												source: "request_user_input_tool_input",
+											});
+										}
+										return;
+									}
+
+									// Detect bash workaround for ask_user_questions
+									if (isBashQuestionCardWorkaround(toolCall.toolName, toolCall.toolInput)) {
+										if (toolCall.toolCallId) {
+											bashQuestionCardWorkaroundCallIds.add(toolCall.toolCallId);
+										}
+										if (toolCall.toolInput) {
+											emitRequestUserInputQuestionCard({
+												toolName: "ask_user_questions",
+												toolCallId: toolCall.toolCallId,
+												questionInput: toolCall.toolInput,
+												source: "bash_workaround_tool_input",
+											});
+										}
 										return;
 									}
 
@@ -6355,9 +6465,38 @@ app.post("/api/chat-sdk", async (req, res) => {
 										questionInput: toolCall?.toolInput,
 										source: "request_user_input_tool_input",
 									});
+
+									// Detect bash workaround for ask_user_questions
+									if (isBashQuestionCardWorkaround(toolCall?.toolName, toolCall?.toolInput)) {
+										if (toolCall?.toolCallId) {
+											bashQuestionCardWorkaroundCallIds.add(toolCall.toolCallId);
+										}
+										emitRequestUserInputQuestionCard({
+											toolName: "ask_user_questions",
+											toolCallId: toolCall?.toolCallId,
+											questionInput: toolCall?.toolInput,
+											source: "bash_workaround_tool_input",
+										});
+									}
 								},
 									onToolCallResult: (toolCallResult) => {
 										emitRequestUserInputQuestionCardFromResult(toolCallResult);
+
+										// Detect bash workaround in tool result output
+										if (
+											!isRequestUserInputTool(toolCallResult?.toolName) &&
+											isBashQuestionCardWorkaround(
+												toolCallResult?.toolName,
+												toolCallResult?.toolOutputRaw ?? toolCallResult?.toolOutputPreview
+											)
+										) {
+											emitRequestUserInputQuestionCard({
+												toolName: "ask_user_questions",
+												toolCallId: toolCallResult?.toolCallId,
+												questionInput: toolCallResult?.toolOutputRaw ?? toolCallResult?.toolOutputPreview,
+												source: "bash_workaround_tool_result",
+											});
+										}
 
 										// Capture full output for tool-first GenUI generation
 										const toolOutput =
@@ -6614,11 +6753,13 @@ app.post("/api/chat-sdk", async (req, res) => {
 						const hasToolFirstSuccess = hasRelevantToolSuccess(
 							toolFirstExecutionState
 						);
-						const canRetryToolFirst =
-							toolFirstSoftRetryEnabled &&
-							!abortController.signal.aborted &&
-							!hasToolFirstSuccess &&
-							currentToolFirstAttempt < totalToolFirstAttempts;
+							const canRetryToolFirst =
+								toolFirstSoftRetryEnabled &&
+								!abortController.signal.aborted &&
+								!hasToolFirstSuccess &&
+								!hasEmittedQuestionCard &&
+								!hasObservedDeferredToolRequest &&
+								currentToolFirstAttempt < totalToolFirstAttempts;
 						if (!canRetryToolFirst) {
 							shouldContinueToolFirstRetry = false;
 							continue;
@@ -6729,7 +6870,11 @@ app.post("/api/chat-sdk", async (req, res) => {
 					return;
 				}
 
-				if (!hasEmittedQuestionCard && !hasEmittedPlanWidget) {
+				if (
+					QUESTION_CARD_TEXT_EXTRACTION_FALLBACK_ENABLED &&
+					!hasEmittedQuestionCard &&
+					!hasEmittedPlanWidget
+				) {
 					const previousQuestionCard = getActiveQuestionCardPayload(messages);
 					const fallbackQuestionCardState = resolveFallbackQuestionCardState({
 						isPostClarificationTurn,
@@ -6801,27 +6946,48 @@ app.post("/api/chat-sdk", async (req, res) => {
 					}
 				}
 
-				if (!hasEmittedQuestionCard && !hasEmittedPlanWidget) {
-					let fallbackPlanPayload = extractPlanWidgetPayloadFromText(
-						assistantText
-					);
-					if (!fallbackPlanPayload && isPostClarificationTurn) {
-						fallbackPlanPayload = extractPlanWidgetPayloadFromStructuredText(
-							assistantText
-						);
-					}
-					if (fallbackPlanPayload) {
-						latestPlanPayload = fallbackPlanPayload;
-						hasEmittedPlanWidget = true;
-						emitPlanWidgetData(fallbackPlanPayload);
-						emitPlanWidgetLoading(false);
-					}
-				}
+					if (!hasExplicitPlanPayload) {
+						const fallbackPlanCandidates = [
+							extractUpdateTodoPlanPayloadFromObservations(toolObservationEntries),
+							extractPlanWidgetPayloadFromText(assistantText),
+							isPostClarificationTurn
+								? extractPlanWidgetPayloadFromStructuredText(assistantText)
+								: null,
+						];
 
-				const shouldEmitPlanWidgetError =
-					hasSeenPlanWidgetSignal &&
-					!hasEmittedQuestionCard &&
-					!hasEmittedPlanWidget;
+						let fallbackPlanPayload = null;
+						let fallbackPlanTaskCount = 0;
+						for (const candidate of fallbackPlanCandidates) {
+							if (!candidate) {
+								continue;
+							}
+
+							const candidateTaskCount = getPlanWidgetTaskCount(candidate);
+							if (candidateTaskCount <= fallbackPlanTaskCount) {
+								continue;
+							}
+
+							fallbackPlanPayload = candidate;
+							fallbackPlanTaskCount = candidateTaskCount;
+						}
+
+						if (fallbackPlanPayload) {
+							const existingPlanTaskCount = getPlanWidgetTaskCount(latestPlanPayload);
+							const shouldUpgradePlanPayload =
+								!hasEmittedPlanWidget ||
+								fallbackPlanTaskCount > existingPlanTaskCount;
+
+							if (shouldUpgradePlanPayload) {
+								latestPlanPayload = fallbackPlanPayload;
+								hasEmittedPlanWidget = true;
+								emitPlanWidgetData(fallbackPlanPayload);
+							}
+						}
+					}
+
+					const shouldEmitPlanWidgetError =
+						hasSeenPlanWidgetSignal &&
+						!hasEmittedPlanWidget;
 				if (shouldEmitPlanWidgetError) {
 					if (hasEmittedPlanLoadingState) {
 						emitPlanWidgetLoading(false);
@@ -6973,6 +7139,9 @@ app.post("/api/chat-sdk", async (req, res) => {
 						}
 					const shouldAttemptGenui =
 						!hasEmittedQuestionCard &&
+						!hasEmittedPlanWidget &&
+						!hasEmittedGenuiWidget &&
+						!planMode &&
 						!looksLikeClarification &&
 						!looksLikeInability &&
 							!abortController.signal.aborted &&
@@ -7218,7 +7387,12 @@ app.post("/api/chat-sdk", async (req, res) => {
 						)
 						: toolObservationEntries;
 
-					if (isStrictToolFirstTurn && !hasEmittedQuestionCard) {
+					if (
+						isStrictToolFirstTurn &&
+						!planMode &&
+						!hasEmittedQuestionCard &&
+						!hasEmittedPlanWidget
+					) {
 							let toolFirstRouteReason = "tool_first_no_relevant_result";
 							let toolFirstRouteExperience = "text";
 							let toolFirstFallbackCause = null;
@@ -8199,38 +8373,38 @@ app.delete("/api/plan/runs/:runId", async (req, res) => {
 	}
 });
 
-app.get("/api/plan/threads", async (req, res) => {
+app.get("/api/chat/threads", async (req, res) => {
 	try {
 		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
 		const limit = rawLimit ? Number(rawLimit) : undefined;
-		const threads = await planThreadManager.listThreads({ limit });
+		const threads = await chatThreadManager.listThreads({ limit });
 		return res.status(200).json({ threads });
 	} catch (error) {
-		console.error("[AGENTS-THREAD] Failed to list threads:", error);
+		console.error("[CHAT-THREAD] Failed to list threads:", error);
 		const message = error instanceof Error ? error.message : "Failed to list threads";
 		return res.status(500).json({ error: message });
 	}
 });
 
-app.get("/api/plan/threads/:threadId", async (req, res) => {
+app.get("/api/chat/threads/:threadId", async (req, res) => {
 	try {
 		const threadId = req.params.threadId;
-		const thread = await planThreadManager.getThread(threadId);
+		const thread = await chatThreadManager.getThread(threadId);
 		if (!thread) {
 			return res.status(404).json({ error: "Thread not found" });
 		}
 
 		return res.status(200).json({ thread });
 	} catch (error) {
-		console.error("[AGENTS-THREAD] Failed to get thread:", error);
+		console.error("[CHAT-THREAD] Failed to get thread:", error);
 		return res.status(500).json({ error: "Failed to load thread" });
 	}
 });
 
-app.post("/api/plan/threads", async (req, res) => {
+app.post("/api/chat/threads", async (req, res) => {
 	try {
 		const { id, title, messages, createdAt, updatedAt } = req.body || {};
-		const thread = await planThreadManager.createThread({
+		const thread = await chatThreadManager.createThread({
 			id,
 			title,
 			messages,
@@ -8239,17 +8413,17 @@ app.post("/api/plan/threads", async (req, res) => {
 		});
 		return res.status(201).json({ thread });
 	} catch (error) {
-		console.error("[AGENTS-THREAD] Failed to create thread:", error);
+		console.error("[CHAT-THREAD] Failed to create thread:", error);
 		const message = error instanceof Error ? error.message : "Failed to create thread";
 		return res.status(400).json({ error: message });
 	}
 });
 
-app.put("/api/plan/threads/:threadId", async (req, res) => {
+app.put("/api/chat/threads/:threadId", async (req, res) => {
 	try {
 		const threadId = req.params.threadId;
 		const { title, messages, updatedAt } = req.body || {};
-		const thread = await planThreadManager.updateThread(threadId, {
+		const thread = await chatThreadManager.updateThread(threadId, {
 			title,
 			messages,
 			updatedAt,
@@ -8260,18 +8434,18 @@ app.put("/api/plan/threads/:threadId", async (req, res) => {
 
 		return res.status(200).json({ thread });
 	} catch (error) {
-		console.error("[AGENTS-THREAD] Failed to update thread:", error);
+		console.error("[CHAT-THREAD] Failed to update thread:", error);
 		return res.status(500).json({ error: "Failed to update thread" });
 	}
 });
 
-app.delete("/api/plan/threads/:threadId", async (req, res) => {
+app.delete("/api/chat/threads/:threadId", async (req, res) => {
 	try {
 		const threadId = req.params.threadId;
-		await planThreadManager.deleteThread(threadId);
+		await chatThreadManager.deleteThread(threadId);
 		return res.status(200).json({ deleted: true });
 	} catch (error) {
-		console.error("[AGENTS-THREAD] Failed to delete thread:", error);
+		console.error("[CHAT-THREAD] Failed to delete thread:", error);
 		return res.status(500).json({ error: "Failed to delete thread" });
 	}
 });
@@ -8861,7 +9035,7 @@ app.get("/api/plan/config-summary", (req, res) => {
 
 // ─── Maker Endpoints ──────────────────────────────────────────────────
 
-app.post("/api/maker/runs", async (req, res) => {
+app.post("/api/make/runs", async (req, res) => {
 	try {
 		const {
 			plan,
@@ -8870,7 +9044,7 @@ app.post("/api/maker/runs", async (req, res) => {
 			customInstruction,
 		} = req.body || {};
 
-		const run = await makerRunManager.createRun({
+		const run = await makeRunManager.createRun({
 			plan,
 			userPrompt,
 			conversation,
@@ -8884,10 +9058,10 @@ app.post("/api/maker/runs", async (req, res) => {
 	}
 });
 
-app.get("/api/maker/runs", async (req, res) => {
+app.get("/api/make/runs", async (req, res) => {
 	try {
 		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
-		const runs = await makerRunManager.listRuns({ limit: rawLimit });
+		const runs = await makeRunManager.listRuns({ limit: rawLimit });
 		return res.status(200).json({ runs });
 	} catch (error) {
 		console.error("[MAKER-RUN] Failed to list runs:", error);
@@ -8896,10 +9070,10 @@ app.get("/api/maker/runs", async (req, res) => {
 	}
 });
 
-app.get("/api/maker/runs/:runId", async (req, res) => {
+app.get("/api/make/runs/:runId", async (req, res) => {
 	try {
 		const runId = req.params.runId;
-		const run = await makerRunManager.getRun(runId);
+		const run = await makeRunManager.getRun(runId);
 		if (!run) {
 			return res.status(404).json({ error: "Run not found" });
 		}
@@ -8911,10 +9085,10 @@ app.get("/api/maker/runs/:runId", async (req, res) => {
 	}
 });
 
-app.delete("/api/maker/runs/:runId", async (req, res) => {
+app.delete("/api/make/runs/:runId", async (req, res) => {
 	try {
 		const runId = req.params.runId;
-		await makerRunManager.deleteRun(runId);
+		await makeRunManager.deleteRun(runId);
 		return res.status(200).json({ deleted: true });
 	} catch (error) {
 		console.error("[MAKER-RUN] Failed to delete run:", error);
@@ -8922,84 +9096,7 @@ app.delete("/api/maker/runs/:runId", async (req, res) => {
 	}
 });
 
-app.get("/api/maker/threads", async (req, res) => {
-	try {
-		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
-		const limit = rawLimit ? Number(rawLimit) : undefined;
-		const threads = await makerThreadManager.listThreads({ limit });
-		return res.status(200).json({ threads });
-	} catch (error) {
-		console.error("[MAKER-THREAD] Failed to list threads:", error);
-		const message = error instanceof Error ? error.message : "Failed to list threads";
-		return res.status(500).json({ error: message });
-	}
-});
-
-app.get("/api/maker/threads/:threadId", async (req, res) => {
-	try {
-		const threadId = req.params.threadId;
-		const thread = await makerThreadManager.getThread(threadId);
-		if (!thread) {
-			return res.status(404).json({ error: "Thread not found" });
-		}
-
-		return res.status(200).json({ thread });
-	} catch (error) {
-		console.error("[MAKER-THREAD] Failed to get thread:", error);
-		return res.status(500).json({ error: "Failed to load thread" });
-	}
-});
-
-app.post("/api/maker/threads", async (req, res) => {
-	try {
-		const { id, title, messages, createdAt, updatedAt } = req.body || {};
-		const thread = await makerThreadManager.createThread({
-			id,
-			title,
-			messages,
-			createdAt,
-			updatedAt,
-		});
-		return res.status(201).json({ thread });
-	} catch (error) {
-		console.error("[MAKER-THREAD] Failed to create thread:", error);
-		const message = error instanceof Error ? error.message : "Failed to create thread";
-		return res.status(400).json({ error: message });
-	}
-});
-
-app.put("/api/maker/threads/:threadId", async (req, res) => {
-	try {
-		const threadId = req.params.threadId;
-		const { title, messages, updatedAt } = req.body || {};
-		const thread = await makerThreadManager.updateThread(threadId, {
-			title,
-			messages,
-			updatedAt,
-		});
-		if (!thread) {
-			return res.status(404).json({ error: "Thread not found" });
-		}
-
-		return res.status(200).json({ thread });
-	} catch (error) {
-		console.error("[MAKER-THREAD] Failed to update thread:", error);
-		return res.status(500).json({ error: "Failed to update thread" });
-	}
-});
-
-app.delete("/api/maker/threads/:threadId", async (req, res) => {
-	try {
-		const threadId = req.params.threadId;
-		await makerThreadManager.deleteThread(threadId);
-		return res.status(200).json({ deleted: true });
-	} catch (error) {
-		console.error("[MAKER-THREAD] Failed to delete thread:", error);
-		return res.status(500).json({ error: "Failed to delete thread" });
-	}
-});
-
-app.post("/api/maker/runs/:runId/tasks", async (req, res) => {
+app.post("/api/make/runs/:runId/tasks", async (req, res) => {
 	try {
 		const runId = req.params.runId;
 		const {
@@ -9010,7 +9107,7 @@ app.post("/api/maker/runs/:runId/tasks", async (req, res) => {
 			customInstruction,
 			retryTaskIds,
 		} = req.body || {};
-		const result = await makerRunManager.appendTasks(runId, {
+		const result = await makeRunManager.appendTasks(runId, {
 			planDelta,
 			prompt,
 			contextPrompt,
@@ -9031,52 +9128,10 @@ app.post("/api/maker/runs/:runId/tasks", async (req, res) => {
 	}
 });
 
-app.get("/api/maker/runs/:runId/files", async (req, res) => {
+app.get("/api/make/runs/:runId/stream", async (req, res) => {
 	try {
 		const runId = req.params.runId;
-		const rawArtifactId = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
-		const artifactId = getNonEmptyString(rawArtifactId);
-		const rawDownload = Array.isArray(req.query.download)
-			? req.query.download[0]
-			: req.query.download;
-		const shouldDownload = rawDownload === "1" || rawDownload === "true";
-
-		if (artifactId) {
-			const artifactFile = await makerRunManager.getRunFile(runId, artifactId);
-			if (!artifactFile) {
-				return res.status(404).json({ error: "Artifact not found" });
-			}
-
-			if (artifactFile.type === "redirect") {
-				return res.redirect(artifactFile.url);
-			}
-
-			res.setHeader("Content-Type", artifactFile.mimeType || "application/octet-stream");
-			res.setHeader("Content-Length", String(artifactFile.buffer.length));
-			res.setHeader(
-				"Content-Disposition",
-				`${shouldDownload ? "attachment" : "inline"}; filename="${artifactFile.fileName}"`
-			);
-			return res.status(200).send(artifactFile.buffer);
-		}
-
-		const filesPayload = await makerRunManager.getRunFiles(runId);
-		if (!filesPayload) {
-			return res.status(404).json({ error: "Run not found" });
-		}
-
-		return res.status(200).json(filesPayload);
-	} catch (error) {
-		console.error("[MAKER-RUN] Failed to load run files:", error);
-		const message = error instanceof Error ? error.message : "Failed to load run files";
-		return res.status(500).json({ error: message });
-	}
-});
-
-app.get("/api/maker/runs/:runId/stream", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		await makerRunManager.streamRunEvents(req, res, runId);
+		await makeRunManager.streamRunEvents(req, res, runId);
 	} catch (error) {
 		console.error("[MAKER-RUN] Failed to stream run events:", error);
 		if (!res.headersSent) {
@@ -9085,11 +9140,11 @@ app.get("/api/maker/runs/:runId/stream", async (req, res) => {
 	}
 });
 
-app.post("/api/maker/runs/:runId/directives", async (req, res) => {
+app.post("/api/make/runs/:runId/directives", async (req, res) => {
 	try {
 		const runId = req.params.runId;
 		const { agentName, message } = req.body || {};
-		const result = await makerRunManager.addDirective(runId, {
+		const result = await makeRunManager.addDirective(runId, {
 			agentName,
 			message,
 		});
@@ -9105,7 +9160,7 @@ app.post("/api/maker/runs/:runId/directives", async (req, res) => {
 	}
 });
 
-app.post("/api/maker/runs/:runId/share", async (req, res) => {
+app.post("/api/make/runs/:runId/share", async (req, res) => {
 	try {
 		const runId = req.params.runId;
 		const requestBody = req.body && typeof req.body === "object" ? req.body : {};
@@ -9116,7 +9171,7 @@ app.post("/api/maker/runs/:runId/share", async (req, res) => {
 			});
 		}
 
-		const runSummary = await makerRunManager.getRunSummary(runId);
+		const runSummary = await makeRunManager.getRunSummary(runId);
 		if (!runSummary || !runSummary.run) {
 			return res.status(404).json({ error: "Run not found" });
 		}
@@ -9167,10 +9222,10 @@ app.post("/api/maker/runs/:runId/share", async (req, res) => {
 	}
 });
 
-app.get("/api/maker/runs/:runId/summary", async (req, res) => {
+app.get("/api/make/runs/:runId/summary", async (req, res) => {
 	try {
 		const runId = req.params.runId;
-		const summary = await makerRunManager.getRunSummary(runId);
+		const summary = await makeRunManager.getRunSummary(runId);
 		if (!summary) {
 			return res.status(404).json({ error: "Run not found" });
 		}
@@ -9182,34 +9237,19 @@ app.get("/api/maker/runs/:runId/summary", async (req, res) => {
 	}
 });
 
-app.get("/api/maker/runs/:runId/visual-summary", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		const summary = await makerRunManager.getRunVisualSummary(runId);
-		if (!summary) {
-			return res.status(404).json({ error: "Run not found" });
-		}
-
-		return res.status(200).json(summary);
-	} catch (error) {
-		console.error("[MAKER-RUN] Failed to load run visual summary:", error);
-		return res.status(500).json({ error: "Failed to load run visual summary" });
-	}
-});
-
 
 // --- Tools list ---
 
-app.get("/api/maker/tools", (req, res) => {
+app.get("/api/make/tools", (req, res) => {
 	// Returns available MCP tools. Stub for now — will be populated from MCP server discovery.
 	return res.status(200).json({ tools: [] });
 });
 
 // --- Skills CRUD (filesystem-backed) ---
 
-app.get("/api/maker/skills", (req, res) => {
+app.get("/api/make/skills", (req, res) => {
 	try {
-		const skills = makerFs.listSkills();
+		const skills = makeFs.listSkills();
 		return res.status(200).json({ skills });
 	} catch (error) {
 		console.error("[MAKER-FS] Failed to list skills:", error);
@@ -9217,7 +9257,7 @@ app.get("/api/maker/skills", (req, res) => {
 	}
 });
 
-app.post("/api/maker/skills", (req, res) => {
+app.post("/api/make/skills", (req, res) => {
 	try {
 		const contentType = req.headers["content-type"] || "";
 
@@ -9232,7 +9272,7 @@ app.post("/api/maker/skills", (req, res) => {
 				return res.status(400).json({ error: "Expected markdown content" });
 			}
 
-			const { frontmatter, body } = makerFs.parseFrontmatter(rawContent);
+			const { frontmatter, body } = makeFs.parseFrontmatter(rawContent);
 			const name = frontmatter.name;
 			const description = typeof frontmatter.description === "string" ? frontmatter.description : "";
 
@@ -9240,12 +9280,12 @@ app.post("/api/maker/skills", (req, res) => {
 				return res.status(400).json({ error: "SKILL.md must have a 'name' field in frontmatter" });
 			}
 
-			const nameError = makerFs.validateSkillName(name);
+			const nameError = makeFs.validateSkillName(name);
 			if (nameError) {
 				return res.status(400).json({ error: nameError });
 			}
 
-			if (makerFs.skillExists(name)) {
+			if (makeFs.skillExists(name)) {
 				return res.status(409).json({ error: `A skill named "${name}" already exists` });
 			}
 
@@ -9254,39 +9294,39 @@ app.post("/api/maker/skills", (req, res) => {
 			if (frontmatter.compatibility) extraFields.compatibility = frontmatter.compatibility;
 			if (frontmatter["allowed-tools"]) extraFields["allowed-tools"] = frontmatter["allowed-tools"];
 
-			const skill = makerFs.writeSkill(name, description, body.trim(), extraFields);
+			const skill = makeFs.writeSkill(name, description, body.trim(), extraFields);
 			return res.status(201).json({ skill });
 		}
 
 		const { name, description, content } = req.body || {};
 
 		// Validate name
-		const nameError = makerFs.validateSkillName(name);
+		const nameError = makeFs.validateSkillName(name);
 		if (nameError) {
 			return res.status(400).json({ error: nameError });
 		}
-		if (!makerFs.validatePathComponent(name)) {
+		if (!makeFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid skill name" });
 		}
 
 		// Validate description
-		const descError = makerFs.validateSkillDescription(description);
+		const descError = makeFs.validateSkillDescription(description);
 		if (descError) {
 			return res.status(400).json({ error: descError });
 		}
 
 		// Check for conflicts
-		if (makerFs.skillExists(name)) {
+		if (makeFs.skillExists(name)) {
 			return res.status(409).json({ error: `A skill named "${name}" already exists` });
 		}
 
 		// Validate content length
 		const resolvedContent = typeof content === "string" ? content.trim() : "";
-		if (resolvedContent.length > makerFs.SKILL_CONTENT_MAX) {
-			return res.status(400).json({ error: `Content exceeds maximum length of ${makerFs.SKILL_CONTENT_MAX} characters` });
+		if (resolvedContent.length > makeFs.SKILL_CONTENT_MAX) {
+			return res.status(400).json({ error: `Content exceeds maximum length of ${makeFs.SKILL_CONTENT_MAX} characters` });
 		}
 
-		const skill = makerFs.writeSkill(name, description, resolvedContent);
+		const skill = makeFs.writeSkill(name, description, resolvedContent);
 		return res.status(201).json({ skill });
 	} catch (error) {
 		console.error("[MAKER-FS] Failed to create skill:", error);
@@ -9295,15 +9335,15 @@ app.post("/api/maker/skills", (req, res) => {
 	}
 });
 
-app.put("/api/maker/skills/:name", (req, res) => {
+app.put("/api/make/skills/:name", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!makerFs.validatePathComponent(name)) {
+		if (!makeFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid skill name" });
 		}
 
 		// Read existing skill
-		const existing = makerFs.getSkillByName(name);
+		const existing = makeFs.getSkillByName(name);
 		if (!existing) {
 			return res.status(404).json({ error: `Skill not found: ${name}` });
 		}
@@ -9315,15 +9355,15 @@ app.put("/api/maker/skills/:name", (req, res) => {
 
 		// Validate if description changed
 		if (data.description !== undefined) {
-			const descError = makerFs.validateSkillDescription(updatedDescription);
+			const descError = makeFs.validateSkillDescription(updatedDescription);
 			if (descError) {
 				return res.status(400).json({ error: descError });
 			}
 		}
 
 		// Validate content length
-		if (updatedContent.length > makerFs.SKILL_CONTENT_MAX) {
-			return res.status(400).json({ error: `Content exceeds maximum length of ${makerFs.SKILL_CONTENT_MAX} characters` });
+		if (updatedContent.length > makeFs.SKILL_CONTENT_MAX) {
+			return res.status(400).json({ error: `Content exceeds maximum length of ${makeFs.SKILL_CONTENT_MAX} characters` });
 		}
 
 		// Preserve extra fields from existing skill
@@ -9332,7 +9372,7 @@ app.put("/api/maker/skills/:name", (req, res) => {
 		if (existing.compatibility) extraFields.compatibility = existing.compatibility;
 		if (existing.allowedTools) extraFields["allowed-tools"] = existing.allowedTools;
 
-		const skill = makerFs.writeSkill(name, updatedDescription, updatedContent, extraFields);
+		const skill = makeFs.writeSkill(name, updatedDescription, updatedContent, extraFields);
 		return res.status(200).json({ skill });
 	} catch (error) {
 		console.error("[MAKER-FS] Failed to update skill:", error);
@@ -9341,13 +9381,13 @@ app.put("/api/maker/skills/:name", (req, res) => {
 	}
 });
 
-app.delete("/api/maker/skills/:name", (req, res) => {
+app.delete("/api/make/skills/:name", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!makerFs.validatePathComponent(name)) {
+		if (!makeFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid skill name" });
 		}
-		makerFs.deleteSkill(name);
+		makeFs.deleteSkill(name);
 		return res.status(200).json({ success: true });
 	} catch (error) {
 		console.error("[MAKER-FS] Failed to delete skill:", error);
@@ -9356,13 +9396,13 @@ app.delete("/api/maker/skills/:name", (req, res) => {
 	}
 });
 
-app.get("/api/maker/skills/:name/raw", (req, res) => {
+app.get("/api/make/skills/:name/raw", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!makerFs.validatePathComponent(name)) {
+		if (!makeFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid skill name" });
 		}
-		const raw = makerFs.readSkillRaw(name);
+		const raw = makeFs.readSkillRaw(name);
 		if (!raw) {
 			return res.status(404).json({ error: `Skill not found: ${name}` });
 		}
@@ -9376,9 +9416,9 @@ app.get("/api/maker/skills/:name/raw", (req, res) => {
 
 // --- Agents/Subagents CRUD (filesystem-backed) ---
 
-app.get("/api/maker/agents", (req, res) => {
+app.get("/api/make/agents", (req, res) => {
 	try {
-		const agents = makerFs.listAgents();
+		const agents = makeFs.listAgents();
 		return res.status(200).json({ agents });
 	} catch (error) {
 		console.error("[MAKER-FS] Failed to list agents:", error);
@@ -9386,7 +9426,7 @@ app.get("/api/maker/agents", (req, res) => {
 	}
 });
 
-app.post("/api/maker/agents", (req, res) => {
+app.post("/api/make/agents", (req, res) => {
 	try {
 		const contentType = req.headers["content-type"] || "";
 
@@ -9401,19 +9441,19 @@ app.post("/api/maker/agents", (req, res) => {
 				return res.status(400).json({ error: "Expected markdown content" });
 			}
 
-			const { frontmatter, body } = makerFs.parseFrontmatter(rawContent);
+			const { frontmatter, body } = makeFs.parseFrontmatter(rawContent);
 			const name = frontmatter.name;
 
 			if (!name || typeof name !== "string") {
 				return res.status(400).json({ error: "Agent .md must have a 'name' field in frontmatter" });
 			}
 
-			const nameError = makerFs.validateAgentName(name);
+			const nameError = makeFs.validateAgentName(name);
 			if (nameError) {
 				return res.status(400).json({ error: nameError });
 			}
 
-			if (makerFs.agentExists(name)) {
+			if (makeFs.agentExists(name)) {
 				return res.status(409).json({ error: `An agent named "${name}" already exists` });
 			}
 
@@ -9445,7 +9485,7 @@ app.post("/api/maker/agents", (req, res) => {
 				}
 			}
 
-			const agent = makerFs.writeAgent(name, {
+			const agent = makeFs.writeAgent(name, {
 				description: typeof frontmatter.description === "string" ? frontmatter.description.trim() : "",
 				systemPrompt: body.trim(),
 				model: typeof frontmatter.model === "string" && frontmatter.model.trim() ? frontmatter.model.trim() : "inherit",
@@ -9461,11 +9501,11 @@ app.post("/api/maker/agents", (req, res) => {
 		const { name, description, systemPrompt, model, tools, skills, disallowedTools, maxTurns, permissionMode } = req.body || {};
 
 		// Validate name
-		const nameError = makerFs.validateAgentName(name);
+		const nameError = makeFs.validateAgentName(name);
 		if (nameError) {
 			return res.status(400).json({ error: nameError });
 		}
-		if (!makerFs.validatePathComponent(name)) {
+		if (!makeFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid agent name" });
 		}
 
@@ -9475,11 +9515,11 @@ app.post("/api/maker/agents", (req, res) => {
 		}
 
 		// Check for conflicts
-		if (makerFs.agentExists(name)) {
+		if (makeFs.agentExists(name)) {
 			return res.status(409).json({ error: `An agent named "${name}" already exists` });
 		}
 
-		const agent = makerFs.writeAgent(name, {
+		const agent = makeFs.writeAgent(name, {
 			description: description.trim(),
 			systemPrompt: typeof systemPrompt === "string" ? systemPrompt.trim() : "",
 			model: typeof model === "string" && model.trim() ? model.trim() : "inherit",
@@ -9497,15 +9537,15 @@ app.post("/api/maker/agents", (req, res) => {
 	}
 });
 
-app.put("/api/maker/agents/:name", (req, res) => {
+app.put("/api/make/agents/:name", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!makerFs.validatePathComponent(name)) {
+		if (!makeFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid agent name" });
 		}
 
 		// Read existing agent
-		const existing = makerFs.getAgentByName(name);
+		const existing = makeFs.getAgentByName(name);
 		if (!existing) {
 			return res.status(404).json({ error: `Agent not found: ${name}` });
 		}
@@ -9528,7 +9568,7 @@ app.put("/api/maker/agents/:name", (req, res) => {
 			return res.status(400).json({ error: "Description is required" });
 		}
 
-		const agent = makerFs.writeAgent(name, updated);
+		const agent = makeFs.writeAgent(name, updated);
 		return res.status(200).json({ agent });
 	} catch (error) {
 		console.error("[MAKER-FS] Failed to update agent:", error);
@@ -9537,13 +9577,13 @@ app.put("/api/maker/agents/:name", (req, res) => {
 	}
 });
 
-app.delete("/api/maker/agents/:name", (req, res) => {
+app.delete("/api/make/agents/:name", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!makerFs.validatePathComponent(name)) {
+		if (!makeFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid agent name" });
 		}
-		makerFs.deleteAgent(name);
+		makeFs.deleteAgent(name);
 		return res.status(200).json({ success: true });
 	} catch (error) {
 		console.error("[MAKER-FS] Failed to delete agent:", error);
@@ -9552,13 +9592,13 @@ app.delete("/api/maker/agents/:name", (req, res) => {
 	}
 });
 
-app.get("/api/maker/agents/:name/raw", (req, res) => {
+app.get("/api/make/agents/:name/raw", (req, res) => {
 	try {
 		const name = req.params.name;
-		if (!makerFs.validatePathComponent(name)) {
+		if (!makeFs.validatePathComponent(name)) {
 			return res.status(400).json({ error: "Invalid agent name" });
 		}
-		const raw = makerFs.readAgentRaw(name);
+		const raw = makeFs.readAgentRaw(name);
 		if (!raw) {
 			return res.status(404).json({ error: `Agent not found: ${name}` });
 		}
@@ -9572,9 +9612,9 @@ app.get("/api/maker/agents/:name/raw", (req, res) => {
 
 // --- Config summary (for maker context injection) ---
 
-app.get("/api/maker/config-summary", (req, res) => {
+app.get("/api/make/config-summary", (req, res) => {
 	try {
-		const summary = makerFs.getConfigSummary();
+		const summary = makeFs.getConfigSummary();
 		return res.status(200).json({ summary });
 	} catch (error) {
 		console.error("[MAKER-FS] Failed to get config summary:", error);

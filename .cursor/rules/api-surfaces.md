@@ -33,11 +33,11 @@ paths:
 - `PUT /api/plan/agents/:id`
 - `DELETE /api/plan/agents/:id`
 - `GET /api/plan/config-summary`
-- `GET /api/plan/threads`
-- `GET /api/plan/threads/:threadId`
-- `POST /api/plan/threads`
-- `PUT /api/plan/threads/:threadId`
-- `DELETE /api/plan/threads/:threadId`
+- `GET /api/chat/threads`
+- `GET /api/chat/threads/:threadId`
+- `POST /api/chat/threads`
+- `PUT /api/chat/threads/:threadId`
+- `DELETE /api/chat/threads/:threadId`
 
 ## Orchestrator (cross-panel debugging)
 
@@ -66,5 +66,5 @@ Forward to backend:
 - `app/api/plan/skills/route.ts`
 - `app/api/plan/skills/[id]/route.ts`
 - `app/api/plan/config-summary/route.ts`
-- `app/api/plan/threads/route.ts`
-- `app/api/plan/threads/[threadId]/route.ts`
+- `app/api/chat/threads/route.ts`
+- `app/api/chat/threads/[threadId]/route.ts`

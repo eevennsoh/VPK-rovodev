@@ -75,7 +75,7 @@ export function ChartLineLabelCustom() {
 								r: 6,
 							}}
 						>
-							<LabelList position="top" offset={12} className="fill-foreground" fontSize={12} dataKey="browser" formatter={(value: keyof typeof chartConfig) => chartConfig[value]?.label} />
+							<LabelList position="top" offset={12} className="fill-foreground" fontSize={12} dataKey="browser" formatter={(value) => chartConfig[String(value) as keyof typeof chartConfig]?.label ?? value} />
 						</Line>
 					</LineChart>
 				</ChartContainer>

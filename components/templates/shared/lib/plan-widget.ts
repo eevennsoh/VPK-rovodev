@@ -107,6 +107,7 @@ export function parsePlanWidgetPayload(
 
 	const description =
 		getNonEmptyString(record.description) ??
+		getNonEmptyString(record.summary) ??
 		getNonEmptyString(record.subtitle) ??
 		undefined;
 	const emoji = getNonEmptyString(record.emoji) ?? undefined;
@@ -183,10 +184,13 @@ export function getLatestPlanWidgetPayload(
 			}
 
 			if (widgetType !== "plan") {
-				return null;
+				continue;
 			}
 
-			return parsePlanWidgetPayload(part.data?.payload);
+			const parsedPayload = parsePlanWidgetPayload(part.data?.payload);
+			if (parsedPayload) {
+				return parsedPayload;
+			}
 		}
 	}
 

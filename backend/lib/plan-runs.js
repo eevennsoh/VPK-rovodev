@@ -1,6 +1,7 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const {
+	streamViaRovoDev,
 	generateTextViaRovoDev,
 	WAIT_FOR_TURN_TIMEOUT_MS,
 } = require("./rovodev-gateway");
@@ -25,6 +26,7 @@ const DEFAULT_MAX_CONCURRENT_AGENTS =
 const MAX_RUN_LIST_LIMIT = 50;
 const STREAMING_UPDATE_CHUNK_SIZE = 120;
 const STREAMING_UPDATE_MAX_CONTENT_CHARS = 8000;
+const STREAMING_UPDATE_FLUSH_MS = 1000;
 const VISUAL_PRESENTER_AGENT_NAME = "Visual Presenter";
 const GENUI_WIDGET_COUNT = 4;
 const GENUI_WIDGET_BLUEPRINTS = [
@@ -1379,6 +1381,7 @@ function createRunManager(options) {
 		userName,
 		conflictPolicy,
 		timeoutMs,
+		onTextDelta,
 	}) => {
 		const systemPrompt = createSystemPrompt(userName, customSystemPrompt);
 		const userMessage = buildUserMessage({
@@ -1394,6 +1397,32 @@ function createRunManager(options) {
 					? WAIT_FOR_TURN_TIMEOUT_MS
 					: undefined;
 
+		if (typeof onTextDelta === "function") {
+			let fullResponse = "";
+			let fullMessage = "";
+			if (systemPrompt) {
+				fullMessage += `[System Instructions]\n${systemPrompt}\n[End System Instructions]\n\n`;
+			}
+			fullMessage += userMessage;
+
+			await streamViaRovoDev({
+				message: fullMessage,
+				onTextDelta: (textDelta) => {
+					if (!textDelta) {
+						return;
+					}
+
+					fullResponse += textDelta;
+					onTextDelta(textDelta);
+				},
+				conflictPolicy,
+				timeoutMs: resolvedTimeoutMs,
+				failOnError: true,
+			});
+
+			return fullResponse.trim();
+		}
+
 		const result = await generateTextViaRovoDev({
 			system: systemPrompt,
 			prompt: userMessage,
@@ -1405,11 +1434,10 @@ function createRunManager(options) {
 
 	const callModelForMarkdown = async ({ provider, onTextDelta, ...rest }) => {
 		if (provider === "rovodev") {
-			const result = await callRovoDevForMarkdown(rest);
-			if (typeof onTextDelta === "function" && result) {
-				onTextDelta(result);
-			}
-			return result;
+			return callRovoDevForMarkdown({
+				...rest,
+				onTextDelta,
+			});
 		}
 
 		return callAIGatewayForMarkdown({
@@ -1560,12 +1588,13 @@ function createRunManager(options) {
 		}
 		const provider = rovodevReady ? "rovodev" : "ai-gateway";
 
-		let output = "";
-		let pendingStreamChunk = "";
-		const appendAgentLatestContent = (chunk) => {
-			if (!chunk) {
-				return;
-			}
+			let output = "";
+			let pendingStreamChunk = "";
+			let pendingFlushTimeoutId = null;
+			const appendAgentLatestContent = (chunk) => {
+				if (!chunk) {
+					return;
+				}
 
 			agent.latestContent = `${agent.latestContent}${chunk}`;
 			if (agent.latestContent.length > STREAMING_UPDATE_MAX_CONTENT_CHARS) {
@@ -1573,23 +1602,45 @@ function createRunManager(options) {
 					-STREAMING_UPDATE_MAX_CONTENT_CHARS
 				);
 			}
-			agent.updatedAt = toIsoDate();
-		};
-		const flushWorkingUpdate = () => {
-			if (!pendingStreamChunk) {
-				return;
-			}
+				agent.updatedAt = toIsoDate();
+			};
+			const flushWorkingUpdate = () => {
+				if (pendingFlushTimeoutId !== null) {
+					clearTimeout(pendingFlushTimeoutId);
+					pendingFlushTimeoutId = null;
+				}
+				if (!pendingStreamChunk) {
+					return;
+				}
 
 			const updateContent = pendingStreamChunk;
 			pendingStreamChunk = "";
 			appendAgentLatestContent(updateContent);
 			emitAgentUpdateEvent(
 				run,
-				buildAgentExecutionUpdate(task, agent, "working", updateContent)
-			);
-		};
-		try {
-			output = await callModelForMarkdown({
+					buildAgentExecutionUpdate(task, agent, "working", updateContent)
+				);
+			};
+			const scheduleWorkingUpdateFlush = () => {
+				if (pendingFlushTimeoutId !== null) {
+					return;
+				}
+
+				pendingFlushTimeoutId = setTimeout(() => {
+					pendingFlushTimeoutId = null;
+					flushWorkingUpdate();
+				}, STREAMING_UPDATE_FLUSH_MS);
+			};
+			const clearPendingWorkingUpdateFlush = () => {
+				if (pendingFlushTimeoutId === null) {
+					return;
+				}
+
+				clearTimeout(pendingFlushTimeoutId);
+				pendingFlushTimeoutId = null;
+			};
+			try {
+				output = await callModelForMarkdown({
 				provider,
 				prompt: taskPrompt,
 				conversationHistory: run.conversationContext,
@@ -1603,15 +1654,17 @@ function createRunManager(options) {
 					}
 
 					pendingStreamChunk += textDelta;
-					if (
-						pendingStreamChunk.length >= STREAMING_UPDATE_CHUNK_SIZE ||
-						pendingStreamChunk.includes("\n\n")
-					) {
-						flushWorkingUpdate();
-					}
-				},
-			});
-			flushWorkingUpdate();
+						if (
+							pendingStreamChunk.length >= STREAMING_UPDATE_CHUNK_SIZE ||
+							pendingStreamChunk.includes("\n\n")
+						) {
+							flushWorkingUpdate();
+							return;
+						}
+						scheduleWorkingUpdateFlush();
+					},
+				});
+				flushWorkingUpdate();
 
 			task.status = "done";
 			task.completedAt = toIsoDate();
@@ -1649,11 +1702,13 @@ function createRunManager(options) {
 				taskId: task.id,
 				error: task.error,
 				update: buildAgentExecutionUpdate(task, agent, "failed", task.error),
-			});
-			await persistIntermediateSnapshot(run);
-			throw error;
-		}
-	};
+				});
+				await persistIntermediateSnapshot(run);
+				throw error;
+			} finally {
+				clearPendingWorkingUpdateFlush();
+			}
+		};
 
 	const executeTaskWithRetry = async (run, task) => {
 		const maxAttempts = 2;

@@ -133,7 +133,7 @@ interface GenerativeWidgetCardShellProps {
 	onOpenPreview?: () => void;
 	onAction?: (actionLabel: string) => Promise<void> | void;
 	actions?: GenerativeWidgetActionItem[];
-	onStateChange?: (path: string, value: unknown) => void;
+	onStateChange?: (changes: Array<{ path: string; value: unknown }>) => void;
 	cardAnimation?: GenerativeCardAnimationProps;
 }
 
@@ -142,11 +142,9 @@ interface GenuiBodyProps {
 	summary?: string;
 	previewMode: boolean;
 	withContainer?: boolean;
-	onStateChange?: (path: string, value: unknown) => void;
+	onStateChange?: (changes: Array<{ path: string; value: unknown }>) => void;
 	progressive?: boolean;
 }
-
-/* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -555,7 +553,7 @@ function renderWidgetBody(
 	previewMode: boolean,
 	withContainer = true,
 	onImageClick?: () => void,
-	onStateChange?: (path: string, value: unknown) => void,
+	onStateChange?: (changes: Array<{ path: string; value: unknown }>) => void,
 	progressive = false,
 ): ReactNode {
 	if (widget.type === "genui-preview") {
@@ -758,10 +756,14 @@ export function GenerativeWidgetCard({
 	}, [parsedWidget]);
 
 	const handleGenuiStateChange = useCallback(
-		(path: string, value: unknown) => {
+		(changes: Array<{ path: string; value: unknown }>) => {
 			setGenuiState((previousState) => {
-				if (!path.startsWith("/")) return previousState;
-				return immutableSetByPath(previousState, path, value);
+				let state = previousState;
+				for (const { path, value } of changes) {
+					if (!path.startsWith("/")) continue;
+					state = immutableSetByPath(state, path, value);
+				}
+				return state;
 			});
 		},
 		[]
