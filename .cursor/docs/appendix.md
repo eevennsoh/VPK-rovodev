@@ -79,7 +79,7 @@ Optional environment variables:
 - `PORT=8080` - Backend server port
 - `BACKEND_URL=http://localhost:8080` - Backend URL for frontend
 - `ROVODEV_PORT` - RovoDev Serve port (auto-set by `pnpm run rovodev`; do not set manually)
-- `ROVODEV_POOL_SIZE=6` - Number of RovoDev Serve instances in pool (default 6)
+- `ROVODEV_POOL_SIZE=1` - Number of RovoDev Serve instances in pool (default 1; set `pnpm run rovodev -- 6` for full pool)
 - `ROVODEV_FORCE_CLEAN_START=true` - Kill all existing RovoDev instances before starting
 - `ROVODEV_SUPERVISOR=tmux` - Enable tmux supervisor mode for port recovery
 - `AUTO_FALLBACK_TO_AI_GATEWAY=true` - Allow chat endpoints to route to AI Gateway automatically when RovoDev Serve is unavailable

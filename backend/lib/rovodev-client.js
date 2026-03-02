@@ -269,12 +269,30 @@ function extractChunkFromEvent(eventName, parsed) {
 				: toolInput
 					? JSON.stringify(toolInput, null, 2)
 					: "";
+
+			const mcpServer =
+				typeof part?.mcp_server === "string" && part.mcp_server.trim()
+					? part.mcp_server.trim()
+					: undefined;
+
+			const toolCallId = part?.tool_call_id;
+			const permissions = parsed?.permissions;
+			const permissionScenario =
+				toolCallId &&
+				permissions &&
+				typeof permissions === "object" &&
+				typeof permissions[toolCallId] === "string"
+					? permissions[toolCallId]
+					: undefined;
+
 			return {
 				type: "tool_call_start",
 				text: args,
 				toolName,
-				toolCallId: part?.tool_call_id,
+				toolCallId,
 				toolInput,
+				mcpServer,
+				permissionScenario,
 			};
 		}
 		return null;
@@ -317,12 +335,17 @@ function extractChunkFromEvent(eventName, parsed) {
 			const toolName =
 				parsed?.part?.tool_name ||
 				(typeof toolInput?.tool_name === "string" ? toolInput.tool_name : "unknown");
+			const mcpServer =
+				typeof parsed?.part?.mcp_server === "string" && parsed.part.mcp_server.trim()
+					? parsed.part.mcp_server.trim()
+					: undefined;
 			return {
 				type: "tool_call_start",
 				text: "",
 				toolName,
 				toolCallId: parsed?.part?.tool_call_id,
 				toolInput,
+				mcpServer,
 			};
 		}
 

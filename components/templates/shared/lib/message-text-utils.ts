@@ -311,6 +311,13 @@ function isPlanNarrativeNoiseLine(line: string): boolean {
 		return true;
 	}
 
+	if (
+		/^(?:perfect|awesome|great|thanks)[!.,\s]/i.test(trimmedLine) &&
+		/(?:\blet me\b|\bi(?:['\u2019]?)ll\b)/i.test(trimmedLine)
+	) {
+		return true;
+	}
+
 	if (/^let me\s+/i.test(trimmedLine) || /^now i\b/i.test(trimmedLine)) {
 		return true;
 	}
@@ -324,6 +331,43 @@ function isPlanNarrativeNoiseLine(line: string): boolean {
 	}
 
 	return /^#{1,6}\s*plan\b/i.test(trimmedLine) || /^plan:?$/i.test(trimmedLine);
+}
+
+function isPlanHeadingLine(line: string): boolean {
+	const trimmedLine = line.trim();
+	if (!trimmedLine) {
+		return false;
+	}
+
+	const headingValue = trimmedLine
+		.replace(/^#{1,6}\s*/, "")
+		.replace(/^\*\*(.+)\*\*:?\s*$/, "$1")
+		.replace(/:$/, "")
+		.trim();
+	if (!headingValue) {
+		return false;
+	}
+
+	return /\bplan\b/i.test(headingValue) && headingValue.length <= 80;
+}
+
+function findPlanNarrativeStartIndex(lines: string[]): number {
+	for (let index = 0; index < lines.length; index += 1) {
+		if (isPlanHeadingLine(lines[index])) {
+			return index + 1;
+		}
+	}
+
+	return 0;
+}
+
+function stripToolResultsSuppressionText(line: string): string {
+	return line
+		.replace(
+			/\bTool results were (?:large and are omitted for performance|moved to the Thinking section)\.?\s*Open Tools for details\.?/gi,
+			""
+		)
+		.trim();
 }
 
 function extractPlanSummaryTail(value: string, maxSummaryLines: number): string {
@@ -342,17 +386,50 @@ function extractPlanSummaryTail(value: string, maxSummaryLines: number): string 
 	return lines
 		.slice(-maxSummaryLines)
 		.map((line) =>
-			line
-				.replace(
-					/\bTool results were (?:large and are omitted for performance|moved to the Thinking section)\.?\s*Open Tools for details\.?/gi,
-					""
-				)
-				.replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1")
-				.trim()
+			stripToolResultsSuppressionText(line).replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1")
 		)
 		.filter((line) => line.length > 0)
 		.join("\n")
 		.trim();
+}
+
+function extractPlanSummaryBody(value: string): string {
+	const lines = value.split(/\r?\n/);
+	const summaryLines: string[] = [];
+	let previousLineWasBlank = false;
+
+	for (const line of lines.slice(findPlanNarrativeStartIndex(lines))) {
+		const trimmedLine = line.trim();
+		if (!trimmedLine) {
+			if (summaryLines.length > 0 && !previousLineWasBlank) {
+				summaryLines.push("");
+				previousLineWasBlank = true;
+			}
+			continue;
+		}
+
+		if (
+			isPlanNarrativeNoiseLine(trimmedLine) ||
+			isPlanHeadingLine(trimmedLine) ||
+			/^```/.test(trimmedLine)
+		) {
+			continue;
+		}
+
+		const cleanedLine = stripToolResultsSuppressionText(trimmedLine);
+		if (!cleanedLine) {
+			continue;
+		}
+
+		summaryLines.push(cleanedLine);
+		previousLineWasBlank = false;
+	}
+
+	while (summaryLines[summaryLines.length - 1] === "") {
+		summaryLines.pop();
+	}
+
+	return summaryLines.join("\n").trim();
 }
 
 export interface PlanRenderableText {
@@ -363,6 +440,7 @@ export interface PlanRenderableText {
 
 interface ExtractPlanRenderableTextOptions {
 	maxSummaryLines?: number;
+	summaryMode?: "tail" | "full";
 }
 
 /**
@@ -456,6 +534,7 @@ export function extractPlanRenderableText(
 	value: string,
 	options: ExtractPlanRenderableTextOptions = {}
 ): PlanRenderableText {
+	const summaryMode = options.summaryMode === "full" ? "full" : "tail";
 	const maxSummaryLines =
 		typeof options.maxSummaryLines === "number" && options.maxSummaryLines > 0
 			? Math.floor(options.maxSummaryLines)
@@ -477,7 +556,10 @@ export function extractPlanRenderableText(
 	);
 	const mermaidText = mermaidBlocks.join("\n\n").trim();
 	const narrativeText = stripMermaidBlocksFromText(normalizedText);
-	const summary = extractPlanSummaryTail(narrativeText, maxSummaryLines);
+	const summary =
+		summaryMode === "full"
+			? extractPlanSummaryBody(narrativeText)
+			: extractPlanSummaryTail(narrativeText, maxSummaryLines);
 	const combinedText = [mermaidText, summary].filter(Boolean).join("\n\n").trim();
 
 	return {

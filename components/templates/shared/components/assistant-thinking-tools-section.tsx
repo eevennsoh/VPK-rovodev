@@ -96,10 +96,11 @@ export function AssistantThinkingToolsSection({
 	return (
 		<div className={cn("space-y-2", className)}>
 			{thinkingToolCalls.map((toolCall, index) => {
+				const hasDetails = hasToolDetails(toolCall);
 				const shouldDefaultOpen =
 					defaultOpenMode === "running"
-						? isToolRunning(toolCall)
-						: hasToolDetails(toolCall);
+						? isToolRunning(toolCall) && hasDetails
+						: hasDetails;
 
 				return (
 					<AssistantThinkingToolItem

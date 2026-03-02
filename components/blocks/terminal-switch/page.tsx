@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo, useEffect, type FormEvent } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect, type CSSProperties, type FormEvent } from "react";
 import { cn } from "@/lib/utils";
 import { useRovoChat } from "@/app/contexts";
 import { isRenderableRovoUIMessage, getMessageText, getAllDataParts, type RovoUIMessage } from "@/lib/rovo-ui-messages";
@@ -347,16 +347,30 @@ function TerminalView() {
 // ---------------------------------------------------------------------------
 interface TerminalSwitchPanelProps {
 	onClose?: () => void;
+	className?: string;
+	chatPanelContainerStyle?: CSSProperties;
 }
 
-export default function TerminalSwitchPanel({ onClose }: Readonly<TerminalSwitchPanelProps>): React.ReactElement {
+export default function TerminalSwitchPanel({
+	onClose,
+	className,
+	chatPanelContainerStyle,
+}: Readonly<TerminalSwitchPanelProps>): React.ReactElement {
 	const [mode, setMode] = useState<ViewMode>("chat");
 	const { isStreaming, resetChat } = useRovoChat();
 	const isTerminal = mode === "terminal";
+	const resolvedChatPanelContainerStyle: CSSProperties = {
+		border: "none",
+		borderRadius: 0,
+		...chatPanelContainerStyle,
+	};
 
 	return (
 		<div
-			className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-surface transition-colors duration-200"
+			className={cn(
+				"flex h-full flex-col overflow-hidden rounded-[12px] border border-border bg-surface transition-colors duration-200",
+				className,
+			)}
 			{...(isTerminal ? {
 				"data-subtree-theme": "",
 				"data-color-mode": "dark",
@@ -394,7 +408,7 @@ export default function TerminalSwitchPanel({ onClose }: Readonly<TerminalSwitch
 			{/* Content area */}
 			<div className="relative min-h-0 flex-1">
 				<div className={cn("absolute inset-0 transition-opacity duration-200", mode === "chat" ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0")}>
-					<ChatPanel onClose={onClose ?? (() => {})} hideHeader />
+					<ChatPanel onClose={onClose ?? (() => {})} hideHeader containerStyle={resolvedChatPanelContainerStyle} />
 				</div>
 				<div className={cn("absolute inset-0 transition-opacity duration-200", mode === "terminal" ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0")}>
 					<TerminalView />

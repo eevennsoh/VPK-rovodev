@@ -53,6 +53,11 @@ export const UTILITY_DETAILS: Record<string, ComponentDetail> = {
 		description: "A client-side showcase of json-render, rendering structured JSON specs into live UI with data dashboards, interactive forms, chart visualizations, and 3D scenes powered by React Three Fiber.",
 		demoLayout: { previewContentWidth: "full" },
 	},
+	"tools-invocation": {
+		description:
+			"A simulated chat interface demonstrating real-time AI agent tool invocations with permission control. Shows tool calls with expandable arguments, results, Allow/Deny permission flows, and various tool states (running, completed, denied, error). Inspired by streaming agent architectures.",
+		demoLayout: { previewContentWidth: "full" },
+	},
 	"visual-json": {
 		description: "A schema-aware, embeddable visual JSON editor by Vercel Labs. Provides tree navigation, form editing, diff comparison, search, drag-and-drop reordering, and keyboard navigation for inspecting and editing JSON data.",
 		demoLayout: { previewContentWidth: "full" },

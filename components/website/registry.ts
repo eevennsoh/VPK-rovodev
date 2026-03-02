@@ -1268,6 +1268,7 @@ const UTILITY_DEMOS: Record<string, ComponentType> = {
 	multiports: dynamic(() => import("./demos/utils/multiports-demo"), { ssr: false }),
 	"sound-generation": dynamic(() => import("./demos/utils/sound-generation-demo"), { ssr: false }),
 	streamdown: dynamic(() => import("./demos/utils/streamdown-demo"), { ssr: false }),
+	"tools-invocation": dynamic(() => import("./demos/utils/tools-invocation-demo"), { ssr: false }),
 	"ui-generation": dynamic(() => import("./demos/utils/ui-generation-demo"), { ssr: false }),
 	"visual-json": dynamic(() => import("./demos/utils/visual-json-demo"), { ssr: false }),
 };

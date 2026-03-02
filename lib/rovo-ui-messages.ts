@@ -90,6 +90,8 @@ export interface ThinkingEventUpdate {
 	suppressedRawOutput?: boolean;
 	errorText?: string;
 	timestamp: string;
+	mcpServer?: string;
+	permissionScenario?: string;
 }
 
 export type ThinkingToolState = "running" | "completed" | "error";
@@ -107,6 +109,8 @@ export interface ThinkingToolCallSummary {
 	suppressedRawOutput?: boolean;
 	errorText?: string;
 	timestamp?: string;
+	mcpServer?: string;
+	permissionScenario?: string;
 }
 
 export interface ToolFirstWarningData {
@@ -179,6 +183,21 @@ export type RovoToolPart = ToolUIPart | DynamicToolUIPart;
 export type RovoSourcePart = SourceUrlUIPart | SourceDocumentUIPart;
 
 const CREATE_PLAN_SIGNAL_REGEX = /\bcreate[-_\s]?plan\b/i;
+const REQUEST_USER_INPUT_TOOL_NAME_REGEX =
+	/(?:^|\.)(?:request_user_input|ask_user_questions|ask_user_question)$/i;
+
+function isRequestUserInputToolName(toolName: unknown): boolean {
+	if (typeof toolName !== "string") {
+		return false;
+	}
+
+	const normalizedToolName = toolName.trim();
+	if (!normalizedToolName) {
+		return false;
+	}
+
+	return REQUEST_USER_INPUT_TOOL_NAME_REGEX.test(normalizedToolName);
+}
 
 function thinkingPhaseToState(phase: ThinkingEventPhase): ThinkingToolState {
 	if (phase === "error") return "error";
@@ -411,6 +430,8 @@ export function getThinkingToolCallSummaries(
 								: undefined)
 						: undefined,
 				timestamp,
+				mcpServer: typeof event.mcpServer === "string" && event.mcpServer.trim() ? event.mcpServer.trim() : undefined,
+				permissionScenario: typeof event.permissionScenario === "string" && event.permissionScenario.trim() ? event.permissionScenario.trim() : undefined,
 			});
 			summaryIndexByKey.set(key, summaries.length - 1);
 			continue;
@@ -421,6 +442,12 @@ export function getThinkingToolCallSummaries(
 		summary.toolCallId = toolCallId;
 		if (timestamp) {
 			summary.timestamp = timestamp;
+		}
+		if (typeof event.mcpServer === "string" && event.mcpServer.trim()) {
+			summary.mcpServer = event.mcpServer.trim();
+		}
+		if (typeof event.permissionScenario === "string" && event.permissionScenario.trim()) {
+			summary.permissionScenario = event.permissionScenario.trim();
 		}
 		if (event.phase === "start") {
 			if (summary.state !== "completed" && summary.state !== "error") {
@@ -482,7 +509,9 @@ export function getThinkingToolCallSummaries(
 				continue;
 			}
 
-			const completionNote = "Tool finished without an explicit result event.";
+			const completionNote = isRequestUserInputToolName(summary.toolName)
+				? "Awaiting your answers in the question card."
+				: "Tool finished without an explicit result event.";
 			summary.output = completionNote;
 			summary.outputPreview = completionNote;
 		}

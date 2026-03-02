@@ -5,7 +5,7 @@
 Local development — single command starts all three processes:
 
 ```text
-pnpm run rovodev → rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
+pnpm run rovodev (default pool size: 1) → rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
 
 Browser -> Next.js (:3000) -> app/api/* proxy -> Express (:8080) -> rovodev serve (:8000)
 ```
@@ -16,7 +16,7 @@ Production with static export (single process, requires `NEXT_OUTPUT=export` dur
 Browser -> Express (:8080) -> static export + /api/* -> RovoDev Serve
 ```
 
-The `rovodev` script starts all three processes concurrently. The `dev` script starts only backend + frontend (requires RovoDev Serve already running). The backend auto-detects RovoDev Serve via `.dev-rovodev-port` (single) or `.dev-rovodev-ports` (pool) files and will reject chat requests if it's unavailable unless `AUTO_FALLBACK_TO_AI_GATEWAY=true` is enabled and AI Gateway env vars are configured.
+The `rovodev` script starts all three processes concurrently (single-instance by default; use `pnpm run rovodev -- 6` for full pool). The `dev` script starts only backend + frontend (requires RovoDev Serve already running). The backend auto-detects RovoDev Serve via `.dev-rovodev-port` (single) or `.dev-rovodev-ports` (pool) files and will reject chat requests if it's unavailable unless `AUTO_FALLBACK_TO_AI_GATEWAY=true` is enabled and AI Gateway env vars are configured.
 
 ## Key Directories
 

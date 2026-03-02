@@ -115,7 +115,7 @@ AUTO_FALLBACK_TO_AI_GATEWAY=true
 # Default billing site for rovodev serve (override as needed)
 ROVODEV_BILLING_URL=${resolvedRovodevSiteUrl}
 
-# RovoDev Serve pool size (number of concurrent RovoDev instances for agents team, default: 6)${preservedRovodevPoolSize ? `\nROVODEV_POOL_SIZE=${preservedRovodevPoolSize}` : '\n# ROVODEV_POOL_SIZE=6'}
+# RovoDev Serve pool size (number of concurrent RovoDev instances for agents team, default: 1)${preservedRovodevPoolSize ? `\nROVODEV_POOL_SIZE=${preservedRovodevPoolSize}` : '\n# ROVODEV_POOL_SIZE=1'}
 
 # Frontend configuration (for production builds)
 # NEXT_PUBLIC_API_URL=https://your-service-name.us-west-2.platdev.atl-paas.net${preservedPublicApiUrl ? `\nNEXT_PUBLIC_API_URL=${preservedPublicApiUrl}` : ''}

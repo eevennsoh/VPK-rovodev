@@ -685,6 +685,8 @@ function buildThinkingEventFromToolEvent({
 	outputBytes,
 	suppressedRawOutput,
 	errorText,
+	mcpServer,
+	permissionScenario,
 }) {
 	const resolvedToolName = normalizeToolName(toolName) ?? "Tool";
 	const resolvedToolCallId =
@@ -732,6 +734,12 @@ function buildThinkingEventFromToolEvent({
 	}
 	if (typeof errorText === "string" && errorText.trim()) {
 		event.errorText = errorText.trim();
+	}
+	if (typeof mcpServer === "string" && mcpServer.trim()) {
+		event.mcpServer = mcpServer.trim();
+	}
+	if (typeof permissionScenario === "string" && permissionScenario.trim()) {
+		event.permissionScenario = permissionScenario.trim();
 	}
 
 	return event;
@@ -1078,6 +1086,8 @@ async function streamViaRovoDev({
 									toolCallId: chunk.toolCallId,
 									phase: "start",
 									input: toolInputPreview,
+									mcpServer: chunk.mcpServer,
+									permissionScenario: chunk.permissionScenario,
 								});
 								if (thinkingEvent) {
 									onThinkingEvent(thinkingEvent);

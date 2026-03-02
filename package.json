@@ -12,8 +12,7 @@
 		"dev:frontend": "node scripts/dev-frontend.js",
 		"dev:rovodev": "node scripts/dev-rovodev.js",
 		"rovodev:tmux": "./scripts/dev-tmux-8.sh",
-		"rovodev": "concurrently --kill-others-on-fail -n rovodev,backend,frontend -c blue,yellow,green \"node scripts/dev-rovodev.js\" \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
-		"rovodev:solo": "ROVODEV_POOL_SIZE=1 concurrently --kill-others-on-fail -n rovodev,backend,frontend -c blue,yellow,green \"node scripts/dev-rovodev.js\" \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
+		"rovodev": "node scripts/run-rovodev-stack.js",
 		"ports": "node scripts/show-worktree-ports.js",
 		"generate:prompt": "node --experimental-strip-types scripts/generate-catalog-prompt.js"
 	},

@@ -132,6 +132,51 @@ The existing route, data types, and dependencies are already in place.`
 	);
 });
 
+test("extracts full executive summary body from the plan section", () => {
+	const input = `Perfect! I have all the context I need. Let me create a comprehensive plan.
+
+# Plan
+
+## Scope
+- In: Jira integration, drag and drop, responsive layout
+- Out: real-time collaboration
+
+Implementation approach:
+Use existing board primitives and add dependency-aware task flow.
+Tool results were large and are omitted for performance. Open Tools for details.`;
+
+	const output = extractPlanRenderableText(input, { summaryMode: "full" });
+	assert.equal(
+		output.summary,
+		`## Scope
+- In: Jira integration, drag and drop, responsive layout
+- Out: real-time collaboration
+
+Implementation approach:
+Use existing board primitives and add dependency-aware task flow.`
+	);
+});
+
+test("full summary mode omits mermaid fences from summary text", () => {
+	const input = `# Plan
+
+Define execution order and communicate build phases.
+
+\`\`\`mermaid
+graph TD
+  task_1["Define execution order"]
+  task_2["Communicate build phases"]
+  task_1 --> task_2
+\`\`\``;
+
+	const output = extractPlanRenderableText(input, { summaryMode: "full" });
+	assert.equal(
+		output.summary,
+		"Define execution order and communicate build phases."
+	);
+	assert.match(output.mermaid, /task_1 --> task_2/);
+});
+
 test("suppresses raw tool json and preserves summary narrative", () => {
 	const input = `I'll help you list your Google Calendar events.
 {

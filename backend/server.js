@@ -4951,7 +4951,7 @@ Once ready, call POST /api/plan/${creationMode}s to persist it.
 			if (!poolStatus) {
 				return res.status(503).json({
 					error:
-						"Strict multiport routing requires an active RovoDev pool. Restart with `pnpm run rovodev`.",
+						"Strict multiport routing requires an active RovoDev pool. Restart with `pnpm run rovodev -- 6`.",
 					code: "ROVODEV_POOL_UNAVAILABLE",
 					portIndex: strictPortAssignment.portIndex,
 					requiredPort: strictPortAssignment.rovoPort,

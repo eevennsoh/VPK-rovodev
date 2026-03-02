@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback, useRef, useState } from "react";
+import { useEffect, useMemo, useCallback, useRef, useState, type CSSProperties } from "react";
 import { useRovoChat } from "@/app/contexts";
 import type { SendPromptOptions } from "@/app/contexts";
 import { Conversation, ConversationContent } from "@/components/ui-ai/conversation";
@@ -45,6 +45,8 @@ interface ChatPanelProps {
 	enableSmartWidgets?: boolean;
 	cards?: ChatPanelCardsProps;
 	hideHeader?: boolean;
+	containerClassName?: string;
+	containerStyle?: CSSProperties;
 }
 
 const COMPACT_CHAT_WIDTH_MAX = 520;
@@ -58,7 +60,15 @@ function getSmartWidthClass(widthPx: number): SmartWidthClass {
 	return "wide";
 }
 
-export default function ChatPanel({ onClose, sendPromptOptions, enableSmartWidgets = false, cards, hideHeader = false }: Readonly<ChatPanelProps>): React.ReactElement {
+export default function ChatPanel({
+	onClose,
+	sendPromptOptions,
+	enableSmartWidgets = false,
+	cards,
+	hideHeader = false,
+	containerClassName,
+	containerStyle,
+}: Readonly<ChatPanelProps>): React.ReactElement {
 	const { resetChat, uiMessages: rawUiMessages, sendPrompt } = useRovoChat();
 	const panelRef = useRef<HTMLDivElement | null>(null);
 	const [containerWidthPx, setContainerWidthPx] = useState<number | null>(null);
@@ -232,7 +242,7 @@ export default function ChatPanel({ onClose, sendPromptOptions, enableSmartWidge
 	};
 
 	return (
-		<div ref={panelRef} style={chatStyles.chatPanel}>
+		<div ref={panelRef} className={containerClassName} style={{ ...chatStyles.chatPanel, ...containerStyle }}>
 			{!hideHeader && (
 				<div>
 					<ChatHeader onClose={onClose} onNewChat={resetChat} />

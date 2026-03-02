@@ -20,7 +20,7 @@ try {
 
 const basePort = getRovodevBasePort();
 const maxTries = Number.parseInt(process.env.PORT_SEARCH_MAX ?? "20", 10);
-const poolSize = Math.max(1, Number.parseInt(process.env.ROVODEV_POOL_SIZE ?? "6", 10));
+const poolSize = Math.max(1, Number.parseInt(process.env.ROVODEV_POOL_SIZE ?? "1", 10));
 const forceCleanStart = process.env.ROVODEV_FORCE_CLEAN_START === "true";
 const configuredBillingSiteUrl = (process.env.ROVODEV_BILLING_URL ?? "").trim();
 if (!configuredBillingSiteUrl) {

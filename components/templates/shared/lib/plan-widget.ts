@@ -20,6 +20,12 @@ export interface ParsedPlanWidgetPayload {
 	agents: string[];
 }
 
+export interface PlanMermaidGraph {
+	markdown: string;
+	usesInferredLinearEdges: boolean;
+	hasExplicitEdges: boolean;
+}
+
 const MERMAID_BLOCK_REGEX = /```mermaid\b[\s\S]*?```/gi;
 const MERMAID_EDGE_REGEX =
 	/\b[A-Za-z0-9_-]+\s*(?:-->|==>|-.->)\s*(?:\|[^|\n]+\|\s*)?[A-Za-z0-9_-]+\b/;
@@ -39,6 +45,41 @@ function getNonEmptyString(value: unknown): string | null {
 
 	const trimmedValue = value.trim();
 	return trimmedValue.length > 0 ? trimmedValue : null;
+}
+
+function sanitizeMermaidNodeId(value: string): string {
+	const normalizedValue = value.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+	if (!normalizedValue) {
+		return "task";
+	}
+
+	return /^[a-z_]/.test(normalizedValue)
+		? normalizedValue
+		: `task_${normalizedValue}`;
+}
+
+function createUniqueMermaidNodeId(
+	baseId: string,
+	usedNodeIds: Set<string>
+): string {
+	if (!usedNodeIds.has(baseId)) {
+		usedNodeIds.add(baseId);
+		return baseId;
+	}
+
+	let duplicateIndex = 2;
+	let candidateId = `${baseId}_${duplicateIndex}`;
+	while (usedNodeIds.has(candidateId)) {
+		duplicateIndex += 1;
+		candidateId = `${baseId}_${duplicateIndex}`;
+	}
+
+	usedNodeIds.add(candidateId);
+	return candidateId;
+}
+
+function escapeMermaidLabel(value: string): string {
+	return value.replace(/#/g, "#35;").replace(/"/g, "#quot;");
 }
 
 function parseTaskItem(
@@ -154,6 +195,94 @@ export function hasDependencyEdgesInMermaid(value: string): boolean {
 	}
 
 	return mermaidBlocks.some((block) => MERMAID_EDGE_REGEX.test(block));
+}
+
+export function generateMermaidFromPlanTasks(
+	tasks: ReadonlyArray<ParsedPlanTask>
+): PlanMermaidGraph {
+	if (!Array.isArray(tasks) || tasks.length === 0) {
+		return {
+			markdown: "",
+			usesInferredLinearEdges: false,
+			hasExplicitEdges: false,
+		};
+	}
+
+	const usedNodeIds = new Set<string>();
+	const taskIdToNodeId = new Map<string, string>();
+	const nodeEntries = tasks.map((task, index) => {
+		const taskId = getNonEmptyString(task.id) ?? `task-${index + 1}`;
+		const nodeId = createUniqueMermaidNodeId(
+			sanitizeMermaidNodeId(taskId),
+			usedNodeIds
+		);
+		if (!taskIdToNodeId.has(taskId)) {
+			taskIdToNodeId.set(taskId, nodeId);
+		}
+
+		return {
+			nodeId,
+			label: getNonEmptyString(task.label) ?? `Task ${index + 1}`,
+			blockedBy: Array.isArray(task.blockedBy) ? task.blockedBy : [],
+		};
+	});
+
+	const edgeLines: string[] = [];
+	const seenEdges = new Set<string>();
+	for (const node of nodeEntries) {
+		for (const blockedByTaskId of node.blockedBy) {
+			const dependencyTaskId = getNonEmptyString(blockedByTaskId);
+			if (!dependencyTaskId) {
+				continue;
+			}
+
+			const fromNodeId = taskIdToNodeId.get(dependencyTaskId);
+			if (!fromNodeId) {
+				continue;
+			}
+
+			const edgeKey = `${fromNodeId}->${node.nodeId}`;
+			if (seenEdges.has(edgeKey)) {
+				continue;
+			}
+
+			seenEdges.add(edgeKey);
+			edgeLines.push(`  ${fromNodeId} --> ${node.nodeId}`);
+		}
+	}
+
+	const hasExplicitEdges = edgeLines.length > 0;
+	let usesInferredLinearEdges = false;
+	if (!hasExplicitEdges && nodeEntries.length > 1) {
+		usesInferredLinearEdges = true;
+		for (let index = 1; index < nodeEntries.length; index += 1) {
+			const fromNodeId = nodeEntries[index - 1].nodeId;
+			const toNodeId = nodeEntries[index].nodeId;
+			const edgeKey = `${fromNodeId}->${toNodeId}`;
+			if (seenEdges.has(edgeKey)) {
+				continue;
+			}
+
+			seenEdges.add(edgeKey);
+			edgeLines.push(`  ${fromNodeId} --> ${toNodeId}`);
+		}
+	}
+
+	const markdown = [
+		"```mermaid",
+		"graph TD",
+		...nodeEntries.map(
+			(node) => `  ${node.nodeId}["${escapeMermaidLabel(node.label)}"]`
+		),
+		...edgeLines,
+		"```",
+	].join("\n");
+
+	return {
+		markdown,
+		usesInferredLinearEdges,
+		hasExplicitEdges,
+	};
 }
 
 export function getLatestPlanWidgetPayload(

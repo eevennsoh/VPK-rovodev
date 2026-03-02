@@ -56,7 +56,7 @@ export function PlanCardWidgetInline({
 
 	const displayTitle = resolvePlanDisplayTitle(title, visibleTasks);
 	const displayEmoji = derivePlanEmojiFromTitle(displayTitle);
-	const descriptionText = description?.trim() ? `${visibleTasks.length} tasks • Description` : `${visibleTasks.length} tasks`;
+	const descriptionText = description?.trim() ? `${visibleTasks.length} tasks • ${description.trim()}` : `${visibleTasks.length} tasks`;
 
 	return (
 		<Plan className="w-full gap-0 py-0 shadow-xs" open={isOpen} onOpenChange={setIsOpen} isStreaming={isStreaming}>

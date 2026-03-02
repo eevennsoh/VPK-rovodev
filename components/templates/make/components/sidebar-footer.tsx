@@ -174,17 +174,21 @@ function CollapsibleSection({
 }>) {
 	return (
 		<div className="group/section border-t border-border">
-			<button
-				type="button"
-				className="flex h-10 shrink-0 w-full items-center justify-between px-4 pr-3 text-left transition-colors hover:bg-bg-neutral"
-				onClick={onToggle}
-			>
-				<span
-					style={{ font: token("font.heading.xxsmall"), lineHeight: 1 }}
-					className="text-text-subtlest"
+			<div className="flex h-10 shrink-0 w-full items-center justify-between px-4 pr-3 text-left transition-colors hover:bg-bg-neutral">
+				<button
+					type="button"
+					className="min-w-0 flex-1 text-left"
+					onClick={onToggle}
+					aria-expanded={open}
+					aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
 				>
-					{title}
-				</span>
+					<span
+						style={{ font: token("font.heading.xxsmall"), lineHeight: 1 }}
+						className="text-text-subtlest"
+					>
+						{title}
+					</span>
+				</button>
 				<div className="flex items-center gap-1">
 					{typeof badge === "number" && badge > 0 ? (
 						<span className="inline-flex min-w-[24px] items-center justify-center rounded-xs bg-bg-neutral px-1 text-xs text-text transition-[margin] duration-normal ease-out group-hover/section:mr-0" style={{ height: 16 }}>
@@ -198,26 +202,27 @@ function CollapsibleSection({
 							type="button"
 							tabIndex={-1}
 							className="flex size-5 items-center justify-center rounded text-icon-subtle transition-colors hover:bg-bg-neutral-hovered hover:text-text"
-							onClick={(e) => {
-								e.stopPropagation();
-								onAdd?.();
-							}}
+							onClick={onAdd}
 							aria-label={`Add ${title.toLowerCase()}`}
 						>
 							<AddIcon label="" size="small" />
 						</button>
 					</div>
-					{open ? (
-						<span className="flex size-5 items-center justify-center rounded text-icon-subtle">
+					<button
+						type="button"
+						tabIndex={-1}
+						className="flex size-5 items-center justify-center rounded text-icon-subtle"
+						onClick={onToggle}
+						aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
+					>
+						{open ? (
 							<ChevronDownIcon label="" color="currentColor" size="small" />
-						</span>
-					) : (
-						<span className="flex size-5 items-center justify-center rounded text-icon-subtle">
+						) : (
 							<ChevronRightIcon label="" color="currentColor" size="small" />
-						</span>
-					)}
+						)}
+					</button>
 				</div>
-			</button>
+			</div>
 			{open ? (
 				<div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
 					{children}

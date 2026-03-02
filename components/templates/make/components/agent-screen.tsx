@@ -98,7 +98,7 @@ export const AgentScreen = memo(function AgentScreen({
 						conversation.map((msg) => (
 							<Message key={msg.id} from="assistant" className="max-w-full">
 								<MessageContent>
-									<MessageResponse>{msg.content}</MessageResponse>
+									<MessageResponse isAnimating={isWorking}>{msg.content}</MessageResponse>
 								</MessageContent>
 							</Message>
 						))

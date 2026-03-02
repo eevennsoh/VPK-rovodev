@@ -1,7 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { getLatestPlanWidgetPayload } = require("./plan-widget.ts");
+const {
+	getLatestPlanWidgetPayload,
+	generateMermaidFromPlanTasks,
+} = require("./plan-widget.ts");
 
 function createAssistantMessage(parts) {
 	return {
@@ -76,4 +79,69 @@ test("getLatestPlanWidgetPayload returns null when no valid plan widget exists",
 	];
 
 	assert.equal(getLatestPlanWidgetPayload(messages), null);
+});
+
+test("generateMermaidFromPlanTasks preserves explicit blockedBy dependencies", () => {
+	const graph = generateMermaidFromPlanTasks([
+		{
+			id: "task-1",
+			label: "Define data model",
+			blockedBy: [],
+		},
+		{
+			id: "task-2",
+			label: "Implement API route",
+			blockedBy: ["task-1"],
+		},
+		{
+			id: "task-3",
+			label: "Add UI integration",
+			blockedBy: ["task-2"],
+		},
+	]);
+
+	assert.equal(graph.hasExplicitEdges, true);
+	assert.equal(graph.usesInferredLinearEdges, false);
+	assert.match(graph.markdown, /task_1 --> task_2/);
+	assert.match(graph.markdown, /task_2 --> task_3/);
+});
+
+test("generateMermaidFromPlanTasks falls back to inferred linear dependencies", () => {
+	const graph = generateMermaidFromPlanTasks([
+		{
+			id: "task-1",
+			label: "Collect requirements",
+			blockedBy: [],
+		},
+		{
+			id: "task-2",
+			label: "Build implementation",
+			blockedBy: [],
+		},
+		{
+			id: "task-3",
+			label: "Verify output",
+			blockedBy: [],
+		},
+	]);
+
+	assert.equal(graph.hasExplicitEdges, false);
+	assert.equal(graph.usesInferredLinearEdges, true);
+	assert.match(graph.markdown, /task_1 --> task_2/);
+	assert.match(graph.markdown, /task_2 --> task_3/);
+});
+
+test("generateMermaidFromPlanTasks keeps single-task graphs without edges", () => {
+	const graph = generateMermaidFromPlanTasks([
+		{
+			id: "task-1",
+			label: "Review scope",
+			blockedBy: [],
+		},
+	]);
+
+	assert.equal(graph.hasExplicitEdges, false);
+	assert.equal(graph.usesInferredLinearEdges, false);
+	assert.ok(graph.markdown.includes('task_1["Review scope"]'));
+	assert.ok(!graph.markdown.includes("-->"));
 });

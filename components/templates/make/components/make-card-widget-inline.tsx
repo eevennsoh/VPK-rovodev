@@ -140,7 +140,7 @@ export function MakeCardWidgetInline({
 
 	const displayTitle = resolvePlanDisplayTitle(title, visibleTasks);
 	const displayEmoji = derivePlanEmojiFromTitle(displayTitle);
-	const descriptionText = description?.trim() ? `${visibleTasks.length} tasks • Description` : `${visibleTasks.length} tasks`;
+	const descriptionText = description?.trim() ? `${visibleTasks.length} tasks • ${description.trim()}` : `${visibleTasks.length} tasks`;
 
 	if (isCollapsed) {
 		return <CollapsedPlanBubble title={displayTitle} emoji={displayEmoji} onExpand={() => setIsCollapsed(false)} />;

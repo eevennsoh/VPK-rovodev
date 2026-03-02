@@ -297,6 +297,7 @@ export const UTILITY_COMPONENTS: ComponentEntry[] = [
 	utilityComponent("multiports", "Multiports"),
 	utilityComponent("sound-generation", "Sound Generation"),
 	utilityComponent("streamdown", "Streamdown"),
+	utilityComponent("tools-invocation", "Tools Invocation"),
 	utilityComponent("ui-generation", "UI Generation"),
 	utilityComponent("visual-json", "Visual JSON"),
 ] as const;

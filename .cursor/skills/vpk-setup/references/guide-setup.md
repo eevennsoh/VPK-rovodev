@@ -343,6 +343,8 @@ pnpm run dev
 
 ```bash
 pnpm run rovodev
+# For full pool mode:
+# pnpm run rovodev -- 6
 ```
 
 **Important:** Only run one stack command at a time. Running `pnpm run rovodev` while `start-dev.sh` (or another `pnpm run rovodev`) is active will trigger lock/port conflicts.

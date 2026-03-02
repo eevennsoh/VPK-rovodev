@@ -153,7 +153,7 @@ Common mistakes:
 
 - Install dependencies: `pnpm install`
 - First-time MCP setup: `acli rovodev` (interactive, approve MCP servers, then Ctrl+C)
-- Start everything: `pnpm run rovodev` (starts rovodev serve pool + backend + frontend)
+- Start everything: `pnpm run rovodev` (starts 1 rovodev serve instance + backend + frontend; use `pnpm run rovodev -- 6` for full pool)
 - Start frontend + backend only: `pnpm run dev` (requires rovodev serve already running)
 - Start frontend only: `pnpm run dev:frontend`
 - Start backend only: `pnpm run dev:backend`

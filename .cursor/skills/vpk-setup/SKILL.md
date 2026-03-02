@@ -22,7 +22,7 @@ produces: [.env.local, .asap-config]
 2. **Install dependencies** → `pnpm install` (skip if `node_modules` already exists)
 3. **Collect AI Gateway credentials** → Ask for use case ID and Atlassian email
 4. **Configure AI Gateway** → Generate ASAP keys and create `.env.local` with fallback + Google endpoint values
-5. **Start servers** → Ask permission, then `pnpm run rovodev:solo` (single RovoDev Serve + backend + frontend)
+5. **Start servers** → Ask permission, then `pnpm run rovodev` (single RovoDev Serve + backend + frontend by default)
 6. **Verify** → http://localhost:3000 (or the port shown in terminal output)
 
 ## Preflight Cleanup (when node_modules exists)
@@ -57,19 +57,19 @@ fi
 [ ! -d "node_modules" ] && pnpm install
 
 # Start everything: single RovoDev Serve + backend + frontend
-pnpm run rovodev:solo
+pnpm run rovodev
 
 # Verify backend health
 curl http://localhost:8080/api/health
 ```
 
-**Important:** Always ask the user for permission before starting dev servers. Use `AskUserQuestion` to confirm they want to start, then run `pnpm run rovodev:solo`. If the user needs the full pool (6 instances), they can use `pnpm run rovodev` instead.
+**Important:** Always ask the user for permission before starting dev servers. Use `AskUserQuestion` to confirm they want to start, then run `pnpm run rovodev`. If the user needs the full pool (6 instances), they can use `pnpm run rovodev -- 6` instead.
 
 ## Runtime Topology
 
 ### Always-On Default
 
-`pnpm run rovodev:solo` starts all three processes with a single RovoDev instance:
+`pnpm run rovodev` starts all three processes with a single RovoDev instance by default:
 
 ```text
 rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
@@ -78,7 +78,7 @@ rovodev serve (:8000) + Express (:8080) + Next.js (:3000)
 RovoDev Serve handles primary chat. AI Gateway fallback is always enabled, and Google endpoint variables are always configured for `provider: "google"` image and TTS routes.
 RovoDev billing site is set via `ROVODEV_BILLING_URL` in `.env.local` (required, no hardcoded fallback).
 
-For the full pool (6 instances, needed for agent team parallel runs), use `pnpm run rovodev` instead.
+For the full pool (6 instances, needed for agent team parallel runs), use `pnpm run rovodev -- 6` instead.
 
 ### Multiport / tmux Mode
 
@@ -99,7 +99,7 @@ Port isolation ensures background tasks (suggested questions, clarification card
 
 ### RovoDev Instance Reuse
 
-`pnpm run rovodev:solo` (and `pnpm run rovodev`) is designed for repeated use without resetting your `~/.rovodev/config.yaml`:
+`pnpm run rovodev` (single-instance default) and `pnpm run rovodev -- 6` (full pool) are designed for repeated use without resetting your `~/.rovodev/config.yaml`:
 
 - **Healthy instances are reused** — if a previous pool is still running and healthy, it's kept as-is
 - **Only unhealthy instances are stopped** — stale/crashed processes are gracefully terminated (SIGTERM with SIGKILL fallback)
@@ -166,8 +166,8 @@ AUTO_FALLBACK_TO_AI_GATEWAY=true
 # Default billing site for rovodev serve (override if needed)
 ROVODEV_BILLING_URL=https://product-fabric.atlassian.net
 
-# RovoDev pool size (plan parallel runs, default: 6)
-# ROVODEV_POOL_SIZE=6
+# RovoDev pool size (plan parallel runs, default: 1)
+# ROVODEV_POOL_SIZE=1
 ```
 
 ## Environment Variables Reference
@@ -176,7 +176,7 @@ ROVODEV_BILLING_URL=https://product-fabric.atlassian.net
 | -------- | -------- | ------- |
 | `AUTO_FALLBACK_TO_AI_GATEWAY` | Yes | Must be `true` to route to AI Gateway when RovoDev is unavailable |
 | `ROVODEV_BILLING_URL` | Yes | Billing site URL for `rovodev serve` (default: `https://product-fabric.atlassian.net`) |
-| `ROVODEV_POOL_SIZE` | Optional | Concurrent RovoDev instances for agents team (default: 6) |
+| `ROVODEV_POOL_SIZE` | Optional | Concurrent RovoDev instances for agents team (default: 1) |
 | `ROVODEV_FORCE_CLEAN_START` | Optional | Set `true` to kill all RovoDev instances on startup (default: `false` — reuses healthy instances) |
 | `ROVODEV_SUPERVISOR` | Optional | Set to `tmux` when running via `pnpm run rovodev:tmux` — prevents port recovery from killing processes in tmux panes (auto-set by `dev-tmux-8.sh`) |
 | `ROVODEV_PORT` | Optional | Explicit RovoDev Serve port override (normally auto-managed via `.dev-rovodev-port`) |
@@ -213,7 +213,7 @@ Model switching via `.env.local` applies only when using AI Gateway (RovoDev man
 | **GPT** | `gpt-5.2-2025-12-11` | `/v1/openai/v1/chat/completions` |
 | **Gemini** | `gemini-3-pro-image-preview` | `/v1/google/publishers/google/v1/chat/completions` |
 
-Update `AI_GATEWAY_URL` in `.env.local` then restart with `pnpm run rovodev:solo`.
+Update `AI_GATEWAY_URL` in `.env.local` then restart with `pnpm run rovodev`.
 
 For full model switching details, see [references/guide-model-switch.md](references/guide-model-switch.md).
 
@@ -229,7 +229,7 @@ For full model switching details, see [references/guide-model-switch.md](referen
 - [ ] `AUTO_FALLBACK_TO_AI_GATEWAY=true` enabled in `.env.local`
 - [ ] `ROVODEV_BILLING_URL` is set (default: `https://product-fabric.atlassian.net`)
 - [ ] Google endpoints enabled in `.env.local`
-- [ ] Dev servers started with `pnpm run rovodev:solo`
+- [ ] Dev servers started with `pnpm run rovodev`
 - [ ] Health check passes at http://localhost:8080/api/health
 - [ ] Chat responds at http://localhost:3000
 
@@ -237,22 +237,22 @@ For full model switching details, see [references/guide-model-switch.md](referen
 
 | Issue | Quick Fix |
 | ----- | --------- |
-| Chat returns 503 | RovoDev Serve not running — use `pnpm run rovodev:solo` to start all processes |
+| Chat returns 503 | RovoDev Serve not running — use `pnpm run rovodev` to start all processes |
 | Auth errors during ASAP save | `atlas upgrade` |
 | "EADDRINUSE" error | Servers auto-find available ports (3001+/8081+). If still failing, run with `--force-kill`: `./.cursor/skills/vpk-setup/scripts/start-dev.sh --force-kill` |
 | Next.js lock error | Remove stale lock: `rm -f .next/dev/lock` then restart |
 | Turbopack cache corrupted | Clear cache: `rm -rf .next` then restart |
-| Zombie processes blocking ports | `ROVODEV_FORCE_CLEAN_START=true pnpm run rovodev:solo` (graceful SIGTERM then SIGKILL fallback) |
-| Config keeps resetting (`~/.rovodev/config.yaml`) | Ensure you're using `pnpm run rovodev:solo` (not `rovodev:setup`); setup is a one-off |
+| Zombie processes blocking ports | `ROVODEV_FORCE_CLEAN_START=true pnpm run rovodev` (graceful SIGTERM then SIGKILL fallback) |
+| Config keeps resetting (`~/.rovodev/config.yaml`) | Ensure you're using `pnpm run rovodev` (not `rovodev:setup`); setup is a one-off |
 | Frontend 500 (providers) | Ensure `components/providers.tsx` matches import casing |
 | "ASAP_PRIVATE_KEY: MISSING" | Check .env.local format - private key must be quoted and escaped |
-| No AI response (RovoDev) | Verify `pnpm run rovodev:solo` is running and RovoDev Serve started successfully |
+| No AI response (RovoDev) | Verify `pnpm run rovodev` is running and RovoDev Serve started successfully |
 | No AI response (AI Gateway) | Verify health check passes and `AUTO_FALLBACK_TO_AI_GATEWAY=true` is set |
 | **Mismatched ASAP KID** | **You generated timestamp twice! Regenerate with single timestamp** |
 | "Model Id [X] not found" | Model not whitelisted. Run `atlas ml aigateway usecase view --id YOUR-USE-CASE-ID -e stg-west` |
 | Bedrock 403 while OpenAI works | Pull latest branch and confirm `backend/lib/ai-gateway-helpers.js` does **not** rewrite Bedrock URL; restart backend |
 | Want to switch models | See [Model Switching Guide](references/guide-model-switch.md) |
-| Stale AI context / wrong answers | RovoDev session may be corrupted — restart with `pnpm run rovodev:solo` |
+| Stale AI context / wrong answers | RovoDev session may be corrupted — restart with `pnpm run rovodev` |
 | 409 "chat already in progress" | Background tasks may be using pinned panel ports — check that `PINNED_PORT_COUNT` matches your panel count. See [Port Isolation Guide](references/guide-ports.md) |
 | 409 on first prompt (tmux) | Ensure `ROVODEV_SUPERVISOR=tmux` is set in the backend pane — `dev-tmux-8.sh` sets this automatically |
 | Port dies after recovery (tmux) | tmux `remain-on-exit` doesn't auto-restart processes — `ROVODEV_SUPERVISOR=tmux` prevents process kill during recovery |
@@ -275,7 +275,7 @@ The actual ports are written to `.dev-rovodev-port`, `.dev-frontend-port`, and `
 
 ## Next Steps
 
-- **Develop locally:** Run `pnpm run rovodev:solo` in your terminal (Ctrl+C to stop)
+- **Develop locally:** Run `pnpm run rovodev` in your terminal (Ctrl+C to stop)
 - **Ready to deploy?** Use `/vpk-deploy` to create a permanent, shareable URL
 - **Make changes:** Edit code, test locally, then commit and `/vpk-deploy` again
 

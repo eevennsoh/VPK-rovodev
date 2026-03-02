@@ -36,6 +36,7 @@ import {
 	shouldSuppressQuestionCardMessageText,
 } from "./lib/question-card-text-visibility";
 import { parsePlanWidgetPayload } from "../lib/plan-widget";
+import { buildPlanDescriptionFallback } from "./lib/plan-description-fallback";
 import { resolveThinkingLabelForSurface } from "../lib/thinking-label-policy";
 import {
 	getDefaultThinkingLabel,
@@ -299,16 +300,21 @@ function useThreadMessageDerived(
 		widgetType === "plan" && widgetDataPart
 			? parsePlanWidgetPayload(widgetDataPart.data.payload)
 			: null;
-	const planSummaryFallback =
-		widgetType === "plan" ? planRenderableText?.summary?.trim() ?? "" : "";
+	const planDescriptionFallback =
+		widgetType === "plan" && parsedPlanWidgetPayload
+			? buildPlanDescriptionFallback({
+					messageText: normalizedWidgetText,
+					planPayload: parsedPlanWidgetPayload,
+				})
+			: "";
 	const planWidgetPayloadForRender =
 		parsedPlanWidgetPayload &&
 		(!parsedPlanWidgetPayload.description ||
 			parsedPlanWidgetPayload.description.trim().length === 0) &&
-		planSummaryFallback.length > 0
+		planDescriptionFallback.length > 0
 			? {
 					...parsedPlanWidgetPayload,
-					description: planSummaryFallback,
+					description: planDescriptionFallback,
 				}
 			: parsedPlanWidgetPayload;
 	const widgetPayloadForRender =
