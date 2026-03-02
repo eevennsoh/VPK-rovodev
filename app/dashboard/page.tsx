@@ -1,11 +1,11 @@
-import { ProductAnalyticsDashboard } from "@/components/templates/dashboard/product-analytics-dashboard";
+import { AnalyticsKpiDashboard } from "@/components/templates/dashboard/analytics-kpi-dashboard";
 
 export const metadata = {
-	title: "Product Analytics",
+	title: "Analytics Dashboard",
 	description:
-		"Active users, signups, retention, and feature adoption metrics",
+		"Key product metrics, engagement trends, and user distribution",
 };
 
 export default function DashboardPage() {
-	return <ProductAnalyticsDashboard />;
+	return <AnalyticsKpiDashboard />;
 }
