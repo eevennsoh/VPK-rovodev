@@ -494,10 +494,6 @@ export function MakeProvider({ children }: MakeProviderProps) {
 	const isActiveChatTabTitlePending =
 		chatTabActiveChatId !== null &&
 		chatTabPendingTitleChatId === chatTabActiveChatId;
-	const mergedChatHistory = useMemo(
-		() => chatTabHistory,
-		[chatTabHistory],
-	);
 
 	const sidebarRunHistory = useMemo(() => {
 		const runsById = new Map<string, AgentRunListItem>();
@@ -780,13 +776,6 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		[handleSelectChatTabChat],
 	);
 
-	const handleDeleteChatWithSource = useCallback(
-		(id: string) => {
-			handleDeleteChatTabChat(id);
-		},
-		[handleDeleteChatTabChat],
-	);
-
 	const handleSelectRun = useCallback(
 		(selectedRunId: string) => {
 			router.push(`/make/runs/${selectedRunId}`);
@@ -900,7 +889,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			runId,
 			taskExecutions,
 			run,
-			chatHistory: mergedChatHistory,
+			chatHistory: chatTabHistory,
 			activeChatId: chatTabActiveChatId,
 			sidebarRunHistory,
 			activeChatTitle: activeChatTabTitle,
@@ -942,7 +931,6 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			runId,
 			taskExecutions,
 			run,
-			mergedChatHistory,
 			sidebarRunHistory,
 			activeChatTabTitle,
 			isActiveChatTabTitlePending,
@@ -962,7 +950,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			removeQueuedPrompt,
 			handleNewChat: handleNewChatTabChat,
 			handleSelectChat: handleSelectChatWithTab,
-			handleDeleteChat: handleDeleteChatWithSource,
+			handleDeleteChat: handleDeleteChatTabChat,
 			handleClarificationSubmit,
 			handleClarificationDismiss,
 			handleApprovalSubmit,
@@ -981,7 +969,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			removeChatTabQueuedPrompt,
 			handleNewChatTabChat,
 			handleSelectChatTabChat: handleSelectChatWithTab,
-			handleDeleteChatTabChat: handleDeleteChatWithSource,
+			handleDeleteChatTabChat,
 			handleChatTabSuggestedQuestionClick,
 			handleChatTabWidgetPrimaryAction,
 			handleChatTabClarificationSubmit,
@@ -1001,7 +989,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			removeQueuedPrompt,
 			handleNewChatTabChat,
 			handleSelectChatWithTab,
-			handleDeleteChatWithSource,
+			handleDeleteChatTabChat,
 			handleClarificationSubmit,
 			handleClarificationDismiss,
 			handleApprovalSubmit,
@@ -1064,7 +1052,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 export function useMake(): MakeContextValue {
 	const context = use(MakeContext);
 	if (context === null) {
-		throw new Error("usePlan must be used within a MakeProvider");
+		throw new Error("useMake must be used within a MakeProvider");
 	}
 	return context;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import {
@@ -50,8 +50,8 @@ export default function SidebarFooter({
 	const [appsOpen, setAppsOpen] = useState(false);
 	const [automationOpen, setAutomationOpen] = useState(false);
 
-	const sortedSkills = [...skills].sort((a, b) => a.name.localeCompare(b.name));
-	const sortedAgents = [...agents].sort((a, b) => a.name.localeCompare(b.name));
+	const sortedSkills = useMemo(() => [...skills].sort((a, b) => a.name.localeCompare(b.name)), [skills]);
+	const sortedAgents = useMemo(() => [...agents].sort((a, b) => a.name.localeCompare(b.name)), [agents]);
 
 	const handleNewSkill = () => {
 		onNewSkill();
@@ -194,8 +194,8 @@ function CollapsibleSection({
 					<div
 						className="w-0 overflow-hidden opacity-0 transition-all duration-normal ease-out group-hover/section:w-5 group-hover/section:opacity-100"
 					>
-						<span
-							role="button"
+						<button
+							type="button"
 							tabIndex={-1}
 							className="flex size-5 items-center justify-center rounded text-icon-subtle transition-colors hover:bg-bg-neutral-hovered hover:text-text"
 							onClick={(e) => {
@@ -205,7 +205,7 @@ function CollapsibleSection({
 							aria-label={`Add ${title.toLowerCase()}`}
 						>
 							<AddIcon label="" size="small" />
-						</span>
+						</button>
 					</div>
 					{open ? (
 						<span className="flex size-5 items-center justify-center rounded text-icon-subtle">

@@ -43,10 +43,6 @@ function getThemeAwareAppearance(
 }
 
 function getLogoSizePx(size: AtlaskitLogoProps["size"]): number {
-	if (typeof size === "number") {
-		return size;
-	}
-
 	if (typeof size === "string") {
 		const numericSize = Number(size);
 		if (!Number.isNaN(numericSize)) {

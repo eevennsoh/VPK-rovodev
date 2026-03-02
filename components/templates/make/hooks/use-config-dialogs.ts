@@ -152,30 +152,12 @@ export function useConfigDialogs({
 			setAgentDialogOpen(false);
 			setEditingAgent(null);
 
-			// Open a "new" dialog pre-filled with duplicated data
-			const duplicatedAgent: MakeAgent = {
-				...agent,
-				name: `${agent.name}-copy`,
-				isBuiltIn: false,
-				filePath: "",
-			};
-			setEditingAgent(null);
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			const { isBuiltIn: _, filePath: __, ...agentInput } = agent;
 
 			// Brief delay so the dialog closes and reopens cleanly
 			requestAnimationFrame(() => {
-				setEditingAgent(null);
-				// We create the agent immediately via createAgent
-				void createAgent({
-					name: duplicatedAgent.name,
-					description: duplicatedAgent.description,
-					systemPrompt: duplicatedAgent.systemPrompt,
-					model: duplicatedAgent.model,
-					tools: duplicatedAgent.tools,
-					skills: duplicatedAgent.skills,
-					disallowedTools: duplicatedAgent.disallowedTools,
-					maxTurns: duplicatedAgent.maxTurns,
-					permissionMode: duplicatedAgent.permissionMode,
-				});
+				void createAgent({ ...agentInput, name: `${agent.name}-copy` });
 			});
 		},
 		[createAgent]

@@ -126,7 +126,6 @@ interface UsePlanChatReturn {
 		text: string;
 		threadId?: string | null;
 	}) => Promise<void>;
-	chatCategoryHistory: ChatHistoryItem[];
 }
 
 function hasQuestionCardWidget(message: RovoUIMessage): boolean {
@@ -258,17 +257,6 @@ export function useMakeChat(options: {
 				title: thread.title,
 			})),
 		[historyCategory, threads],
-	);
-
-	const chatCategoryHistory = useMemo<ChatHistoryItem[]>(
-		() =>
-			threads
-				.filter((thread) => thread.category === "chat")
-				.map((thread) => ({
-					id: thread.id,
-					title: thread.title,
-				})),
-		[threads],
 	);
 
 	const fetchAndMergeServerThreads = useCallback(() => {
@@ -1281,6 +1269,5 @@ export function useMakeChat(options: {
 		handleDeleteMessage,
 		createThreadWithMessages,
 		appendAssistantTextMessage,
-		chatCategoryHistory,
 	};
 }
