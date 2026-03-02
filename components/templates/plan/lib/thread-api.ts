@@ -6,7 +6,7 @@ import { trimTitleText, type PlanThread } from "./thread-store";
  * Fire-and-forget: persist a full thread snapshot to the server.
  */
 export function persistThreadToServer(thread: PlanThread): void {
-	fetch(API_ENDPOINTS.planThreads(), {
+	fetch(API_ENDPOINTS.chatThreads(), {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({
@@ -28,7 +28,7 @@ export function updateThreadOnServer(
 	threadId: string,
 	fields: { title?: string; messages?: ReadonlyArray<RovoUIMessage>; updatedAt?: string },
 ): void {
-	fetch(API_ENDPOINTS.planThread(threadId), {
+	fetch(API_ENDPOINTS.chatThread(threadId), {
 		method: "PUT",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(fields),
@@ -41,7 +41,7 @@ export function updateThreadOnServer(
  * Fire-and-forget: delete a thread on the server.
  */
 export function deleteThreadOnServer(threadId: string): void {
-	fetch(API_ENDPOINTS.planThread(threadId), {
+	fetch(API_ENDPOINTS.chatThread(threadId), {
 		method: "DELETE",
 	}).catch(() => {
 		// Fire-and-forget

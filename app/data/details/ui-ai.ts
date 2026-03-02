@@ -738,77 +738,95 @@ import {
 		],
 	},
 
-	plan: {
-		description:
-			"A collapsible plan/outline card component with shimmer loading effects for streamed content. Includes composable sub-components for avatars, agent bars, numbered task lists with overflow handling, and animated task items.",
-		usage: `import {
+		plan: {
+			description:
+				"A composable collapsible plan card with two supported patterns: tasks-only and summary+tasks tabs. Includes shimmer-ready title/description rendering, markdown summary content, numbered task lists with overflow handling, and optional footer actions.",
+			usage: `import {
   Plan,
   PlanHeader,
   PlanAvatar,
   PlanTitle,
   PlanDescription,
-  PlanAction,
-  PlanChevronTrigger,
   PlanContent,
+  PlanSummary,
   PlanAgentBar,
   PlanTaskList,
   PlanTaskItem,
-  type PlanTask,
+  PlanFooter,
 } from "@/components/ui-ai/plan";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 <Plan open={isOpen} onOpenChange={setIsOpen}>
-  <PlanHeader className="items-center px-4 pt-4">
-    <div className="flex min-w-0 items-center gap-3">
-      <PlanAvatar emoji="✌️" />
-      <div className="min-w-0">
-        <PlanTitle className="truncate text-sm leading-5 font-semibold text-text">
-          Implementation plan
-        </PlanTitle>
-        <PlanDescription className="text-xs leading-4 text-text-subtlest">
-          4 tasks
-        </PlanDescription>
-      </div>
-    </div>
-    <PlanAction className="self-center">
-      <PlanChevronTrigger isOpen={isOpen} onClick={() => setIsOpen(prev => !prev)} />
-    </PlanAction>
-  </PlanHeader>
-  <PlanContent className="px-3 pb-4">
-    <PlanAgentBar agents={["Strategist", "Copywriter"]} className="mb-2" />
-    <PlanTaskList>
-      <PlanTaskItem index={1} label="Set up the database schema" agent="Strategist" />
-      <PlanTaskItem index={2} label="Implement the API endpoints" blockedByLabels={["Task 1"]} agent="Copywriter" />
-    </PlanTaskList>
+  <PlanHeader
+    leading={<PlanAvatar emoji="✌️" />}
+    title={
+      <PlanTitle className="truncate text-sm leading-5 font-semibold text-text">
+        Implementation plan
+      </PlanTitle>
+    }
+    description={
+      <PlanDescription className="text-xs leading-4 text-text-subtlest">
+        4 tasks
+      </PlanDescription>
+    }
+  />
+  <PlanContent className="pb-0">
+    <Tabs defaultValue="summary" className="gap-0">
+      <TabsList variant="line" className="h-10 w-full justify-center border-b border-border px-4">
+        <TabsTrigger value="summary">Summary</TabsTrigger>
+        <TabsTrigger value="tasks">Tasks (4)</TabsTrigger>
+      </TabsList>
+      <TabsContent value="summary" className="px-4 pt-4 pb-5">
+        <PlanSummary summary={planSummaryMarkdown} />
+      </TabsContent>
+      <TabsContent value="tasks" className="px-3 pt-4 pb-5">
+        <PlanAgentBar agents={["Strategist", "Copywriter"]} className="mb-2" />
+        <PlanTaskList>
+          <PlanTaskItem index={1} label="Set up the database schema" agent="Strategist" />
+          <PlanTaskItem index={2} label="Implement the API endpoints" blockedByText="Blocked by #1" agent="Copywriter" />
+        </PlanTaskList>
+      </TabsContent>
+    </Tabs>
+    <PlanFooter className="justify-end gap-2">
+      <Button variant="outline">Open preview</Button>
+      <Button>Build</Button>
+    </PlanFooter>
   </PlanContent>
 </Plan>`,
-		props: [
-			{
-				name: "isStreaming",
-				type: "boolean",
-				default: "false",
-				description: "Enable shimmer loading animation for streamed content.",
-			},
-			{
-				name: "className",
-				type: "string",
-				description: "Additional CSS classes.",
-			},
-		],
-		subComponents: [
-			{ name: "PlanHeader", description: "Top section of the plan card." },
-			{ name: "PlanAvatar", description: "Emoji avatar in a circular badge. Accepts `emoji` prop (default \"✌️\")." },
-			{ name: "PlanTitle", description: "Title text with shimmer support." },
-			{ name: "PlanDescription", description: "Description text with shimmer support." },
-			{ name: "PlanAction", description: "Action slot in the header (e.g. for triggers)." },
-			{ name: "PlanChevronTrigger", description: "Chevron toggle button with rotation animation. Accepts `isOpen` prop." },
-			{ name: "PlanContent", description: "Collapsible content area." },
-			{ name: "PlanAgentBar", description: "Agent count row with people icon. Accepts `agents` string array." },
-			{ name: "PlanTaskList", description: "Ordered list with overflow detection and \"Show more\" button." },
-			{ name: "PlanTaskItem", description: "Animated numbered task row with optional `blockedByLabels` and `agent` badge." },
-			{ name: "PlanTrigger", description: "Legacy toggle button for expand/collapse (ChevronsUpDown icon)." },
-			{ name: "PlanFooter", description: "Bottom section for actions." },
-		],
-	},
+			props: [
+				{
+					name: "isStreaming",
+					type: "boolean",
+					default: "false",
+					description: "Enable shimmer loading animation for streamed content.",
+				},
+				{
+					name: "className",
+					type: "string",
+					description: "Additional CSS classes.",
+				},
+			],
+			subComponents: [
+				{ name: "PlanHeader", description: "Generative-style plan header with built-in chevron toggle. Accepts `leading`, `title`, and optional `description` props." },
+				{ name: "PlanAvatar", description: "Emoji avatar in a circular badge. Accepts `emoji` prop (default \"✌️\")." },
+				{ name: "PlanTitle", description: "Title text with shimmer support." },
+				{ name: "PlanDescription", description: "Description text with shimmer support." },
+				{ name: "PlanAction", description: "Legacy action slot used by custom headers." },
+				{ name: "PlanChevronTrigger", description: "Legacy chevron toggle button for custom plan headers." },
+				{ name: "PlanContent", description: "Collapsible content area." },
+				{ name: "PlanSummary", description: "Markdown summary renderer with collapsed overflow treatment. Accepts `summary`, optional `emptyMessage`, and optional `showMoreLabel` props." },
+				{ name: "PlanAgentBar", description: "Agent count row with people icon. Accepts `agents` string array." },
+				{ name: "PlanTaskList", description: "Ordered list with overflow detection and \"Show more\" button. Accepts optional `showMoreLabel`; expansion state is shared with `PlanSummary`." },
+				{ name: "PlanTaskItem", description: "Animated numbered task row with optional `blockedByLabels`, `blockedByText`, and `agent` badge." },
+				{ name: "PlanTrigger", description: "Legacy toggle button for expand/collapse (ChevronsUpDown icon)." },
+				{ name: "PlanFooter", description: "Bottom section for actions." },
+			],
+			examples: [
+				{ title: "Tasks only", description: "Classic plan card with task list content only.", demoSlug: "plan-demo-tasks-only" },
+				{ title: "Summary + tasks", description: "Tabbed plan card variant with markdown summary and task list tabs.", demoSlug: "plan-demo-summary-and-tasks" },
+			],
+		},
 
 	"prompt-input": {
 		description:

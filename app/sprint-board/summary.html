@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprint Board Update — Run Summary</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --text: #1a1a2e;
+    --text-subtle: #5e6c84;
+    --text-subtlest: #8993a4;
+    --border: #dfe1e6;
+    --border-subtle: #ebecf0;
+    --accent-blue: #0052cc;
+    --accent-blue-light: #deebff;
+    --accent-green: #006644;
+    --accent-green-light: #e3fcef;
+    --accent-green-bg: #79f2c0;
+    --accent-yellow: #ff8b00;
+    --accent-yellow-light: #fff7e6;
+    --accent-red: #de350b;
+    --accent-red-light: #ffebe6;
+    --accent-purple: #6554c0;
+    --accent-purple-light: #eae6ff;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0;
+  }
+
+  .banner {
+    background: linear-gradient(135deg, #0052cc 0%, #2684ff 50%, #0065ff 100%);
+    color: white;
+    padding: 40px 32px;
+  }
+
+  .banner-inner {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  .banner h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+
+  .banner p {
+    font-size: 15px;
+    opacity: 0.85;
+    max-width: 600px;
+  }
+
+  .banner-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  .banner-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    opacity: 0.9;
+  }
+
+  .banner-meta-item strong {
+    font-weight: 600;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px;
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--accent-green-light);
+    border: 1px solid #b3d4ff;
+    border-color: #abf5d1;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow);
+  }
+
+  .status-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--accent-green);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .status-text h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent-green);
+  }
+
+  .status-text p {
+    font-size: 13px;
+    color: var(--text-subtle);
+  }
+
+  .section {
+    margin-bottom: 32px;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border-subtle);
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .card + .card {
+    margin-top: 12px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: #fafbfc;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .task-number {
+    width: 28px;
+    height: 28px;
+    background: var(--accent-blue);
+    color: white;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .card-header h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .card-header .file-tag {
+    font-size: 12px;
+    color: var(--text-subtlest);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: var(--border-subtle);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 10px;
+    border-radius: 12px;
+  }
+
+  .badge-done {
+    background: var(--accent-green-light);
+    color: var(--accent-green);
+  }
+
+  .card-body {
+    padding: 16px 20px;
+  }
+
+  .card-body ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .card-body li {
+    position: relative;
+    padding: 5px 0 5px 20px;
+    font-size: 13px;
+    color: var(--text-subtle);
+    line-height: 1.5;
+  }
+
+  .card-body li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--accent-green);
+    font-weight: 700;
+    font-size: 12px;
+  }
+
+  .card-body code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    background: #f0f1f4;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent-blue);
+  }
+
+  /* Key Outcomes Grid */
+  .outcomes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .outcome-card {
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+
+  .outcome-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--accent-blue);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .outcome-label {
+    font-size: 13px;
+    color: var(--text-subtle);
+    font-weight: 500;
+  }
+
+  /* Column table */
+  .column-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0;
+  }
+
+  .column-table th {
+    text-align: left;
+    padding: 8px 12px;
+    background: #f4f5f7;
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+    color: var(--text-subtle);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .column-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text);
+  }
+
+  .column-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .column-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  .dot-backlog { background: #97a0af; }
+  .dot-todo { background: #42526e; }
+  .dot-inprogress { background: #0052cc; }
+  .dot-done { background: #006644; }
+
+  /* Risks table */
+  .risk-row {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 13px;
+  }
+
+  .risk-row:last-child {
+    border-bottom: none;
+  }
+
+  .risk-severity {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    height: fit-content;
+    margin-top: 2px;
+  }
+
+  .severity-medium {
+    background: var(--accent-yellow-light);
+    color: var(--accent-yellow);
+  }
+
+  .severity-low {
+    background: var(--accent-blue-light);
+    color: var(--accent-blue);
+  }
+
+  .risk-content strong {
+    display: block;
+    color: var(--text);
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  .risk-content span {
+    color: var(--text-subtle);
+    font-size: 12px;
+  }
+
+  /* Next actions */
+  .action-list {
+    list-style: none;
+    padding: 0;
+    counter-reset: actions;
+  }
+
+  .action-list li {
+    counter-increment: actions;
+    display: flex;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 13px;
+    color: var(--text-subtle);
+    line-height: 1.5;
+  }
+
+  .action-list li:last-child {
+    border-bottom: none;
+  }
+
+  .action-list li::before {
+    content: counter(actions);
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    background: var(--accent-purple-light);
+    color: var(--accent-purple);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+
+  .action-list li strong {
+    color: var(--text);
+  }
+
+  .footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    color: var(--text-subtlest);
+    border-top: 1px solid var(--border-subtle);
+    margin-top: 16px;
+  }
+
+  @media (max-width: 640px) {
+    .banner { padding: 28px 20px; }
+    .container { padding: 20px; }
+    .banner h1 { font-size: 22px; }
+    .outcomes-grid { grid-template-columns: repeat(2, 1fr); }
+    .card-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Banner -->
+<div class="banner">
+  <div class="banner-inner">
+    <h1>Sprint Board Update</h1>
+    <p>4-column board with drag-and-drop, simplified task cards, and sprint selector — fully wired to <code style="background:rgba(255,255,255,0.15);padding:1px 6px;border-radius:3px;font-size:13px;">/sprint-board</code></p>
+    <div class="banner-meta">
+      <div class="banner-meta-item">
+        <strong>Run:</strong> run-1772386191024-tb0cec
+      </div>
+      <div class="banner-meta-item">
+        <strong>Tasks:</strong> 6 of 6 completed
+      </div>
+      <div class="banner-meta-item">
+        <strong>Type Errors:</strong> 0 (was 8)
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div class="status-icon">✓</div>
+    <div class="status-text">
+      <h3>All Tasks Completed Successfully</h3>
+      <p>Types updated, seed data expanded, all 3 UI components rebuilt, page wired — zero regressions.</p>
+    </div>
+  </div>
+
+  <!-- Key Outcomes -->
+  <div class="section">
+    <h2 class="section-title">Key Outcomes</h2>
+    <div class="outcomes-grid">
+      <div class="outcome-card">
+        <div class="outcome-value">4</div>
+        <div class="outcome-label">Board Columns</div>
+      </div>
+      <div class="outcome-card">
+        <div class="outcome-value">12</div>
+        <div class="outcome-label">Seed Tasks</div>
+      </div>
+      <div class="outcome-card">
+        <div class="outcome-value">6</div>
+        <div class="outcome-label">Files Modified</div>
+      </div>
+      <div class="outcome-card">
+        <div class="outcome-value">0</div>
+        <div class="outcome-label">Type Errors</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Column Distribution -->
+  <div class="section">
+    <h2 class="section-title">Column Distribution</h2>
+    <div class="card">
+      <div class="card-body">
+        <table class="column-table">
+          <thead>
+            <tr>
+              <th>Column</th>
+              <th>Tasks</th>
+              <th>IDs</th>
+              <th>Header Accent</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="column-dot dot-backlog"></span>Backlog</td>
+              <td>Dark mode toggle, Analytics events, API docs</td>
+              <td><code>task-1</code> – <code>task-3</code></td>
+              <td>Neutral gray</td>
+            </tr>
+            <tr>
+              <td><span class="column-dot dot-todo"></span>To Do</td>
+              <td>Profile settings, Dashboard search, Mobile nav fix</td>
+              <td><code>task-4</code> – <code>task-6</code></td>
+              <td>Dark</td>
+            </tr>
+            <tr>
+              <td><span class="column-dot dot-inprogress"></span>In Progress</td>
+              <td>Payment gateway, Auth middleware, Landing page</td>
+              <td><code>task-7</code> – <code>task-9</code></td>
+              <td>Blue</td>
+            </tr>
+            <tr>
+              <td><span class="column-dot dot-done"></span>Done</td>
+              <td>CI/CD pipeline, Button components, Unit tests</td>
+              <td><code>task-10</code> – <code>task-12</code></td>
+              <td>Green</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task-by-Task Results -->
+  <div class="section">
+    <h2 class="section-title">Task-by-Task Results</h2>
+
+    <!-- Task 1 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <span class="task-number">1</span>
+          <h4>Update Types &amp; Seed Data</h4>
+        </div>
+        <span class="badge badge-done">✓ Done</span>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li><code>ColumnId</code> expanded: <code>"backlog" | "todo" | "in-progress" | "done"</code></li>
+          <li>12 tasks distributed evenly across 4 columns (3 per column)</li>
+          <li><code>DEFAULT_COLUMNS</code> updated with Backlog as first entry</li>
+          <li>Sprint 23 tasks (<code>task-23-*</code>) unaffected — additive change only</li>
+        </ul>
+        <div style="margin-top: 8px;">
+          <span class="file-tag">lib/sprint-board-types.ts</span>
+          <span class="file-tag" style="margin-left: 4px;">lib/sprint-board-data.ts</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task 2 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <span class="task-number">2</span>
+          <h4>Verify Seed Data</h4>
+        </div>
+        <span class="badge badge-done">✓ Done</span>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li>Completed alongside Task 1 — verified all 4 columns populate correctly</li>
+          <li><code>getInitialBoardState()</code> builds column <code>taskIds</code> by filtering on <code>columnId</code></li>
+          <li>Priority mix realistic: critical in To Do/In Progress, low in Backlog</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Task 3 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <span class="task-number">3</span>
+          <h4>Rebuild TaskCard</h4>
+        </div>
+        <span class="badge badge-done">✓ Done</span>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li>Simplified to 3 elements: <strong>title</strong>, <strong>assignee avatar</strong>, <strong>priority lozenge</strong></li>
+          <li>Switched from <code>Badge</code> to <code>Lozenge</code> with semantic variants (neutral/success/warning/danger)</li>
+          <li>Removed: issue-type badge, assignee name text, delete button, <code>onClick</code> and <code>onDelete</code> props</li>
+          <li>Full <code>@dnd-kit/sortable</code> integration retained (drag overlay, opacity states, keyboard support)</li>
+        </ul>
+        <div style="margin-top: 8px;">
+          <span class="file-tag">components/blocks/sprint-board/task-card.tsx</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task 4 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <span class="task-number">4</span>
+          <h4>Rebuild Column</h4>
+        </div>
+        <span class="badge badge-done">✓ Done</span>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li>Added <code>backlog</code> to <code>columnHeaderColors</code> with neutral gray border</li>
+          <li>Typed as <code>Record&lt;ColumnId, string&gt;</code> for compile-time exhaustiveness</li>
+          <li>Simplified props — removed <code>onTaskClick</code> and <code>onTaskDelete</code></li>
+          <li>Empty state shows "Drop items here" with dashed border</li>
+        </ul>
+        <div style="margin-top: 8px;">
+          <span class="file-tag">components/blocks/sprint-board/column.tsx</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task 5 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <span class="task-number">5</span>
+          <h4>Rebuild Board</h4>
+        </div>
+        <span class="badge badge-done">✓ Done</span>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li><code>BoardProps</code> simplified to 3 props: <code>columns</code>, <code>tasks</code>, <code>onColumnsChange</code></li>
+          <li>DragOverlay renders ghost card with <code>rotate-3 scale-105</code> transform</li>
+          <li>4-column grid via <code>grid auto-cols-fr grid-flow-col gap-4</code></li>
+          <li>PointerSensor (8px threshold) + KeyboardSensor for accessibility</li>
+        </ul>
+        <div style="margin-top: 8px;">
+          <span class="file-tag">components/blocks/sprint-board/board.tsx</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task 6 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-left">
+          <span class="task-number">6</span>
+          <h4>Wire Sprint Board Page</h4>
+        </div>
+        <span class="badge badge-done">✓ Done</span>
+      </div>
+      <div class="card-body">
+        <ul>
+          <li>Replaced missing <code>useSprintBoardStorage</code> hook with local <code>useState</code></li>
+          <li>Sprint selector dropdown with date ranges and active sprint highlighting</li>
+          <li>Progress bar (Done ÷ Total) and Reset button retained</li>
+          <li>All 8 pre-existing type errors resolved — clean <code>tsc --noEmit</code></li>
+        </ul>
+        <div style="margin-top: 8px;">
+          <span class="file-tag">app/sprint-board/page.tsx</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Open Risks -->
+  <div class="section">
+    <h2 class="section-title">Open Risks</h2>
+    <div class="card">
+      <div class="card-body">
+        <div class="risk-row">
+          <span class="risk-severity severity-medium">Medium</span>
+          <div class="risk-content">
+            <strong>No persistence layer</strong>
+            <span>Board state lives in component <code>useState</code> and resets on page reload. A storage hook or API is needed for production use.</span>
+          </div>
+        </div>
+        <div class="risk-row">
+          <span class="risk-severity severity-low">Low</span>
+          <div class="risk-content">
+            <strong>Task creation removed</strong>
+            <span>The "Add Task" button was removed as out of scope. A new creation flow must be designed if needed.</span>
+          </div>
+        </div>
+        <div class="risk-row">
+          <span class="risk-severity severity-low">Low</span>
+          <div class="risk-content">
+            <strong>Sprint 23 data untested visually</strong>
+            <span>Sprint 23 tasks reference <code>task-23-*</code> IDs; column distribution has not been visually verified post-rebuild.</span>
+          </div>
+        </div>
+        <div class="risk-row">
+          <span class="risk-severity severity-low">Low</span>
+          <div class="risk-content">
+            <strong>Priority lozenge mapping implicit</strong>
+            <span>Priority-to-variant mapping is local to <code>TaskCard</code>. If priorities are extended, the card may silently fallback to neutral.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Next Actions -->
+  <div class="section">
+    <h2 class="section-title">Recommended Next Actions</h2>
+    <div class="card">
+      <div class="card-body">
+        <ol class="action-list">
+          <li><strong>Implement state persistence</strong> — Build a <code>useSprintBoardStorage</code> hook backed by <code>localStorage</code> (short-term) or an API route (production).</li>
+          <li><strong>Validate Sprint 23 visually</strong> — Load the sprint selector on Sprint 23 and confirm tasks render in the correct columns.</li>
+          <li><strong>Add task-creation flow</strong> — Design a "New Task" modal or inline form, handling state at the page level.</li>
+          <li><strong>Harden priority mapping</strong> — Extract the priority→variant map to a shared utility with <code>Record&lt;Priority, LozengeVariant&gt;</code> for exhaustiveness.</li>
+          <li><strong>Clear sibling route errors</strong> — Audit and fix outstanding type errors in <code>app/board/page.tsx</code> and other affected routes.</li>
+          <li><strong>Add drag-and-drop tests</strong> — Write unit or Playwright component tests for <code>handleDragOver</code> and <code>handleDragEnd</code> logic.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Generated by Rovo Dev &middot; Run run-1772386191024-tb0cec &middot; All 6 tasks completed
+  </div>
+
+</div>
+
+</body>
+</html>

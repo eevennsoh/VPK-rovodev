@@ -326,7 +326,9 @@ export function DropdownMenuDemoPositioning() {
 					Bottom start
 				</DropdownMenuTrigger>
 				<DropdownMenuContent side="bottom" align="start">
-					<DropdownMenuItem>Positioned menu</DropdownMenuItem>
+					<DropdownMenuGroup>
+						<DropdownMenuItem>Positioned menu</DropdownMenuItem>
+					</DropdownMenuGroup>
 				</DropdownMenuContent>
 			</DropdownMenu>
 			<DropdownMenu>
@@ -334,7 +336,9 @@ export function DropdownMenuDemoPositioning() {
 					Top end
 				</DropdownMenuTrigger>
 				<DropdownMenuContent side="top" align="end">
-					<DropdownMenuItem>Positioned menu</DropdownMenuItem>
+					<DropdownMenuGroup>
+						<DropdownMenuItem>Positioned menu</DropdownMenuItem>
+					</DropdownMenuGroup>
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>
@@ -348,9 +352,11 @@ export function DropdownMenuDemoDefaultPlacement() {
 				Default placement
 			</DropdownMenuTrigger>
 			<DropdownMenuContent>
-				<DropdownMenuItem>Dashboard</DropdownMenuItem>
-				<DropdownMenuItem>Projects</DropdownMenuItem>
-				<DropdownMenuItem>Settings</DropdownMenuItem>
+				<DropdownMenuGroup>
+					<DropdownMenuItem>Dashboard</DropdownMenuItem>
+					<DropdownMenuItem>Projects</DropdownMenuItem>
+					<DropdownMenuItem>Settings</DropdownMenuItem>
+				</DropdownMenuGroup>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
@@ -372,9 +378,11 @@ export function DropdownMenuDemoPlacement() {
 						{placement.label}
 					</DropdownMenuTrigger>
 					<DropdownMenuContent side={placement.side}>
-						<DropdownMenuItem elemBefore={<DemoIcon render={placement.icon} label={placement.label} />}>
-							{placement.label} menu
-						</DropdownMenuItem>
+						<DropdownMenuGroup>
+							<DropdownMenuItem elemBefore={<DemoIcon render={placement.icon} label={placement.label} />}>
+								{placement.label} menu
+							</DropdownMenuItem>
+						</DropdownMenuGroup>
 					</DropdownMenuContent>
 				</DropdownMenu>
 			))}
@@ -390,9 +398,11 @@ export function DropdownMenuDemoShouldFlip() {
 					<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 						Try flip
 					</DropdownMenuTrigger>
-					<DropdownMenuContent side="right" align="start">
+				<DropdownMenuContent side="right" align="start">
+					<DropdownMenuGroup>
 						<DropdownMenuItem>Auto-flips near viewport edge</DropdownMenuItem>
-					</DropdownMenuContent>
+					</DropdownMenuGroup>
+				</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
 		</div>
@@ -408,9 +418,11 @@ export function DropdownMenuDemoZIndex() {
 					<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 						Menu over layer
 					</DropdownMenuTrigger>
-					<DropdownMenuContent>
+				<DropdownMenuContent>
+					<DropdownMenuGroup>
 						<DropdownMenuItem>High z-index popup</DropdownMenuItem>
-					</DropdownMenuContent>
+					</DropdownMenuGroup>
+				</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
 		</div>
@@ -424,10 +436,12 @@ export function DropdownMenuDemoContentWithoutPortal() {
 				<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 					Inline content
 				</DropdownMenuTrigger>
-				<DropdownMenuContent portalled={false}>
+			<DropdownMenuContent portalled={false}>
+				<DropdownMenuGroup>
 					<DropdownMenuItem>This menu stays in container flow</DropdownMenuItem>
 					<DropdownMenuItem>Useful for clipped surfaces</DropdownMenuItem>
-				</DropdownMenuContent>
+				</DropdownMenuGroup>
+			</DropdownMenuContent>
 			</DropdownMenu>
 		</div>
 	);
@@ -440,11 +454,13 @@ export function DropdownMenuDemoFullWidthDropdownMenu() {
 				<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-full justify-start" />}>
 					Full width trigger
 				</DropdownMenuTrigger>
-				<DropdownMenuContent className="w-(--anchor-width)">
+			<DropdownMenuContent className="w-(--anchor-width)">
+				<DropdownMenuGroup>
 					<DropdownMenuItem>Option 1</DropdownMenuItem>
 					<DropdownMenuItem>Option 2</DropdownMenuItem>
 					<DropdownMenuItem>Option 3</DropdownMenuItem>
-				</DropdownMenuContent>
+				</DropdownMenuGroup>
+			</DropdownMenuContent>
 			</DropdownMenu>
 		</div>
 	);
@@ -507,11 +523,13 @@ export function DropdownMenuDemoItemMultiline() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Multiline item
 			</DropdownMenuTrigger>
-			<DropdownMenuContent className="w-72">
+		<DropdownMenuContent className="w-72">
+			<DropdownMenuGroup>
 				<DropdownMenuItem>
 					This is a long dropdown item label that wraps across multiple lines in order to mirror the ADS multiline example.
 				</DropdownMenuItem>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -522,13 +540,15 @@ export function DropdownMenuDemoItemStates() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Dropdown item states
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuItem>Default</DropdownMenuItem>
 				<DropdownMenuItem className="bg-bg-neutral-subtle-hovered">Hovered</DropdownMenuItem>
 				<DropdownMenuItem className="bg-bg-neutral-subtle-pressed">Pressed</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
+	</DropdownMenu>
+);
 }
 
 export function DropdownMenuDemoItemDisabled() {
@@ -537,10 +557,12 @@ export function DropdownMenuDemoItemDisabled() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Disabled item
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuItem>Enabled</DropdownMenuItem>
 				<DropdownMenuItem disabled>Disabled</DropdownMenuItem>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -551,7 +573,8 @@ export function DropdownMenuDemoItemWithElements() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				With elements
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuItem
 					elemBefore={<DemoIcon render={<PersonIcon label="" size="small" />} label="Profile" />}
 					elemAfter={<DropdownMenuShortcut>⌘P</DropdownMenuShortcut>}
@@ -564,7 +587,8 @@ export function DropdownMenuDemoItemWithElements() {
 				>
 					Settings
 				</DropdownMenuItem>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -575,14 +599,16 @@ export function DropdownMenuDemoItemElemBefore() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Elem before
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuItem elemBefore={<DemoIcon render={<AddIcon label="" size="small" />} label="Create" />}>
 					Create item
 				</DropdownMenuItem>
 				<DropdownMenuItem elemBefore={<DemoIcon render={<CopyIcon label="" size="small" />} label="Duplicate" />}>
 					Duplicate item
 				</DropdownMenuItem>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -593,14 +619,16 @@ export function DropdownMenuDemoItemElemAfter() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Elem after
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuItem elemAfter={<DropdownMenuShortcut>⌘S</DropdownMenuShortcut>}>
 					Save
 				</DropdownMenuItem>
 				<DropdownMenuItem elemAfter={<DropdownMenuShortcut>⌘⇧P</DropdownMenuShortcut>}>
 					Command palette
 				</DropdownMenuItem>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -611,14 +639,16 @@ export function DropdownMenuDemoItemCustomComponent() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Custom component
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuItem
 					render={<Link href="/components/ui/button" />}
 					elemBefore={<DemoIcon render={<LinkExternalIcon label="" size="small" />} label="Open docs" />}
 				>
 					Open Button docs
 				</DropdownMenuItem>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -629,12 +659,14 @@ export function DropdownMenuDemoCheckboxDefaultSelected() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Checkbox default selected
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuCheckboxItem defaultChecked>
 					Show sidebar
 				</DropdownMenuCheckboxItem>
 				<DropdownMenuCheckboxItem>Show activity panel</DropdownMenuCheckboxItem>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -648,14 +680,16 @@ export function DropdownMenuDemoCheckboxSelected() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Checkbox selected
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuCheckboxItem checked={showSidebar} onCheckedChange={setShowSidebar}>
 					Show sidebar
 				</DropdownMenuCheckboxItem>
 				<DropdownMenuCheckboxItem checked={showActivity} onCheckedChange={setShowActivity}>
 					Show activity panel
 				</DropdownMenuCheckboxItem>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -666,12 +700,14 @@ export function DropdownMenuDemoRadioDefaultSelected() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Radio default selected
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuRadioGroup defaultValue="list">
 					<DropdownMenuRadioItem value="list">List</DropdownMenuRadioItem>
 					<DropdownMenuRadioItem value="board">Board</DropdownMenuRadioItem>
 				</DropdownMenuRadioGroup>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -684,13 +720,15 @@ export function DropdownMenuDemoRadioSelected() {
 			<DropdownMenuTrigger render={<Button variant="outline" size="sm" className="w-fit" />}>
 				Radio selected
 			</DropdownMenuTrigger>
-			<DropdownMenuContent>
+		<DropdownMenuContent>
+			<DropdownMenuGroup>
 				<DropdownMenuRadioGroup value={view} onValueChange={setView}>
 					<DropdownMenuRadioItem value="list">List</DropdownMenuRadioItem>
 					<DropdownMenuRadioItem value="board">Board</DropdownMenuRadioItem>
 					<DropdownMenuRadioItem value="calendar">Calendar</DropdownMenuRadioItem>
 				</DropdownMenuRadioGroup>
-			</DropdownMenuContent>
+			</DropdownMenuGroup>
+		</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }

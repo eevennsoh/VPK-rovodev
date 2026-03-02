@@ -486,4 +486,5 @@ module.exports = {
 	buildQuestionCardPayloadFromRequestUserInput,
 	normalizeRequestUserInputQuestions,
 	normalizeRequestUserInputOptions,
+	findRequestUserInputQuestionContainer,
 };

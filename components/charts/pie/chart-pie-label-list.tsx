@@ -54,7 +54,7 @@ export function ChartPieLabelList() {
 					<PieChart>
 						<ChartTooltip content={<ChartTooltipContent nameKey="visitors" hideLabel />} />
 						<Pie data={chartData} dataKey="visitors">
-							<LabelList dataKey="browser" className="fill-background" stroke="none" fontSize={12} formatter={(value: keyof typeof chartConfig) => chartConfig[value]?.label} />
+							<LabelList dataKey="browser" className="fill-background" stroke="none" fontSize={12} formatter={(value) => chartConfig[String(value) as keyof typeof chartConfig]?.label ?? value} />
 						</Pie>
 					</PieChart>
 				</ChartContainer>

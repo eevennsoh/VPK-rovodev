@@ -55,10 +55,10 @@ export function SkillTagDemoWithIcon() {
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			<SkillTag icon={<SkillIcon label="" size="small" />} color="default">
-				skill-development
+				research-helper
 			</SkillTag>
 			<SkillTag icon={<AiAgentIcon label="" size="small" />} color="default">
-				agent-development
+				bug-triage-agent
 			</SkillTag>
 			<SkillTag icon={<SearchIcon label="" size="small" />} color="teamwork">
 				Search

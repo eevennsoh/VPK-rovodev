@@ -1,7 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { parseQuestionCardPayload } = require("./question-card-widget.ts");
+const {
+	parseQuestionCardPayload,
+	getLatestQuestionCardPayload,
+} = require("./question-card-widget.ts");
 
 test("parseQuestionCardPayload preserves multi-select kind", () => {
 	const payload = parseQuestionCardPayload({
@@ -102,4 +105,112 @@ test("parseQuestionCardPayload keeps options that mention typing in context", ()
 
 	assert.ok(payload);
 	assert.equal(payload.questions[0].options.length, 2);
+});
+
+test("getLatestQuestionCardPayload finds a question card even if another widget follows", () => {
+	const payload = getLatestQuestionCardPayload([
+		{
+			id: "user-1",
+			role: "user",
+			parts: [{ type: "text", text: "Build me an app", state: "done" }],
+		},
+		{
+			id: "assistant-1",
+			role: "assistant",
+			parts: [
+				{
+					type: "data-widget-data",
+					data: {
+						type: "question-card",
+						payload: {
+							type: "question-card",
+							sessionId: "mixed-widget-order",
+							questions: [{ id: "q-1", label: "What should we build?" }],
+						},
+					},
+				},
+				{
+					type: "data-widget-data",
+					data: {
+						type: "genui-preview",
+						payload: { title: "Preview" },
+					},
+				},
+			],
+		},
+	]);
+
+	assert.ok(payload);
+	assert.equal(payload.sessionId, "mixed-widget-order");
+});
+
+test("getLatestQuestionCardPayload returns null after a newer user message", () => {
+	const payload = getLatestQuestionCardPayload([
+		{
+			id: "assistant-1",
+			role: "assistant",
+			parts: [
+				{
+					type: "data-widget-data",
+					data: {
+						type: "question-card",
+						payload: {
+							type: "question-card",
+							sessionId: "stale-card",
+							questions: [{ id: "q-1", label: "Question?" }],
+						},
+					},
+				},
+			],
+		},
+		{
+			id: "user-2",
+			role: "user",
+			parts: [{ type: "text", text: "Here are my answers", state: "done" }],
+		},
+	]);
+
+	assert.equal(payload, null);
+});
+
+test("getLatestQuestionCardPayload returns null when latest assistant message also has a valid plan widget", () => {
+	const payload = getLatestQuestionCardPayload([
+		{
+			id: "user-1",
+			role: "user",
+			parts: [{ type: "text", text: "Build this", state: "done" }],
+		},
+		{
+			id: "assistant-1",
+			role: "assistant",
+			parts: [
+				{
+					type: "data-widget-data",
+					data: {
+						type: "plan",
+						payload: {
+							title: "Implementation plan",
+							tasks: [
+								{ id: "task-1", label: "Create route", blockedBy: [] },
+								{ id: "task-2", label: "Wire state", blockedBy: ["task-1"] },
+							],
+						},
+					},
+				},
+				{
+					type: "data-widget-data",
+					data: {
+						type: "question-card",
+						payload: {
+							type: "question-card",
+							sessionId: "stale-in-same-message",
+							questions: [{ id: "q-1", label: "What next?" }],
+						},
+					},
+				},
+			],
+		},
+	]);
+
+	assert.equal(payload, null);
 });

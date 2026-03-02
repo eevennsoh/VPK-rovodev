@@ -1,25 +1,16 @@
 "use client";
 
-import { memo, useCallback, useState } from "react";
-import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
+import { memo } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/utils/theme-wrapper";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import { REASONING_LABELS } from "@/components/templates/shared/lib/reasoning-labels";
-import {
-	PromptInput,
-	PromptInputBody,
-	PromptInputSubmit,
-	PromptInputTextarea,
-} from "@/components/ui-ai/prompt-input";
-import { SpeechInput } from "@/components/ui-ai/speech-input";
 import type { TaskExecution } from "../lib/execution-data";
 import { AgentScreen } from "./agent-screen";
 
 interface ExecutionGridViewProps {
 	taskExecutions: TaskExecution[];
-	onAddTask?: (message: string) => void;
 	showGeneratingEmptyState?: boolean;
 }
 
@@ -67,10 +58,8 @@ function getSpanClass(span: 1 | 2 | 3): string | undefined {
 
 export const ExecutionGridView = memo(function ExecutionGridView({
 	taskExecutions,
-	onAddTask,
 	showGeneratingEmptyState = false,
 }: Readonly<ExecutionGridViewProps>) {
-	const [inputValue, setInputValue] = useState("");
 	const { actualTheme } = useTheme();
 	const visibleExecutions = taskExecutions.filter(
 		(execution) => execution.status === "working"
@@ -85,25 +74,6 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 		visibleExecutions.length > 0
 			? Math.ceil(visibleExecutions.length / columnCount)
 			: 1;
-
-	const handleSubmit = useCallback(
-		(message: { text: string }) => {
-			const trimmed = message.text.trim();
-			if (!trimmed || !onAddTask) return;
-			onAddTask(trimmed);
-			setInputValue("");
-		},
-		[onAddTask],
-	);
-
-	const handleSpeechTranscription = useCallback((text: string) => {
-		const trimmed = text.trim();
-		if (!trimmed) return;
-		setInputValue((prev) => {
-			const trimmedPrev = prev.trimEnd();
-			return trimmedPrev ? `${trimmedPrev} ${trimmed}` : trimmed;
-		});
-	}, []);
 
 	return (
 		<div className="relative flex h-full min-h-0 min-w-0 flex-col">
@@ -165,39 +135,6 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 					</div>
 				</div>
 
-			{onAddTask ? (
-				<div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-6">
-					<PromptInput
-						variant="floating"
-						onSubmit={handleSubmit}
-						allowOverflow
-						className="pointer-events-auto mx-auto w-full max-w-[800px]"
-					>
-						<PromptInputBody className="flex w-full items-center justify-between gap-2">
-							<PromptInputTextarea
-								value={inputValue}
-								onChange={(e) => setInputValue(e.currentTarget.value)}
-								placeholder="Ask, @mention, or / for actions"
-								rows={1}
-								className="min-h-0 flex-1 py-0"
-							/>
-							<div className="flex shrink-0 items-center gap-1">
-								<SpeechInput
-									aria-label="Voice"
-									onTranscriptionChange={handleSpeechTranscription}
-									variant="ghost"
-								/>
-								<PromptInputSubmit
-									disabled={!inputValue.trim()}
-									aria-label="Submit"
-								>
-									<ArrowUpIcon label="" />
-								</PromptInputSubmit>
-							</div>
-						</PromptInputBody>
-					</PromptInput>
-				</div>
-			) : null}
 		</div>
 	);
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { QueuedPromptItem } from "@/app/contexts";
 import CustomizeMenu from "@/components/blocks/shared-ui/customize-menu";
@@ -49,6 +49,8 @@ interface RovoChatInputProps {
 	customHeight?: string;
 	hideUsesAI?: boolean;
 	placeholder?: string;
+	isPreviewPlaceholderActive?: boolean;
+	onTextareaReady?: (textarea: HTMLTextAreaElement | null) => void;
 }
 
 export default function RovoChatInput({
@@ -66,8 +68,11 @@ export default function RovoChatInput({
 	customHeight,
 	hideUsesAI = false,
 	placeholder,
+	isPreviewPlaceholderActive = false,
+	onTextareaReady,
 }: Readonly<RovoChatInputProps>) {
 	void onContextToggle;
+	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
 	const [selectedReasoning, setSelectedReasoning] = useState("deep-research");
 	const [webResultsEnabled, setWebResultsEnabled] = useState(false);
@@ -87,6 +92,11 @@ export default function RovoChatInput({
 		const trimmedPrompt = prompt.trimEnd();
 		onPromptChange(trimmedPrompt ? `${trimmedPrompt} ${trimmedTranscription}` : trimmedTranscription);
 	};
+
+	useEffect(() => {
+		onTextareaReady?.(textareaRef.current);
+		return () => onTextareaReady?.(null);
+	}, [onTextareaReady]);
 
 	return (
 		<div className="relative px-3">
@@ -137,12 +147,18 @@ export default function RovoChatInput({
 				>
 					<PromptInputBody className={cn(customHeight ? "flex-1" : undefined)}>
 						<PromptInputTextarea
+							ref={textareaRef}
 							value={prompt}
 							onChange={(e) => onPromptChange(e.currentTarget.value)}
 							placeholder={placeholder ?? "Ask, @mention, or / for skills"}
 							aria-label="Chat message input"
+							autoResize={!customHeight}
 							rows={1}
-							className={cn(composerTextareaClassName, customHeight ? "h-full max-h-none min-h-0" : undefined)}
+							className={cn(
+								composerTextareaClassName,
+								customHeight ? "h-full max-h-none min-h-0" : undefined,
+								isPreviewPlaceholderActive ? "chat-composer-textarea-preview-active" : undefined,
+							)}
 						/>
 					</PromptInputBody>
 
@@ -200,6 +216,18 @@ export default function RovoChatInput({
 			</div>
 
 			<style>{textareaCSS}</style>
+			<style>{`
+				.chat-composer-textarea.chat-composer-textarea-preview-active:placeholder-shown {
+					field-sizing: content;
+					white-space: pre-wrap;
+					text-overflow: clip;
+				}
+				.chat-composer-textarea.chat-composer-textarea-preview-active::placeholder {
+					white-space: pre-wrap;
+					overflow: visible;
+					text-overflow: clip;
+				}
+			`}</style>
 
 			{!hideUsesAI ? <Footer /> : null}
 		</div>

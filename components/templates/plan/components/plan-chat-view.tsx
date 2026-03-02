@@ -11,29 +11,25 @@ import { parsePlanWidgetPayload } from "@/components/templates/shared/lib/plan-w
 import type { ParsedQuestionCardPayload } from "@/components/templates/shared/lib/question-card-widget";
 import type { ClarificationAnswers } from "@/components/templates/shared/lib/question-card-widget";
 import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
-import type { QueuedPromptItem } from "@/app/contexts";
 import { Footer } from "@/components/ui/footer";
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
 import { Button } from "@/components/ui/button";
 import { token } from "@/lib/tokens";
-import { getPlanModeCopy } from "@/components/templates/plan/lib/plan-copy";
 import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
 import {
 	usePlanState,
 	usePlanActions,
 } from "@/app/contexts/context-plan";
-import PlanComposer from "./plan-composer";
 import { PlanCardWidgetInline } from "./plan-card-widget-inline";
 import { useScrollToBottom } from "../hooks/use-scroll-to-bottom";
 import { useDismissibleCards } from "../hooks/use-dismissible-cards";
-import LoadingWidget from "./loading-widget";
+import LoadingWidget from "@/components/templates/shared/components/loading-widget";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const CHAT_COMPOSER_BASE_BOTTOM_PADDING = "128px";
-const CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING = "320px";
+const BASE_BOTTOM_PADDING = "48px";
 const OVERLAY_CARD_BOTTOM_PADDING = "520px";
 
 // ---------------------------------------------------------------------------
@@ -42,7 +38,6 @@ const OVERLAY_CARD_BOTTOM_PADDING = "520px";
 
 function getWidgetLoadingLabel(widgetType: string | null): string {
 	if (widgetType === "plan") return "Generating your plan";
-	if (widgetType === "question-card") return "Preparing follow-up questions";
 	if (widgetType === "work-items") return "Comparing Jira work items";
 	return "Processing your request";
 }
@@ -88,56 +83,41 @@ function ScrollToBottomButton({ visible, onClick }: Readonly<ScrollToBottomButto
 interface BottomOverlayProps {
 	showQuestionCard: boolean;
 	showApprovalCard: boolean;
-	hasPendingResponseCard: boolean;
 	activeQuestionCard: ParsedQuestionCardPayload | null;
 	activeQuestionCardKey: string | null;
 	activePlanKey: string | null;
 	isRequestInFlight: boolean;
 	onClarificationSubmit: (answers: ClarificationAnswers) => void;
+	onHideQuestionCard: () => void;
 	onDismissQuestionCard: () => void;
 	onApprovalSubmit: (selection: PlanApprovalSelection) => void;
 	onDismissApprovalCard: () => void;
-	composerProps: {
-		prompt: string;
-		placeholder: string;
-		isStreaming: boolean;
-		isPlanMode: boolean;
-		onPlanModeToggle: () => void;
-		queuedPrompts: ReadonlyArray<QueuedPromptItem>;
-		onPromptChange: (value: string) => void;
-		onSubmit: () => Promise<void> | void;
-		onStop: () => Promise<void>;
-		onRemoveQueuedPrompt: (id: string) => void;
-	};
 }
 
 function BottomOverlay({
 	showQuestionCard,
 	showApprovalCard,
-	hasPendingResponseCard,
 	activeQuestionCard,
 	activeQuestionCardKey,
 	activePlanKey,
 	isRequestInFlight,
 	onClarificationSubmit,
+	onHideQuestionCard,
 	onDismissQuestionCard,
 	onApprovalSubmit,
 	onDismissApprovalCard,
-	composerProps,
 }: Readonly<BottomOverlayProps>) {
 	if (showQuestionCard && activeQuestionCard && activeQuestionCardKey) {
 		return (
-			<div className="px-1">
-				<ClarificationQuestionCard
-					key={activeQuestionCardKey}
-					questionCard={activeQuestionCard}
-					onSubmit={(answers) => {
-						onClarificationSubmit(answers);
-						onDismissQuestionCard();
-					}}
-					onDismiss={onDismissQuestionCard}
-				/>
-			</div>
+			<ClarificationQuestionCard
+				key={activeQuestionCardKey}
+				questionCard={activeQuestionCard}
+				onSubmit={(answers) => {
+					onClarificationSubmit(answers);
+					onHideQuestionCard();
+				}}
+				onDismiss={onDismissQuestionCard}
+			/>
 		);
 	}
 
@@ -155,10 +135,6 @@ function BottomOverlay({
 				/>
 			</div>
 		);
-	}
-
-	if (!hasPendingResponseCard) {
-		return <PlanComposer {...composerProps} />;
 	}
 
 	return null;
@@ -216,8 +192,6 @@ function renderPlanWidget(
 
 export default function PlanChatView() {
 	const {
-		prompt,
-		isPlanMode,
 		isStreaming,
 		isSubmitPending,
 		isWidgetLoading,
@@ -227,15 +201,9 @@ export default function PlanChatView() {
 		normalizedUiMessages: streamingUiMessages,
 		activeQuestionCard,
 		activePlanWidget,
-		queuedPrompts,
 	} = usePlanState();
 
 	const {
-		setPrompt,
-		handleSubmit,
-		stopStreaming,
-		togglePlanMode,
-		removeQueuedPrompt,
 		handleClarificationSubmit,
 		handleClarificationDismiss,
 		handleApprovalSubmit,
@@ -254,6 +222,7 @@ export default function PlanChatView() {
 		shouldShowApprovalCard,
 		activeQuestionCardKey,
 		activePlanKey,
+		hideQuestionCard,
 		dismissQuestionCard,
 		dismissApprovalCard,
 	} = useDismissibleCards({
@@ -266,13 +235,9 @@ export default function PlanChatView() {
 	const isRequestInFlight = isStreaming || isSubmitPending;
 	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isWidgetLoading && !isRequestInFlight;
 	const gatedShouldShowApprovalCard = shouldShowApprovalCard && isPlanMessageComplete && !isRequestInFlight;
-	const hasPendingResponseCard = gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
 	const showBottomOverlayCard = gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
-	const isAwaitingUserInput = hasPendingResponseCard;
-	const chatComposerBottomPadding = queuedPrompts.length > 0 ? CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING : CHAT_COMPOSER_BASE_BOTTOM_PADDING;
-	const contentBottomPadding = showBottomOverlayCard ? OVERLAY_CARD_BOTTOM_PADDING : chatComposerBottomPadding;
-	const shouldShowBottomGradient = showBottomOverlayCard || !hasPendingResponseCard;
-	const modeCopy = getPlanModeCopy(isPlanMode);
+	const isAwaitingUserInput = showBottomOverlayCard;
+	const contentBottomPadding = showBottomOverlayCard ? OVERLAY_CARD_BOTTOM_PADDING : BASE_BOTTOM_PADDING;
 
 	useEffect(() => {
 		if (!showBottomOverlayCard) return;
@@ -285,7 +250,7 @@ export default function PlanChatView() {
 	return (
 		<div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
 			<div className="flex min-h-0 flex-1 justify-center overflow-hidden px-4">
-				<div className="flex min-h-0 w-full max-w-[800px] flex-col">
+				<div className="flex min-h-0 w-full flex-col">
 					<ChatMessages
 						uiMessages={uiMessages}
 						streamingIndicatorMessages={streamingUiMessages}
@@ -327,7 +292,7 @@ export default function PlanChatView() {
 				</div>
 			</div>
 
-			{shouldShowBottomGradient ? (
+			{showBottomOverlayCard ? (
 				<div
 					aria-hidden
 					className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-52"
@@ -338,33 +303,23 @@ export default function PlanChatView() {
 			) : null}
 
 			<div className="pointer-events-none absolute inset-x-0 bottom-8 z-20 px-4">
-				<div className="pointer-events-auto relative mx-auto w-full max-w-[800px]">
+				<div className="pointer-events-auto relative mx-auto w-full">
 					<ScrollToBottomButton visible={showScrollButton} onClick={scrollToBottom} />
-					<BottomOverlay
-						showQuestionCard={gatedShouldShowQuestionCard}
-						showApprovalCard={gatedShouldShowApprovalCard}
-						hasPendingResponseCard={hasPendingResponseCard}
-						activeQuestionCard={activeQuestionCard}
-						activeQuestionCardKey={activeQuestionCardKey}
-						activePlanKey={activePlanKey}
-						isRequestInFlight={isRequestInFlight}
-						onClarificationSubmit={handleClarificationSubmit}
-						onDismissQuestionCard={dismissQuestionCard}
-						onApprovalSubmit={handleApprovalSubmit}
-						onDismissApprovalCard={dismissApprovalCard}
-						composerProps={{
-							prompt,
-							placeholder: modeCopy.placeholder,
-							isStreaming: isRequestInFlight,
-							isPlanMode,
-							onPlanModeToggle: togglePlanMode,
-							queuedPrompts,
-							onPromptChange: setPrompt,
-							onSubmit: handleSubmit,
-							onStop: stopStreaming,
-							onRemoveQueuedPrompt: removeQueuedPrompt,
-						}}
-					/>
+					{showBottomOverlayCard ? (
+						<BottomOverlay
+							showQuestionCard={gatedShouldShowQuestionCard}
+							showApprovalCard={gatedShouldShowApprovalCard}
+							activeQuestionCard={activeQuestionCard}
+							activeQuestionCardKey={activeQuestionCardKey}
+							activePlanKey={activePlanKey}
+							isRequestInFlight={isRequestInFlight}
+							onClarificationSubmit={handleClarificationSubmit}
+							onHideQuestionCard={hideQuestionCard}
+							onDismissQuestionCard={dismissQuestionCard}
+							onApprovalSubmit={handleApprovalSubmit}
+							onDismissApprovalCard={dismissApprovalCard}
+						/>
+					) : null}
 				</div>
 			</div>
 

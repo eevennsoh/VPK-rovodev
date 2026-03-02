@@ -43,6 +43,7 @@ export interface ParsedQuestionCardPayload {
 	directive?: string;
 	requiredCount: number;
 	questions: ParsedQuestionCardQuestion[];
+	deferredToolCallId?: string;
 }
 
 const DEFAULT_SESSION_ID = "clarification-session";
@@ -116,6 +117,39 @@ function normalizeQuestionKind(value: unknown): QuestionKind {
 
 	const normalizedValue = value.trim().toLowerCase() as QuestionKind;
 	return QUESTION_KINDS.has(normalizedValue) ? normalizedValue : "single-select";
+}
+
+function hasValidPlanWidgetPayload(value: unknown): boolean {
+	if (!isStringRecord(value)) {
+		return false;
+	}
+
+	const record = isStringRecord(value.payload) ? value.payload : value;
+	const taskCandidates = Array.isArray(record.tasks)
+		? record.tasks
+		: Array.isArray(record.steps)
+			? record.steps
+			: null;
+	if (!taskCandidates || taskCandidates.length === 0) {
+		return false;
+	}
+
+	return taskCandidates.some((taskItem) => {
+		if (typeof taskItem === "string") {
+			return taskItem.trim().length > 0;
+		}
+
+		if (!isStringRecord(taskItem)) {
+			return false;
+		}
+
+		const taskLabel =
+			getNonEmptyString(taskItem.label) ??
+			getNonEmptyString(taskItem.title) ??
+			getNonEmptyString(taskItem.task) ??
+			getNonEmptyString(taskItem.text);
+		return Boolean(taskLabel);
+	});
 }
 
 function normalizeQuestionOptions(value: unknown): ParsedQuestionCardOption[] {
@@ -251,6 +285,7 @@ export function parseQuestionCardPayload(
 		directive: getNonEmptyString(record.directive) ?? undefined,
 		requiredCount,
 		questions,
+		deferredToolCallId: getNonEmptyString(record.tool_call_id) ?? undefined,
 	};
 }
 
@@ -349,7 +384,7 @@ export function buildClarificationSummaryPrompt(
 
 	const defaultDirective = [
 		"Use these details to generate the final plan tasks now.",
-		"If you still need more information, ask follow-up questions using the request_user_input tool so they render as question cards.",
+		"Do not ask follow-up questions unless a hard blocker prevents planning.",
 		"Use the create-plan skill and return a plan widget with concrete tasks.",
 	].join("\n");
 
@@ -421,6 +456,29 @@ export function getLatestQuestionCardPayload(
 	}
 
 	const latestAssistantMessage = messages[latestAssistantMessageIndex];
+	const hasValidPlanWidget = latestAssistantMessage.parts.some((part) => {
+		const candidate = part as {
+			type?: string;
+			data?: {
+				type?: unknown;
+				payload?: unknown;
+			};
+		};
+		if (candidate.type !== "data-widget-data") {
+			return false;
+		}
+
+		const widgetType = getNonEmptyString(candidate.data?.type);
+		if (widgetType !== "plan") {
+			return false;
+		}
+
+		return hasValidPlanWidgetPayload(candidate.data?.payload);
+	});
+	if (hasValidPlanWidget) {
+		return null;
+	}
+
 	for (
 		let partIndex = latestAssistantMessage.parts.length - 1;
 		partIndex >= 0;
@@ -444,10 +502,13 @@ export function getLatestQuestionCardPayload(
 		}
 
 		if (widgetType !== "question-card") {
-			return null;
+			continue;
 		}
 
-		return parseQuestionCardPayload(part.data?.payload);
+		const parsedPayload = parseQuestionCardPayload(part.data?.payload);
+		if (parsedPayload) {
+			return parsedPayload;
+		}
 	}
 
 	return null;

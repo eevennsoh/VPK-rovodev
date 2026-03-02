@@ -348,6 +348,27 @@ function extractChunkFromEvent(eventName, parsed) {
 		return text ? { type: "text", text } : null;
 	}
 
+	// ── Deferred tool request ───────────────────────────────────────────
+
+	if (eventName === "deferred-request") {
+		// RovoDev sends { calls: [{ tool_name, args (JSON string), tool_call_id }], approvals, metadata }
+		const calls = Array.isArray(parsed?.calls) ? parsed.calls : [];
+		const firstCall = calls[0];
+		if (firstCall) {
+			let toolInput = firstCall.args;
+			if (typeof toolInput === "string") {
+				try { toolInput = JSON.parse(toolInput); } catch { /* keep as string */ }
+			}
+			return {
+				type: "deferred-tool-request",
+				toolName: firstCall.tool_name,
+				toolCallId: firstCall.tool_call_id,
+				toolInput,
+			};
+		}
+		return null;
+	}
+
 	// ── Fallback for unknown events ─────────────────────────────────────
 
 	const rawText =
@@ -516,6 +537,15 @@ function sendMessageStreaming(message, callbacks, port) {
 		try {
 			// Step 1: Queue the message
 			console.log("[rovodev] Queuing message via /v3/set_chat_message...");
+
+			// Check if this is a DeferredToolResponse (has tool_call_id and result)
+			const isDeferredToolResponse = message && typeof message === "object" &&
+				"tool_call_id" in message && "result" in message;
+
+			if (isDeferredToolResponse) {
+				console.log("[rovodev] Sending deferred tool response for tool_call_id:", message.tool_call_id);
+			}
+
 			const { status: setStatus, data: setData } = await request(
 				"POST",
 				"/v3/set_chat_message",
@@ -537,15 +567,16 @@ function sendMessageStreaming(message, callbacks, port) {
 			if (aborted) return;
 
 			// Step 2: Stream the response via SSE
-			console.log("[rovodev] Opening SSE stream via /v3/stream_chat...");
 			const url = new URL("/v3/stream_chat", getBaseUrlForPort(port));
+			url.searchParams.append("enable_deferred_tools", "true");
+			console.log("[rovodev] Opening SSE stream:", url.pathname + url.search);
 			let fullText = "";
 
 			await new Promise((resolve, reject) => {
 				const options = {
 					hostname: url.hostname,
 					port: url.port,
-					path: url.pathname,
+					path: url.pathname + url.search,
 					method: "GET",
 					headers: {
 						"Accept": "text/event-stream",

@@ -26,7 +26,18 @@ interface AssistantToolItemProps {
 
 function hasToolDetails(toolPart: RovoToolPart): boolean {
 	if (toolPart.input !== undefined) {
-		return true;
+		const serialized =
+			typeof toolPart.input === "string"
+				? toolPart.input
+				: JSON.stringify(toolPart.input);
+		if (
+			serialized &&
+			serialized !== "{}" &&
+			serialized !== '""' &&
+			serialized !== "null"
+		) {
+			return true;
+		}
 	}
 
 	if (toolPart.output !== undefined) {
@@ -96,7 +107,7 @@ export function AssistantToolsSection({
 			{toolParts.map((toolPart, index) => {
 				const shouldDefaultOpen =
 					defaultOpenMode === "running"
-						? isToolRunning(toolPart)
+						? isToolRunning(toolPart) && hasToolDetails(toolPart)
 						: hasToolDetails(toolPart);
 
 				return (

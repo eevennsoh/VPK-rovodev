@@ -11,20 +11,25 @@ interface DemoPreviewShellProps {
 	children: ReactNode;
 	/** When true, constrains the shell to a fixed height for full-page demos (templates, sidebars). */
 	fullPage?: boolean;
+	/** When true (with fullPage), the shell auto-sizes to content instead of using a fixed height. */
+	fitContent?: boolean;
 }
 
-export function DemoPreviewShell({ children, fullPage }: Readonly<DemoPreviewShellProps>) {
+export function DemoPreviewShell({ children, fullPage, fitContent }: Readonly<DemoPreviewShellProps>) {
 	if (fullPage) {
 		return (
 			<div
 				className={cn(
-					"relative w-full overflow-hidden [&>*]:h-full",
+					"relative w-full",
+					!fitContent && "overflow-hidden [&>*]:h-full",
 					"[&_[data-slot=sidebar-wrapper]]:!min-h-full [&_[data-slot=sidebar-wrapper]]:!h-full",
 					"[&_[data-slot=sidebar-container]]:!h-full",
 					"[&_[data-slot=sidebar-inset]]:!min-h-0 [&_[data-slot=sidebar-inset]]:!h-full",
 				)}
 				style={{
-					height: FULL_PAGE_HEIGHT_PX,
+					...(fitContent
+						? { minHeight: FULL_PAGE_HEIGHT_PX }
+						: { height: FULL_PAGE_HEIGHT_PX }),
 					border: `1px solid ${token("color.border")}`,
 					borderRadius: token("radius.large"),
 					backgroundColor: token("elevation.surface"),

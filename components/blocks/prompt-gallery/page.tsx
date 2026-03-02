@@ -5,10 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import DiscoverMoreExamples from "./components/discover-more-examples";
 import { DEFAULT_PROMPT_GALLERY_EXAMPLES, type PromptGalleryExample } from "./data/examples";
-import {
-	DEFAULT_PROMPT_GALLERY_SUGGESTIONS,
-	type PromptGallerySuggestion,
-} from "./data/suggestions";
+import { DEFAULT_PROMPT_GALLERY_SUGGESTIONS, type PromptGallerySuggestion } from "./data/suggestions";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 
 interface PromptGalleryProps {
@@ -105,9 +102,9 @@ export default function PromptGallery({
 							className="gap-2 rounded-full"
 							variant="secondary"
 							onClick={() => {
-							setShowMoreSection(true);
-							onExpandChange?.(true);
-						}}
+								setShowMoreSection(true);
+								onExpandChange?.(true);
+							}}
 						>
 							<ChevronDownIcon label="" size="small" />
 							{moreLabel}

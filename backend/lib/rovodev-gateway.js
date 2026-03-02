@@ -809,6 +809,7 @@ function resolveToolCallInput({
  * @param {number} [params.port] - Explicit RovoDev port number for dedicated assignment
  * @param {number} [params.portIndex] - Sticky port index for dedicated assignment (e.g. multiports)
  * @param {(port: number) => void} [params.onPortAcquired] - Called once with the resolved port after acquisition
+ * @param {boolean} [params.failOnError] - Reject on non-409 stream errors instead of writing inline warning text
  * @returns {Promise<void>}
  */
 async function streamViaRovoDev({
@@ -828,6 +829,7 @@ async function streamViaRovoDev({
 	portIndex,
 	onPortAcquired,
 	onComplete,
+	failOnError = false,
 }) {
 	const waitForTurn = conflictPolicy === "wait-for-turn";
 	const resolvedTimeoutMs =
@@ -1019,26 +1021,41 @@ async function streamViaRovoDev({
 
 						if (chunk.type === "tool_call_start") {
 							const resolvedToolName = normalizeToolName(chunk.toolName);
-							if (chunk.toolCallId && resolvedToolName) {
-								toolNameByCallId.set(chunk.toolCallId, resolvedToolName);
+							const normalizedToolCallId =
+								typeof chunk.toolCallId === "string" && chunk.toolCallId.trim()
+									? chunk.toolCallId.trim()
+									: null;
+							const isDuplicateStartEvent =
+								normalizedToolCallId !== null &&
+								activeToolCallOrder.includes(normalizedToolCallId);
+							if (normalizedToolCallId && resolvedToolName) {
+								toolNameByCallId.set(normalizedToolCallId, resolvedToolName);
 							}
-							if (chunk.toolCallId && chunk.toolInput && typeof chunk.toolInput === "object") {
-								toolInputByCallId.set(chunk.toolCallId, chunk.toolInput);
+							if (
+								normalizedToolCallId &&
+								chunk.toolInput &&
+								typeof chunk.toolInput === "object"
+							) {
+								toolInputByCallId.set(normalizedToolCallId, chunk.toolInput);
 							}
-							if (chunk.toolCallId) {
+							if (normalizedToolCallId && !isDuplicateStartEvent) {
 								rememberActiveToolCall({
-									toolCallId: chunk.toolCallId,
+									toolCallId: normalizedToolCallId,
 									toolName: resolvedToolName ?? chunk.toolName,
 								});
+							}
+							if (isDuplicateStartEvent) {
+								emitResolvedToolInputIfAvailable({
+									toolCallId: normalizedToolCallId,
+									reportedToolName: resolvedToolName,
+								});
+								return;
 							}
 
 							if (typeof onToolCallStart === "function") {
 								onToolCallStart({
 									toolName: resolvedToolName,
-									toolCallId:
-										typeof chunk.toolCallId === "string" && chunk.toolCallId.trim()
-											? chunk.toolCallId.trim()
-											: null,
+									toolCallId: normalizedToolCallId,
 									toolInput:
 										chunk.toolInput && typeof chunk.toolInput === "object"
 											? chunk.toolInput
@@ -1201,6 +1218,54 @@ async function streamViaRovoDev({
 								}
 							}
 						}
+
+							if (chunk.type === "deferred-tool-request") {
+								// Some RovoDev builds emit deferred-request without
+								// a prior on_call_tools_start event. Forward this
+								// as a synthetic tool-call-start so the caller can
+								// render the question card and pause the turn.
+								const resolvedToolName = normalizeToolName(chunk.toolName);
+								const normalizedToolCallId =
+									typeof chunk.toolCallId === "string" && chunk.toolCallId.trim()
+										? chunk.toolCallId.trim()
+										: null;
+								const hasKnownActiveToolCall =
+									normalizedToolCallId !== null
+										&& activeToolCallOrder.includes(normalizedToolCallId);
+
+								if (!hasKnownActiveToolCall) {
+									if (normalizedToolCallId && resolvedToolName) {
+										toolNameByCallId.set(normalizedToolCallId, resolvedToolName);
+									}
+									if (
+										normalizedToolCallId
+										&& chunk.toolInput
+										&& typeof chunk.toolInput === "object"
+									) {
+										toolInputByCallId.set(normalizedToolCallId, chunk.toolInput);
+									}
+									if (normalizedToolCallId) {
+										rememberActiveToolCall({
+											toolCallId: normalizedToolCallId,
+											toolName: resolvedToolName ?? chunk.toolName,
+										});
+									}
+
+									if (typeof onToolCallStart === "function") {
+										onToolCallStart({
+											toolName: resolvedToolName,
+											toolCallId: normalizedToolCallId,
+											toolInput:
+												chunk.toolInput && typeof chunk.toolInput === "object"
+													? chunk.toolInput
+													: null,
+											isDeferredToolRequest: true,
+										});
+									}
+								}
+
+								return;
+							}
 					},
 					onDone: () => {
 						if (signal && onAbort) {
@@ -1217,16 +1282,19 @@ async function streamViaRovoDev({
 							return;
 						}
 						console.error("[streamViaRovoDev] Error:", err.message);
-						if (isPromptTooLongError(err)) {
-							onTextDelta(
-								`\n\nThis conversation has become too long for the model to process. Please start a new chat session to continue.`
-							);
-						} else {
-							onTextDelta(`\n\n⚠️ RovoDev error: ${err.message}`);
+						const userFacingErrorMessage = isPromptTooLongError(err)
+							? "This conversation has become too long for the model to process. Please start a new chat session to continue."
+							: `RovoDev error: ${err.message}`;
+						if (failOnError) {
+							const streamError = new Error(userFacingErrorMessage);
+							streamError.cause = err;
+							reject(streamError);
+							return;
 						}
+						onTextDelta(`\n\n⚠️ ${userFacingErrorMessage}`);
 						resolve();
 					},
-				}, port);
+					}, port);
 
 				if (signal) {
 					onAbort = () => {

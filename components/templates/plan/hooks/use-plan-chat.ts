@@ -191,7 +191,7 @@ export function usePlanChat(): UsePlanChatReturn {
 		}
 
 		let cancelled = false;
-		fetch(API_ENDPOINTS.planThreads())
+		fetch(API_ENDPOINTS.chatThreads())
 			.then((response) => {
 				if (!response.ok) {
 					throw new Error(`HTTP ${response.status}`);

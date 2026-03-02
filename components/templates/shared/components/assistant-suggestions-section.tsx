@@ -17,7 +17,7 @@ export function AssistantSuggestionsSection({
 			{suggestedQuestions.map((question, index) => (
 				<Suggestion
 					key={`${messageId}-suggestion-${question}-${index}`}
-					className="gap-2 !rounded-[min(var(--radius-md),12px)]"
+					className="gap-2 px-3 !rounded-[min(var(--radius-md),12px)]"
 					onClick={onSuggestionClick}
 					suggestion={question}
 					variant="outline"

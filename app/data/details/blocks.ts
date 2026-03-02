@@ -85,6 +85,9 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 	"agent-summary": {
 		description: "Agent summary block with plan chrome, final synthesis, interactive dashboard, visual iframe preview, and grouped agent outputs.",
 	},
+	"make-artifact": {
+		description: "Maker artifact view with sidebar navigation, top nav tabs, dual tab bars, and two-panel layout for artifact output and chat.",
+	},
 	dashboard: {
 		description: "A full dashboard layout with sidebar navigation, charts, and data tables.",
 	},
@@ -153,6 +156,9 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 	},
 	chatgpt: {
 		description: "ChatGPT-style prompt form with model selector, group chat dialog, and project creation.",
+	},
+	"terminal-switch": {
+		description: "A switchable interface that toggles between Rovo Chat and a RovoDev CLI terminal, demonstrating dual-mode AI interaction.",
 	},
 	"data-table": {
 		description: "Data table with sortable columns, status indicators, and reviewer assignments.",
@@ -310,6 +316,7 @@ const questions: QuestionCardQuestion[] = [
 	},
 	"approval-card": {
 		description: "ADS-style approval card for plan acceptance with ranked options and a custom input.",
+		demoLayout: { previewHeight: "fit" },
 	},
 	chatbot: {
 		description: "Full-featured AI chatbot with conversation, messages, reasoning, suggestions, and model selector.",
@@ -319,6 +326,24 @@ const questions: QuestionCardQuestion[] = [
 	},
 	"kanban-sprint": {
 		description: "Sprint planning kanban board with drag-and-drop task cards, status columns, sprint metrics, and story point tracking.",
+	},
+	"make-grid": {
+		description: "Make execution grid with live task tiles, sidebar navigation, and minimal prompt input.",
+		demoLayout: {
+			previewContentWidth: "full",
+		},
+	},
+	"make-gallery": {
+		description: "A chat-first landing surface with illustration, composer input, and prompt gallery for quick-start conversations and build requests.",
+	},
+	"make-item": {
+		description: "Horizontal card displaying a created object with animated ASCII preview and rich metadata.",
+	},
+	"make-page": {
+		description: "Make landing page with sidebar navigation, category tabs, recurring section, and make-item card gallery.",
+		demoLayout: {
+			previewContentWidth: "full",
+		},
 	},
 	generative: {
 		description: "v0-style generative UI with prompt input, artifact container, and preview/code toggle.",

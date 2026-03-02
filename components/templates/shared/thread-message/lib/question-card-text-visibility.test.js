@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
 	isTranslationClarificationQuestionCard,
+	sanitizeQuestionCardMessageText,
 	shouldSuppressQuestionCardMessageText,
 } = require("./question-card-text-visibility.ts");
 
@@ -52,7 +53,7 @@ test("detects translation clarification cards from assistant message text", () =
 	);
 });
 
-test("suppresses text for non-translation question cards", () => {
+test("does not suppress meaningful text for non-translation question cards", () => {
 	assert.equal(
 		shouldSuppressQuestionCardMessageText({
 			shouldShowWidgetSections: true,
@@ -64,7 +65,43 @@ test("suppresses text for non-translation question cards", () => {
 			},
 			messageText: "Please choose a site before I continue.",
 		}),
+		false
+	);
+});
+
+test("suppresses text when question-card message only contains scaffolding", () => {
+	assert.equal(
+		shouldSuppressQuestionCardMessageText({
+			shouldShowWidgetSections: true,
+			widgetType: "question-card",
+			isStreaming: false,
+			widgetPayload: {
+				sessionId: "request-user-input-12345",
+				questions: [{ id: "q-1", label: "Which Jira site?" }],
+			},
+			messageText:
+				"Great idea! Let me ask a few questions before putting together a plan. I've shared some questions to help. Once you answer those, I'll put together a detailed implementation plan. What are your preferences?",
+		}),
 		true
+	);
+});
+
+test("sanitizes scaffolding text and keeps contextual lines", () => {
+	assert.equal(
+		sanitizeQuestionCardMessageText({
+			widgetPayload: {
+				sessionId: "request-user-input-12345",
+				questions: [{ id: "q-1", label: "Which Jira site?" }],
+			},
+			messageText: [
+				"Great idea! Let me ask a few questions before putting together a plan.",
+				"Good news - there's already a sprint board foundation in this project.",
+				"I've shared some questions to help me understand your vision.",
+				"Good news - there's already a sprint board foundation in this project.",
+				"Once you answer those, I'll put together a detailed implementation plan.",
+			].join("\n"),
+		}),
+		"Good news - there's already a sprint board foundation in this project."
 	);
 });
 
@@ -81,5 +118,18 @@ test("keeps text visible for translation question cards", () => {
 			messageText: "Tell me what text you want to translate.",
 		}),
 		false
+	);
+});
+
+test("keeps translation guidance text unchanged during sanitization", () => {
+	assert.equal(
+		sanitizeQuestionCardMessageText({
+			widgetPayload: {
+				sessionId: "request-user-input-12345",
+				questions: [{ id: "q-1", label: "Which language should I translate into?" }],
+			},
+			messageText: "Tell me what text you want to translate.",
+		}),
+		"Tell me what text you want to translate."
 	);
 });

@@ -81,7 +81,7 @@ export default function AgentGridPage() {
 	const [isOpen, setIsOpen] = useState(true);
 	const [isHovered, setIsHovered] = useState(false);
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const [executions, setExecutions] = useState<TaskExecution[]>(MOCK_EXECUTIONS);
+	const [executions] = useState<TaskExecution[]>(MOCK_EXECUTIONS);
 
 	const handleHoverEnter = useCallback(() => {
 		if (hoverTimeoutRef.current) {
@@ -102,17 +102,6 @@ export default function AgentGridPage() {
 		setIsHovered(false);
 	}, []);
 
-	const handleAddTask = useCallback((message: string) => {
-		const newExecution: TaskExecution = {
-			taskId: `TASK-${Date.now()}`,
-			taskLabel: message,
-			agentId: `agent-${Date.now()}`,
-			agentName: "Assistant",
-			status: "working",
-			content: "",
-		};
-		setExecutions((prev) => [...prev, newExecution]);
-	}, []);
 	const runHistory = useMemo<AgentRunListItem[]>(() => {
 		const runTasks = toRunTasks(executions);
 		return [
@@ -208,6 +197,7 @@ export default function AgentGridPage() {
 				onExportAgent={handleUnusedExport}
 				onImportSkill={handleUnusedCreate}
 				onImportAgent={handleUnusedCreate}
+				onNewChat={handleUnusedCreate}
 				onCreatePlan={handleUnusedCreate}
 			/>
 			<SidebarInset className="h-svh min-w-0 overflow-hidden">
@@ -223,7 +213,7 @@ export default function AgentGridPage() {
 						onHoverLeave={handleHoverLeave}
 					/>
 					<div className="min-h-0 min-w-0 flex-1">
-						<ExecutionGridView taskExecutions={executions} onAddTask={handleAddTask} />
+						<ExecutionGridView taskExecutions={executions} />
 					</div>
 				</div>
 			</SidebarInset>

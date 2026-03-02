@@ -31,7 +31,11 @@ import {
 	sanitizeMarkdownArtifactMarkers,
 	suppressToolJsonTrace,
 } from "../lib/message-text-utils";
-import { shouldSuppressQuestionCardMessageText } from "./lib/question-card-text-visibility";
+import {
+	sanitizeQuestionCardMessageText,
+	shouldSuppressQuestionCardMessageText,
+} from "./lib/question-card-text-visibility";
+import { parsePlanWidgetPayload } from "../lib/plan-widget";
 import { resolveThinkingLabelForSurface } from "../lib/thinking-label-policy";
 import {
 	getDefaultThinkingLabel,
@@ -39,6 +43,10 @@ import {
 } from "../lib/reasoning-labels";
 import { UserMessageBubble } from "../components/user-message-bubble";
 import { ThreadMessageContext, type ThreadMessageContextValue } from "./thread-message-context";
+import {
+	getNormalizedWidgetDataParts,
+	selectLatestRenderableWidgetPart,
+} from "./lib/widget-selection";
 import {
 	isPostToolsGenuiGeneration as resolvePostToolsGenuiGeneration,
 	isThinkingStatusActive as resolveThinkingStatusActive,
@@ -72,10 +80,16 @@ function useThreadMessageDerived(
 
 	// ---------- widget loading state (needed for thinking status) ----------
 	const widgetLoadingPart = getLatestDataPart(message, "data-widget-loading");
-	const widgetDataPart = getLatestDataPart(message, "data-widget-data");
-	const isWidgetLoading = widgetLoadingPart?.data.loading ?? false;
-	const hasWidgetPayload = Boolean(widgetDataPart);
-	const hasWidgetOutput = hasWidgetPayload && !isWidgetLoading;
+	const loadingWidgetType =
+		typeof widgetLoadingPart?.data.type === "string"
+			? widgetLoadingPart.data.type
+			: null;
+	const isAnyWidgetLoading = widgetLoadingPart?.data.loading ?? false;
+	const widgetDataParts = getNormalizedWidgetDataParts(message);
+	const latestWidgetDataEntry =
+		widgetDataParts.length > 0
+			? widgetDataParts[widgetDataParts.length - 1]
+			: null;
 
 	// ---------- thinking status ----------
 	const thinkingStatusPart = getLatestDataPart(message, "data-thinking-status");
@@ -123,14 +137,52 @@ function useThreadMessageDerived(
 
 	// ---------- widget data (remaining) ----------
 	const widgetErrorPart = getLatestDataPart(message, "data-widget-error");
+	const widgetErrorType =
+		typeof widgetErrorPart?.data.type === "string"
+			? widgetErrorPart.data.type
+			: null;
 	const suggestedQuestionsPart = getLatestDataPart(
 		message,
 		"data-suggested-questions"
 	);
+	const shouldShowWidgetSections = Boolean(renderWidget) || Boolean(renderLoadingWidget);
+	const selectedWidgetDataEntry = selectLatestRenderableWidgetPart(
+		widgetDataParts,
+		shouldShowWidgetSections && typeof renderWidget === "function"
+			? (widgetDataPart) => {
+					const candidateIsLoading =
+						isAnyWidgetLoading && loadingWidgetType === widgetDataPart.widgetType;
+					const shouldRenderCandidateWhileLoading =
+						widgetDataPart.widgetType === "genui-preview";
+					const shouldSkipCandidate =
+						(candidateIsLoading && !shouldRenderCandidateWhileLoading) ||
+						(widgetDataPart.widgetType === "plan" && isStreaming);
+					if (shouldSkipCandidate) {
+						return false;
+					}
+
+					const candidateNode = renderWidget(
+						{
+							type: widgetDataPart.widgetType,
+							data: widgetDataPart.part.data.payload,
+						},
+						message,
+					);
+					return candidateNode !== null && candidateNode !== undefined;
+				}
+			: undefined,
+	);
+	const widgetDataPart = selectedWidgetDataEntry?.part ?? null;
 	const widgetType =
-		widgetDataPart?.data.type ??
-		widgetLoadingPart?.data.type ??
-		widgetErrorPart?.data.type;
+		selectedWidgetDataEntry?.widgetType ??
+		latestWidgetDataEntry?.widgetType ??
+		loadingWidgetType ??
+		widgetErrorType ??
+		undefined;
+	const isWidgetLoading =
+		isAnyWidgetLoading && (widgetType ? loadingWidgetType === widgetType : true);
+	const hasWidgetPayload = Boolean(widgetDataPart);
+	const hasWidgetOutput = hasWidgetPayload && !isWidgetLoading;
 
 	// ---------- route decision ----------
 	const routeDecisionPart = getLatestDataPart(message, "data-route-decision");
@@ -147,7 +199,7 @@ function useThreadMessageDerived(
 		widgetLoadingPart?.data.type === "plan" ||
 		widgetErrorPart?.data.type === "plan";
 	const planRenderableText =
-		widgetType === "plan" && isCreatePlanSkillFlow
+		widgetType === "plan"
 			? extractPlanRenderableText(normalizedWidgetText, {
 					maxSummaryLines: 2,
 				})
@@ -185,9 +237,16 @@ function useThreadMessageDerived(
 	const messageTextBeforeSanitization = hasToolExecutionEvidence
 		? suppressToolJsonTrace(baseMessageText).text
 		: baseMessageText;
-	const messageText = sanitizeMarkdownArtifactMarkers(
+	const sanitizedMessageText = sanitizeMarkdownArtifactMarkers(
 		messageTextBeforeSanitization
 	);
+	const questionCardMessageText =
+		widgetType === "question-card"
+			? sanitizeQuestionCardMessageText({
+					widgetPayload: widgetDataPart?.data.payload,
+					messageText: sanitizedMessageText,
+				})
+			: sanitizedMessageText;
 	const thinkingToolCallsForStatus =
 		toolParts.length > 0 ? [] : thinkingToolCalls;
 	const hasBackendThinkingActivity =
@@ -215,7 +274,6 @@ function useThreadMessageDerived(
 		Boolean(toolFirstWarning?.message) && !isStreaming;
 
 	// ---------- widget rendering ----------
-	const shouldShowWidgetSections = Boolean(renderWidget) || Boolean(renderLoadingWidget);
 	const shouldSuppressStreamingText =
 		shouldShowWidgetSections &&
 		isStreaming &&
@@ -237,6 +295,26 @@ function useThreadMessageDerived(
 		surface,
 		reasoningPhase: thinkingStatusReasoningPhase,
 	});
+	const parsedPlanWidgetPayload =
+		widgetType === "plan" && widgetDataPart
+			? parsePlanWidgetPayload(widgetDataPart.data.payload)
+			: null;
+	const planSummaryFallback =
+		widgetType === "plan" ? planRenderableText?.summary?.trim() ?? "" : "";
+	const planWidgetPayloadForRender =
+		parsedPlanWidgetPayload &&
+		(!parsedPlanWidgetPayload.description ||
+			parsedPlanWidgetPayload.description.trim().length === 0) &&
+		planSummaryFallback.length > 0
+			? {
+					...parsedPlanWidgetPayload,
+					description: planSummaryFallback,
+				}
+			: parsedPlanWidgetPayload;
+	const widgetPayloadForRender =
+		widgetType === "plan"
+			? planWidgetPayloadForRender ?? widgetDataPart?.data.payload
+			: widgetDataPart?.data.payload;
 	// GenUI payload can arrive before the trailing loading=false event.
 	// Keep the card renderable when payload exists to avoid "stuck spinner" regressions.
 	const shouldRenderWidgetWhileLoading =
@@ -249,7 +327,7 @@ function useThreadMessageDerived(
 			? renderWidget?.(
 					{
 						type: widgetType ?? "widget",
-						data: widgetDataPart.data.payload,
+						data: widgetPayloadForRender,
 					},
 					message
 				) ?? null
@@ -261,16 +339,22 @@ function useThreadMessageDerived(
 			? renderLoadingWidget?.(widgetType) ?? null
 			: null;
 	const shouldRenderPlanWidgetFirst = widgetType === "plan";
-	const hasRenderedWidget = Boolean(renderedWidget);
+	const hasRenderedWidget =
+		renderedWidget !== null && renderedWidget !== undefined;
 	const shouldSuppressQuestionCardText = shouldSuppressQuestionCardMessageText({
 		shouldShowWidgetSections,
 		widgetType,
 		isStreaming,
-		widgetPayload: widgetDataPart?.data.payload,
-		messageText: rawMessageText,
+		widgetPayload: widgetPayloadForRender,
+		messageText: questionCardMessageText,
 	});
+	const shouldSuppressPlanTextForWidget =
+		shouldShowWidgetSections &&
+		widgetType === "plan" &&
+		hasRenderedWidget;
 	const shouldSuppressTextForWidget =
 		shouldSuppressStreamingText ||
+		shouldSuppressPlanTextForWidget ||
 		(widgetType === "plan" &&
 			isCreatePlanSkillFlow &&
 			isWidgetLoading) ||
@@ -282,7 +366,7 @@ function useThreadMessageDerived(
 			(hasWidgetPayload || isWidgetLoading)
 		);
 	const shouldRenderMessageText =
-		Boolean(messageText) && !shouldSuppressTextForWidget;
+		Boolean(questionCardMessageText) && !shouldSuppressTextForWidget;
 	const shouldRenderPlainTextWhileStreaming =
 		isStreaming && assistantStreamingRenderMode === "text-first";
 
@@ -291,7 +375,7 @@ function useThreadMessageDerived(
 			message,
 			surface,
 			assistantStreamingRenderMode,
-			messageText,
+			messageText: questionCardMessageText,
 			rawMessageText,
 			isStreaming,
 			reasoning,
@@ -324,7 +408,7 @@ function useThreadMessageDerived(
 			message.id,
 			surface,
 			isStreaming,
-			messageText,
+			questionCardMessageText,
 			widgetType,
 			isWidgetLoading,
 			effectiveIsThinkingStatusActive,

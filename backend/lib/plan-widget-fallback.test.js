@@ -59,6 +59,29 @@ test("returns null when no action items heading exists", () => {
 	assert.equal(result, null);
 });
 
+test("extracts tasks from scope in-list when action items heading is missing", () => {
+	const input = `# Sprint board implementation plan
+
+Scope
+- In: 5-column Kanban board, drag-and-drop task movement, minimal task cards, in-memory state, responsive layout
+- Out: Backend persistence, real-time collaboration`;
+
+	const result = extractPlanWidgetPayloadFromText(input);
+	assert.ok(result);
+	assert.equal(result.type, "plan");
+	assert.equal(result.title, "Sprint board implementation plan");
+	assert.deepEqual(
+		result.tasks.map((task) => task.label),
+		[
+			"5-column Kanban board",
+			"drag-and-drop task movement",
+			"minimal task cards",
+			"in-memory state",
+			"responsive layout",
+		]
+	);
+});
+
 test("extracts progressive plan payload without action items heading", () => {
 	const input = `Conference rollout plan\n1. Define conference goals`;
 	const result = extractProgressivePlanWidgetPayloadFromText(input);
@@ -110,6 +133,32 @@ Action items
 	assert.deepEqual(
 		result.tasks.map((task) => task.label),
 		["Define conference goals", "Secure venue"]
+	);
+});
+
+test("strict progressive mode accepts scope in-list as a plan signal", () => {
+	const input = `I'd love to help with this build.
+
+Plan
+
+Scope
+- In: 5-column Kanban board, drag-and-drop workflow, route at /sprint-board
+- Out: Backend persistence`;
+	const result = extractProgressivePlanWidgetPayloadFromText(input, {
+		minTasks: 1,
+		requireActionItemsHeading: true,
+	});
+
+	assert.ok(result);
+	assert.equal(result.type, "plan");
+	assert.equal(result.title, "5-column Kanban board");
+	assert.deepEqual(
+		result.tasks.map((task) => task.label),
+		[
+			"5-column Kanban board",
+			"drag-and-drop workflow",
+			"route at /sprint-board",
+		]
 	);
 });
 

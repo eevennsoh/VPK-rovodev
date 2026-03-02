@@ -831,6 +831,7 @@ export function RunWorkspace({
 				onExportAgent={sidebarConfigHandlers.onExportAgent}
 				onImportSkill={sidebarConfigHandlers.onImportSkill}
 				onImportAgent={sidebarConfigHandlers.onImportAgent}
+				onNewChat={handleNavigateToPlan}
 				onCreatePlan={handleNavigateToPlan}
 			/>
 			<SidebarInset className="h-svh overflow-hidden">
@@ -905,11 +906,10 @@ export function RunWorkspace({
 								</p>
 							) : null}
 							<div className={cn("min-h-0 flex-1 overflow-hidden", appendError ? "mt-4" : null)}>
-								<ExecutionGridView
-									taskExecutions={taskExecutions}
-									showGeneratingEmptyState={isAppending}
-									onAddTask={handleAppendTasks}
-								/>
+							<ExecutionGridView
+								taskExecutions={taskExecutions}
+								showGeneratingEmptyState={isAppending}
+							/>
 							</div>
 						</div>
 					</TabsContent>

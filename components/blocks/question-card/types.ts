@@ -12,10 +12,14 @@ export interface QuestionCardQuestion {
 	id: string;
 	/** The question text displayed as a heading. */
 	label: string;
+	/** Optional helper text displayed below the heading. */
+	description?: string;
 	/** Selection mode. `"single-select"` auto-advances; `"multi-select"` shows checkboxes and allows multiple picks. */
 	kind: "single-select" | "multi-select" | "text";
 	/** Pre-defined answer options. */
 	options: ReadonlyArray<QuestionCardOption>;
+	/** Placeholder text for the custom input row. */
+	placeholder?: string;
 }
 
 export type QuestionCardAnswerValue = string | string[];

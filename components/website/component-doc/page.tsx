@@ -68,10 +68,10 @@ export function ComponentDoc({ component }: Readonly<ComponentDocProps>) {
 				/>
 			</div>
 
-			<div style={previewContainerStyle}>
-				{/* 2. Preview — always shown (if demo exists) */}
-				<DocPreview slug={slug} category={category} />
-			</div>
+		<div style={previewContainerStyle}>
+			{/* 2. Preview — always shown (if demo exists) */}
+			<DocPreview slug={slug} category={category} demoLayout={detail?.demoLayout} />
+		</div>
 
 			<div style={contentContainerStyle}>
 				{detailSections}

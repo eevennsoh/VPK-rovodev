@@ -54,14 +54,13 @@ export function ChartBarActive() {
 					<BarChart accessibilityLayer data={chartData}>
 						<CartesianGrid vertical={false} />
 						<XAxis dataKey="browser" tickLine={false} tickMargin={10} axisLine={false} tickFormatter={(value) => chartConfig[value as keyof typeof chartConfig]?.label} />
-						<ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+						<ChartTooltip cursor={false} defaultIndex={2} content={<ChartTooltipContent hideLabel />} />
 						<Bar
 							dataKey="visitors"
 							strokeWidth={2}
 							radius={8}
-							activeIndex={2}
 							activeBar={({ ...props }) => {
-								return <Rectangle {...props} fillOpacity={0.8} stroke={props.payload.fill} strokeDasharray={4} strokeDashoffset={4} />;
+								return <Rectangle {...props} fillOpacity={0.8} stroke={(props.payload as Record<string, string>).fill} strokeDasharray={4} strokeDashoffset={4} />;
 							}}
 						/>
 					</BarChart>

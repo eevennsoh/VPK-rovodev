@@ -53,7 +53,7 @@ export function ChartRadarLabelCustom() {
 								const data = chartData[index];
 
 								return (
-									<text x={x} y={index === 0 ? y - 10 : y} textAnchor={textAnchor} fontSize={13} fontWeight={500} {...props}>
+									<text x={x} y={Number(index) === 0 ? Number(y) - 10 : y} textAnchor={textAnchor} fontSize={13} fontWeight={500} {...props}>
 										<tspan>{data.desktop}</tspan>
 										<tspan className="fill-muted-foreground">/</tspan>
 										<tspan>{data.mobile}</tspan>

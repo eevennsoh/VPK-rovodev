@@ -53,14 +53,13 @@ export function ChartPieDonutActive() {
 			<CardContent className="flex-1 pb-0">
 				<ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[250px]">
 					<PieChart>
-						<ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+						<ChartTooltip cursor={false} defaultIndex={0} content={<ChartTooltipContent hideLabel />} />
 						<Pie
 							data={chartData}
 							dataKey="visitors"
 							nameKey="browser"
 							innerRadius={60}
 							strokeWidth={5}
-							activeIndex={0}
 							activeShape={({ outerRadius = 0, ...props }: PieSectorDataItem) => <Sector {...props} outerRadius={outerRadius + 10} />}
 						/>
 					</PieChart>

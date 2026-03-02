@@ -106,13 +106,22 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
-type ChartTooltipContentProps = React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
-  React.ComponentProps<"div"> & {
+type ChartTooltipContentProps = React.ComponentProps<"div"> & {
+    active?: boolean
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    payload?: ReadonlyArray<any>
+    label?: string | number
     hideLabel?: boolean
     hideIndicator?: boolean
     indicator?: "line" | "dot" | "dashed"
     nameKey?: string
     labelKey?: string
+    labelClassName?: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    labelFormatter?: (label: any, payload: Record<string, unknown>[]) => React.ReactNode
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    formatter?: (value: any, name: any, item: any, index: number, payload: Record<string, unknown>[]) => React.ReactNode
+    color?: string
   }
 
 function ChartTooltipContent({
@@ -148,7 +157,8 @@ function ChartTooltipContent({
     if (labelFormatter) {
       return (
         <div className={cn("font-medium", labelClassName)}>
-          {labelFormatter(value, payload)}
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          {labelFormatter(value, payload as any[])}
         </div>
       )
     }
@@ -253,8 +263,10 @@ function ChartTooltipContent({
 
 const ChartLegend = RechartsPrimitive.Legend
 
-interface ChartLegendContentProps extends React.ComponentProps<"div">,
-  Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> {
+interface ChartLegendContentProps extends React.ComponentProps<"div"> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: ReadonlyArray<any>
+  verticalAlign?: "top" | "bottom" | "middle"
   hideIcon?: boolean
   nameKey?: string
 }

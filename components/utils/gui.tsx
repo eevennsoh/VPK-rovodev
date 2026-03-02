@@ -1,13 +1,8 @@
 "use client";
 
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import CopyIcon from "@atlaskit/icon/core/copy";
-import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import UndoIcon from "@atlaskit/icon/core/undo";
-import VideoPlayIcon from "@atlaskit/icon/core/video-play";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -180,116 +175,17 @@ type GUIPanelProps = Readonly<{
 	children: React.ReactNode;
 }>;
 
-function GUIPanel({ title, values, onPlay, children }: GUIPanelProps) {
-	const [isExpanded, setIsExpanded] = useState(true);
-	const [isCopied, setIsCopied] = useState(false);
-	const copiedResetTimeoutRef = useRef<number | undefined>(undefined);
-	const registeredKeysRef = useRef(new Map<string, number>());
-	const hasRegistrationsRef = useRef(false);
-
+function GUIPanel({ children }: GUIPanelProps) {
 	const panelContext = useMemo<GUIPanelContextValue>(() => ({
-		registerKeys: (keys) => {
-			for (const key of keys) {
-				registeredKeysRef.current.set(key, (registeredKeysRef.current.get(key) ?? 0) + 1);
-			}
-			hasRegistrationsRef.current = true;
-		},
-		unregisterKeys: (keys) => {
-			for (const key of keys) {
-				const count = registeredKeysRef.current.get(key) ?? 0;
-				if (count <= 1) {
-					registeredKeysRef.current.delete(key);
-				} else {
-					registeredKeysRef.current.set(key, count - 1);
-				}
-			}
-		},
+		registerKeys: () => {},
+		unregisterKeys: () => {},
 	}), []);
-
-	useEffect(() => {
-		return () => {
-			if (copiedResetTimeoutRef.current) {
-				window.clearTimeout(copiedResetTimeoutRef.current);
-			}
-		};
-	}, []);
-
-	const handleCopyValues = useCallback(async () => {
-		try {
-			const valuesToCopy = hasRegistrationsRef.current
-				? Object.fromEntries(
-					Object.entries(values).filter(([key]) => registeredKeysRef.current.has(key)),
-				)
-				: values;
-			await navigator.clipboard.writeText(`${JSON.stringify(valuesToCopy, null, 2)}\n`);
-			setIsCopied(true);
-			if (copiedResetTimeoutRef.current) {
-				window.clearTimeout(copiedResetTimeoutRef.current);
-			}
-			copiedResetTimeoutRef.current = window.setTimeout(() => {
-				setIsCopied(false);
-			}, 1400);
-		} catch {
-			setIsCopied(false);
-		}
-	}, [values]);
 
 	return (
 		<GUIPanelContext value={panelContext}>
-			<Card className="w-full gap-0 p-0">
-				<div className="flex items-center gap-2 px-3 py-2.5">
-					<span className="flex-1 text-xs font-semibold">{title}</span>
-					{onPlay ? (
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="h-7 gap-1 px-2 text-xs"
-							onClick={onPlay}
-						>
-							<VideoPlayIcon label="" size="small" />
-							Play
-						</Button>
-					) : null}
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-7 gap-1 px-2 text-xs"
-						onClick={() => {
-							void handleCopyValues();
-						}}
-					>
-						<CopyIcon label="" size="small" />
-						{isCopied ? "Copied" : "Copy values"}
-					</Button>
-					<button
-						type="button"
-						aria-label={isExpanded ? "Collapse controls" : "Expand controls"}
-						onClick={() => {
-							setIsExpanded((prev) => !prev);
-						}}
-						className="flex size-7 items-center justify-center rounded text-icon-subtle transition-colors hover:bg-bg-neutral hover:text-icon"
-					>
-						<span
-							className="inline-flex transition-transform duration-200 ease-in-out"
-							style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
-						>
-							<ChevronDownIcon label="" size="small" />
-						</span>
-					</button>
-				</div>
-				<div
-					className="grid transition-[grid-template-rows] duration-200 ease-in-out"
-					style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
-				>
-					<div className="min-h-0 overflow-hidden">
-						<CardContent className="space-y-4 px-3 py-3">
-							{children}
-						</CardContent>
-					</div>
-				</div>
-			</Card>
+			<div className="w-full space-y-4">
+				{children}
+			</div>
 		</GUIPanelContext>
 	);
 }

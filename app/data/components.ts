@@ -236,6 +236,11 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 	blockComponent("generative", "Generative UI"),
 	blockComponent("ide", "IDE"),
 	blockComponent("kanban-sprint", "Kanban Sprint"),
+	blockComponent("make-artifact", "Make Artifact"),
+	blockComponent("make-gallery", "Make Gallery"),
+	blockComponent("make-grid", "Make Grid"),
+	blockComponent("make-item", "Make Item"),
+	blockComponent("make-page", "Make Page"),
 	{ name: "Login 01", slug: "login-01", importPath: "@/components/blocks/login/login-01", category: "blocks", detail: BLOCK_DETAILS["login-01"] },
 	{ name: "Login 02", slug: "login-02", importPath: "@/components/blocks/login/login-02", category: "blocks", detail: BLOCK_DETAILS["login-02"] },
 	{ name: "Login 03", slug: "login-03", importPath: "@/components/blocks/login/login-03", category: "blocks", detail: BLOCK_DETAILS["login-03"] },
@@ -270,6 +275,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 	{ name: "Signup 04", slug: "signup-04", importPath: "@/components/blocks/signup/signup-04", category: "blocks", detail: BLOCK_DETAILS["signup-04"] },
 	{ name: "Signup 05", slug: "signup-05", importPath: "@/components/blocks/signup/signup-05", category: "blocks", detail: BLOCK_DETAILS["signup-05"] },
 	blockComponent("top-navigation", "Top Navigation"),
+	blockComponent("terminal-switch", "Terminal Switch"),
 	blockComponent("work-item-widget", "Work Item Widget"),
 	blockComponent("work-item-detail", "Work Item Detail"),
 	blockComponent("workflow", "Workflow"),
@@ -277,7 +283,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 
 export const TEMPLATE_COMPONENTS: ComponentEntry[] = [
 	{ ...templateComponent("plan", "Plan"), importPath: "@/components/templates/plan" },
-	{ ...templateComponent("maker", "Maker"), importPath: "@/components/templates/maker" },
+	{ ...templateComponent("maker", "Make"), importPath: "@/components/templates/make" },
 	templateComponent("sidebar-chat", "Sidebar Chat"),
 	templateComponent("confluence", "Confluence Editor"),
 	templateComponent("jira", "Jira Board"),

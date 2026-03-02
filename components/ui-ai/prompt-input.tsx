@@ -855,18 +855,81 @@ export const PromptInputBody = ({
 
 export type PromptInputTextareaProps = ComponentProps<
   typeof InputGroupTextarea
->;
+> & {
+  autoResize?: boolean;
+};
 
 export const PromptInputTextarea = ({
+  autoResize = true,
   onChange,
+  onInput,
   onKeyDown,
   className,
   placeholder = "What would you like to know?",
+  ref: forwardedRef,
+  value: valueProp,
   ...props
 }: Readonly<PromptInputTextareaProps>) => {
   const controller = useOptionalPromptInputController();
   const attachments = usePromptInputAttachments();
   const [isComposing, setIsComposing] = useState(false);
+  const [supportsFieldSizing] = useState(() => {
+    if (typeof window === "undefined" || typeof window.CSS?.supports !== "function") {
+      return false;
+    }
+
+    return window.CSS.supports("field-sizing", "content");
+  });
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const shouldUseManualAutoResize = autoResize && !supportsFieldSizing;
+
+  const assignTextareaRef = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      textareaRef.current = node;
+
+      if (typeof forwardedRef === "function") {
+        forwardedRef(node);
+        return;
+      }
+
+      if (forwardedRef && typeof forwardedRef === "object") {
+        forwardedRef.current = node;
+      }
+    },
+    [forwardedRef]
+  );
+
+  const resizeToContent = useCallback(
+    (textarea: HTMLTextAreaElement) => {
+      if (!shouldUseManualAutoResize) {
+        return;
+      }
+
+      textarea.style.height = "0px";
+      const styles = window.getComputedStyle(textarea);
+      const minHeight = parseFloat(styles.minHeight) || 0;
+      const parsedMaxHeight = parseFloat(styles.maxHeight);
+      const maxHeight = Number.isFinite(parsedMaxHeight)
+        ? parsedMaxHeight
+        : Number.POSITIVE_INFINITY;
+      const borderOffset =
+        styles.boxSizing === "border-box"
+          ? (parseFloat(styles.borderTopWidth) || 0) +
+            (parseFloat(styles.borderBottomWidth) || 0)
+          : 0;
+
+      const nextHeight = Math.min(
+        maxHeight,
+        Math.max(minHeight, textarea.scrollHeight + borderOffset)
+      );
+
+      textarea.style.height = `${nextHeight}px`;
+      textarea.style.overflowY =
+        textarea.scrollHeight + borderOffset > nextHeight ? "auto" : "hidden";
+    },
+    [shouldUseManualAutoResize]
+  );
 
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = useCallback(
     (e) => {
@@ -915,6 +978,14 @@ export const PromptInputTextarea = ({
     [onKeyDown, isComposing, attachments]
   );
 
+  const handleInput = useCallback<NonNullable<PromptInputTextareaProps["onInput"]>>(
+    (event) => {
+      onInput?.(event);
+      resizeToContent(event.currentTarget);
+    },
+    [onInput, resizeToContent]
+  );
+
   const handlePaste: ClipboardEventHandler<HTMLTextAreaElement> = useCallback(
     (event) => {
       const items = event.clipboardData?.items;
@@ -944,30 +1015,41 @@ export const PromptInputTextarea = ({
 
   const handleCompositionEnd = useCallback(() => setIsComposing(false), []);
   const handleCompositionStart = useCallback(() => setIsComposing(true), []);
+  const resolvedValue = controller ? controller.textInput.value : valueProp;
 
-  const controlledProps = controller
-    ? {
-        onChange: (e: ChangeEvent<HTMLTextAreaElement>) => {
-          controller.textInput.setInput(e.currentTarget.value);
-          onChange?.(e);
-        },
-        value: controller.textInput.value,
+  useEffect(() => {
+    if (!shouldUseManualAutoResize || !textareaRef.current) {
+      return;
+    }
+
+    resizeToContent(textareaRef.current);
+  }, [resolvedValue, resizeToContent, shouldUseManualAutoResize]);
+
+  const handleChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
+      if (controller) {
+        controller.textInput.setInput(event.currentTarget.value);
       }
-    : {
-        onChange,
-      };
+      onChange?.(event);
+      resizeToContent(event.currentTarget);
+    },
+    [controller, onChange, resizeToContent]
+  );
 
   return (
     <InputGroupTextarea
       className={cn("field-sizing-content max-h-48 min-h-16", className)}
       name="message"
+      onChange={handleChange}
       onCompositionEnd={handleCompositionEnd}
       onCompositionStart={handleCompositionStart}
+      onInput={handleInput}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
       placeholder={placeholder}
+      ref={assignTextareaRef}
+      value={resolvedValue}
       {...props}
-      {...controlledProps}
     />
   );
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -32,12 +33,18 @@ export function CheckboxFilterDropdown({
 				render={
 					<Button
 						aria-expanded={isOpen}
+						aria-pressed={selectedValues.length > 0}
 						className="gap-2"
 						variant="secondary"
 					/>
 				}
 			>
 				{label}
+				{selectedValues.length > 0 && (
+					<Badge variant="primary">
+						{selectedValues.length}
+					</Badge>
+				)}
 				{isOpen ? <ChevronUpIcon label="" size="small" /> : <ChevronDownIcon label="" size="small" />}
 			</PopoverTrigger>
 			<PopoverContent align="start" className="min-w-[200px] gap-0 p-1">

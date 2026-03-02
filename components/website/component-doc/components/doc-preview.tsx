@@ -2,6 +2,7 @@
 
 import { createElement, Suspense } from "react";
 import { token } from "@/lib/tokens";
+import type { DemoLayout } from "@/app/data/component-detail-types";
 import { getDemoComponent } from "@/components/website/registry";
 import { Button } from "@/components/ui/button";
 import { DocSection } from "./doc-section";
@@ -11,6 +12,7 @@ import FullscreenEnterIcon from "@atlaskit/icon/core/fullscreen-enter";
 interface DocPreviewProps {
 	slug: string;
 	category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual";
+	demoLayout?: DemoLayout;
 }
 
 function PreviewSkeleton() {
@@ -37,7 +39,7 @@ function PreviewSkeleton() {
 	);
 }
 
-export function DocPreview({ slug, category }: Readonly<DocPreviewProps>) {
+export function DocPreview({ slug, category, demoLayout }: Readonly<DocPreviewProps>) {
 	const Demo = getDemoComponent(slug, category);
 
 	if (!Demo) {
@@ -52,10 +54,11 @@ export function DocPreview({ slug, category }: Readonly<DocPreviewProps>) {
 	);
 
 	const isFullPage = category === "templates" || category === "blocks";
+	const fitContent = demoLayout?.previewHeight === "fit";
 
 	return (
 		<DocSection id="preview" title="Preview" action={fullViewAction}>
-			<DemoPreviewShell fullPage={isFullPage}>
+			<DemoPreviewShell fullPage={isFullPage} fitContent={fitContent}>
 				<Suspense fallback={<PreviewSkeleton />}>
 					{createElement(Demo)}
 				</Suspense>

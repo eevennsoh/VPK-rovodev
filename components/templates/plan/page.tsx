@@ -1,6 +1,10 @@
 "use client";
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/utils/theme-wrapper";
 import { cn } from "@/lib/utils";
 import {
 	PlanProvider,
@@ -12,9 +16,34 @@ import { AppSidebar } from "./components/app-sidebar";
 import PlanInitialView from "./components/plan-initial-view";
 import PlanChatView from "./components/plan-chat-view";
 import { ExecutionGridView } from "./components/execution-grid-view";
-import ChatTitleRow from "./components/chat-title-row";
 import { ConfigDialogs } from "./components/config-dialogs";
-import { CollapsedSidebarBranding } from "./components/collapsed-sidebar-branding";
+import NotificationIcon from "@atlaskit/icon/core/notification";
+
+function TopNavBar() {
+	return (
+		<div className="flex items-center justify-between border-b border-border px-4 py-2">
+			<Tabs defaultValue="make">
+				<TabsList>
+					<TabsTrigger value="home">Home</TabsTrigger>
+					<TabsTrigger value="make">Make</TabsTrigger>
+					<TabsTrigger value="chat">Chat</TabsTrigger>
+					<TabsTrigger value="search">Search</TabsTrigger>
+				</TabsList>
+			</Tabs>
+
+			<div className="flex items-center gap-1">
+				<ThemeToggle />
+				<Button aria-label="Notifications" size="icon" variant="ghost">
+					<NotificationIcon label="" />
+				</Button>
+				<Avatar size="sm">
+					<AvatarImage src="" alt="Profile" />
+					<AvatarFallback>M</AvatarFallback>
+				</Avatar>
+			</div>
+		</div>
+	);
+}
 
 export default function PlanView() {
 	return (
@@ -37,8 +66,6 @@ function PlanLayout() {
 		runId,
 		isGeneratingTitle,
 		pendingTitleChatId,
-		activeChatTitle,
-		isActiveChatTitlePending,
 	} = usePlanState();
 
 	const {
@@ -113,43 +140,26 @@ function PlanLayout() {
 				onExportAgent={sidebarConfigHandlers.onExportAgent}
 				onImportSkill={sidebarConfigHandlers.onImportSkill}
 				onImportAgent={sidebarConfigHandlers.onImportAgent}
+				onNewChat={handleNewChat}
 				onCreatePlan={handleCreatePlan}
 			/>
-			<SidebarInset className={isChatMode ? "h-svh overflow-hidden" : undefined}>
-				{!isChatMode ? (
-					<CollapsedSidebarBranding
-						isVisible={!sidebarOpen && !sidebarHovered}
-						onExpandClick={() => setSidebarOpen(true)}
-						onHoverEnter={handleHoverEnter}
-						onHoverLeave={handleHoverLeave}
-					/>
-				) : null}
-				{isChatMode ? (
-					<div className="flex h-full min-h-0 flex-col">
-						<ChatTitleRow
-							title={activeChatTitle}
-							isTitlePending={isActiveChatTitlePending}
-							onNewChat={handleNewChat}
-							sidebarOpen={sidebarOpen}
-							sidebarHovered={sidebarHovered}
-							onExpandSidebar={() => setSidebarOpen(true)}
-							onHoverEnter={handleHoverEnter}
-							onHoverLeave={handleHoverLeave}
-						/>
-						<div className="min-h-0 flex-1">
-							{isExecutionActive ? (
+			<SidebarInset className="h-svh overflow-hidden">
+				<div className="flex h-full min-h-0 flex-col">
+					<TopNavBar />
+					<div className="min-h-0 flex-1">
+						{isChatMode ? (
+							isExecutionActive ? (
 								<ExecutionGridView
 									taskExecutions={taskExecutions}
-									onAddTask={handleAddTask}
 								/>
 							) : (
 								<PlanChatView />
-							)}
-						</div>
+							)
+						) : (
+							<PlanInitialView />
+						)}
 					</div>
-				) : (
-					<PlanInitialView />
-				)}
+				</div>
 			</SidebarInset>
 			<ConfigDialogs
 				skillDialog={skillDialogProps}

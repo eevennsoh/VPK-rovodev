@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tag } from "@/components/ui/tag";
 import { token } from "@/lib/tokens";
@@ -15,6 +15,8 @@ import { ChevronsUpDownIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { createContext, use, useEffect, useRef, useState } from "react";
 
+import { GenerativeCardFooter, GenerativeCardHeader } from "./generative-card";
+import { MessageResponse } from "./message";
 import { Shimmer } from "./shimmer";
 
 /* ----- Types ----- */
@@ -31,6 +33,10 @@ export interface PlanTask {
 
 interface PlanContextValue {
 	isStreaming: boolean;
+	isOpen: boolean;
+	setIsOpen: (next: boolean) => void;
+	isContentExpanded: boolean;
+	setIsContentExpanded: (next: boolean) => void;
 }
 
 const PlanContext = createContext<PlanContextValue | null>(null);
@@ -45,23 +51,52 @@ const usePlan = () => {
 
 /* ----- Plan (root) ----- */
 
-export type PlanProps = ComponentProps<typeof Collapsible> & {
+export type PlanProps = Omit<ComponentProps<typeof Collapsible>, "open" | "defaultOpen" | "onOpenChange"> & {
 	isStreaming?: boolean;
+	open?: boolean;
+	defaultOpen?: boolean;
+	onOpenChange?: (open: boolean) => void;
 };
 
-export const Plan = ({ className, isStreaming = false, children, ...props }: Readonly<PlanProps>) => (
-	<PlanContext value={{ isStreaming }}>
-		<Collapsible data-slot="plan" {...props} render={<Card className={cn("shadow-none", className)} />}>
-			{children}
-		</Collapsible>
-	</PlanContext>
-);
+export const Plan = ({ className, isStreaming = false, open, defaultOpen = false, onOpenChange, children, ...props }: Readonly<PlanProps>) => {
+	const isControlled = open !== undefined;
+	const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+	const [isContentExpanded, setIsContentExpanded] = useState(false);
+	const isOpen = isControlled ? open : uncontrolledOpen;
+
+	const setIsOpen = (next: boolean) => {
+		if (!isControlled) {
+			setUncontrolledOpen(next);
+		}
+		onOpenChange?.(next);
+	};
+
+	return (
+		<PlanContext value={{ isStreaming, isOpen, setIsOpen, isContentExpanded, setIsContentExpanded }}>
+			<Collapsible data-slot="plan" open={isOpen} onOpenChange={setIsOpen} {...props} render={<Card className={cn("shadow-none", className)} />}>
+				{children}
+			</Collapsible>
+		</PlanContext>
+	);
+};
 
 /* ----- PlanHeader ----- */
 
-export type PlanHeaderProps = ComponentProps<typeof CardHeader>;
+export type PlanHeaderProps = Omit<ComponentProps<typeof GenerativeCardHeader>, "expanded" | "onExpandedChange">;
 
-export const PlanHeader = ({ className, ...props }: Readonly<PlanHeaderProps>) => <CardHeader className={cn("flex items-start justify-between", className)} data-slot="plan-header" {...props} />;
+export const PlanHeader = ({ className, ...props }: Readonly<PlanHeaderProps>) => {
+	const { isOpen, setIsOpen } = usePlan();
+
+	return (
+		<GenerativeCardHeader
+			expanded={isOpen}
+			onExpandedChange={setIsOpen}
+			className={className}
+			data-slot="plan-header"
+			{...props}
+		/>
+	);
+};
 
 /* ----- PlanAvatar ----- */
 
@@ -119,11 +154,103 @@ export type PlanContentProps = ComponentProps<typeof CardContent>;
 
 export const PlanContent = (props: Readonly<PlanContentProps>) => <CollapsibleContent render={<CardContent data-slot="plan-content" {...props} />} />;
 
+const COLLAPSED_CONTENT_MAX_HEIGHT_PX = 240;
+const COLLAPSED_CONTENT_HEIGHT_CLASS = "max-h-[240px]";
+
+type PlanShowMoreButtonProps = {
+	label: string;
+	onClick: () => void;
+};
+
+const PlanShowMoreButton = ({ label, onClick }: Readonly<PlanShowMoreButtonProps>) => (
+	<Button
+		size="xs"
+		variant="ghost"
+		className="h-7 rounded-full border-0 bg-surface px-3 text-sm leading-5 font-normal text-text-subtle hover:bg-surface-hovered"
+		style={{ boxShadow: token("elevation.shadow.overlay") }}
+		onClick={onClick}
+	>
+		{label}
+	</Button>
+);
+
+export type PlanSummaryProps = Omit<ComponentProps<typeof MessageResponse>, "children"> & {
+	summary: string;
+	emptyMessage?: string;
+	showMoreLabel?: string;
+};
+
+export const PlanSummary = ({ summary, className, emptyMessage = "No summary provided.", showMoreLabel = "Show more", ...props }: Readonly<PlanSummaryProps>) => {
+	const { isStreaming, isContentExpanded, setIsContentExpanded } = usePlan();
+	const [hasOverflow, setHasOverflow] = useState(false);
+	const [hasMeasured, setHasMeasured] = useState(false);
+	const contentRef = useRef<HTMLDivElement | null>(null);
+	const content = summary.trim().length > 0 ? summary : emptyMessage;
+
+	useEffect(() => {
+		if (isContentExpanded || !contentRef.current) return;
+
+		const contentElement = contentRef.current;
+		const updateOverflow = () => {
+			const overflowsVisible = contentElement.scrollHeight - contentElement.clientHeight > 1;
+			const overflowsCollapsed = contentElement.scrollHeight - COLLAPSED_CONTENT_MAX_HEIGHT_PX > 1;
+			setHasOverflow(overflowsVisible || overflowsCollapsed);
+			setHasMeasured(true);
+		};
+
+		const rafId = requestAnimationFrame(updateOverflow);
+
+		if (typeof ResizeObserver === "undefined") {
+			return () => cancelAnimationFrame(rafId);
+		}
+
+		const resizeObserver = new ResizeObserver(() => {
+			updateOverflow();
+		});
+
+		resizeObserver.observe(contentElement);
+
+		return () => {
+			cancelAnimationFrame(rafId);
+			resizeObserver.disconnect();
+		};
+	}, [content, isContentExpanded]);
+
+	const showCollapsedState = !isContentExpanded;
+	const showCollapsedControls = showCollapsedState && (hasMeasured ? hasOverflow : false);
+
+	return (
+		<div className="relative" data-slot="plan-summary">
+			<div ref={contentRef} className={showCollapsedState ? `${COLLAPSED_CONTENT_HEIGHT_CLASS} overflow-hidden` : undefined}>
+				<MessageResponse
+					className={cn(
+						"size-full text-sm leading-5 text-text [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_h1]:mt-3 [&_h1]:mb-2 [&_h1]:text-2xl [&_h1]:leading-7 [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-xl [&_h2]:leading-6 [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:mb-2 [&_h3]:text-base [&_h3]:leading-5 [&_h3]:font-semibold [&_p]:my-0",
+						className
+					)}
+					isAnimating={isStreaming}
+					{...props}
+				>
+					{content}
+				</MessageResponse>
+			</div>
+
+			{showCollapsedControls ? (
+				<>
+					<div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface via-surface/80 to-transparent" />
+					<div className="absolute inset-x-0 bottom-2 flex justify-center">
+						<PlanShowMoreButton label={showMoreLabel} onClick={() => setIsContentExpanded(true)} />
+					</div>
+				</>
+			) : null}
+		</div>
+	);
+};
+
 /* ----- PlanFooter ----- */
 
-export type PlanFooterProps = ComponentProps<"div">;
+export type PlanFooterProps = ComponentProps<typeof GenerativeCardFooter>;
 
-export const PlanFooter = (props: Readonly<PlanFooterProps>) => <CardFooter data-slot="plan-footer" {...props} />;
+export const PlanFooter = (props: Readonly<PlanFooterProps>) => <GenerativeCardFooter data-slot="plan-footer" {...props} />;
 
 /* ----- PlanTrigger ----- */
 
@@ -158,26 +285,23 @@ export const PlanAgentBar = ({ agents, className, ...props }: Readonly<PlanAgent
 
 /* ----- PlanTaskList ----- */
 
-const COLLAPSED_LIST_MAX_HEIGHT_PX = 240;
-const COLLAPSED_LIST_HEIGHT_CLASS = "max-h-[240px]";
-
 export type PlanTaskListProps = ComponentProps<"ol"> & {
 	showMoreLabel?: string;
 };
 
 export const PlanTaskList = ({ children, className, showMoreLabel = "Show more", ...props }: Readonly<PlanTaskListProps>) => {
-	const [isExpanded, setIsExpanded] = useState(false);
+	const { isContentExpanded, setIsContentExpanded } = usePlan();
 	const [hasOverflow, setHasOverflow] = useState(false);
 	const [hasMeasured, setHasMeasured] = useState(false);
 	const listRef = useRef<HTMLOListElement | null>(null);
 
 	useEffect(() => {
-		if (isExpanded || !listRef.current) return;
+		if (isContentExpanded || !listRef.current) return;
 
 		const listElement = listRef.current;
 		const updateOverflow = () => {
 			const overflowsVisible = listElement.scrollHeight - listElement.clientHeight > 1;
-			const overflowsCollapsed = listElement.scrollHeight - COLLAPSED_LIST_MAX_HEIGHT_PX > 1;
+			const overflowsCollapsed = listElement.scrollHeight - COLLAPSED_CONTENT_MAX_HEIGHT_PX > 1;
 			setHasOverflow(overflowsVisible || overflowsCollapsed);
 			setHasMeasured(true);
 		};
@@ -198,14 +322,14 @@ export const PlanTaskList = ({ children, className, showMoreLabel = "Show more",
 			cancelAnimationFrame(rafId);
 			resizeObserver.disconnect();
 		};
-	}, [isExpanded]);
+	}, [children, isContentExpanded]);
 
-	const showCollapsedState = !isExpanded;
+	const showCollapsedState = !isContentExpanded;
 	const showCollapsedControls = showCollapsedState && (hasMeasured ? hasOverflow : false);
 
 	return (
 		<div className="relative" data-slot="plan-task-list">
-			<ol ref={listRef} className={cn("flex flex-col gap-0", showCollapsedState ? `${COLLAPSED_LIST_HEIGHT_CLASS} overflow-hidden` : null, className)} {...props}>
+			<ol ref={listRef} className={cn("flex flex-col gap-0", showCollapsedState ? `${COLLAPSED_CONTENT_HEIGHT_CLASS} overflow-hidden` : null, className)} {...props}>
 				{children}
 			</ol>
 
@@ -213,15 +337,7 @@ export const PlanTaskList = ({ children, className, showMoreLabel = "Show more",
 				<>
 					<div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface via-surface/80 to-transparent" />
 					<div className="absolute inset-x-0 bottom-2 flex justify-center">
-						<Button
-							size="xs"
-							variant="ghost"
-							className="h-7 rounded-full border-0 bg-surface px-3 text-sm leading-5 font-normal text-text-subtle hover:bg-surface-hovered"
-							style={{ boxShadow: token("elevation.shadow.overlay") }}
-							onClick={() => setIsExpanded(true)}
-						>
-							{showMoreLabel}
-						</Button>
+						<PlanShowMoreButton label={showMoreLabel} onClick={() => setIsContentExpanded(true)} />
 					</div>
 				</>
 			) : null}
@@ -235,12 +351,13 @@ export type PlanTaskItemProps = {
 	index: number;
 	label: string;
 	blockedByLabels?: string[];
+	blockedByText?: string;
 	agent?: string;
 	agentAvatarSrc?: string;
 	className?: string;
 };
 
-export const PlanTaskItem = ({ index, label, blockedByLabels, agent, agentAvatarSrc, className }: Readonly<PlanTaskItemProps>) => (
+export const PlanTaskItem = ({ index, label, blockedByLabels, blockedByText, agent, agentAvatarSrc, className }: Readonly<PlanTaskItemProps>) => (
 	<motion.li
 		initial={{ opacity: 0, y: 8 }}
 		animate={{ opacity: 1, y: 0 }}
@@ -252,7 +369,8 @@ export const PlanTaskItem = ({ index, label, blockedByLabels, agent, agentAvatar
 		<span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">{index}</span>
 		<div className="flex min-w-0 flex-1 flex-col gap-0.5">
 			<span className="text-sm leading-5 text-text">{label}</span>
-			{blockedByLabels && blockedByLabels.length > 0 ? <span className="text-xs leading-4 text-text-subtlest">Blocked by: {blockedByLabels.join(", ")}</span> : null}
+			{blockedByText ? <span className="text-xs leading-4 text-text-subtlest">{blockedByText}</span> : null}
+			{!blockedByText && blockedByLabels && blockedByLabels.length > 0 ? <span className="text-xs leading-4 text-text-subtlest">Blocked by: {blockedByLabels.join(", ")}</span> : null}
 		</div>
 		{agent ? (
 			<Tag

@@ -315,6 +315,14 @@ function isPlanNarrativeNoiseLine(line: string): boolean {
 		return true;
 	}
 
+	if (
+		/^tool results were (?:large and are omitted for performance|moved to the thinking section)\.?\s*open tools for details\.?$/i.test(
+			trimmedLine
+		)
+	) {
+		return true;
+	}
+
 	return /^#{1,6}\s*plan\b/i.test(trimmedLine) || /^plan:?$/i.test(trimmedLine);
 }
 
@@ -333,7 +341,16 @@ function extractPlanSummaryTail(value: string, maxSummaryLines: number): string 
 
 	return lines
 		.slice(-maxSummaryLines)
-		.map((line) => line.replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1"))
+		.map((line) =>
+			line
+				.replace(
+					/\bTool results were (?:large and are omitted for performance|moved to the Thinking section)\.?\s*Open Tools for details\.?/gi,
+					""
+				)
+				.replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1")
+				.trim()
+		)
+		.filter((line) => line.length > 0)
 		.join("\n")
 		.trim();
 }
