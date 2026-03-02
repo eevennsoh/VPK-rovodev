@@ -14,7 +14,7 @@ import {
 	useMakeState,
 	useMakeActions,
 	useMakeMeta,
-	type MakerTab,
+	type MakeTab,
 } from "@/app/contexts/context-make";
 import { MakeArtifactSurface } from "@/components/blocks/make-artifact/components/make-artifact-surface";
 import { MakeGridSurface } from "@/components/blocks/make-grid/components/make-grid-surface";
@@ -42,11 +42,13 @@ function MakeTabEmptyState({ onStartMaking }: Readonly<{ onStartMaking: () => vo
 					<EmptyMedia className="mb-6">
 						<AnimatedCodeAscii />
 					</EmptyMedia>
-					<EmptyTitle>Nothing made yet</EmptyTitle>
-					<EmptyDescription>
-						Use the Make toggle in Chat to start building apps, agents, skills, and automations.
-					</EmptyDescription>
-				</EmptyHeader>
+						<EmptyTitle>Nothing made yet</EmptyTitle>
+						<EmptyDescription>
+							Apps, agents, skills, and automations
+							<br />
+							that you create will appear here.
+						</EmptyDescription>
+					</EmptyHeader>
 				<EmptyContent>
 					<Button onClick={onStartMaking} className="cursor-pointer">
 						Start making
@@ -184,7 +186,7 @@ function MakeLayout() {
 				</div>
 				<Tabs
 					value={activeTab}
-					onValueChange={(value) => setActiveTab(value as MakerTab)}
+					onValueChange={(value) => setActiveTab(value as MakeTab)}
 					className="flex h-full min-h-0 flex-col gap-0"
 				>
 					<ChatTitleRow

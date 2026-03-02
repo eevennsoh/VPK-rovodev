@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import type { MakerSkill, MakerSkillInput, MakerAgent } from "@/lib/make-config-types";
+import type { MakeSkill, MakeSkillInput, MakeAgent } from "@/lib/make-config-types";
 import {
 	generateSlug,
 	validateSkillName,
@@ -22,10 +22,10 @@ import {
 
 interface SkillDialogProps {
 	open: boolean;
-	skill: MakerSkill | null;
-	agents: MakerAgent[];
+	skill: MakeSkill | null;
+	agents: MakeAgent[];
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: MakerSkillInput) => Promise<unknown>;
+	onSave: (data: MakeSkillInput) => Promise<unknown>;
 	onDelete?: (name: string) => void;
 }
 
@@ -55,10 +55,10 @@ export default function SkillDialog({
 }
 
 interface SkillDialogFormProps {
-	skill: MakerSkill | null;
-	agents: MakerAgent[];
+	skill: MakeSkill | null;
+	agents: MakeAgent[];
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: MakerSkillInput) => Promise<unknown>;
+	onSave: (data: MakeSkillInput) => Promise<unknown>;
 	onDelete?: (name: string) => void;
 }
 

@@ -38,7 +38,7 @@ import AngleBracketsIcon from "@atlaskit/icon/core/angle-brackets";
 import UploadIcon from "@atlaskit/icon/core/upload";
 import { Icon } from "@/components/ui/icon";
 
-interface MakerComposerProps {
+interface MakeComposerProps {
 	prompt: string;
 	placeholder: string;
 	isStreaming: boolean;
@@ -72,7 +72,7 @@ export default function MakeComposer({
 	customHeight,
 	isPreviewPlaceholderActive = false,
 	onTextareaReady,
-}: Readonly<MakerComposerProps>) {
+}: Readonly<MakeComposerProps>) {
 	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 	const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 	const [isCustomizeMenuOpen, setIsCustomizeMenuOpen] = useState(false);

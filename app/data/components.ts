@@ -283,7 +283,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 
 export const TEMPLATE_COMPONENTS: ComponentEntry[] = [
 	{ ...templateComponent("plan", "Plan"), importPath: "@/components/templates/plan" },
-	{ ...templateComponent("maker", "Make"), importPath: "@/components/templates/make" },
+	{ ...templateComponent("make", "Make"), importPath: "@/components/templates/make" },
 	templateComponent("sidebar-chat", "Sidebar Chat"),
 	templateComponent("confluence", "Confluence Editor"),
 	templateComponent("jira", "Jira Board"),

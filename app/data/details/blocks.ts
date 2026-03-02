@@ -86,7 +86,7 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 		description: "Agent summary block with plan chrome, final synthesis, interactive dashboard, visual iframe preview, and grouped agent outputs.",
 	},
 	"make-artifact": {
-		description: "Maker artifact view with sidebar navigation, top nav tabs, dual tab bars, and two-panel layout for artifact output and chat.",
+		description: "Make artifact view with sidebar navigation, top nav tabs, dual tab bars, and two-panel layout for artifact output and chat.",
 	},
 	dashboard: {
 		description: "A full dashboard layout with sidebar navigation, charts, and data tables.",

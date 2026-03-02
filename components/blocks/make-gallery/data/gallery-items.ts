@@ -95,7 +95,7 @@ const ASSET_REGISTRY_ASCII = `  +--[ IT Assets ]---------------+
   |  Spare: 9     Repair: 5     |
   +-------------------------------+`;
 
-const DIAGRAM_MAKER_ASCII = `      .---------.
+const DIAGRAM_MAKE_ASCII = `      .---------.
       |  Start  |
       '----+----'
            |
@@ -522,12 +522,12 @@ export const GALLERY_ITEMS: GalleryItem[] = [
 		],
 	},
 	{
-		id: "diagram-maker",
-		title: "Diagram Maker",
+		id: "diagram-make",
+		title: "Diagram Make",
 		type: "apps",
 		prompt: "Build a diagram editor for flowcharts and architecture",
 		color: "text-text-subtlest",
-		ascii: DIAGRAM_MAKER_ASCII,
+		ascii: DIAGRAM_MAKE_ASCII,
 		description: "Visual diagram editor for flowcharts, decision trees, and system architecture with export support.",
 		metadata: [
 			{ label: "Use case", value: ["Design and diagramming"] },

@@ -18,8 +18,11 @@ export const chatStyles = {
 		height: "100%",
 		minHeight: 0,
 		backgroundColor: token("elevation.surface"),
+		border: `1px solid ${token("color.border")}`,
+		borderRadius: token("radius.xlarge"),
 		display: "flex",
 		flexDirection: "column" as const,
+		overflow: "hidden" as const,
 	},
 	scrollContainer: {
 		flex: 1,

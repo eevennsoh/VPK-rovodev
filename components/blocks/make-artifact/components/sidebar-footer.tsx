@@ -94,7 +94,7 @@ export function MakeSidebarFooter() {
 
 			<div className="flex items-center justify-center border-t border-border p-3">
 				<span className="text-xs text-text-subtlest">
-					Maker • Concept
+					Make • Concept
 				</span>
 			</div>
 		</div>

@@ -39,6 +39,7 @@ const ADS_BLOCK_SLUGS = new Set([
 	"work-item-widget",
 	"question-card",
 	"approval-card",
+	"terminal-switch",
 ]);
 
 export function resolveUiAdsPackage(slug: string) {

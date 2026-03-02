@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { API_ENDPOINTS } from "@/lib/api-config";
 import type {
-	MakerSkill,
-	MakerSkillInput,
-	MakerAgent,
-	MakerAgentInput,
+	MakeSkill,
+	MakeSkillInput,
+	MakeAgent,
+	MakeAgentInput,
 } from "@/lib/make-config-types";
 import { generateSlug } from "@/lib/make-config-types";
 
@@ -52,8 +52,8 @@ function filterVisibleBuiltIns<T extends { name: string; isBuiltIn: boolean }>(
 }
 
 export function useMakeConfig() {
-	const [skills, setSkills] = useState<MakerSkill[]>([]);
-	const [agents, setAgents] = useState<MakerAgent[]>([]);
+	const [skills, setSkills] = useState<MakeSkill[]>([]);
+	const [agents, setAgents] = useState<MakeAgent[]>([]);
 	const [availableTools, setAvailableTools] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -61,7 +61,7 @@ export function useMakeConfig() {
 		try {
 			const response = await fetch(API_ENDPOINTS.MAKE_SKILLS);
 			if (!response.ok) return;
-			const data = await parseJsonResponse<{ skills: MakerSkill[] }>(response, "fetch skills");
+			const data = await parseJsonResponse<{ skills: MakeSkill[] }>(response, "fetch skills");
 			if (!data) return;
 			setSkills(data.skills);
 		} catch (error) {
@@ -73,7 +73,7 @@ export function useMakeConfig() {
 		try {
 			const response = await fetch(API_ENDPOINTS.MAKE_AGENTS);
 			if (!response.ok) return;
-			const data = await parseJsonResponse<{ agents: MakerAgent[] }>(response, "fetch agents");
+			const data = await parseJsonResponse<{ agents: MakeAgent[] }>(response, "fetch agents");
 			if (!data) return;
 			setAgents(data.agents);
 		} catch (error) {
@@ -98,7 +98,7 @@ export function useMakeConfig() {
 			if (cancelled) return;
 
 			if (skillsRes?.ok) {
-				const data = await parseJsonResponse<{ skills: MakerSkill[] }>(
+				const data = await parseJsonResponse<{ skills: MakeSkill[] }>(
 					skillsRes,
 					"load skills"
 				);
@@ -107,7 +107,7 @@ export function useMakeConfig() {
 				}
 			}
 			if (agentsRes?.ok) {
-				const data = await parseJsonResponse<{ agents: MakerAgent[] }>(
+				const data = await parseJsonResponse<{ agents: MakeAgent[] }>(
 					agentsRes,
 					"load agents"
 				);
@@ -133,7 +133,7 @@ export function useMakeConfig() {
 	}, []);
 
 	const createSkill = useCallback(
-		async (data: MakerSkillInput): Promise<MakerSkill | null> => {
+		async (data: MakeSkillInput): Promise<MakeSkill | null> => {
 			try {
 				const response = await fetch(API_ENDPOINTS.MAKE_SKILLS, {
 					method: "POST",
@@ -141,7 +141,7 @@ export function useMakeConfig() {
 					body: JSON.stringify(data),
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ skill: MakerSkill }>(
+				const result = await parseJsonResponse<{ skill: MakeSkill }>(
 					response,
 					"create skill"
 				);
@@ -157,7 +157,7 @@ export function useMakeConfig() {
 	);
 
 	const updateSkill = useCallback(
-		async (name: string, data: Partial<MakerSkillInput>): Promise<MakerSkill | null> => {
+		async (name: string, data: Partial<MakeSkillInput>): Promise<MakeSkill | null> => {
 			try {
 				const response = await fetch(API_ENDPOINTS.makeSkill(name), {
 					method: "PUT",
@@ -165,7 +165,7 @@ export function useMakeConfig() {
 					body: JSON.stringify(data),
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ skill: MakerSkill }>(
+				const result = await parseJsonResponse<{ skill: MakeSkill }>(
 					response,
 					"update skill"
 				);
@@ -197,7 +197,7 @@ export function useMakeConfig() {
 	}, []);
 
 	const createAgent = useCallback(
-		async (data: MakerAgentInput): Promise<MakerAgent | null> => {
+		async (data: MakeAgentInput): Promise<MakeAgent | null> => {
 			try {
 				const response = await fetch(API_ENDPOINTS.MAKE_AGENTS, {
 					method: "POST",
@@ -205,7 +205,7 @@ export function useMakeConfig() {
 					body: JSON.stringify(data),
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ agent: MakerAgent }>(
+				const result = await parseJsonResponse<{ agent: MakeAgent }>(
 					response,
 					"create agent"
 				);
@@ -221,7 +221,7 @@ export function useMakeConfig() {
 	);
 
 	const updateAgent = useCallback(
-		async (name: string, data: Partial<MakerAgentInput>): Promise<MakerAgent | null> => {
+		async (name: string, data: Partial<MakeAgentInput>): Promise<MakeAgent | null> => {
 			try {
 				const response = await fetch(API_ENDPOINTS.makeAgent(name), {
 					method: "PUT",
@@ -229,7 +229,7 @@ export function useMakeConfig() {
 					body: JSON.stringify(data),
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ agent: MakerAgent }>(
+				const result = await parseJsonResponse<{ agent: MakeAgent }>(
 					response,
 					"update agent"
 				);
@@ -283,7 +283,7 @@ export function useMakeConfig() {
 	}, []);
 
 	const importSkill = useCallback(
-		async (content: string): Promise<MakerSkill | null> => {
+		async (content: string): Promise<MakeSkill | null> => {
 			try {
 				const response = await fetch(API_ENDPOINTS.MAKE_SKILLS, {
 					method: "POST",
@@ -291,7 +291,7 @@ export function useMakeConfig() {
 					body: content,
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ skill: MakerSkill }>(
+				const result = await parseJsonResponse<{ skill: MakeSkill }>(
 					response,
 					"import skill"
 				);
@@ -307,7 +307,7 @@ export function useMakeConfig() {
 	);
 
 	const importAgent = useCallback(
-		async (content: string): Promise<MakerAgent | null> => {
+		async (content: string): Promise<MakeAgent | null> => {
 			try {
 				const response = await fetch(API_ENDPOINTS.MAKE_AGENTS, {
 					method: "POST",
@@ -315,7 +315,7 @@ export function useMakeConfig() {
 					body: content,
 				});
 				if (!response.ok) return null;
-				const result = await parseJsonResponse<{ agent: MakerAgent }>(
+				const result = await parseJsonResponse<{ agent: MakeAgent }>(
 					response,
 					"import agent"
 				);

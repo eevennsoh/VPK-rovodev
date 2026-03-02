@@ -9033,7 +9033,7 @@ app.get("/api/plan/config-summary", (req, res) => {
 	}
 });
 
-// ─── Maker Endpoints ──────────────────────────────────────────────────
+// ─── Make Endpoints ──────────────────────────────────────────────────
 
 app.post("/api/make/runs", async (req, res) => {
 	try {
@@ -9052,7 +9052,7 @@ app.post("/api/make/runs", async (req, res) => {
 		});
 		return res.status(201).json({ run });
 	} catch (error) {
-		console.error("[MAKER-RUN] Failed to create run:", error);
+		console.error("[MAKE-RUN] Failed to create run:", error);
 		const message = error instanceof Error ? error.message : "Failed to create run";
 		return res.status(400).json({ error: message });
 	}
@@ -9064,7 +9064,7 @@ app.get("/api/make/runs", async (req, res) => {
 		const runs = await makeRunManager.listRuns({ limit: rawLimit });
 		return res.status(200).json({ runs });
 	} catch (error) {
-		console.error("[MAKER-RUN] Failed to list runs:", error);
+		console.error("[MAKE-RUN] Failed to list runs:", error);
 		const message = error instanceof Error ? error.message : "Failed to list runs";
 		return res.status(500).json({ error: message });
 	}
@@ -9080,7 +9080,7 @@ app.get("/api/make/runs/:runId", async (req, res) => {
 
 		return res.status(200).json({ run });
 	} catch (error) {
-		console.error("[MAKER-RUN] Failed to get run:", error);
+		console.error("[MAKE-RUN] Failed to get run:", error);
 		return res.status(500).json({ error: "Failed to load run" });
 	}
 });
@@ -9091,7 +9091,7 @@ app.delete("/api/make/runs/:runId", async (req, res) => {
 		await makeRunManager.deleteRun(runId);
 		return res.status(200).json({ deleted: true });
 	} catch (error) {
-		console.error("[MAKER-RUN] Failed to delete run:", error);
+		console.error("[MAKE-RUN] Failed to delete run:", error);
 		return res.status(500).json({ error: "Failed to delete run" });
 	}
 });
@@ -9122,7 +9122,7 @@ app.post("/api/make/runs/:runId/tasks", async (req, res) => {
 
 		return res.status(200).json(result);
 	} catch (error) {
-		console.error("[MAKER-RUN] Failed to append run tasks:", error);
+		console.error("[MAKE-RUN] Failed to append run tasks:", error);
 		const message = error instanceof Error ? error.message : "Failed to append tasks";
 		return res.status(400).json({ error: message });
 	}
@@ -9133,7 +9133,7 @@ app.get("/api/make/runs/:runId/stream", async (req, res) => {
 		const runId = req.params.runId;
 		await makeRunManager.streamRunEvents(req, res, runId);
 	} catch (error) {
-		console.error("[MAKER-RUN] Failed to stream run events:", error);
+		console.error("[MAKE-RUN] Failed to stream run events:", error);
 		if (!res.headersSent) {
 			res.status(500).json({ error: "Failed to stream run events" });
 		}
@@ -9155,7 +9155,7 @@ app.post("/api/make/runs/:runId/directives", async (req, res) => {
 
 		return res.status(200).json(result);
 	} catch (error) {
-		console.error("[MAKER-RUN] Failed to add directive:", error);
+		console.error("[MAKE-RUN] Failed to add directive:", error);
 		return res.status(500).json({ error: "Failed to add directive" });
 	}
 });
@@ -9212,7 +9212,7 @@ app.post("/api/make/runs/:runId/share", async (req, res) => {
 			messageTs: slackResult.messageTs,
 		});
 	} catch (error) {
-		console.error("[MAKER-RUN] Failed to share run summary:", error);
+		console.error("[MAKE-RUN] Failed to share run summary:", error);
 		const status = typeof error?.status === "number" ? error.status : 500;
 		const message =
 			error instanceof Error && error.message.trim()
@@ -9232,7 +9232,7 @@ app.get("/api/make/runs/:runId/summary", async (req, res) => {
 
 		return res.status(200).json(summary);
 	} catch (error) {
-		console.error("[MAKER-RUN] Failed to load run summary:", error);
+		console.error("[MAKE-RUN] Failed to load run summary:", error);
 		return res.status(500).json({ error: "Failed to load run summary" });
 	}
 });
@@ -9252,7 +9252,7 @@ app.get("/api/make/skills", (req, res) => {
 		const skills = makeFs.listSkills();
 		return res.status(200).json({ skills });
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to list skills:", error);
+		console.error("[MAKE-FS] Failed to list skills:", error);
 		return res.status(500).json({ error: "Failed to list skills" });
 	}
 });
@@ -9329,7 +9329,7 @@ app.post("/api/make/skills", (req, res) => {
 		const skill = makeFs.writeSkill(name, description, resolvedContent);
 		return res.status(201).json({ skill });
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to create skill:", error);
+		console.error("[MAKE-FS] Failed to create skill:", error);
 		const message = error instanceof Error ? error.message : "Failed to create skill";
 		return res.status(500).json({ error: message });
 	}
@@ -9375,7 +9375,7 @@ app.put("/api/make/skills/:name", (req, res) => {
 		const skill = makeFs.writeSkill(name, updatedDescription, updatedContent, extraFields);
 		return res.status(200).json({ skill });
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to update skill:", error);
+		console.error("[MAKE-FS] Failed to update skill:", error);
 		const message = error instanceof Error ? error.message : "Failed to update skill";
 		return res.status(500).json({ error: message });
 	}
@@ -9390,7 +9390,7 @@ app.delete("/api/make/skills/:name", (req, res) => {
 		makeFs.deleteSkill(name);
 		return res.status(200).json({ success: true });
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to delete skill:", error);
+		console.error("[MAKE-FS] Failed to delete skill:", error);
 		const message = error instanceof Error ? error.message : "Failed to delete skill";
 		return res.status(error.message?.includes("not found") ? 404 : 500).json({ error: message });
 	}
@@ -9409,7 +9409,7 @@ app.get("/api/make/skills/:name/raw", (req, res) => {
 		res.setHeader("Content-Type", "text/markdown; charset=utf-8");
 		return res.status(200).send(raw);
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to read skill raw:", error);
+		console.error("[MAKE-FS] Failed to read skill raw:", error);
 		return res.status(500).json({ error: "Failed to read skill" });
 	}
 });
@@ -9421,7 +9421,7 @@ app.get("/api/make/agents", (req, res) => {
 		const agents = makeFs.listAgents();
 		return res.status(200).json({ agents });
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to list agents:", error);
+		console.error("[MAKE-FS] Failed to list agents:", error);
 		return res.status(500).json({ error: "Failed to list agents" });
 	}
 });
@@ -9531,7 +9531,7 @@ app.post("/api/make/agents", (req, res) => {
 		});
 		return res.status(201).json({ agent });
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to create agent:", error);
+		console.error("[MAKE-FS] Failed to create agent:", error);
 		const message = error instanceof Error ? error.message : "Failed to create agent";
 		return res.status(500).json({ error: message });
 	}
@@ -9571,7 +9571,7 @@ app.put("/api/make/agents/:name", (req, res) => {
 		const agent = makeFs.writeAgent(name, updated);
 		return res.status(200).json({ agent });
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to update agent:", error);
+		console.error("[MAKE-FS] Failed to update agent:", error);
 		const message = error instanceof Error ? error.message : "Failed to update agent";
 		return res.status(500).json({ error: message });
 	}
@@ -9586,7 +9586,7 @@ app.delete("/api/make/agents/:name", (req, res) => {
 		makeFs.deleteAgent(name);
 		return res.status(200).json({ success: true });
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to delete agent:", error);
+		console.error("[MAKE-FS] Failed to delete agent:", error);
 		const message = error instanceof Error ? error.message : "Failed to delete agent";
 		return res.status(error.message?.includes("not found") ? 404 : 500).json({ error: message });
 	}
@@ -9605,19 +9605,19 @@ app.get("/api/make/agents/:name/raw", (req, res) => {
 		res.setHeader("Content-Type", "text/markdown; charset=utf-8");
 		return res.status(200).send(raw);
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to read agent raw:", error);
+		console.error("[MAKE-FS] Failed to read agent raw:", error);
 		return res.status(500).json({ error: "Failed to read agent" });
 	}
 });
 
-// --- Config summary (for maker context injection) ---
+// --- Config summary (for make context injection) ---
 
 app.get("/api/make/config-summary", (req, res) => {
 	try {
 		const summary = makeFs.getConfigSummary();
 		return res.status(200).json({ summary });
 	} catch (error) {
-		console.error("[MAKER-FS] Failed to get config summary:", error);
+		console.error("[MAKE-FS] Failed to get config summary:", error);
 		return res.status(500).json({ error: "Failed to get config summary" });
 	}
 });

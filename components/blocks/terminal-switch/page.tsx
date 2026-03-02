@@ -4,8 +4,10 @@ import { useState, useCallback, useRef, useMemo, useEffect, type FormEvent } fro
 import { cn } from "@/lib/utils";
 import { useRovoChat } from "@/app/contexts";
 import { isRenderableRovoUIMessage, getMessageText, getAllDataParts, type RovoUIMessage } from "@/lib/rovo-ui-messages";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import EditIcon from "@atlaskit/icon/core/edit";
 import ChatPanel from "@/components/templates/sidebar-chat/page";
-import ChatHeader from "@/components/templates/sidebar-chat/components/chat-header";
 import { Terminal, TerminalHeader, TerminalContent } from "@/components/ui-ai/terminal";
 
 type ViewMode = "chat" | "terminal";
@@ -362,12 +364,31 @@ export default function TerminalSwitchPanel({ onClose }: Readonly<TerminalSwitch
 			} : {})}
 		>
 			{/* Mode switcher unified header */}
-			<div className="border-b border-border transition-colors duration-200">
-				<ChatHeader
-					mode={mode}
-					onModeChange={(v) => setMode(v as ViewMode)}
-					onNewChat={resetChat}
-				/>
+			<div className="border-b border-border px-3 py-3 transition-colors duration-200">
+				<div className="flex items-center justify-between">
+					<Tabs
+						value={mode}
+						onValueChange={(v) => setMode(v as ViewMode)}
+					>
+						<TabsList variant="default" className="h-8">
+							<TabsTrigger value="chat" className="px-3">
+								Chat
+							</TabsTrigger>
+							<TabsTrigger value="terminal" className="px-3">
+								Terminal
+							</TabsTrigger>
+						</TabsList>
+					</Tabs>
+					<Button
+						aria-label="New chat"
+						size="icon"
+						variant="ghost"
+						className="size-8 text-icon-subtle"
+						onClick={resetChat}
+					>
+						<EditIcon label="" />
+					</Button>
+				</div>
 			</div>
 
 			{/* Content area */}

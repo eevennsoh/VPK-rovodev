@@ -251,7 +251,7 @@ export const getFramesForId = (id: string): string[] | null => {
   +-------------------------------+`,
 			];
 
-		case "diagram-maker":
+		case "diagram-make":
 			return [
 				`      .---------.
       |  Start  |

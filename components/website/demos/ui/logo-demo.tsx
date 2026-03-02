@@ -21,7 +21,6 @@ import {
 	type AtlassianLogoName,
 	type LogoProps,
 } from "@/components/ui/logo";
-import { useTheme } from "@/components/utils/theme-wrapper";
 
 const logoEntries: ReadonlyArray<{ name: AtlassianLogoName; label: string }> = [
 	{ name: "home", label: "Home" },
@@ -44,14 +43,8 @@ const logoEntries: ReadonlyArray<{ name: AtlassianLogoName; label: string }> = [
 /* ── Overview demo (default export) ──────────────────────────────── */
 
 export default function LogoDemo() {
-	const { actualTheme } = useTheme();
-
 	return (
 		<div className="flex w-full flex-col gap-6">
-			<div className="text-sm text-text-subtle">
-				Theme-aware default appearance. Current theme: {actualTheme}
-			</div>
-
 			<div className="flex flex-wrap gap-4">
 				{logoEntries.map((entry) => (
 					<div key={entry.name} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 bg-surface">

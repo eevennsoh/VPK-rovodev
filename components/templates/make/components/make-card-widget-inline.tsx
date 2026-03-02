@@ -57,7 +57,7 @@ function CollapsedPlanBubble({ title, emoji, onExpand }: Readonly<CollapsedPlanB
 // Main component
 // ---------------------------------------------------------------------------
 
-interface MakerCardWidgetInlineProps {
+interface MakeCardWidgetInlineProps {
 	title: string;
 	tasks: PlanTask[];
 	agents?: string[];
@@ -93,7 +93,7 @@ export function MakeCardWidgetInline({
 	collapsed: controlledCollapsed,
 	onBuild,
 	onOpenPreview,
-}: Readonly<MakerCardWidgetInlineProps>): React.ReactElement | null {
+}: Readonly<MakeCardWidgetInlineProps>): React.ReactElement | null {
 	const [isOpen, setIsOpen] = useState(true);
 	const [internalCollapsed, setInternalCollapsed] = useState(false);
 	const [agentMultiplier, setAgentMultiplier] = useState("1x");

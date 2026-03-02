@@ -15,9 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import CopyIcon from "@atlaskit/icon/core/copy";
 import type {
-	MakerAgent,
-	MakerAgentInput,
-	MakerSkill,
+	MakeAgent,
+	MakeAgentInput,
+	MakeSkill,
 } from "@/lib/make-config-types";
 import {
 	generateSlug,
@@ -43,13 +43,13 @@ const PERMISSION_MODE_OPTIONS = [
 
 interface AgentDialogProps {
 	open: boolean;
-	agent: MakerAgent | null;
-	availableSkills: MakerSkill[];
+	agent: MakeAgent | null;
+	availableSkills: MakeSkill[];
 	availableTools: string[];
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: MakerAgentInput) => Promise<unknown>;
+	onSave: (data: MakeAgentInput) => Promise<unknown>;
 	onDelete?: (name: string) => void;
-	onDuplicate?: (agent: MakerAgent) => void;
+	onDuplicate?: (agent: MakeAgent) => void;
 }
 
 export default function AgentDialog({
@@ -82,13 +82,13 @@ export default function AgentDialog({
 }
 
 interface AgentDialogFormProps {
-	agent: MakerAgent | null;
-	availableSkills: MakerSkill[];
+	agent: MakeAgent | null;
+	availableSkills: MakeSkill[];
 	availableTools: string[];
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: MakerAgentInput) => Promise<unknown>;
+	onSave: (data: MakeAgentInput) => Promise<unknown>;
 	onDelete?: (name: string) => void;
-	onDuplicate?: (agent: MakerAgent) => void;
+	onDuplicate?: (agent: MakeAgent) => void;
 }
 
 function AgentDialogForm({
@@ -474,7 +474,7 @@ function AgentSkillsField({
 	skillCount,
 	onSkillToggle,
 }: Readonly<{
-	availableSkills: MakerSkill[];
+	availableSkills: MakeSkill[];
 	equippedSkillNames: Set<string>;
 	skillCount: number;
 	onSkillToggle: (name: string, checked: boolean) => void;

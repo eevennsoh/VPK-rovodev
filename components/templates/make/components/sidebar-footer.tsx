@@ -13,14 +13,14 @@ import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import AddIcon from "@atlaskit/icon/core/add";
 import DownloadIcon from "@atlaskit/icon/core/download";
-import type { MakerSkill, MakerAgent } from "@/lib/make-config-types";
+import type { MakeSkill, MakeAgent } from "@/lib/make-config-types";
 
 interface SidebarFooterProps {
-	skills: MakerSkill[];
-	agents: MakerAgent[];
-	onEditSkill: (skill: MakerSkill) => void;
+	skills: MakeSkill[];
+	agents: MakeAgent[];
+	onEditSkill: (skill: MakeSkill) => void;
 	onNewSkill: () => void;
-	onEditAgent: (agent: MakerAgent) => void;
+	onEditAgent: (agent: MakeAgent) => void;
 	onNewAgent: () => void;
 	onExportSkill: (name: string) => void;
 	onExportAgent: (name: string) => void;
@@ -64,71 +64,87 @@ export default function SidebarFooter({
 	};
 
 	return (
-		<div className="flex flex-col">
-			{/* Apps section */}
-			<CollapsibleSection
-				title="Apps"
-				open={appsOpen}
-				onToggle={() => setAppsOpen((prev) => !prev)}
-			>
-				<SectionEmptyState
-					title="No apps yet"
-					description="Build and publish apps to see them here."
-				/>
-			</CollapsibleSection>
-
-			{/* Agents section */}
-			<CollapsibleSection
-				title="Agents"
-				badge={sortedAgents.length}
-				open={agentsOpen}
-				onToggle={() => setAgentsOpen((prev) => !prev)}
-				onAdd={handleNewAgent}
-			>
-				{sortedAgents.map((agent) => (
-					<SidebarItemRow
-						key={agent.name}
-						name={agent.name}
-						isBuiltIn={agent.isBuiltIn}
-						onEdit={() => onEditAgent(agent)}
-						onExport={() => onExportAgent(agent.name)}
+		<div className="flex h-full flex-col">
+			<div className="flex-1 overflow-y-auto border-t border-border [&>*:first-child]:border-t-0">
+				{/* Apps section */}
+				<CollapsibleSection
+					title="Apps"
+					open={appsOpen}
+					onToggle={() => setAppsOpen((prev) => !prev)}
+				>
+					<SectionEmptyState
+						title="No apps yet"
+						description="Build and publish apps to see them here."
 					/>
-				))}
-			</CollapsibleSection>
+				</CollapsibleSection>
 
-			{/* Automation section */}
-			<CollapsibleSection
-				title="Automation"
-				open={automationOpen}
-				onToggle={() => setAutomationOpen((prev) => !prev)}
-			>
-				<SectionEmptyState
-					title="No automations yet"
-					description="Create automations to run tasks on a schedule."
-				/>
-			</CollapsibleSection>
+				{/* Agents section */}
+				<CollapsibleSection
+					title="Agents"
+					badge={sortedAgents.length}
+					open={agentsOpen}
+					onToggle={() => setAgentsOpen((prev) => !prev)}
+					onAdd={handleNewAgent}
+				>
+					{sortedAgents.length > 0 ? (
+						sortedAgents.map((agent) => (
+							<SidebarItemRow
+								key={agent.name}
+								name={agent.name}
+								isBuiltIn={agent.isBuiltIn}
+								onEdit={() => onEditAgent(agent)}
+								onExport={() => onExportAgent(agent.name)}
+							/>
+						))
+					) : (
+						<SectionEmptyState
+							title="No agents yet"
+							description="Create an agent to give Make specialized capabilities."
+						/>
+					)}
+				</CollapsibleSection>
 
-			{/* Skills section */}
-			<CollapsibleSection
-				title="Skills"
-				badge={sortedSkills.length}
-				open={skillsOpen}
-				onToggle={() => setSkillsOpen((prev) => !prev)}
-				onAdd={handleNewSkill}
-			>
-				{sortedSkills.map((skill) => (
-					<SidebarItemRow
-						key={skill.name}
-						name={skill.name}
-						isBuiltIn={skill.isBuiltIn}
-						onEdit={() => onEditSkill(skill)}
-						onExport={() => onExportSkill(skill.name)}
+				{/* Automation section */}
+				<CollapsibleSection
+					title="Automation"
+					open={automationOpen}
+					onToggle={() => setAutomationOpen((prev) => !prev)}
+				>
+					<SectionEmptyState
+						title="No automations yet"
+						description="Create automations to run tasks on a schedule."
 					/>
-				))}
-			</CollapsibleSection>
+				</CollapsibleSection>
 
-			{/* Bottom label */}
-			<div className="flex items-center justify-center border-t border-border p-3">
+				{/* Skills section */}
+				<CollapsibleSection
+					title="Skills"
+					badge={sortedSkills.length}
+					open={skillsOpen}
+					onToggle={() => setSkillsOpen((prev) => !prev)}
+					onAdd={handleNewSkill}
+				>
+					{sortedSkills.length > 0 ? (
+						sortedSkills.map((skill) => (
+							<SidebarItemRow
+								key={skill.name}
+								name={skill.name}
+								isBuiltIn={skill.isBuiltIn}
+								onEdit={() => onEditSkill(skill)}
+								onExport={() => onExportSkill(skill.name)}
+							/>
+						))
+					) : (
+						<SectionEmptyState
+							title="No skills yet"
+							description="Create a skill to teach Make new reusable actions."
+						/>
+					)}
+				</CollapsibleSection>
+			</div>
+
+			{/* Bottom label — always pinned */}
+			<div className="flex shrink-0 items-center justify-center border-t border-border p-3">
 				<span className="text-xs text-text-subtlest">
 					Make • Concept
 				</span>
@@ -160,11 +176,11 @@ function CollapsibleSection({
 		<div className="group/section border-t border-border">
 			<button
 				type="button"
-				className="flex h-10 w-full items-center justify-between px-4 pr-3 text-left transition-colors hover:bg-bg-neutral"
+				className="flex h-10 shrink-0 w-full items-center justify-between px-4 pr-3 text-left transition-colors hover:bg-bg-neutral"
 				onClick={onToggle}
 			>
 				<span
-					style={{ font: token("font.heading.xxsmall") }}
+					style={{ font: token("font.heading.xxsmall"), lineHeight: 1 }}
 					className="text-text-subtlest"
 				>
 					{title}
@@ -254,7 +270,7 @@ function SidebarItemRow({
 
 function SectionEmptyState({ title, description }: Readonly<{ title: string; description: string }>) {
 	return (
-		<Empty width="narrow" className="gap-3 py-4">
+		<Empty width="narrow" className="gap-3 px-2 pt-4 pb-2">
 			<EmptyHeader>
 				<EmptyTitle headingSize="xsmall">{title}</EmptyTitle>
 				<EmptyDescription>{description}</EmptyDescription>

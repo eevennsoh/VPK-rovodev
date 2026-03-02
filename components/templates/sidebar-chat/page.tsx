@@ -235,7 +235,7 @@ export default function ChatPanel({ onClose, sendPromptOptions, enableSmartWidge
 		<div ref={panelRef} style={chatStyles.chatPanel}>
 			{!hideHeader && (
 				<div>
-					<ChatHeader />
+					<ChatHeader onClose={onClose} onNewChat={resetChat} />
 				</div>
 			)}
 

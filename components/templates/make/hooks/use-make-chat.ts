@@ -271,12 +271,11 @@ export function useMakeChat(options: {
 		[threads],
 	);
 
-	useEffect(() => {
+	const fetchAndMergeServerThreads = useCallback(() => {
 		if (typeof window === "undefined") {
 			return;
 		}
 
-		let cancelled = false;
 		fetch(API_ENDPOINTS.chatThreads())
 			.then((response) => {
 				if (!response.ok) {
@@ -286,10 +285,6 @@ export function useMakeChat(options: {
 				return response.json() as Promise<{ threads?: unknown[] }>;
 			})
 			.then((data) => {
-				if (cancelled) {
-					return;
-				}
-
 				const serverThreads = Array.isArray(data.threads)
 					? (data.threads
 							.map((raw) => {
@@ -338,20 +333,44 @@ export function useMakeChat(options: {
 							.filter(Boolean) as PlanThread[])
 					: [];
 
-				setThreads((previousThreads) =>
-					previousThreads.length > 0
-						? previousThreads
-						: sortThreadsByUpdatedAtDesc(serverThreads)
-				);
+				setThreads((previousThreads) => {
+					if (previousThreads.length === 0) {
+						return sortThreadsByUpdatedAtDesc(serverThreads);
+					}
+
+					const localIds = new Set(previousThreads.map((t) => t.id));
+					const newFromServer = serverThreads.filter((t) => !localIds.has(t.id));
+					const serverIds = new Set(serverThreads.map((t) => t.id));
+					const stillExistLocally = previousThreads.filter((t) => serverIds.has(t.id));
+
+					if (newFromServer.length === 0 && stillExistLocally.length === previousThreads.length) {
+						return previousThreads;
+					}
+
+					return sortThreadsByUpdatedAtDesc([...stillExistLocally, ...newFromServer]);
+				});
 			})
 			.catch(() => {
-				// Silently fall back to empty thread list on server error
+				// Silently fall back on server error
 			});
+	}, []);
 
-		return () => {
-			cancelled = true;
+	useEffect(() => {
+		fetchAndMergeServerThreads();
+	}, [fetchAndMergeServerThreads]);
+
+	useEffect(() => {
+		const handleVisibilityChange = () => {
+			if (document.visibilityState === "visible") {
+				fetchAndMergeServerThreads();
+			}
 		};
-	}, [historyCategory]);
+
+		document.addEventListener("visibilitychange", handleVisibilityChange);
+		return () => {
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
+		};
+	}, [fetchAndMergeServerThreads]);
 
 	useEffect(() => {
 		activeChatIdRef.current = activeChatId;

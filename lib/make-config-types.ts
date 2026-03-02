@@ -7,7 +7,7 @@ export const SKILLS_PER_AGENT_SOFT_LIMIT = 10;
 export const NO_CONSECUTIVE_HYPHENS = /--/;
 
 // Skill — parsed from SKILL.md frontmatter + body
-export interface MakerSkill {
+export interface MakeSkill {
 	name: string; // agentskills.io slug (also directory name)
 	description: string; // agentskills.io: 1-1024 chars
 	content: string; // Markdown body after frontmatter
@@ -22,7 +22,7 @@ export interface MakerSkill {
 }
 
 // Agent — parsed from Claude Code subagent .md frontmatter + body
-export interface MakerAgent {
+export interface MakeAgent {
 	name: string; // slug identifier
 	description: string;
 	systemPrompt: string; // markdown body (the system prompt)
@@ -38,9 +38,9 @@ export interface MakerAgent {
 }
 
 // Input types for creation
-export type MakerSkillInput = Pick<MakerSkill, "name" | "description" | "content">;
-export type MakerAgentInput = Pick<
-	MakerAgent,
+export type MakeSkillInput = Pick<MakeSkill, "name" | "description" | "content">;
+export type MakeAgentInput = Pick<
+	MakeAgent,
 	"name" | "description" | "systemPrompt" | "model" | "tools" | "skills"
 > & {
 	disallowedTools?: string[];

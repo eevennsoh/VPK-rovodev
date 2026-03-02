@@ -4,8 +4,8 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import type {
-	MakerAgent,
-	MakerSkill,
+	MakeAgent,
+	MakeSkill,
 } from "@/lib/make-config-types";
 import type {
 	AgentRunListItem,
@@ -144,11 +144,11 @@ export default function MakeGridPage() {
 		void chatId;
 	}, []);
 
-	const handleUnusedEditSkill = useCallback((skill: MakerSkill) => {
+	const handleUnusedEditSkill = useCallback((skill: MakeSkill) => {
 		void skill.name;
 	}, []);
 
-	const handleUnusedEditAgent = useCallback((agent: MakerAgent) => {
+	const handleUnusedEditAgent = useCallback((agent: MakeAgent) => {
 		void agent.name;
 	}, []);
 

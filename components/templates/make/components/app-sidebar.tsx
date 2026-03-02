@@ -26,7 +26,7 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@/components/ui/empty";
-import type { MakerSkill, MakerAgent } from "@/lib/make-config-types";
+import type { MakeSkill, MakeAgent } from "@/lib/make-config-types";
 import type { AgentRunListItem } from "@/lib/make-run-types";
 import type { RetryTaskGroupKey } from "@/components/templates/make/lib/retry-task-groups";
 import { filterItemsBySidebarSearch } from "@/components/templates/make/lib/sidebar-search";
@@ -56,11 +56,11 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	) => Promise<void> | void;
 	onSelectChat: (id: string) => void;
 	onDeleteChat: (id: string) => void;
-	skills: MakerSkill[];
-	agents: MakerAgent[];
-	onEditSkill: (skill: MakerSkill) => void;
+	skills: MakeSkill[];
+	agents: MakeAgent[];
+	onEditSkill: (skill: MakeSkill) => void;
 	onNewSkill: () => void;
-	onEditAgent: (agent: MakerAgent) => void;
+	onEditAgent: (agent: MakeAgent) => void;
 	onNewAgent: () => void;
 	onExportSkill: (name: string) => void;
 	onExportAgent: (name: string) => void;
@@ -287,7 +287,7 @@ export function AppSidebar({
 					</div>
 				)}
 			</SidebarContent>
-			<SidebarFooterSlot className="max-h-[50%] overflow-y-auto bg-surface p-0">
+			<SidebarFooterSlot className="max-h-[50%] bg-surface p-0">
 				<SidebarFooter
 					skills={skills}
 					agents={agents}

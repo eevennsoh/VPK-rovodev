@@ -19,7 +19,7 @@ import type {
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 import { isMessageVisibleInTranscript } from "@/lib/rovo-ui-messages";
 import type { QueuedPromptItem } from "@/app/contexts";
-import type { MakerSkill, MakerAgent } from "@/lib/make-config-types";
+import type { MakeSkill, MakeAgent } from "@/lib/make-config-types";
 import type { ParsedQuestionCardPayload, ClarificationAnswers } from "@/components/templates/shared/lib/question-card-widget";
 import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
@@ -59,15 +59,15 @@ import { useConfigDialogs } from "@/components/templates/make/hooks/use-config-d
 // State
 // ---------------------------------------------------------------------------
 
-export type MakerTab = "home" | "make" | "chat" | "search";
+export type MakeTab = "home" | "make" | "chat" | "search";
 
-export interface MakerState {
+export interface MakeState {
 	// Sidebar
 	sidebarOpen: boolean;
 	sidebarHovered: boolean;
 
 	// Navigation
-	activeTab: MakerTab;
+	activeTab: MakeTab;
 
 	// Chat
 	prompt: string;
@@ -123,7 +123,7 @@ export interface MakerState {
 // Actions
 // ---------------------------------------------------------------------------
 
-export interface MakerActions {
+export interface MakeActions {
 	// Sidebar
 	setSidebarOpen: (open: boolean) => void;
 	handleHoverEnter: () => void;
@@ -131,7 +131,7 @@ export interface MakerActions {
 	handlePinSidebar: () => void;
 
 	// Navigation
-	setActiveTab: (tab: MakerTab) => void;
+	setActiveTab: (tab: MakeTab) => void;
 
 	// Chat
 	setPrompt: (value: string) => void;
@@ -191,9 +191,9 @@ export interface MakerActions {
 // Meta
 // ---------------------------------------------------------------------------
 
-export interface MakerMeta {
-	skills: MakerSkill[];
-	agents: MakerAgent[];
+export interface MakeMeta {
+	skills: MakeSkill[];
+	agents: MakeAgent[];
 	skillDialogProps: SkillDialogProps;
 	agentDialogProps: AgentDialogProps;
 	sidebarConfigHandlers: SidebarConfigHandlers;
@@ -209,13 +209,13 @@ export interface MakerMeta {
 // Context
 // ---------------------------------------------------------------------------
 
-export interface MakerContextValue {
-	state: MakerState;
-	actions: MakerActions;
-	meta: MakerMeta;
+export interface MakeContextValue {
+	state: MakeState;
+	actions: MakeActions;
+	meta: MakeMeta;
 }
 
-const MakerContext = createContext<MakerContextValue | null>(null);
+const MakeContext = createContext<MakeContextValue | null>(null);
 
 // ---------------------------------------------------------------------------
 // Helpers (pure)
@@ -270,11 +270,11 @@ function toErrorMessage(error: unknown): string {
 // Provider
 // ---------------------------------------------------------------------------
 
-interface MakerProviderProps {
+interface MakeProviderProps {
 	children: ReactNode;
 }
 
-export function MakeProvider({ children }: MakerProviderProps) {
+export function MakeProvider({ children }: MakeProviderProps) {
 	const router = useRouter();
 
 	// ---- Local sidebar state ----
@@ -283,7 +283,7 @@ export function MakeProvider({ children }: MakerProviderProps) {
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	// ---- Navigation tab ----
-	const [activeTab, setActiveTab] = useState<MakerTab>("chat");
+	const [activeTab, setActiveTab] = useState<MakeTab>("chat");
 
 	// Sync activeTab to URL ?tab= param
 	useEffect(() => {
@@ -305,7 +305,7 @@ export function MakeProvider({ children }: MakerProviderProps) {
 		const params = new URLSearchParams(window.location.search);
 		const tabParam = params.get("tab");
 		if (tabParam && ["home", "chat", "make", "search"].includes(tabParam)) {
-			setActiveTab(tabParam as MakerTab);
+			setActiveTab(tabParam as MakeTab);
 		}
 	}, []);
 
@@ -527,32 +527,40 @@ export function MakeProvider({ children }: MakerProviderProps) {
 		}
 	}, [executionState, router, runId]);
 
-	useEffect(() => {
-		let cancelled = false;
-		const loadRunHistory = async () => {
-			try {
-				const response = await fetch(API_ENDPOINTS.makeRuns(), {
-					cache: "no-store",
-				});
-				if (!response.ok || cancelled) {
-					return;
-				}
+	const fetchRunHistory = useCallback(async () => {
+		try {
+			const response = await fetch(API_ENDPOINTS.makeRuns(), {
+				cache: "no-store",
+			});
+			if (!response.ok) {
+				return;
+			}
 
-				const payload = (await response.json()) as { runs?: AgentRunListItem[] };
-				if (!cancelled && Array.isArray(payload.runs)) {
-					setRunHistory(payload.runs);
-				}
-			} catch (error) {
-				console.error("[PLAN] Failed to load sidebar run history:", error);
+			const payload = (await response.json()) as { runs?: AgentRunListItem[] };
+			if (Array.isArray(payload.runs)) {
+				setRunHistory(payload.runs);
+			}
+		} catch (error) {
+			console.error("[PLAN] Failed to load sidebar run history:", error);
+		}
+	}, []);
+
+	useEffect(() => {
+		void fetchRunHistory();
+	}, [fetchRunHistory, runId, runStatus]);
+
+	useEffect(() => {
+		const handleVisibilityChange = () => {
+			if (document.visibilityState === "visible") {
+				void fetchRunHistory();
 			}
 		};
 
-		void loadRunHistory();
-
+		document.addEventListener("visibilitychange", handleVisibilityChange);
 		return () => {
-			cancelled = true;
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
-	}, [runId, runStatus]);
+	}, [fetchRunHistory]);
 
 	// ---- Callbacks ----
 
@@ -857,7 +865,7 @@ export function MakeProvider({ children }: MakerProviderProps) {
 
 	// ---- Context value ----
 
-	const state: MakerState = useMemo(
+	const state: MakeState = useMemo(
 		() => ({
 			sidebarOpen: isOpen,
 			sidebarHovered: isHovered,
@@ -941,7 +949,7 @@ export function MakeProvider({ children }: MakerProviderProps) {
 		],
 	);
 
-	const actions: MakerActions = useMemo(
+	const actions: MakeActions = useMemo(
 		() => ({
 			setSidebarOpen: setIsOpen,
 			handleHoverEnter,
@@ -1020,7 +1028,7 @@ export function MakeProvider({ children }: MakerProviderProps) {
 		],
 	);
 
-	const meta: MakerMeta = useMemo(
+	const meta: MakeMeta = useMemo(
 		() => ({
 			skills,
 			agents,
@@ -1037,15 +1045,15 @@ export function MakeProvider({ children }: MakerProviderProps) {
 		[skills, agents, skillDialogProps, agentDialogProps, sidebarConfigHandlers, importDialog, closeImportDialog, handleImport, deleteAlert, closeDeleteAlert, handleDeleteConfirm],
 	);
 
-	const contextValue: MakerContextValue = useMemo(
+	const contextValue: MakeContextValue = useMemo(
 		() => ({ state, actions, meta }),
 		[state, actions, meta],
 	);
 
 	return (
-		<MakerContext value={contextValue}>
+		<MakeContext value={contextValue}>
 			{children}
-		</MakerContext>
+		</MakeContext>
 	);
 }
 
@@ -1053,22 +1061,22 @@ export function MakeProvider({ children }: MakerProviderProps) {
 // Hooks
 // ---------------------------------------------------------------------------
 
-export function useMake(): MakerContextValue {
-	const context = use(MakerContext);
+export function useMake(): MakeContextValue {
+	const context = use(MakeContext);
 	if (context === null) {
 		throw new Error("usePlan must be used within a MakeProvider");
 	}
 	return context;
 }
 
-export function useMakeState(): MakerState {
+export function useMakeState(): MakeState {
 	return useMake().state;
 }
 
-export function useMakeActions(): MakerActions {
+export function useMakeActions(): MakeActions {
 	return useMake().actions;
 }
 
-export function useMakeMeta(): MakerMeta {
+export function useMakeMeta(): MakeMeta {
 	return useMake().meta;
 }

@@ -3,20 +3,20 @@
 import { useCallback, useState } from "react";
 import { useCreationModeActions } from "@/app/contexts/context-creation-mode";
 import type {
-	MakerSkill,
-	MakerSkillInput,
-	MakerAgent,
-	MakerAgentInput,
+	MakeSkill,
+	MakeSkillInput,
+	MakeAgent,
+	MakeAgentInput,
 } from "@/lib/make-config-types";
 
 interface ConfigDialogsInput {
-	skills: MakerSkill[];
-	agents: MakerAgent[];
-	createSkill: (data: MakerSkillInput) => Promise<unknown>;
-	updateSkill: (name: string, data: Partial<MakerSkillInput>) => Promise<unknown>;
+	skills: MakeSkill[];
+	agents: MakeAgent[];
+	createSkill: (data: MakeSkillInput) => Promise<unknown>;
+	updateSkill: (name: string, data: Partial<MakeSkillInput>) => Promise<unknown>;
 	deleteSkill: (name: string) => Promise<unknown>;
-	createAgent: (data: MakerAgentInput) => Promise<unknown>;
-	updateAgent: (name: string, data: Partial<MakerAgentInput>) => Promise<unknown>;
+	createAgent: (data: MakeAgentInput) => Promise<unknown>;
+	updateAgent: (name: string, data: Partial<MakeAgentInput>) => Promise<unknown>;
 	deleteAgent: (name: string) => Promise<unknown>;
 	exportSkill: (name: string) => Promise<void>;
 	exportAgent: (name: string) => Promise<void>;
@@ -27,22 +27,22 @@ interface ConfigDialogsInput {
 
 export interface SkillDialogProps {
 	open: boolean;
-	skill: MakerSkill | null;
-	agents: MakerAgent[];
+	skill: MakeSkill | null;
+	agents: MakeAgent[];
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: MakerSkillInput) => Promise<unknown>;
+	onSave: (data: MakeSkillInput) => Promise<unknown>;
 	onDelete: (name: string) => void;
 }
 
 export interface AgentDialogProps {
 	open: boolean;
-	agent: MakerAgent | null;
-	availableSkills: MakerSkill[];
+	agent: MakeAgent | null;
+	availableSkills: MakeSkill[];
 	availableTools: string[];
 	onOpenChange: (open: boolean) => void;
-	onSave: (data: MakerAgentInput) => Promise<unknown>;
+	onSave: (data: MakeAgentInput) => Promise<unknown>;
 	onDelete: (name: string) => void;
-	onDuplicate: (agent: MakerAgent) => void;
+	onDuplicate: (agent: MakeAgent) => void;
 }
 
 export interface ImportDialogState {
@@ -58,9 +58,9 @@ export interface DeleteAlertState {
 }
 
 export interface SidebarConfigHandlers {
-	onEditSkill: (skill: MakerSkill) => void;
+	onEditSkill: (skill: MakeSkill) => void;
 	onNewSkill: () => void;
-	onEditAgent: (agent: MakerAgent) => void;
+	onEditAgent: (agent: MakeAgent) => void;
 	onNewAgent: () => void;
 	onExportSkill: (name: string) => void;
 	onExportAgent: (name: string) => void;
@@ -85,8 +85,8 @@ export function useConfigDialogs({
 }: ConfigDialogsInput) {
 	const [skillDialogOpen, setSkillDialogOpen] = useState(false);
 	const [agentDialogOpen, setAgentDialogOpen] = useState(false);
-	const [editingSkill, setEditingSkill] = useState<MakerSkill | null>(null);
-	const [editingAgent, setEditingAgent] = useState<MakerAgent | null>(null);
+	const [editingSkill, setEditingSkill] = useState<MakeSkill | null>(null);
+	const [editingAgent, setEditingAgent] = useState<MakeAgent | null>(null);
 	const { setSkillCreationMode, setAgentCreationMode } = useCreationModeActions();
 
 	// Import dialog state
@@ -105,7 +105,7 @@ export function useConfigDialogs({
 
 	// ---- Skill handlers ----
 
-	const handleEditSkill = useCallback((skill: MakerSkill) => {
+	const handleEditSkill = useCallback((skill: MakeSkill) => {
 		setEditingSkill(skill);
 		setSkillDialogOpen(true);
 	}, []);
@@ -115,7 +115,7 @@ export function useConfigDialogs({
 	}, [setSkillCreationMode]);
 
 	const handleSaveSkill = useCallback(
-		async (data: MakerSkillInput) => {
+		async (data: MakeSkillInput) => {
 			if (editingSkill) {
 				await updateSkill(editingSkill.name, data);
 			} else {
@@ -127,7 +127,7 @@ export function useConfigDialogs({
 
 	// ---- Agent handlers ----
 
-	const handleEditAgent = useCallback((agent: MakerAgent) => {
+	const handleEditAgent = useCallback((agent: MakeAgent) => {
 		setEditingAgent(agent);
 		setAgentDialogOpen(true);
 	}, []);
@@ -137,7 +137,7 @@ export function useConfigDialogs({
 	}, [setAgentCreationMode]);
 
 	const handleSaveAgent = useCallback(
-		async (data: MakerAgentInput) => {
+		async (data: MakeAgentInput) => {
 			if (editingAgent) {
 				await updateAgent(editingAgent.name, data);
 			} else {
@@ -148,12 +148,12 @@ export function useConfigDialogs({
 	);
 
 	const handleDuplicateAgent = useCallback(
-		(agent: MakerAgent) => {
+		(agent: MakeAgent) => {
 			setAgentDialogOpen(false);
 			setEditingAgent(null);
 
 			// Open a "new" dialog pre-filled with duplicated data
-			const duplicatedAgent: MakerAgent = {
+			const duplicatedAgent: MakeAgent = {
 				...agent,
 				name: `${agent.name}-copy`,
 				isBuiltIn: false,

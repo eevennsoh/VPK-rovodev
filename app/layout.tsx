@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 import "streamdown/styles.css";
@@ -158,6 +159,19 @@ export default async function RootLayout({
 			suppressHydrationWarning
 		>
 			<head>
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            src="//unpkg.com/react-grab/dist/index.global.js"
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        )}
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            src="//unpkg.com/@react-grab/mcp/dist/client.global.js"
+            strategy="lazyOnload"
+          />
+        )}
 				<script dangerouslySetInnerHTML={{ __html: preHydrationScript }} />
 				{themeStyles.map((themeStyle) => (
 					<style

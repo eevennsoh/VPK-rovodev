@@ -1,4 +1,4 @@
-const MAKER_MODE_SOURCE = "plan-toggle";
+const MAKE_MODE_SOURCE = "plan-toggle";
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -16,7 +16,7 @@ function resolvePlanMode({
 	const requestedPlanMode = planMode === true;
 	const normalizedSource = getNonEmptyString(planModeSource);
 	const hasAllowedSource =
-		normalizedSource === MAKER_MODE_SOURCE;
+		normalizedSource === MAKE_MODE_SOURCE;
 
 	return {
 		enabled: requestedPlanMode && hasAllowedSource,
@@ -26,6 +26,6 @@ function resolvePlanMode({
 }
 
 module.exports = {
-	MAKER_MODE_SOURCE,
+	MAKE_MODE_SOURCE,
 	resolvePlanMode,
 };
