@@ -10,13 +10,17 @@ import {
 	type RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
 import {
+	buildClarificationSummaryDisplayLabel,
 	getLatestQuestionCardPayload,
 	buildClarificationDismissPrompt,
+	buildClarificationSummaryRows,
 	type ClarificationSubmission,
 	type ParsedQuestionCardPayload,
 } from "@/components/templates/shared/lib/question-card-widget";
 import {
 	buildPlanApprovalPrompt,
+	getPlanApprovalKeyFromSubmission,
+	type PlanApprovalDecision,
 	type PlanApprovalSubmission,
 } from "@/components/templates/shared/lib/plan-approval";
 import {
@@ -126,6 +130,11 @@ interface UsePlanChatReturn {
 		text: string;
 		threadId?: string | null;
 	}) => Promise<void>;
+	appendPlanApprovalMarker: (options: {
+		decision: PlanApprovalDecision;
+		planApprovalPlanKey?: string | null;
+		threadId?: string | null;
+	}) => Promise<void>;
 }
 
 function hasQuestionCardWidget(message: RovoUIMessage): boolean {
@@ -143,12 +152,8 @@ function hasQuestionCardWidget(message: RovoUIMessage): boolean {
 	});
 }
 
-function hasHiddenClarificationSubmission(message: RovoUIMessage): boolean {
+function hasClarificationSubmission(message: RovoUIMessage): boolean {
 	if (message.role !== "user") {
-		return false;
-	}
-
-	if (message.metadata?.visibility !== "hidden") {
 		return false;
 	}
 
@@ -193,7 +198,7 @@ export function useMakeChat(options: {
 	const hasCompletedInitialMakeInterview = useMemo(
 		() =>
 			uiMessages.some(hasQuestionCardWidget) ||
-			uiMessages.some(hasHiddenClarificationSubmission),
+			uiMessages.some(hasClarificationSubmission),
 		[uiMessages]
 	);
 
@@ -804,10 +809,26 @@ export function useMakeChat(options: {
 	]);
 
 	const submitClarification = useCallback(
-		async (promptText: string, clarification: ClarificationSubmission, questionCard?: ParsedQuestionCardPayload) => {
+		async (
+			promptText: string,
+			clarification: ClarificationSubmission,
+			questionCard?: ParsedQuestionCardPayload
+		) => {
 			if (!promptText.trim()) {
 				return;
 			}
+
+			const summaryRows = questionCard
+				? buildClarificationSummaryRows(questionCard, clarification.answers)
+				: [];
+			const displayLabel = questionCard
+				? buildClarificationSummaryDisplayLabel(questionCard, clarification.answers)
+				: "Requirements captured.";
+			const clarificationMetadata = {
+				source: "clarification-submit" as const,
+				displayLabel,
+				clarificationSummary: summaryRows,
+			};
 
 			// Check if this is a deferred tool request from RovoDev
 			const deferredToolCallId = questionCard?.deferredToolCallId;
@@ -827,10 +848,7 @@ export function useMakeChat(options: {
 						tool_call_id: deferredToolCallId,
 						result: clarification.answers,
 					},
-					messageMetadata: {
-						visibility: "hidden",
-						source: "clarification-submit",
-					},
+					messageMetadata: clarificationMetadata,
 				});
 			} else {
 				// Regular clarification flow for non-deferred tools
@@ -844,10 +862,7 @@ export function useMakeChat(options: {
 						: undefined,
 					planRequestId: planningSession?.requestId,
 					clarification,
-					messageMetadata: {
-						visibility: "hidden",
-						source: "clarification-submit",
-					},
+					messageMetadata: clarificationMetadata,
 				});
 			}
 		},
@@ -881,12 +896,15 @@ export function useMakeChat(options: {
 			if (!approvalPrompt) {
 				return;
 			}
+			const planApprovalPlanKey = getPlanApprovalKeyFromSubmission(approval);
 
 			await sendPrompt(approvalPrompt, {
 				approval,
 				messageMetadata: {
 					visibility: "hidden",
 					source: "plan-approval-submit",
+					planApprovalDecision: approval.decision,
+					planApprovalPlanKey: planApprovalPlanKey ?? undefined,
 				},
 			});
 		},
@@ -1240,6 +1258,92 @@ export function useMakeChat(options: {
 		[replaceMessages],
 	);
 
+	const appendPlanApprovalMarker = useCallback(
+		async (options: {
+			decision: PlanApprovalDecision;
+			planApprovalPlanKey?: string | null;
+			threadId?: string | null;
+		}) => {
+			const targetThreadId = options.threadId ?? activeChatIdRef.current;
+			if (!targetThreadId) {
+				return;
+			}
+
+			const planApprovalPlanKey = options.planApprovalPlanKey ?? null;
+			let shouldPersistUpdate = false;
+			let nextMessages: RovoUIMessage[] | null = null;
+			setThreads((previousThreads) => {
+				const thread = getThreadById({
+					threads: previousThreads,
+					chatId: targetThreadId,
+				});
+				if (!thread) {
+					return previousThreads;
+				}
+
+				const hasMatchingMarker = thread.messages.some((message) => {
+					if (message.role !== "user") {
+						return false;
+					}
+
+					if (message.metadata?.source !== "plan-approval-submit") {
+						return false;
+					}
+
+					return (
+						message.metadata?.planApprovalDecision === options.decision &&
+						message.metadata?.planApprovalPlanKey === planApprovalPlanKey
+					);
+				});
+				if (hasMatchingMarker) {
+					return previousThreads;
+				}
+
+				const approvalMarkerMessage: RovoUIMessage = {
+					id: `approval-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+					role: "user",
+					parts: [
+						{
+							type: "text",
+							text: "Plan approval submitted.",
+							state: "done",
+						},
+					],
+					metadata: {
+						visibility: "hidden",
+						source: "plan-approval-submit",
+						planApprovalDecision: options.decision,
+						planApprovalPlanKey: planApprovalPlanKey ?? undefined,
+					},
+				};
+
+				nextMessages = [...thread.messages, approvalMarkerMessage];
+				shouldPersistUpdate = true;
+				return updateThreadMessages({
+					threads: previousThreads,
+					chatId: targetThreadId,
+					messages: nextMessages,
+					updatedAt: Date.now(),
+					maxThreads: MAKE_THREAD_RETENTION_LIMIT,
+				});
+			});
+
+			if (!shouldPersistUpdate || !nextMessages) {
+				return;
+			}
+
+			if (activeChatIdRef.current === targetThreadId) {
+				replaceMessages(nextMessages);
+			}
+
+			updateThreadOnServer(targetThreadId, {
+				messages: nextMessages,
+				updatedAt: new Date().toISOString(),
+			});
+		},
+		[replaceMessages],
+	);
+
 	return {
 		prompt,
 		setPrompt,
@@ -1269,5 +1373,6 @@ export function useMakeChat(options: {
 		handleDeleteMessage,
 		createThreadWithMessages,
 		appendAssistantTextMessage,
+		appendPlanApprovalMarker,
 	};
 }

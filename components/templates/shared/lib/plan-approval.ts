@@ -22,6 +22,34 @@ export interface PlanApprovalSubmission extends PlanApprovalSelection {
 	planTasks?: PlanApprovalTaskInfo[];
 }
 
+function toNonEmptyString(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+
+	const trimmedValue = value.trim();
+	return trimmedValue.length > 0 ? trimmedValue : null;
+}
+
+export function serializePlanApprovalKey(
+	planTitle: string,
+	taskIds: ReadonlyArray<string>,
+): string | null {
+	const normalizedTitle = toNonEmptyString(planTitle);
+	if (!normalizedTitle) {
+		return null;
+	}
+
+	const normalizedTaskIds = taskIds
+		.map((taskId) => toNonEmptyString(taskId))
+		.filter((taskId): taskId is string => taskId !== null);
+	if (normalizedTaskIds.length === 0) {
+		return null;
+	}
+
+	return `${normalizedTitle}-${normalizedTaskIds.join("|")}`;
+}
+
 function extractTaskInfo(tasks: ReadonlyArray<ParsedPlanTask>): PlanApprovalTaskInfo[] {
 	return tasks
 		.filter((task) => task.label.trim().length > 0)
@@ -44,6 +72,28 @@ export function createPlanApprovalSubmission(
 		planTitle: planWidget?.title?.trim() || undefined,
 		planTasks: planWidget ? extractTaskInfo(planWidget.tasks) : [],
 	};
+}
+
+export function getPlanApprovalKeyFromPlanWidget(
+	planWidget: ParsedPlanWidgetPayload | null,
+): string | null {
+	if (!planWidget) {
+		return null;
+	}
+
+	return serializePlanApprovalKey(
+		planWidget.title,
+		planWidget.tasks.map((task) => task.id),
+	);
+}
+
+export function getPlanApprovalKeyFromSubmission(
+	submission: Readonly<PlanApprovalSubmission>,
+): string | null {
+	return serializePlanApprovalKey(
+		submission.planTitle ?? "",
+		(submission.planTasks ?? []).map((task) => task.id),
+	);
 }
 
 function getDecisionLabel(decision: PlanApprovalDecision): string {

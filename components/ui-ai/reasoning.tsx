@@ -383,7 +383,7 @@ export const Reasoning = memo(
 	}
 );
 
-const COMPLETED_STATUS_PREFIXES = ["used", "completed"] as const;
+const COMPLETED_STATUS_PREFIXES = ["used", "completed", "thought for"] as const;
 const ROVO_COOKING_SHIMMER_PROPS = {
 	duration: 1,
 	spread: 1.4,

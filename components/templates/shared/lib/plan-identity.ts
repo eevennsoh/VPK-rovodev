@@ -4,7 +4,7 @@ interface PlanTaskLike {
 
 const DEFAULT_FALLBACK_TITLE = "Untitled task run";
 const DEFAULT_EMOJI = "📋";
-const TITLE_MAX_WORDS = 8;
+const TITLE_MAX_WORDS = 6;
 const FALLBACK_EMOJI_POOL = ["📋", "🧭", "🛠️", "⚙️", "🧠", "🧩", "📌", "🗂️"];
 
 const GENERIC_PLAN_TITLE_SET = new Set([
@@ -67,6 +67,29 @@ function normalizePlanTitleCandidate(value: string): string {
 	);
 }
 
+/**
+ * Strip file paths (e.g. "lib/types.ts", "src/components/Button.tsx") and
+ * code-like tokens (e.g. "useState", "handleClick") that make poor display titles.
+ */
+function stripCodeArtifacts(value: string): string {
+	return (
+		value
+			// Remove file paths like "in lib/foo-bar.ts" or standalone "src/components/X.tsx"
+			.replace(/\b(?:in\s+)?(?:[\w@.-]+\/)+[\w.-]+\b/g, "")
+			// Remove words that look like code identifiers (camelCase, snake_case with 2+ segments)
+			.replace(/\b[a-z]+(?:[A-Z][a-z]+){2,}\b/g, "")
+			// Remove leftover "in" preposition when its object was stripped
+			.replace(/\bin\s*$/i, "")
+			.trim()
+	);
+}
+
+function isUsableTitle(value: string): boolean {
+	const words = normalizeWhitespace(value).split(" ").filter(Boolean);
+	// Need at least 2 meaningful words for a title
+	return words.length >= 2;
+}
+
 function extractTaskHeadingFromLabel(label: string): string {
 	const normalized = normalizePlanTitleCandidate(stripTaskPrefix(label));
 	if (!normalized) {
@@ -74,12 +97,15 @@ function extractTaskHeadingFromLabel(label: string): string {
 	}
 
 	const emDashIndex = normalized.indexOf("—");
-	if (emDashIndex === -1) {
-		return normalized;
-	}
+	const raw =
+		emDashIndex === -1
+			? normalized
+			: normalizePlanTitleCandidate(normalized.slice(0, emDashIndex)) ||
+				normalized;
 
-	const heading = normalizePlanTitleCandidate(normalized.slice(0, emDashIndex));
-	return heading || normalized;
+	// Strip code artifacts for a cleaner display title
+	const cleaned = normalizeWhitespace(stripCodeArtifacts(raw));
+	return isUsableTitle(cleaned) ? cleaned : raw;
 }
 
 export function isGenericPlanTitle(title: string): boolean {
@@ -125,14 +151,18 @@ export function resolvePlanDisplayTitle(
 	options?: Readonly<{ fallbackTitle?: string; maxWords?: number }>
 ): string {
 	const fallbackTitle = options?.fallbackTitle ?? DEFAULT_FALLBACK_TITLE;
+	const maxWords = options?.maxWords ?? TITLE_MAX_WORDS;
 	const normalizedTitle = rawTitle ? normalizePlanTitleCandidate(rawTitle) : "";
 	if (normalizedTitle && !isGenericPlanTitle(normalizedTitle)) {
-		return normalizedTitle;
+		// Clean code artifacts and truncate even raw titles
+		const cleaned = normalizeWhitespace(stripCodeArtifacts(normalizedTitle));
+		const candidate = isUsableTitle(cleaned) ? cleaned : normalizedTitle;
+		return truncateWords(candidate, maxWords);
 	}
 
 	return derivePlanTitleFromTasks(tasks, {
 		fallbackTitle,
-		maxWords: options?.maxWords,
+		maxWords,
 	});
 }
 
@@ -154,4 +184,41 @@ export function derivePlanEmojiFromTitle(title: string): string {
 	}
 
 	return FALLBACK_EMOJI_POOL[hash % FALLBACK_EMOJI_POOL.length] ?? DEFAULT_EMOJI;
+}
+
+/**
+ * Clean up a raw plan description for display in the card header.
+ * Strips markdown rules, code fences, and truncates with ellipsis.
+ */
+export function sanitizePlanDescription(
+	raw: string | undefined,
+	taskCount: number
+): string {
+	const prefix = `${taskCount} task${taskCount === 1 ? "" : "s"}`;
+
+	if (!raw) {
+		return prefix;
+	}
+
+	const cleaned = raw
+		// Strip markdown horizontal rules (---, ***, ___)
+		.replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, "")
+		// Strip code fences
+		.replace(/```[\s\S]*?```/g, "")
+		// Strip inline code
+		.replace(/`([^`\n]+)`/g, "$1")
+		// Strip markdown headings
+		.replace(/^#{1,6}\s*/gm, "")
+		// Strip bold/italic
+		.replace(/\*\*([^*\n]+)\*\*/g, "$1")
+		.replace(/__([^_\n]+)__/g, "$1")
+		// Collapse whitespace
+		.replace(/\s+/g, " ")
+		.trim();
+
+	if (!cleaned) {
+		return prefix;
+	}
+
+	return `${prefix} • ${cleaned}`;
 }

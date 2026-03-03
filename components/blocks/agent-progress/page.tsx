@@ -69,6 +69,32 @@ function getElapsedSeconds(runCreatedAt: string | null, runCompletedAt: string |
 	return Math.max(0, Math.floor((endTime - startTime) / 1000));
 }
 
+function resolveInitialNowMs({
+	initialNowMs,
+	runCreatedAt,
+	runCompletedAt,
+}: Readonly<{
+	initialNowMs?: number;
+	runCreatedAt: string | null;
+	runCompletedAt: string | null;
+}>): number {
+	if (typeof initialNowMs === "number" && Number.isFinite(initialNowMs)) {
+		return initialNowMs;
+	}
+
+	const completedTime = runCompletedAt ? Date.parse(runCompletedAt) : Number.NaN;
+	if (Number.isFinite(completedTime)) {
+		return completedTime;
+	}
+
+	const createdTime = runCreatedAt ? Date.parse(runCreatedAt) : Number.NaN;
+	if (Number.isFinite(createdTime)) {
+		return createdTime;
+	}
+
+	return 0;
+}
+
 function TaskStatusIcon({ status }: Readonly<{ status: IconStatus }>) {
 	if (status === "done") {
 		return <CheckCircleIcon label="" size="small" color={token("color.icon.success")} />;
@@ -150,7 +176,7 @@ function TaskGroupRow({
 						e.stopPropagation();
 						setExpanded((prev) => !prev);
 					}}
-					className="inline-flex items-center gap-1 rounded-sm px-1 hover:bg-bg-neutral-subtle-hovered"
+					className="inline-flex items-center gap-1 rounded-sm px-1"
 				>
 					<span className="inline-flex h-4 min-w-6 items-center justify-center rounded-[2px] bg-bg-neutral px-1 text-xs text-text">{count}</span>
 					{expanded ? <ChevronDownIcon label="" size="small" /> : <ChevronRightIcon label="" size="small" />}
@@ -220,6 +246,7 @@ interface AgentsProgressProps {
 	runStatus?: RunStatus;
 	runCreatedAt?: string | null;
 	runCompletedAt?: string | null;
+	initialNowMs?: number;
 	showSummaryRainbow?: boolean;
 	runCount?: number;
 	agentCount?: number;
@@ -241,6 +268,7 @@ export default function AgentsProgress({
 	runStatus = "running",
 	runCreatedAt = new Date(Date.now() - 651_000).toISOString(),
 	runCompletedAt = null,
+	initialNowMs,
 	showSummaryRainbow = false,
 	runCount = 1,
 	agentCount = 10,
@@ -252,7 +280,13 @@ export default function AgentsProgress({
 	className,
 }: Readonly<AgentsProgressProps>) {
 	const [collapsed, setCollapsed] = useState(defaultCollapsed);
-	const [nowMs, setNowMs] = useState(() => Date.now());
+	const [nowMs, setNowMs] = useState(() =>
+		resolveInitialNowMs({
+			initialNowMs,
+			runCreatedAt: runCreatedAt ?? null,
+			runCompletedAt: runCompletedAt ?? null,
+		})
+	);
 	const [retryingGroupKey, setRetryingGroupKey] =
 		useState<RetryableStatusGroupKey | null>(null);
 	const isInteractive = isCollapsible || typeof onCardClick === "function";
@@ -271,7 +305,7 @@ export default function AgentsProgress({
 	const statusGroups = useMemo(() => buildStatusGroups(taskStatusGroups), [taskStatusGroups]);
 	const runStatusLabel = getRunStatusLabel(runStatus);
 	const runStatusToneClass = getRunStatusToneClass(runStatus);
-	const statusText = runStatus === "running" ? `${agentCount} agents cooking` : runStatusLabel;
+	const statusText = runStatus === "running" ? `${agentCount} ${agentCount === 1 ? "agent" : "agents"} cooking` : runStatusLabel;
 	const handleCardActivate = () => {
 		if (isCollapsible) {
 			setCollapsed((prev) => !prev);
@@ -320,7 +354,7 @@ export default function AgentsProgress({
 		>
 			<style dangerouslySetInnerHTML={{ __html: CARD_ANIMATION_STYLES }} />
 			<div className="flex flex-col gap-3 px-4 py-3">
-				<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between gap-3">
 					<div className="flex min-w-0 items-center gap-3">
 						<div className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg-neutral">
 							{showSummaryRainbow ? (
@@ -370,7 +404,7 @@ export default function AgentsProgress({
 
 						<div className="flex items-center gap-1">
 							<span className="text-xs leading-4 text-text-subtlest">
-								{runCount} {runCount === 1 ? "run" : "runs"}
+								{runCount} {runCount === 1 ? "task" : "tasks"}
 							</span>
 							<span className="text-xs leading-4 text-text-subtlest">•</span>
 							{runStatus === "running" ? (

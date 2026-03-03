@@ -27,6 +27,15 @@ const REQUEST_USER_INPUT_INSTRUCTION = [
 	"[End Clarification Protocol]",
 ].join("\n");
 
+const PLAN_DESCRIPTION_INSTRUCTION = [
+	"[Plan Description Protocol]",
+	"When calling create-plan (or any tool that produces a plan widget), keep the plan `description` field to a single short phrase — ideally under 60 characters.",
+	"Describe the goal, not the implementation steps. Omit routing details, page paths, and technical specifics — those belong in task labels.",
+	"Good examples: \"IT asset management page\", \"Refactor auth to use JWT\", \"Add dark mode support\".",
+	"Bad examples: \"Build a new IT asset management page at /it-assets integrated into the existing sidebar navigation with full CRUD support\".",
+	"[End Plan Description Protocol]",
+].join("\n");
+
 const FIGMA_CLARIFICATION_INSTRUCTION = [
 	"[Figma Tool Protocol]",
 	"When the user mentions Figma, design context, or asks about a Figma design, you MUST first use the `ask_user_questions` tool to gather the following before calling any Figma MCP tools:",
@@ -50,8 +59,107 @@ const LAST_7_DAYS_WORK_INSTRUCTION = [
 	"[End Work Summary Scope]",
 ].join("\n");
 
+const STANDUP_SUMMARY_INSTRUCTION = [
+	"[Standup Summary Protocol]",
+	"For this request, generate a daily standup summary from the user's Jira activity.",
+	`Use site_url: "https://product-fabric.atlassian.net".`,
+	"Search for Jira work items assigned to the current user updated in the last 24 hours using JQL: assignee = currentUser() AND updated >= -24h ORDER BY updated DESC",
+	"Classify each work item into one of three buckets based on its status:",
+	'- **Done**: statuses containing "done", "closed", "resolved", "completed", "merged", "released", "shipped"',
+	'- **In Progress**: statuses containing "in progress", "in review", "in development", "ready for", "active", "open"',
+	'- **Blockers**: statuses containing "blocked", "on hold", "needs refinement", "impediment", "waiting", "escalated"',
+	"Present the summary in Done / Doing / Blockers format with:",
+	"1. A metrics row showing counts for each bucket",
+	"2. Grouped work item lists with status lozenges, priority badges, and links",
+	"3. If no work items are found, show a friendly empty state message",
+	"Use Lozenge variants: success for Done, information for In Progress, danger for Blockers.",
+	"[End Standup Summary Protocol]",
+].join("\n");
+
+const STANDUP_PATTERN = /\b(standup|stand[\s-]?up|daily\s+summary|daily\s+standup|standup\s+summary)\b/i;
+const STANDUP_CONTEXT_PATTERN = /\b(jira|work\s+items?|activity|status|what\s+did\s+i|what\s+i\s+did|my\s+updates?)\b/i;
+
+const TICKET_CLASSIFIER_INSTRUCTION = [
+	"[Ticket Classifier Protocol]",
+	"For this request, classify and route incoming support tickets from Jira.",
+	`Use site_url: "https://product-fabric.atlassian.net".`,
+	'Search for open support tickets using JQL: project = "SUPPORT" AND status NOT IN ("Done", "Closed", "Resolved") ORDER BY created DESC',
+	"For each ticket, classify it into one of six product area categories based on its summary, description, labels, and components:",
+	'- **Billing**: keywords like "invoice", "payment", "charge", "subscription", "refund", "pricing"',
+	'- **Account**: keywords like "login", "password", "SSO", "permissions", "access", "MFA"',
+	'- **Technical**: keywords like "bug", "error", "crash", "performance", "timeout", "outage"',
+	'- **Onboarding**: keywords like "setup", "getting started", "tutorial", "configuration"',
+	'- **API / Integration**: keywords like "API", "webhook", "REST", "endpoint", "SDK", "OAuth"',
+	'- **Documentation**: keywords like "docs", "guide", "how to", "instructions", "FAQ"',
+	"Also infer a priority (P1–P4) from the Jira priority and urgency keywords in the text.",
+	"For each classified ticket, present:",
+	"1. A rich card with the ticket key, summary, category Lozenge, priority Badge, and confidence score",
+	"2. Suggested team for routing (do NOT auto-assign)",
+	"3. If confidence is below 50%, show a low-confidence warning",
+	"Use Lozenge variants: warning for Billing, discovery for Account, danger for Technical, success for Onboarding, accent-teal for API/Integration, information for Documentation.",
+	"[End Ticket Classifier Protocol]",
+].join("\n");
+
+const TICKET_CLASSIFIER_PATTERN = /\b(classify|categorize|triage|route|sort)\s+.{0,20}\b(ticket|support|request|incident)s?\b/i;
+const TICKET_CLASSIFIER_DIRECT_PATTERN = /\b(ticket\s+classif|support\s+ticket|triage\s+ticket|classify\s+.*ticket|route\s+.*ticket|incoming\s+ticket)/i;
+
 const LAST_7_DAYS_WINDOW_PATTERN = /\b(?:last|past)\s+7\s+days?\b|\b7[-\s]?day\b|\blast\s+week\b/i;
 const WORK_SUMMARY_PATTERN = /\b(work|activity|summary|updates?)\b/i;
+
+function isStandupSummaryPrompt(message) {
+	if (typeof message !== "string" || message.trim().length === 0) {
+		return false;
+	}
+
+	// Direct standup request (e.g. "summarize my standup", "daily standup")
+	if (STANDUP_PATTERN.test(message)) {
+		return true;
+	}
+
+	// Contextual standup request (e.g. "what did I do today in Jira")
+	const hasTodayContext = /\b(today|yesterday|this\s+morning|last\s+24|past\s+24)\b/i.test(message);
+	return hasTodayContext && STANDUP_CONTEXT_PATTERN.test(message);
+}
+
+function hasStandupGuardrail(contextDescription) {
+	if (typeof contextDescription !== "string" || contextDescription.trim().length === 0) {
+		return false;
+	}
+
+	return (
+		contextDescription.includes("[Standup Summary Protocol]") &&
+		contextDescription.includes("product-fabric.atlassian.net")
+	);
+}
+
+function isTicketClassifierPrompt(message) {
+	if (typeof message !== "string" || message.trim().length === 0) {
+		return false;
+	}
+
+	// Direct classifier request (e.g. "classify my support tickets", "triage incoming tickets")
+	if (TICKET_CLASSIFIER_PATTERN.test(message)) {
+		return true;
+	}
+
+	// Alternative phrasing (e.g. "support ticket classification", "route incoming tickets")
+	if (TICKET_CLASSIFIER_DIRECT_PATTERN.test(message)) {
+		return true;
+	}
+
+	return false;
+}
+
+function hasTicketClassifierGuardrail(contextDescription) {
+	if (typeof contextDescription !== "string" || contextDescription.trim().length === 0) {
+		return false;
+	}
+
+	return (
+		contextDescription.includes("[Ticket Classifier Protocol]") &&
+		contextDescription.includes("product-fabric.atlassian.net")
+	);
+}
 
 function isSevenDayWorkSummaryPrompt(message) {
 	if (typeof message !== "string" || message.trim().length === 0) {
@@ -77,13 +185,31 @@ function hasLast7DaysWorkGuardrail(contextDescription) {
 }
 
 function resolvePromptSpecificInstruction(message, contextDescription) {
+	// Standup summary (check first — more specific than 7-day work summary)
+	if (hasStandupGuardrail(contextDescription)) {
+		return null;
+	}
+	if (isStandupSummaryPrompt(message)) {
+		return STANDUP_SUMMARY_INSTRUCTION;
+	}
+
+	// Ticket classifier
+	if (hasTicketClassifierGuardrail(contextDescription)) {
+		return null;
+	}
+	if (isTicketClassifierPrompt(message)) {
+		return TICKET_CLASSIFIER_INSTRUCTION;
+	}
+
+	// 7-day work summary
 	if (hasLast7DaysWorkGuardrail(contextDescription)) {
 		return null;
 	}
+	if (isSevenDayWorkSummaryPrompt(message)) {
+		return LAST_7_DAYS_WORK_INSTRUCTION;
+	}
 
-	return isSevenDayWorkSummaryPrompt(message)
-		? LAST_7_DAYS_WORK_INSTRUCTION
-		: null;
+	return null;
 }
 
 /**
@@ -121,6 +247,7 @@ function buildUserMessage(message, conversationHistory, contextDescription) {
 	);
 	const instructions = [
 		REQUEST_USER_INPUT_INSTRUCTION,
+		PLAN_DESCRIPTION_INSTRUCTION,
 		FIGMA_CLARIFICATION_INSTRUCTION,
 		promptSpecificInstruction,
 	]

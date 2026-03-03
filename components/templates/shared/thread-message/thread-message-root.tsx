@@ -5,6 +5,7 @@ import { useDynamicThinkingLabel } from "@/components/templates/shared/hooks/use
 import {
 	getAllDataParts,
 	hasCreatePlanSkillSignal,
+	hasTurnCompleteSignal,
 	getLatestDataPart,
 	getMessageReasoning,
 	getMessageSources,
@@ -271,6 +272,7 @@ function useThreadMessageDerived(
 		autoIdle: false,
 		minPreloadMs: 0,
 	});
+	const hasTurnComplete = hasTurnCompleteSignal(message);
 	const hasToolFirstWarning =
 		Boolean(toolFirstWarning?.message) && !isStreaming;
 
@@ -283,6 +285,7 @@ function useThreadMessageDerived(
 		assistantStreamingRenderMode !== "text-first";
 	const thinkingStatusReasoningPhase: ReasoningPhase = (() => {
 		if (!effectiveIsThinkingStatusActive) return "idle";
+		if (hasTurnComplete && !isThinkingLifecycleStreaming) return "completed";
 		if (!hasBackendThinkingActivity) return isStreaming ? "preload" : "idle";
 		if (isPostToolsGenuiGeneration) return "thinking";
 		if (hasWidgetOutput) return "completed";
@@ -391,6 +394,7 @@ function useThreadMessageDerived(
 			isThinkingStatusActive: effectiveIsThinkingStatusActive,
 			thinkingStatusReasoningPhase,
 			thinkingStatusDuration,
+			hasTurnComplete,
 			isPostToolsGenuiGeneration,
 			thinkingToolCallsForStatus,
 			sources,
@@ -420,12 +424,14 @@ function useThreadMessageDerived(
 			effectiveIsThinkingStatusActive,
 			thinkingStatusReasoningPhase,
 			thinkingStatusDuration,
+			hasTurnComplete,
 			isPostToolsGenuiGeneration,
 			hasToolFirstWarning,
 			suggestedQuestions.length,
 			routeDecision?.reason,
 			thinkingStatusUpdateSignal,
 			resolvedThinkingStatusLabel,
+			isThinkingLifecycleStreaming,
 		]
 	);
 }
@@ -454,6 +460,7 @@ export function ThreadMessageRoot({
 		return (
 			<UserMessageBubble
 				messageText={displayLabel || contextValue.rawMessageText}
+				metadata={message.metadata}
 				onDelete={
 					onDeleteMessage
 						? () => onDeleteMessage(message.id)

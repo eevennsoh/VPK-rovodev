@@ -305,13 +305,13 @@ function getGenuiSummarySystemPrompt() {
 		"Requirements:",
 		"- Create a cohesive dashboard that summarizes the plan execution results.",
 		"- Use Metric components for key statistics (tasks completed, success rate, etc.).",
+		"- ALWAYS include at least one chart (BarChart, PieChart, LineChart, or AreaChart) to visualize task data — e.g. task status distribution (PieChart), tasks per agent (BarChart), or completion over time (LineChart). Charts are mandatory, not optional.",
 		"- Use Card components to organize task outcomes by agent or theme.",
 		"- Use Lozenge for task statuses (done, failed, blocked).",
-		"- Use ProgressTracker to show the overall execution flow.",
 		"- Use Tabs to organize different views of the data (overview, details, next actions).",
-		"- Use BarChart or PieChart if the data lends itself to visualization.",
 		"- Include interactive elements where appropriate (collapsible sections, tabs).",
 		"- Include a section for recommended next actions.",
+		"- Do NOT use ProgressTracker — it is not available in the catalog.",
 		"- Output exactly one ```spec block with valid JSON patch lines.",
 	];
 

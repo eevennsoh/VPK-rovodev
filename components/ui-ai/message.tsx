@@ -360,7 +360,7 @@ const safeCodePlugin: typeof baseCodePlugin = {
 	},
 };
 
-const streamdownPlugins = { cjk, code: safeCodePlugin, math, mermaid };
+export const streamdownPlugins = { cjk, code: safeCodePlugin, math, mermaid };
 
 const inlineStreamTags = new Set([
 	"a",

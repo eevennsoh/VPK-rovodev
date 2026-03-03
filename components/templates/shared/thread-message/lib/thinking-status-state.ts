@@ -1,3 +1,6 @@
+import type { ReasoningPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
+import { getReasoningCompletedLabel } from "@/components/templates/shared/lib/reasoning-labels";
+
 interface ResolveThinkingStatusActiveOptions {
 	hasThinkingStatusPart: boolean;
 	hasThinkingEvents: boolean;
@@ -16,6 +19,16 @@ interface ResolvePostToolsGenuiGenerationOptions {
 	isWidgetLoading: boolean;
 	hasAnyToolCalls: boolean;
 	hasRunningToolCalls: boolean;
+}
+
+interface ResolveThinkingStatusTriggerLabelOptions {
+	resolvedLabel: string;
+	reasoningPhase: ReasoningPhase;
+	duration: number | undefined;
+}
+
+function formatReasoningCompletedLabel(duration: number | undefined): string {
+	return getReasoningCompletedLabel(duration);
 }
 
 export function isThinkingStatusActive({
@@ -60,4 +73,21 @@ export function isPostToolsGenuiGeneration({
 		hasAnyToolCalls &&
 		!hasRunningToolCalls
 	);
+}
+
+export function resolveThinkingStatusTriggerLabel({
+	resolvedLabel,
+	reasoningPhase,
+	duration,
+}: Readonly<ResolveThinkingStatusTriggerLabelOptions>): string {
+	const hasCompletedDuration =
+		typeof duration === "number" &&
+		Number.isFinite(duration) &&
+		duration > 0;
+
+	if (reasoningPhase === "completed" && !hasCompletedDuration) {
+		return formatReasoningCompletedLabel(duration);
+	}
+
+	return resolvedLabel;
 }

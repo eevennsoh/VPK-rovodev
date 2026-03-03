@@ -92,6 +92,31 @@ export const catalog = defineCatalog(schema, {
 			description: "Responsive CSS grid layout container",
 			example: { columns: "3", gap: "md" },
 		},
+		AspectRatio: {
+			props: z.object({
+				ratio: z.number(),
+			}),
+			slots: ["default"],
+			description: "Layout container that maintains a fixed aspect ratio. Useful for image and video containers.",
+			example: { ratio: 16 / 9 },
+		},
+		ScrollArea: {
+			props: z.object({
+				maxHeight: z.string().nullable(),
+				className: z.string().nullable(),
+			}),
+			slots: ["default"],
+			description: "Scrollable content area with custom scrollbars. Use maxHeight to constrain height (e.g. '300px').",
+			example: { maxHeight: "300px" },
+		},
+		Carousel: {
+			props: z.object({
+				orientation: z.enum(["horizontal", "vertical"]).nullable(),
+			}),
+			slots: ["default"],
+			description: "Content carousel with previous/next navigation. Each child becomes a slide.",
+			example: { orientation: "horizontal" },
+		},
 		Breadcrumb: {
 			props: z.object({
 				items: z.array(
@@ -139,16 +164,16 @@ export const catalog = defineCatalog(schema, {
 			description: "Section heading element. Do not append colons or punctuation to heading text.",
 			example: { text: "Project Overview", level: "h2" },
 		},
-			Text: {
-				props: z.object({
-					content: z.string(),
-					muted: z.boolean().nullable(),
-					size: z.enum(["xs", "sm", "base"]).nullable(),
-				}),
-				slots: [],
-				description: "Text content paragraph. Use muted for secondary text.",
-				example: { content: "Here is your data overview.", muted: null, size: "sm" },
-			},
+		Text: {
+			props: z.object({
+				content: z.string(),
+				muted: z.boolean().nullable(),
+				size: z.enum(["xs", "sm", "base"]).nullable(),
+			}),
+			slots: [],
+			description: "Text content paragraph. Use muted for secondary text.",
+			example: { content: "Here is your data overview.", muted: null, size: "sm" },
+		},
 
 		// ── Data Display ───────────────────────────────────
 		Badge: {
@@ -888,22 +913,22 @@ export const catalog = defineCatalog(schema, {
 			props: z.object({
 				steps: z.array(
 					z.object({
+						id: z.string(),
 						label: z.string(),
 						state: z.enum(["todo", "current", "done"]).nullable(),
 					}),
 				),
 			}),
 			slots: [],
-			description: "Multi-step progress tracker for workflows",
+			description: "Vertical step tracker showing ordered steps with todo/current/done states. Use for multi-step workflows, onboarding checklists, and process tracking.",
 			example: {
 				steps: [
-					{ label: "Planning", state: "done" },
-					{ label: "Development", state: "current" },
-					{ label: "Review", state: "todo" },
+					{ id: "step-1", label: "Create account", state: "done" },
+					{ id: "step-2", label: "Verify email", state: "current" },
+					{ id: "step-3", label: "Set up profile", state: "todo" },
 				],
 			},
 		},
-
 		// ── Overlay & Trigger ─────────────────────────────
 		Collapsible: {
 			props: z.object({
@@ -946,6 +971,29 @@ export const catalog = defineCatalog(schema, {
 			slots: [],
 			description: 'Date picker input. Value is an ISO date string (YYYY-MM-DD). Use { "$bindState": "/path" } for two-way binding.',
 			example: { label: "Start date", value: { $bindState: "/startDate" }, placeholder: "Select date" },
+		},
+		TimePicker: {
+			props: z.object({
+				value: z.string().nullable(),
+				placeholder: z.string().nullable(),
+				label: z.string().nullable(),
+				stepMinutes: z.enum(["15", "30", "60"]).nullable(),
+				disabled: z.boolean().nullable(),
+			}),
+			slots: [],
+			description: 'Time picker dropdown with configurable step intervals. Value is HH:MM format. Use { "$bindState": "/path" } for two-way binding.',
+			example: { label: "Start time", value: { $bindState: "/startTime" }, placeholder: "Select time", stepMinutes: "30" },
+		},
+		DateTimePicker: {
+			props: z.object({
+				date: z.string().nullable(),
+				time: z.string().nullable(),
+				label: z.string().nullable(),
+				disabled: z.boolean().nullable(),
+			}),
+			slots: [],
+			description: 'Combined date and time picker. Date is ISO (YYYY-MM-DD), time is HH:MM. Use { "$bindState": "/path" } for two-way binding on date and time independently.',
+			example: { label: "Event start", date: { $bindState: "/eventDate" }, time: { $bindState: "/eventTime" } },
 		},
 		InlineEdit: {
 			props: z.object({

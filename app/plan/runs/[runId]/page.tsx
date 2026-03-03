@@ -95,6 +95,20 @@ function parseFetchFailure(error: unknown, fallbackMessage: string): string {
 	return trimmedMessage;
 }
 
+function resolveInitialNowMs(run: AgentRun): number | undefined {
+	const updatedAtMs = Date.parse(run.updatedAt);
+	if (Number.isFinite(updatedAtMs)) {
+		return updatedAtMs;
+	}
+
+	const createdAtMs = Date.parse(run.createdAt);
+	if (Number.isFinite(createdAtMs)) {
+		return createdAtMs;
+	}
+
+	return undefined;
+}
+
 async function fetchJson<TPayload>(url: string, fallbackMessage: string): Promise<FetchJsonResult<TPayload>> {
 	try {
 		const response = await fetch(url, { cache: "no-store" });
@@ -174,12 +188,14 @@ export default async function PlanRunSummaryPage({ params }: Readonly<RunSummary
 		summaryResult.payload?.genuiSummary ?? resolvedRun.genuiSummary ?? null;
 	const initialArtifacts =
 		filesResult.payload?.artifacts ?? resolvedRun.artifacts ?? [];
+	const initialNowMs = resolveInitialNowMs(resolvedRun);
 
 	return (
 		<div className="bg-surface">
 			<RunWorkspace
 				runId={runId}
 				initialRun={resolvedRun}
+				initialNowMs={initialNowMs}
 				initialSummary={initialSummary}
 				initialVisualSummary={initialVisualSummary}
 				initialGenuiSummary={initialGenuiSummary}

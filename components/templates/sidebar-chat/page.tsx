@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useCallback, useRef, useState, type CSSProperties } from "react";
 import { useRovoChat } from "@/app/contexts";
+import { token } from "@/lib/tokens";
 import type { SendPromptOptions } from "@/app/contexts";
 import { Conversation, ConversationContent } from "@/components/ui-ai/conversation";
-import { Message } from "@/components/ui-ai/message";
-import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import { MessageTurns } from "@/components/templates/shared/message-turns";
 import { isRenderableRovoUIMessage } from "@/lib/rovo-ui-messages";
 import {
@@ -28,7 +27,6 @@ import ChatComposer from "./components/chat-composer";
 import MessageBubble from "./components/message-bubble";
 import { StreamingThinkingIndicator } from "./components/streaming-thinking-indicator";
 import { PreloadThinkingIndicator } from "@/components/templates/shared/components/preload-thinking-indicator";
-import { getAwaitingUserResponseLabel } from "@/components/templates/shared/lib/reasoning-labels";
 import { chatStyles } from "./data/styles";
 import { useChatSubmit } from "./hooks/use-chat-submit";
 import { useScrollAnchor } from "./hooks/use-scroll-anchor";
@@ -39,11 +37,19 @@ interface ChatPanelCardsProps {
 	generativeAnimation?: GenerativeCardAnimationProps;
 }
 
+interface ChatPanelGreetingProps {
+	heading?: string;
+	illustrationSrc?: string;
+	illustrationDarkSrc?: string;
+	suggestions?: ReadonlyArray<RovoSuggestion>;
+}
+
 interface ChatPanelProps {
 	onClose: () => void;
 	sendPromptOptions?: SendPromptOptions;
 	enableSmartWidgets?: boolean;
 	cards?: ChatPanelCardsProps;
+	greeting?: ChatPanelGreetingProps;
 	hideHeader?: boolean;
 	containerClassName?: string;
 	containerStyle?: CSSProperties;
@@ -65,6 +71,7 @@ export default function ChatPanel({
 	sendPromptOptions,
 	enableSmartWidgets = false,
 	cards,
+	greeting,
 	hideHeader = false,
 	containerClassName,
 	containerStyle,
@@ -182,7 +189,6 @@ export default function ChatPanel({
 	}, [abort]);
 
 	const hasMessages = messages.length > 0;
-	const shouldShowAwaitingUserResponse = shouldShowQuestionCard && activeQuestionCard !== null && !thinking.shouldShowPreloader && !thinking.shouldShowThinkingStatus;
 
 	const handleClarificationSubmit = useCallback(
 		(answers: ClarificationAnswers) => {
@@ -235,10 +241,10 @@ export default function ChatPanel({
 
 	const messagesContainerStyle = {
 		...chatStyles.messagesContainer,
-		justifyContent: hasMessages ? "flex-start" : "center",
+		justifyContent: hasMessages ? "flex-start" : "flex-end",
 		flex: hasMessages ? "0 0 auto" : chatStyles.messagesContainer.flex,
 		minHeight: "100%",
-		paddingBottom: hasMessages ? chatStyles.messagesContainer.paddingBottom : chatStyles.messagesContainer.padding,
+		paddingBottom: hasMessages ? chatStyles.messagesContainer.paddingBottom : token("space.400"),
 	};
 
 	return (
@@ -253,7 +259,13 @@ export default function ChatPanel({
 				<ConversationContent className="gap-0 p-0" style={messagesContainerStyle}>
 					{messages.length === 0 ? (
 						<div style={chatStyles.emptyState}>
-							<ChatGreeting onSuggestionClick={handleGreetingSuggestionClick} />
+							<ChatGreeting
+								heading={greeting?.heading}
+								illustrationSrc={greeting?.illustrationSrc}
+								illustrationDarkSrc={greeting?.illustrationDarkSrc}
+								suggestions={greeting?.suggestions}
+								onSuggestionClick={handleGreetingSuggestionClick}
+							/>
 						</div>
 					) : (
 						<MessageTurns
@@ -303,15 +315,6 @@ export default function ChatPanel({
 							containerStyle={chatStyles.thinkingContainer}
 							phaseProps={thinking.reasoningPhaseProps}
 						/>
-					) : null}
-					{shouldShowAwaitingUserResponse ? (
-						<div style={chatStyles.awaitingContainer}>
-							<Message from="assistant" className="max-w-full">
-								<Reasoning className="mb-0" isStreaming>
-									<AdsReasoningTrigger label={getAwaitingUserResponseLabel()} showChevron={false} streaming />
-								</Reasoning>
-							</Message>
-						</div>
 					) : null}
 					{hasMessages ? <div ref={scrollSpacerRef} aria-hidden style={{ height: 0, flexShrink: 0 }} /> : null}
 				</ConversationContent>

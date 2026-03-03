@@ -228,6 +228,7 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 	blockComponent("agent-grid", "Agent Grid"),
 	blockComponent("agent-progress", "Agent Progress"),
 	blockComponent("agent-summary", "Agent Summary"),
+	blockComponent("answer-card", "Answer Card"),
 	blockComponent("approval-card", "Approval Card"),
 	blockComponent("chatbot", "Chatbot"),
 	blockComponent("chatgpt", "ChatGPT"),

@@ -4,9 +4,16 @@ import { useState, useCallback, useRef, useMemo, useEffect, type CSSProperties, 
 import { cn } from "@/lib/utils";
 import { useRovoChat } from "@/app/contexts";
 import { isRenderableRovoUIMessage, getMessageText, getAllDataParts, type RovoUIMessage } from "@/lib/rovo-ui-messages";
+import type { RovoSuggestion } from "@/lib/rovo-suggestions";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EditIcon from "@atlaskit/icon/core/edit";
+import AccessibilityIcon from "@atlaskit/icon/core/accessibility";
+import ListChecklistIcon from "@atlaskit/icon/core/list-checklist";
+import MegaphoneIcon from "@atlaskit/icon/core/megaphone";
+import TextIcon from "@atlaskit/icon/core/text";
+import TimelineIcon from "@atlaskit/icon/core/timeline";
+import TranslateIcon from "@atlaskit/icon/core/translate";
 import ChatPanel from "@/components/templates/sidebar-chat/page";
 import { Terminal, TerminalHeader, TerminalContent } from "@/components/ui-ai/terminal";
 
@@ -58,6 +65,65 @@ const A = {
 } as const;
 
 const B = { thick: "┃" } as const;
+
+const ARTIFACT_UPDATE_CONTEXT = [
+	"[Artifact Update Context]",
+	"The user is iterating on an existing artifact in the Make surface.",
+	"Treat each request as a targeted update to that artifact (content, structure, tone, or quality).",
+	"When useful, propose concrete revisions and short before/after examples.",
+	"[End Artifact Update Context]",
+].join("\n");
+
+const TERMINAL_SWITCH_GREETING_SUGGESTIONS: ReadonlyArray<RovoSuggestion> = [
+	{
+		id: "artifact-summary-refresh",
+		label: "Refresh this artifact summary",
+		prompt: "Refresh this artifact summary with clearer outcomes and next steps",
+		icon: TimelineIcon,
+		contextDescription: ARTIFACT_UPDATE_CONTEXT,
+		type: "skill",
+	},
+	{
+		id: "artifact-copy-rewrite",
+		label: "Rewrite copy for clarity",
+		prompt: "Rewrite this artifact copy for clarity and concise tone",
+		icon: TextIcon,
+		contextDescription: ARTIFACT_UPDATE_CONTEXT,
+		type: "skill",
+	},
+	{
+		id: "artifact-structure-tighten",
+		label: "Tighten structure and flow",
+		prompt: "Tighten the artifact structure and flow so it is easier to scan",
+		icon: ListChecklistIcon,
+		contextDescription: ARTIFACT_UPDATE_CONTEXT,
+		type: "skill",
+	},
+	{
+		id: "artifact-translate-audience",
+		label: "Translate for another audience",
+		prompt: "Translate this artifact for another audience while preserving intent",
+		icon: TranslateIcon,
+		contextDescription: ARTIFACT_UPDATE_CONTEXT,
+		type: "skill",
+	},
+	{
+		id: "artifact-accessibility-pass",
+		label: "Add accessibility improvements",
+		prompt: "Review this artifact and apply accessibility and usability improvements",
+		icon: AccessibilityIcon,
+		contextDescription: ARTIFACT_UPDATE_CONTEXT,
+		type: "skill",
+	},
+	{
+		id: "artifact-stakeholder-update",
+		label: "Draft stakeholder update",
+		prompt: "Draft a concise stakeholder update based on the current artifact state",
+		icon: MegaphoneIcon,
+		contextDescription: ARTIFACT_UPDATE_CONTEXT,
+		type: "skill",
+	},
+];
 
 // ---------------------------------------------------------------------------
 // Exact ROVO_DEV_LOGO from chat_container.py
@@ -132,7 +198,10 @@ function AnimatedRovoLogo() {
 	const targetsRef = useRef(createRandomGrid());
 
 	useEffect(() => {
-		setMounted(true);
+		const animationFrameId = window.requestAnimationFrame(() => {
+			setMounted(true);
+		});
+		return () => window.cancelAnimationFrame(animationFrameId);
 	}, []);
 
 	useEffect(() => {
@@ -195,9 +264,9 @@ function AnimatedRovoLogo() {
 					))}
 				</div>
 				<div className="flex flex-col items-center gap-1">
-					<span className="font-mono text-sm" style={{ color: "#50FA7B" }}>
-						How can I help?
-					</span>
+						<span className="font-mono text-sm" style={{ color: "#50FA7B" }}>
+							What should we change?
+						</span>
 					<span className="font-mono text-xs" style={{ color: TD.dim }}>
 						Rovo CLI v1.3.13-stable
 					</span>
@@ -315,7 +384,7 @@ function TerminalView() {
 						type="text"
 						value={commandInput}
 						onChange={(e) => setCommandInput(e.target.value)}
-						placeholder={hasInFlightTurn ? "Waiting for response..." : "Type a message..."}
+						placeholder={hasInFlightTurn ? "Waiting for response..." : "Describe the artifact update..."}
 						disabled={hasInFlightTurn}
 						className="flex-1 bg-transparent font-mono text-sm outline-none"
 						style={{
@@ -357,7 +426,7 @@ export default function TerminalSwitchPanel({
 	chatPanelContainerStyle,
 }: Readonly<TerminalSwitchPanelProps>): React.ReactElement {
 	const [mode, setMode] = useState<ViewMode>("chat");
-	const { isStreaming, resetChat } = useRovoChat();
+	const { resetChat } = useRovoChat();
 	const isTerminal = mode === "terminal";
 	const resolvedChatPanelContainerStyle: CSSProperties = {
 		border: "none",
@@ -408,7 +477,18 @@ export default function TerminalSwitchPanel({
 			{/* Content area */}
 			<div className="relative min-h-0 flex-1">
 				<div className={cn("absolute inset-0 transition-opacity duration-200", mode === "chat" ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0")}>
-					<ChatPanel onClose={onClose ?? (() => {})} hideHeader containerStyle={resolvedChatPanelContainerStyle} />
+					<ChatPanel
+						onClose={onClose ?? (() => {})}
+						hideHeader
+						containerStyle={resolvedChatPanelContainerStyle}
+						sendPromptOptions={{ contextDescription: ARTIFACT_UPDATE_CONTEXT }}
+						greeting={{
+							heading: "What should we change?",
+							illustrationSrc: "/illustration-ai/write/light.svg",
+							illustrationDarkSrc: "/illustration-ai/write/dark.svg",
+							suggestions: TERMINAL_SWITCH_GREETING_SUGGESTIONS,
+						}}
+					/>
 				</div>
 				<div className={cn("absolute inset-0 transition-opacity duration-200", mode === "terminal" ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0")}>
 					<TerminalView />

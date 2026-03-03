@@ -7,6 +7,13 @@ export interface MakeItemRecurring {
 	enabled: boolean;
 }
 
+export interface MakeItemRunMeta {
+	runId: string;
+	status: "running" | "completed";
+	taskCount: number;
+	agentCount: number;
+}
+
 export interface MakeItem {
 	id: string;
 	title: string;
@@ -20,6 +27,7 @@ export interface MakeItem {
 	ratingCount: string;
 	maintainers: { name: string; src?: string }[];
 	recurring?: MakeItemRecurring;
+	runMeta?: MakeItemRunMeta;
 }
 
 // Convert some gallery items into MakeItem for our mock data

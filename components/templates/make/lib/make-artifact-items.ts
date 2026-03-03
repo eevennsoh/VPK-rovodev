@@ -1,0 +1,158 @@
+import { GALLERY_ITEMS } from "@/components/blocks/make-gallery/data/gallery-items";
+import type {
+	MakeItem,
+	MakeItemRunMeta,
+} from "@/components/blocks/make-item/lib/types";
+import type { AgentRunListItem } from "@/lib/make-run-types";
+import {
+	derivePlanEmojiFromTitle,
+	resolvePlanDisplayTitle,
+	sanitizePlanDescription,
+} from "@/components/templates/shared/lib/plan-identity";
+
+export interface MakeSidebarAppItem {
+	runId: string;
+	title: string;
+	updatedAt: string;
+	status: "running" | "completed";
+}
+
+type RunnableMakeRun = AgentRunListItem & {
+	status: "running" | "completed";
+};
+
+const APP_GALLERY_TEMPLATE =
+	GALLERY_ITEMS.find((item) => item.type === "apps") ?? {
+		ascii: "",
+		color: "text-text-subtle",
+	};
+
+function toDateTimestamp(value: string): number {
+	const timestamp = Date.parse(value);
+	return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function sortRunsByRecency(leftRun: AgentRunListItem, rightRun: AgentRunListItem): number {
+	const updatedDelta =
+		toDateTimestamp(rightRun.updatedAt) - toDateTimestamp(leftRun.updatedAt);
+	if (updatedDelta !== 0) {
+		return updatedDelta;
+	}
+
+	const createdDelta =
+		toDateTimestamp(rightRun.createdAt) - toDateTimestamp(leftRun.createdAt);
+	if (createdDelta !== 0) {
+		return createdDelta;
+	}
+
+	return rightRun.runId.localeCompare(leftRun.runId);
+}
+
+function formatRunDate(value: string): string {
+	const timestamp = Date.parse(value);
+	if (!Number.isFinite(timestamp)) {
+		return "Unknown";
+	}
+
+	return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(timestamp);
+}
+
+function getRunAgentCount(run: AgentRunListItem): number {
+	const taskAgentCount = new Set(
+		run.tasks
+			.map((task) => task.agentName)
+			.filter((agentName): agentName is string => Boolean(agentName)),
+	).size;
+	const planAgentCount = Array.isArray(run.plan.agents) ? run.plan.agents.length : 0;
+	return Math.max(taskAgentCount, planAgentCount, 1);
+}
+
+function getRunMaintainers(run: AgentRunListItem): Array<{ name: string }> {
+	const uniqueNames = new Set<string>();
+
+	for (const task of run.tasks) {
+		if (task.agentName) {
+			uniqueNames.add(task.agentName);
+		}
+	}
+
+	if (uniqueNames.size === 0 && Array.isArray(run.plan.agents)) {
+		for (const planAgent of run.plan.agents) {
+			if (typeof planAgent === "string" && planAgent.trim()) {
+				uniqueNames.add(planAgent.trim());
+			}
+		}
+	}
+
+	if (uniqueNames.size === 0) {
+		return [{ name: "Rovo" }];
+	}
+
+	return Array.from(uniqueNames).map((name) => ({ name }));
+}
+
+function resolveRunTitle(run: AgentRunListItem): string {
+	const title = resolvePlanDisplayTitle(run.plan.title, run.plan.tasks);
+	const emoji = run.plan.emoji ?? derivePlanEmojiFromTitle(title);
+	return `${emoji} ${title}`;
+}
+
+function resolveRunDescription(run: AgentRunListItem): string {
+	return sanitizePlanDescription(run.plan.description, run.tasks.length);
+}
+
+function toRunMeta(run: RunnableMakeRun): MakeItemRunMeta {
+	return {
+		runId: run.runId,
+		status: run.status,
+		taskCount: run.tasks.length,
+		agentCount: getRunAgentCount(run),
+	};
+}
+
+function isRunnableArtifactStatus(
+	status: AgentRunListItem["status"],
+): status is "running" | "completed" {
+	return status === "running" || status === "completed";
+}
+
+export function selectMakeArtifactRuns(
+	runs: ReadonlyArray<AgentRunListItem>,
+): RunnableMakeRun[] {
+	return runs
+		.filter((run): run is RunnableMakeRun => isRunnableArtifactStatus(run.status))
+		.sort(sortRunsByRecency);
+}
+
+export function mapRunsToMakeGalleryItems(
+	runs: ReadonlyArray<AgentRunListItem>,
+): MakeItem[] {
+	return selectMakeArtifactRuns(runs).map((run) => {
+		const runMeta = toRunMeta(run);
+		return {
+			id: run.runId,
+			title: resolveRunTitle(run),
+			description: resolveRunDescription(run),
+			type: "apps",
+			ascii: APP_GALLERY_TEMPLATE.ascii,
+			color: APP_GALLERY_TEMPLATE.color,
+			lastUpdated: formatRunDate(run.updatedAt),
+			users: runMeta.taskCount,
+			rating: runMeta.status === "completed" ? 5 : 4,
+			ratingCount: `${runMeta.agentCount} agents`,
+			maintainers: getRunMaintainers(run),
+			runMeta,
+		};
+	});
+}
+
+export function mapRunsToSidebarAppItems(
+	runs: ReadonlyArray<AgentRunListItem>,
+): MakeSidebarAppItem[] {
+	return selectMakeArtifactRuns(runs).map((run) => ({
+		runId: run.runId,
+		title: resolveRunTitle(run),
+		updatedAt: run.updatedAt,
+		status: run.status,
+	}));
+}

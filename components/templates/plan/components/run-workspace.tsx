@@ -59,6 +59,7 @@ import {
 interface RunWorkspaceProps {
 	runId: string;
 	initialRun: AgentRun;
+	initialNowMs?: number;
 	initialSummary: AgentRunSummary | null;
 	initialVisualSummary: AgentRunVisualSummary | null;
 	initialGenuiSummary: AgentRunGenuiSummary | null;
@@ -165,6 +166,7 @@ function sortRunsByRecency(leftRun: AgentRunListItem, rightRun: AgentRunListItem
 export function RunWorkspace({
 	runId,
 	initialRun,
+	initialNowMs,
 	initialSummary,
 	initialVisualSummary,
 	initialGenuiSummary,
@@ -814,6 +816,7 @@ export function RunWorkspace({
 				activeChatId={null}
 				runHistory={sidebarRunHistory}
 				activeRunId={run.runId}
+				initialNowMs={initialNowMs}
 				onSelectRun={handleSelectRun}
 				onDeleteRun={handleDeleteRun}
 				onRetryRunGroup={handleRetryRunGroup}

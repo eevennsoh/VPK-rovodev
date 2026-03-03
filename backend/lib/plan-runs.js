@@ -22,7 +22,7 @@ const RUN_STATUS_RUNNING = "running";
 const RUN_STATUS_COMPLETED = "completed";
 const RUN_STATUS_FAILED = "failed";
 const DEFAULT_MAX_CONCURRENT_AGENTS =
-	getPositiveInteger(process.env.ROVODEV_POOL_SIZE) || 1;
+	getPositiveInteger(process.env.ROVODEV_POOL_SIZE) || 4;
 const MAX_RUN_LIST_LIMIT = 50;
 const STREAMING_UPDATE_CHUNK_SIZE = 120;
 const STREAMING_UPDATE_MAX_CONTENT_CHARS = 8000;
@@ -34,7 +34,7 @@ const GENUI_WIDGET_BLUEPRINTS = [
 		id: "interactive-widget-1",
 		title: "Interactive widget 1",
 		focus:
-			"Summarize execution outcomes with key metrics such as completion count, failure count, and success rate.",
+			"Summarize execution outcomes with key metrics and a PieChart showing task status distribution (done vs failed vs blocked).",
 	},
 	{
 		id: "interactive-widget-2",
@@ -46,7 +46,7 @@ const GENUI_WIDGET_BLUEPRINTS = [
 		id: "interactive-widget-3",
 		title: "Interactive widget 3",
 		focus:
-			"Visualize execution flow by agent or dependency handoffs so users can understand how work moved across tasks.",
+			"Visualize execution flow using a BarChart showing tasks per agent, so users can understand how work was distributed across agents.",
 	},
 	{
 		id: "interactive-widget-4",
@@ -644,7 +644,12 @@ function ensureRunDefaults(rawRun) {
 	};
 }
 
-function createInitialRun({ runId, plan, userPrompt, conversationContext, customInstruction }) {
+function normalizeAgentCount(value) {
+	const n = typeof value === "number" ? value : parseInt(value, 10);
+	return Number.isFinite(n) && n >= 1 && n <= 4 ? n : 1;
+}
+
+function createInitialRun({ runId, plan, userPrompt, conversationContext, customInstruction, agentCount }) {
 	const now = toIsoDate();
 	const batchId = createId("batch");
 	const iteration = 1;
@@ -709,6 +714,7 @@ function createInitialRun({ runId, plan, userPrompt, conversationContext, custom
 		genuiSummary: null,
 		userPrompt: userPrompt || "",
 		customInstruction: customInstruction || undefined,
+		agentCount: agentCount || 1,
 		conversationContext,
 		iteration,
 		artifacts: [],
@@ -736,6 +742,7 @@ function toSerializableRun(run) {
 		genuiSummary: normalizeGenuiSummary(run.genuiSummary),
 		userPrompt: run.userPrompt,
 		customInstruction: run.customInstruction,
+		agentCount: run.agentCount,
 		conversationContext: run.conversationContext,
 		iteration: run.iteration,
 		artifacts: run.artifacts,
@@ -2197,12 +2204,13 @@ function createRunManager(options) {
 
 	const scheduleRun = async (run) => {
 		const activeTaskPromises = new Map();
+		const effectiveConcurrency = Math.min(run.agentCount || 1, maxConcurrentAgents);
 
 		const launchReadyTasks = () => {
 			markBlockedTasksWithFailedDependencies(run);
 
 			for (const task of run.tasks) {
-				if (activeTaskPromises.size >= maxConcurrentAgents) {
+				if (activeTaskPromises.size >= effectiveConcurrency) {
 					break;
 				}
 
@@ -2584,6 +2592,7 @@ function createRunManager(options) {
 		userPrompt,
 		conversation,
 		customInstruction,
+		agentCount,
 	}) => {
 		const normalizedPlan = normalizePlan(plan);
 		if (!normalizedPlan) {
@@ -2597,6 +2606,7 @@ function createRunManager(options) {
 			userPrompt: getNonEmptyString(userPrompt) || "",
 			conversationContext: buildConversationContext(conversation),
 			customInstruction: getNonEmptyString(customInstruction) || undefined,
+			agentCount: normalizeAgentCount(agentCount),
 		});
 		runsById.set(runId, run);
 		await persistIntermediateSnapshot(run);

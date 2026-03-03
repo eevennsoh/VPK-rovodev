@@ -26,14 +26,11 @@ export const onboardingMilestonesSpec: Spec = {
 			},
 		},
 		progressTracker: {
-			type: "ProgressTracker",
+			type: "ProgressBar",
 			props: {
-				steps: [
-					{ label: "Pre-boarding", state: "done" },
-					{ label: "Week 1", state: "current" },
-					{ label: "Month 1", state: "todo" },
-					{ label: "Month 2-3", state: "todo" },
-				],
+				value: 25,
+				label: "Onboarding progress",
+				appearance: "success",
 			},
 		},
 		timeline: {

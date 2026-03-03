@@ -46,6 +46,11 @@ export interface ParsedQuestionCardPayload {
 	deferredToolCallId?: string;
 }
 
+export interface ClarificationSummaryRow {
+	question: string;
+	answer: string;
+}
+
 const DEFAULT_SESSION_ID = "clarification-session";
 const DEFAULT_MAX_ROUNDS = 3;
 const DEFAULT_TITLE = "Help me clarify this";
@@ -335,6 +340,40 @@ function formatAnswerForSummary(
 	return resolveAnswerOptionLabel(question, value);
 }
 
+export function buildClarificationSummaryRows(
+	questionCard: ParsedQuestionCardPayload,
+	answers: ClarificationAnswers
+): ClarificationSummaryRow[] {
+	const sanitizedAnswers = sanitizeClarificationAnswers(questionCard, answers);
+	return questionCard.questions
+		.map((question) => {
+			const answerValue = sanitizedAnswers[question.id];
+			if (!answerValue) {
+				return null;
+			}
+
+			return {
+				question: question.label,
+				answer: formatAnswerForSummary(question, answerValue),
+			};
+		})
+		.filter((row): row is ClarificationSummaryRow => row !== null);
+}
+
+export function buildClarificationSummaryDisplayLabel(
+	questionCard: ParsedQuestionCardPayload,
+	answers: ClarificationAnswers
+): string {
+	const summaryRows = buildClarificationSummaryRows(questionCard, answers);
+	if (summaryRows.length === 0) {
+		return `Requirements captured for "${questionCard.title}".`;
+	}
+
+	const answerCount = summaryRows.length;
+	const answerLabel = answerCount === 1 ? "answer" : "answers";
+	return `Requirements captured (${answerCount} ${answerLabel}).`;
+}
+
 export function hasRequiredClarificationAnswers(
 	questionCard: ParsedQuestionCardPayload,
 	answers: ClarificationAnswers
@@ -366,17 +405,10 @@ export function buildClarificationSummaryPrompt(
 	questionCard: ParsedQuestionCardPayload,
 	answers: ClarificationAnswers
 ): string {
-	const sanitizedAnswers = sanitizeClarificationAnswers(questionCard, answers);
-	const answerSummaryLines = questionCard.questions
-		.map((question) => {
-			const answerValue = sanitizedAnswers[question.id];
-			if (!answerValue) {
-				return null;
-			}
-
-			return `- ${question.label}: ${formatAnswerForSummary(question, answerValue)}`;
-		})
-		.filter((line): line is string => line !== null);
+	const summaryRows = buildClarificationSummaryRows(questionCard, answers);
+	const answerSummaryLines = summaryRows.map(
+		(summaryRow) => `- ${summaryRow.question}: ${summaryRow.answer}`
+	);
 
 	if (answerSummaryLines.length === 0) {
 		return `Please continue with a best-effort plan for "${questionCard.title}".`;

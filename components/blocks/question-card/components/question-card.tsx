@@ -271,7 +271,7 @@ function QuestionCard({
 			{...props}
 		>
 			<header data-slot="question-card-header" className="px-4 pb-4 pt-4">
-				<div className="flex items-start justify-between gap-2">
+				<div className="flex items-center justify-between gap-2">
 					<div className="min-w-0">
 						<h2 className="text-sm leading-5 font-medium text-text">{currentQuestion.label}</h2>
 						{currentQuestion.description ? (

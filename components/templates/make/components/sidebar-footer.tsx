@@ -13,9 +13,12 @@ import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import AddIcon from "@atlaskit/icon/core/add";
 import DownloadIcon from "@atlaskit/icon/core/download";
+import { Spinner } from "@/components/ui/spinner";
 import type { MakeSkill, MakeAgent } from "@/lib/make-config-types";
+import type { MakeSidebarAppItem } from "@/components/templates/make/lib/make-artifact-items";
 
 interface SidebarFooterProps {
+	apps: MakeSidebarAppItem[];
 	skills: MakeSkill[];
 	agents: MakeAgent[];
 	onEditSkill: (skill: MakeSkill) => void;
@@ -24,6 +27,7 @@ interface SidebarFooterProps {
 	onNewAgent: () => void;
 	onExportSkill: (name: string) => void;
 	onExportAgent: (name: string) => void;
+	onSelectApp?: (runId: string) => void;
 }
 
 function focusComposerInput() {
@@ -36,6 +40,7 @@ function focusComposerInput() {
 }
 
 export default function SidebarFooter({
+	apps,
 	skills,
 	agents,
 	onEditSkill,
@@ -44,6 +49,7 @@ export default function SidebarFooter({
 	onNewAgent,
 	onExportSkill,
 	onExportAgent,
+	onSelectApp,
 }: Readonly<SidebarFooterProps>) {
 	const [skillsOpen, setSkillsOpen] = useState(false);
 	const [agentsOpen, setAgentsOpen] = useState(false);
@@ -52,6 +58,14 @@ export default function SidebarFooter({
 
 	const sortedSkills = useMemo(() => [...skills].sort((a, b) => a.name.localeCompare(b.name)), [skills]);
 	const sortedAgents = useMemo(() => [...agents].sort((a, b) => a.name.localeCompare(b.name)), [agents]);
+	const sortedApps = useMemo(
+		() =>
+			[...apps].sort(
+				(leftApp, rightApp) =>
+					Date.parse(rightApp.updatedAt) - Date.parse(leftApp.updatedAt),
+			),
+		[apps],
+	);
 
 	const handleNewSkill = () => {
 		onNewSkill();
@@ -69,13 +83,25 @@ export default function SidebarFooter({
 				{/* Apps section */}
 				<CollapsibleSection
 					title="Apps"
+					badge={sortedApps.length}
 					open={appsOpen}
 					onToggle={() => setAppsOpen((prev) => !prev)}
 				>
-					<SectionEmptyState
-						title="No apps yet"
-						description="Build and publish apps to see them here."
-					/>
+					{sortedApps.length > 0 ? (
+						sortedApps.map((app) => (
+							<SidebarAppItemRow
+								key={app.runId}
+								name={app.title}
+								status={app.status}
+								onSelect={onSelectApp ? () => onSelectApp(app.runId) : undefined}
+							/>
+						))
+					) : (
+						<SectionEmptyState
+							title="No apps yet"
+							description="Build and publish apps to see them here."
+						/>
+					)}
 				</CollapsibleSection>
 
 				{/* Agents section */}
@@ -269,6 +295,35 @@ function SidebarItemRow({
 			>
 				<DownloadIcon label="Download" size="small" />
 			</button>
+		</div>
+	);
+}
+
+function SidebarAppItemRow({
+	name,
+	status,
+	onSelect,
+}: Readonly<{
+	name: string;
+	status: "running" | "completed";
+	onSelect?: () => void;
+}>) {
+	return (
+		<div className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-text transition-colors hover:bg-bg-neutral">
+			<button
+				type="button"
+				className={cn(
+					"min-w-0 flex-1 truncate text-left",
+					onSelect ? "cursor-pointer" : "cursor-default",
+				)}
+				onClick={onSelect}
+				title={name}
+			>
+				{name}
+			</button>
+			{status === "running" ? (
+				<Spinner size="xs" label="Running" className="text-text-subtlest" />
+			) : null}
 		</div>
 	);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -33,23 +33,60 @@ function filterItems(items: MakeItem[], category: Category): MakeItem[] {
 	return items.filter((item) => item.type === category);
 }
 
-export default function MakeGalleryContent() {
+interface MakeGalleryContentProps {
+	onItemSelect?: (item: MakeItem) => void;
+	items?: MakeItem[];
+}
+
+export default function MakeGalleryContent({ onItemSelect, items }: Readonly<MakeGalleryContentProps>) {
 	const [activeCategory, setActiveCategory] = useState<Category>("all");
 	const [searchQuery, setSearchQuery] = useState("");
-	const allItems = [...APP_ITEMS, ...MOCK_MAKE_ITEMS.slice(2)];
+	const allItems = useMemo(
+		() => items ?? [...APP_ITEMS, ...MOCK_MAKE_ITEMS.slice(2)],
+		[items],
+	);
 	const [recurringOverrides, setRecurringOverrides] = useState<Record<string, boolean>>({});
+	const availableCategories = useMemo(() => {
+		if (!items) {
+			return CATEGORIES;
+		}
+
+		const presentTypes = new Set(allItems.map((item) => item.type));
+		return CATEGORIES.filter((category) =>
+			category.value === "all" ? true : presentTypes.has(category.value),
+		);
+	}, [allItems, items]);
+	const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+	const resolvedActiveCategory = availableCategories.some(
+		(category) => category.value === activeCategory,
+	)
+		? activeCategory
+		: "all";
 
 	const searchScopeLabel =
-		activeCategory === "all"
+		resolvedActiveCategory === "all"
 			? "all"
-			: (CATEGORIES.find((c) => c.value === activeCategory)?.label ?? "all").toLowerCase();
+			: (availableCategories.find((category) => category.value === resolvedActiveCategory)?.label ?? "all").toLowerCase();
 
-	const appFiltered = filterItems(allItems, activeCategory).map((item) => {
-		if (item.recurring && item.id in recurringOverrides) {
-			return { ...item, recurring: { ...item.recurring, enabled: recurringOverrides[item.id] } };
-		}
-		return item;
-	});
+	const appFiltered = filterItems(allItems, resolvedActiveCategory)
+		.filter((item) => {
+			if (!normalizedSearchQuery) {
+				return true;
+			}
+
+			const title = item.title.toLowerCase();
+			const description = item.description.toLowerCase();
+			return (
+				title.includes(normalizedSearchQuery) ||
+				description.includes(normalizedSearchQuery)
+			);
+		})
+		.map((item) => {
+			if (item.recurring && item.id in recurringOverrides) {
+				return { ...item, recurring: { ...item.recurring, enabled: recurringOverrides[item.id] } };
+			}
+			return item;
+		});
 
 	const handleRecurringToggle = useCallback((id: string, enabled: boolean) => {
 		setRecurringOverrides((prev) => ({ ...prev, [id]: enabled }));
@@ -71,7 +108,7 @@ export default function MakeGalleryContent() {
 				<div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 					<ToggleGroup
 						aria-label="Filter by category"
-						value={[activeCategory]}
+						value={[resolvedActiveCategory]}
 						onValueChange={(newValue: string[]) => {
 							if (newValue.length > 0) {
 								setActiveCategory(newValue[0] as Category);
@@ -79,7 +116,7 @@ export default function MakeGalleryContent() {
 						}}
 						spacing={1}
 					>
-						{CATEGORIES.map((cat) => (
+						{availableCategories.map((cat) => (
 							<ToggleGroupItem key={cat.value} value={cat.value}>
 								{cat.label}
 							</ToggleGroupItem>
@@ -108,6 +145,7 @@ export default function MakeGalleryContent() {
 									key={item.id}
 									item={item}
 									className="h-[200px]"
+									onSelect={onItemSelect && item.type === "apps" ? () => onItemSelect(item) : undefined}
 									onRecurringToggle={item.recurring
 										? (enabled) => handleRecurringToggle(item.id, enabled)
 										: undefined

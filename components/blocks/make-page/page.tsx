@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
@@ -178,6 +179,21 @@ function MakeContent({
 	onHoverEnter: () => void;
 	onHoverLeave: () => void;
 }>) {
+	const router = useRouter();
+	const pathname = usePathname();
+
+	const handleGalleryItemSelect = useCallback(() => {
+		if (pathname.startsWith("/preview/blocks/")) {
+			router.push("/preview/blocks/make-artifact");
+			return;
+		}
+		if (pathname.startsWith("/components/blocks/")) {
+			router.push("/components/blocks/make-artifact");
+			return;
+		}
+		router.push("/make");
+	}, [pathname, router]);
+
 	return (
 		<Tabs defaultValue="make" className="relative flex flex-1 flex-col gap-0">
 			<div className="pointer-events-none absolute top-0 right-0 z-20 flex h-14 items-center gap-0.5 pr-4 text-icon-subtle">
@@ -214,9 +230,9 @@ function MakeContent({
 					<TabsTrigger value="search">Search</TabsTrigger>
 				</TabsList>
 			</div>
-			<TabsContent value="make" className="min-h-0 flex-1 overflow-hidden">
-				<MakeGalleryContent />
-			</TabsContent>
+				<TabsContent value="make" className="min-h-0 flex-1 overflow-hidden">
+					<MakeGalleryContent onItemSelect={handleGalleryItemSelect} />
+				</TabsContent>
 			<TabsContent value="home" className="min-h-0 flex-1 overflow-hidden">
 				<div className="flex h-full items-center justify-center text-sm text-text-subtlest">
 					Home

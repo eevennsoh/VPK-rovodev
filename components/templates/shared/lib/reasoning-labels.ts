@@ -2,7 +2,6 @@ export const REASONING_LABELS = {
 	trigger: {
 		thinking: "Thinking",
 		preloadShimmer: "Rovo is cooking",
-		awaitingUserResponse: "Awaiting user response",
 		working: "Working",
 		generatingResults: "Generating results",
 	},
@@ -12,7 +11,7 @@ export const REASONING_LABELS = {
 		tools: "Tools",
 	},
 	completed: {
-		fewSeconds: "Thought for a few seconds",
+		completed: "Completed",
 	},
 } as const;
 
@@ -24,10 +23,6 @@ export function getPreloadShimmerLabel(): string {
 	return REASONING_LABELS.trigger.preloadShimmer;
 }
 
-export function getAwaitingUserResponseLabel(): string {
-	return REASONING_LABELS.trigger.awaitingUserResponse;
-}
-
 export function getReasoningSectionTitle(
 	kind: keyof typeof REASONING_LABELS.section
 ): string {
@@ -36,7 +31,7 @@ export function getReasoningSectionTitle(
 
 export function getReasoningCompletedLabel(duration?: number): string {
 	if (duration === undefined) {
-		return REASONING_LABELS.completed.fewSeconds;
+		return REASONING_LABELS.completed.completed;
 	}
 
 	return `Thought for ${duration} ${duration === 1 ? "second" : "seconds"}`;

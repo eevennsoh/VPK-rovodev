@@ -36,6 +36,8 @@ import {
 } from "@/components/templates/shared/lib/question-card-widget";
 import {
 	createPlanApprovalSubmission,
+	getPlanApprovalKeyFromPlanWidget,
+	serializePlanApprovalKey,
 } from "@/components/templates/shared/lib/plan-approval";
 import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import {
@@ -49,6 +51,10 @@ import {
 	toConversationItems,
 	getLatestVisibleUserPrompt,
 } from "@/components/templates/make/lib/message-utils";
+import {
+	parseMakeNavigationIntent,
+	clearMakeNavigationIntentParams,
+} from "@/components/templates/make/lib/navigation-intent";
 import { useMakeChat } from "@/components/templates/make/hooks/use-make-chat";
 import { useLocalRovoChat } from "@/components/templates/make/hooks/use-local-rovo-chat";
 import { useExecutionMode } from "@/components/templates/make/hooks/use-execution-mode";
@@ -106,11 +112,14 @@ export interface MakeState {
 	runId: string | null;
 	taskExecutions: TaskExecution[];
 	run: AgentRun | null;
+	executedPlanKey: string | null;
+	agentCount: number;
 
 	// History
 	chatHistory: ChatHistoryItem[];
 	activeChatId: string | null;
 	sidebarRunHistory: AgentRunListItem[];
+	hasLoadedRunHistory: boolean;
 
 	// Title
 	activeChatTitle: string | null;
@@ -185,6 +194,9 @@ export interface MakeActions {
 	toggleMakeMode: () => void;
 	activateMakeMode: () => void;
 	deactivateMakeMode: () => void;
+
+	// Agent multiplier
+	setAgentCount: (count: number) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -284,9 +296,12 @@ export function MakeProvider({ children }: MakeProviderProps) {
 
 	// ---- Navigation tab ----
 	const [activeTab, setActiveTab] = useState<MakeTab>("chat");
+	const [agentCount, setAgentCount] = useState(1);
+	const hasRestoredTabRef = useRef(false);
 
 	// Sync activeTab to URL ?tab= param
 	useEffect(() => {
+		if (!hasRestoredTabRef.current) return;
 		if (typeof window === "undefined") return;
 		const url = new URL(window.location.href);
 		const currentTabParam = url.searchParams.get("tab");
@@ -297,21 +312,22 @@ export function MakeProvider({ children }: MakeProviderProps) {
 	}, [activeTab]);
 
 	// Restore tab from URL on mount
-	const hasRestoredTabRef = useRef(false);
 	useEffect(() => {
 		if (hasRestoredTabRef.current) return;
-		hasRestoredTabRef.current = true;
 		if (typeof window === "undefined") return;
 		const params = new URLSearchParams(window.location.search);
 		const tabParam = params.get("tab");
 		if (tabParam && ["home", "chat", "make", "search"].includes(tabParam)) {
 			setActiveTab(tabParam as MakeTab);
 		}
+		hasRestoredTabRef.current = true;
 	}, []);
 
 	// ---- Run history ----
 	const [runHistory, setRunHistory] = useState<AgentRunListItem[]>([]);
+	const [hasLoadedRunHistory, setHasLoadedRunHistory] = useState(false);
 	const hasNavigatedToSummaryRef = useRef(false);
+	const hasHandledNavigationIntentRef = useRef(false);
 	const makeRuntime = useLocalRovoChat();
 	const chatRuntime = useLocalRovoChat();
 
@@ -332,6 +348,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		submitClarification,
 		dismissClarification,
 		submitPlanApproval,
+		appendPlanApprovalMarker: appendMakePlanApprovalMarker,
 	} = useMakeChat({
 		mode: "make",
 		syncUrlThreadParam: false,
@@ -360,6 +377,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		submitClarification: submitChatTabClarification,
 		dismissClarification: dismissChatTabClarification,
 		submitPlanApproval: submitChatTabPlanApproval,
+		appendPlanApprovalMarker: appendChatTabPlanApprovalMarker,
 		isPlanMode: chatTabIsPlanMode,
 		togglePlanMode: chatTabTogglePlanMode,
 	} = useMakeChat({
@@ -509,7 +527,56 @@ export function MakeProvider({ children }: MakeProviderProps) {
 
 	const isMakeInterviewActive = uiMessages.length > 0 && !isExecutionActive;
 
+	const executedPlanKey = useMemo(() => {
+		if (!run?.plan) return null;
+		const taskIds = run.plan.tasks.map((t) => t.id);
+		return serializePlanApprovalKey(run.plan.title, taskIds);
+	}, [run]);
+
 	// ---- Effects ----
+
+	useEffect(() => {
+		if (hasHandledNavigationIntentRef.current) {
+			return;
+		}
+		hasHandledNavigationIntentRef.current = true;
+
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const currentUrl = new URL(window.location.href);
+		const entryIntent = parseMakeNavigationIntent(currentUrl.searchParams);
+		if (!entryIntent) {
+			return;
+		}
+
+		// Explicit entry intent should win over summary auto-navigation.
+		hasNavigatedToSummaryRef.current = true;
+		setActiveTab("chat");
+		handleNewChatTabChat();
+
+		if (entryIntent === "fresh-make") {
+			if (!chatTabIsPlanMode) {
+				chatTabTogglePlanMode();
+			}
+		} else if (chatTabIsPlanMode) {
+			chatTabTogglePlanMode();
+		}
+
+		const nextParams = clearMakeNavigationIntentParams(currentUrl.searchParams);
+		const nextSearch = nextParams.toString();
+		const nextUrl = `${currentUrl.pathname}${nextSearch ? `?${nextSearch}` : ""}${currentUrl.hash}`;
+		const previousUrl = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+		if (nextUrl !== previousUrl) {
+			window.history.replaceState({}, "", nextUrl);
+		}
+	}, [
+		chatTabIsPlanMode,
+		chatTabTogglePlanMode,
+		handleNewChatTabChat,
+		setActiveTab,
+	]);
 
 	useEffect(() => {
 		if (!runId || executionState === "idle") {
@@ -538,6 +605,8 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			}
 		} catch (error) {
 			console.error("[PLAN] Failed to load sidebar run history:", error);
+		} finally {
+			setHasLoadedRunHistory(true);
 		}
 	}, []);
 
@@ -623,13 +692,19 @@ export function MakeProvider({ children }: MakeProviderProps) {
 				activePlanWidget,
 			);
 			const shouldStartRun = selection.decision === "auto-accept";
+			const planApprovalPlanKey = getPlanApprovalKeyFromPlanWidget(activePlanWidget);
 
 			if (shouldStartRun && activePlanWidget) {
+				void appendMakePlanApprovalMarker({
+					decision: "auto-accept",
+					planApprovalPlanKey,
+				});
 				void startExecution({
 					plan: activePlanWidget,
 					userPrompt: latestUserPrompt,
 					conversation: conversationItems,
 					customInstruction: selection.customInstruction,
+					agentCount,
 				});
 				if (chatTabIsPlanMode) {
 					chatTabTogglePlanMode();
@@ -642,12 +717,14 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		},
 		[
 			activePlanWidget,
+			agentCount,
 			chatTabIsPlanMode,
 			chatTabTogglePlanMode,
 			conversationItems,
 			latestUserPrompt,
 			startExecution,
 			submitPlanApproval,
+			appendMakePlanApprovalMarker,
 		],
 	);
 
@@ -658,13 +735,19 @@ export function MakeProvider({ children }: MakeProviderProps) {
 				chatTabActivePlanWidget,
 			);
 			const shouldStartRun = selection.decision === "auto-accept";
+			const planApprovalPlanKey = getPlanApprovalKeyFromPlanWidget(chatTabActivePlanWidget);
 
 			if (shouldStartRun && chatTabActivePlanWidget) {
+				void appendChatTabPlanApprovalMarker({
+					decision: "auto-accept",
+					planApprovalPlanKey,
+				});
 				void startExecution({
 					plan: chatTabActivePlanWidget,
 					userPrompt: latestChatTabUserPrompt,
 					conversation: chatTabConversationItems,
 					customInstruction: selection.customInstruction,
+					agentCount,
 				});
 				if (chatTabIsPlanMode) {
 					chatTabTogglePlanMode();
@@ -676,6 +759,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			void submitChatTabPlanApproval(approvalSubmission);
 		},
 		[
+			agentCount,
 			chatTabActivePlanWidget,
 			chatTabConversationItems,
 			chatTabIsPlanMode,
@@ -683,6 +767,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			latestChatTabUserPrompt,
 			startExecution,
 			submitChatTabPlanApproval,
+			appendChatTabPlanApprovalMarker,
 		],
 	);
 
@@ -691,24 +776,40 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			if (!planWidget.tasks || planWidget.tasks.length === 0) {
 				return;
 			}
+			const planApprovalPlanKey = getPlanApprovalKeyFromPlanWidget(planWidget);
 
 			const runUserPrompt = source === "chat" ? latestChatTabUserPrompt : latestUserPrompt;
 			const runConversation =
 				source === "chat" ? chatTabConversationItems : conversationItems;
+			if (source === "chat") {
+				void appendChatTabPlanApprovalMarker({
+					decision: "auto-accept",
+					planApprovalPlanKey,
+				});
+			} else {
+				void appendMakePlanApprovalMarker({
+					decision: "auto-accept",
+					planApprovalPlanKey,
+				});
+			}
 
 			void startExecution({
 				plan: planWidget,
 				userPrompt: runUserPrompt,
 				conversation: runConversation,
+				agentCount,
 			});
 			setActiveTab("make");
 		},
 		[
+			agentCount,
 			chatTabConversationItems,
 			conversationItems,
 			latestChatTabUserPrompt,
 			latestUserPrompt,
 			startExecution,
+			appendChatTabPlanApprovalMarker,
+			appendMakePlanApprovalMarker,
 		],
 	);
 
@@ -888,14 +989,17 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			executionState,
 			runId,
 			taskExecutions,
-			run,
-			chatHistory: chatTabHistory,
-			activeChatId: chatTabActiveChatId,
-			sidebarRunHistory,
-			activeChatTitle: activeChatTabTitle,
-			isActiveChatTitlePending: isActiveChatTabTitlePending,
-			isGeneratingTitle: chatTabIsGeneratingTitle,
-			pendingTitleChatId: chatTabPendingTitleChatId,
+				run,
+				executedPlanKey,
+				agentCount,
+				chatHistory: chatTabHistory,
+				activeChatId: chatTabActiveChatId,
+				sidebarRunHistory,
+				hasLoadedRunHistory,
+				activeChatTitle: activeChatTabTitle,
+				isActiveChatTitlePending: isActiveChatTabTitlePending,
+				isGeneratingTitle: chatTabIsGeneratingTitle,
+				pendingTitleChatId: chatTabPendingTitleChatId,
 		}),
 		[
 			isOpen,
@@ -928,14 +1032,17 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			isPlanMessageComplete,
 			isExecutionActive,
 			executionState,
-			runId,
-			taskExecutions,
-			run,
-			sidebarRunHistory,
-			activeChatTabTitle,
-			isActiveChatTabTitlePending,
-		],
-	);
+				runId,
+				taskExecutions,
+				run,
+				executedPlanKey,
+				agentCount,
+				sidebarRunHistory,
+				hasLoadedRunHistory,
+				activeChatTabTitle,
+				isActiveChatTabTitlePending,
+			],
+		);
 
 	const actions: MakeActions = useMemo(
 		() => ({
@@ -978,6 +1085,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			toggleMakeMode: chatTabTogglePlanMode,
 			activateMakeMode,
 			deactivateMakeMode,
+			setAgentCount,
 		}),
 		[
 			handleHoverEnter,

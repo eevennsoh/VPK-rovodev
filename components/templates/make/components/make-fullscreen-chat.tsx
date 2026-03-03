@@ -50,23 +50,6 @@ const MODE_ENTER = { opacity: 1, y: 0 };
 const MODE_EXIT_UP = { opacity: 0, y: -8 };
 const MODE_INITIAL_DOWN = { opacity: 0, y: 8 };
 
-function getAwaitingIndicatorLabel(
-	showQuestionCard: boolean,
-	showApprovalCard: boolean,
-	isRequestInFlight: boolean,
-): string {
-	if (showQuestionCard) {
-		return "Waiting for your answers";
-	}
-	if (showApprovalCard) {
-		return "Waiting for your approval";
-	}
-	if (isRequestInFlight) {
-		return "Processing your request";
-	}
-	return "Waiting for your input";
-}
-
 function findLatestPlanWidgetMessageId(
 	messages: ReadonlyArray<RovoUIMessage>,
 ): string | null {
@@ -140,6 +123,8 @@ export function MakeFullscreenChat() {
 		chatTabQueuedPrompts: queuedPrompts,
 		chatTabIsPlanMessageComplete,
 		isMakeToggleActive,
+		chatTabActiveChatId,
+		executedPlanKey,
 	} = useMakeState();
 
 	const {
@@ -203,14 +188,17 @@ export function MakeFullscreenChat() {
 	} = useDismissibleCards({
 		activeQuestionCard: chatTabActiveQuestionCard,
 		activePlanWidget,
+		messages: streamingUiMessages,
+		scopeKey: chatTabActiveChatId,
 		onDismissQuestionCard: handleChatTabClarificationDismiss,
 	});
 
 	const isRequestInFlight = chatTabIsStreaming || chatTabIsSubmitPending;
 	const hasMessages = uiMessages.length > 0;
 	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isRequestInFlight;
+	const isPlanAlreadyExecuted = executedPlanKey !== null && executedPlanKey === activePlanKey;
 	const gatedShouldShowApprovalCard =
-		shouldShowApprovalCard && chatTabIsPlanMessageComplete && !isRequestInFlight;
+		shouldShowApprovalCard && chatTabIsPlanMessageComplete && !isRequestInFlight && !isPlanAlreadyExecuted;
 	const showBottomOverlayCard =
 		gatedShouldShowQuestionCard || gatedShouldShowApprovalCard;
 	const isAwaitingUserInput = showBottomOverlayCard;
@@ -615,12 +603,6 @@ export function MakeFullscreenChat() {
 						streamingIndicatorVariant="reasoning-expanded"
 						showFeedbackActions={false}
 						showFollowUpSuggestions={!isAwaitingUserInput}
-						showAwaitingIndicator={isAwaitingUserInput || isRequestInFlight}
-						awaitingIndicatorLabel={getAwaitingIndicatorLabel(
-							gatedShouldShowQuestionCard,
-							gatedShouldShowApprovalCard,
-							isRequestInFlight,
-						)}
 						renderWidget={renderWidget}
 					/>
 				</div>
@@ -666,7 +648,21 @@ export function MakeFullscreenChat() {
 			</div>
 
 			<div className="absolute inset-x-0 bottom-0 z-20 flex justify-center">
-				<Footer />
+				{showBottomOverlayCard ? (
+					<Footer hideIcon>
+						<span>
+							<kbd className="font-sans">↑</kbd> <kbd className="font-sans">↓</kbd> to navigate
+						</span>
+						<span aria-hidden>•</span>
+						<span>
+							<kbd className="font-sans">↵</kbd> Enter to select
+						</span>
+						<span aria-hidden>•</span>
+						<span>Esc to skip</span>
+					</Footer>
+				) : (
+					<Footer />
+				)}
 			</div>
 
 			<PlanPreviewModal

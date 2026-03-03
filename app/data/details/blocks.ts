@@ -85,6 +85,33 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 	"agent-summary": {
 		description: "Agent summary block with plan chrome, final synthesis, interactive dashboard, visual iframe preview, and grouped agent outputs.",
 	},
+	"answer-card": {
+		description: "Displays captured question/answer pairs as a compact summary card. Typically rendered after a user submits answers to a QuestionCard.",
+		usage: `import { AnswerCard } from "@/components/blocks/answer-card/page";
+import type { AnswerCardRow } from "@/components/blocks/answer-card/page";
+
+const rows: AnswerCardRow[] = [
+  { question: "What type of data?", answer: "Product metrics" },
+  { question: "Which chart types?", answer: "Line and bar" },
+];
+
+<AnswerCard rows={rows} />
+<AnswerCard label="Preferences saved" rows={rows} />`,
+		props: [
+			{
+				name: "rows",
+				type: "ReadonlyArray<AnswerCardRow>",
+				required: true,
+				description: "Ordered list of question/answer pairs to display.",
+			},
+			{
+				name: "label",
+				type: "string",
+				default: '"Requirements captured"',
+				description: "Header label displayed above the answer rows.",
+			},
+		],
+	},
 	"make-artifact": {
 		description: "Make artifact view with sidebar navigation, top nav tabs, dual tab bars, and two-panel layout for artifact output and chat.",
 	},

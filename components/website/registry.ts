@@ -1093,6 +1093,7 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 const BLOCK_DEMOS: Record<string, ComponentType> = {
 	"agent-grid": dynamic(() => import("./demos/blocks/agent-grid-demo"), { ssr: false }),
 	"agent-progress": dynamic(() => import("./demos/blocks/agent-progress-demo"), { ssr: false }),
+	"answer-card": dynamic(() => import("./demos/blocks/answer-card-demo"), { ssr: false }),
 	"app-sidebar": dynamic(() => import("./demos/blocks/app-sidebar-demo"), { ssr: false }),
 	"agent-summary": dynamic(() => import("./demos/blocks/agent-summary-demo"), { ssr: false }),
 	"make-artifact": dynamic(() => import("./demos/blocks/make-artifact-demo"), { ssr: false }),

@@ -2,6 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+	buildClarificationSummaryDisplayLabel,
+	buildClarificationSummaryRows,
 	parseQuestionCardPayload,
 	getLatestQuestionCardPayload,
 } = require("./question-card-widget.ts");
@@ -213,4 +215,101 @@ test("getLatestQuestionCardPayload returns null when latest assistant message al
 	]);
 
 	assert.equal(payload, null);
+});
+
+test("buildClarificationSummaryRows maps selected option ids to option labels", () => {
+	const parsedPayload = parseQuestionCardPayload({
+		type: "question-card",
+		sessionId: "summary-mapping",
+		questions: [
+			{
+				id: "q-1",
+				label: "What assets should we track?",
+				kind: "single-select",
+				options: [
+					{ id: "hardware", label: "Hardware only" },
+					{ id: "full", label: "Hardware + Software" },
+				],
+			},
+			{
+				id: "q-2",
+				label: "Anything else?",
+				kind: "text",
+				options: [],
+			},
+		],
+	});
+	assert.ok(parsedPayload);
+
+	const rows = buildClarificationSummaryRows(parsedPayload, {
+		"q-1": "full",
+		"q-2": "Add serial number import support",
+	});
+
+	assert.deepEqual(rows, [
+		{
+			question: "What assets should we track?",
+			answer: "Hardware + Software",
+		},
+		{
+			question: "Anything else?",
+			answer: "Add serial number import support",
+		},
+	]);
+});
+
+test("buildClarificationSummaryRows joins multi-select answers and falls back for unknown ids", () => {
+	const parsedPayload = parseQuestionCardPayload({
+		type: "question-card",
+		sessionId: "summary-multi",
+		questions: [
+			{
+				id: "q-1",
+				label: "Priority outcomes",
+				kind: "multi-select",
+				options: [
+					{ id: "speed", label: "Speed" },
+					{ id: "accuracy", label: "Accuracy" },
+				],
+			},
+		],
+	});
+	assert.ok(parsedPayload);
+
+	const rows = buildClarificationSummaryRows(parsedPayload, {
+		"q-1": ["speed", "custom-outcome"],
+	});
+
+	assert.deepEqual(rows, [
+		{
+			question: "Priority outcomes",
+			answer: "Speed, custom-outcome",
+		},
+	]);
+});
+
+test("buildClarificationSummaryDisplayLabel reflects captured answer count", () => {
+	const parsedPayload = parseQuestionCardPayload({
+		type: "question-card",
+		sessionId: "summary-label",
+		title: "Answer these questions",
+		questions: [
+			{
+				id: "q-1",
+				label: "Scope",
+				kind: "single-select",
+				options: [{ id: "a", label: "Option A" }],
+			},
+		],
+	});
+	assert.ok(parsedPayload);
+
+	assert.equal(
+		buildClarificationSummaryDisplayLabel(parsedPayload, {}),
+		'Requirements captured for "Answer these questions".'
+	);
+	assert.equal(
+		buildClarificationSummaryDisplayLabel(parsedPayload, { "q-1": "a" }),
+		"Requirements captured (1 answer)."
+	);
 });

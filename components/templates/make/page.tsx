@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,9 @@ import ChatTitleRow from "./components/chat-title-row";
 import { ConfigDialogs } from "./components/config-dialogs";
 import { MakeSearchPlaceholder } from "./components/make-search-placeholder";
 import { AnimatedCodeAscii } from "./components/animated-code-ascii";
+import type { MakeItem } from "@/components/blocks/make-item/lib/types";
+import { mapRunsToMakeGalleryItems } from "@/components/templates/make/lib/make-artifact-items";
+import { isRunExecutionPhase } from "@/components/templates/make/lib/execution-data";
 
 export default function MakeView() {
 	return (
@@ -71,6 +74,7 @@ function MakeLayout() {
 		chatHistory,
 		activeChatId,
 		sidebarRunHistory,
+		hasLoadedRunHistory,
 		runId,
 		isGeneratingTitle,
 		pendingTitleChatId,
@@ -113,14 +117,25 @@ function MakeLayout() {
 		activateMakeMode();
 	}, [handleNewChat, setActiveTab, activateMakeMode]);
 
+	const makeGalleryItems = useMemo(
+		() => mapRunsToMakeGalleryItems(sidebarRunHistory),
+		[sidebarRunHistory],
+	);
+
+	const handleGalleryItemSelect = useCallback((item: MakeItem) => {
+		const selectedRunId = item.runMeta?.runId ?? item.id;
+		handleSelectRun(selectedRunId);
+	}, [handleSelectRun]);
+
 	const isSidebarCollapsedAndHovered = !sidebarOpen && sidebarHovered;
 	const handleNewChatAndSwitchTab = useCallback(() => {
 		setActiveTab("chat");
 		handleNewChat();
 		deactivateMakeMode();
 	}, [handleNewChat, setActiveTab, deactivateMakeMode]);
-	// Show execution grid while building; switch to artifact surface once execution is finished.
-	const shouldShowExecutionGrid = executionState === "executing";
+	// Show execution grid while tasks are still active; switch once all tasks are done.
+	const shouldShowExecutionGrid =
+		executionState === "executing" && (run === null || isRunExecutionPhase(run));
 
 	return (
 		<SidebarProvider
@@ -211,28 +226,30 @@ function MakeLayout() {
 							<p className="text-sm">Home</p>
 						</div>
 					</TabsContent>
-					<TabsContent value="chat" className="min-h-0 flex-1 overflow-hidden">
-						<MakeFullscreenChat />
-					</TabsContent>
-					<TabsContent value="make" className="min-h-0 flex-1 overflow-hidden">
-						{isExecutionActive && shouldShowExecutionGrid ? (
-							<MakeGridSurface
-								taskExecutions={taskExecutions}
-								onAddTask={handleAddTask}
-							/>
-						) : isExecutionActive ? (
-							<MakeArtifactSurface run={run} />
-						) : sidebarRunHistory.length > 0 ? (
-							<MakeGalleryContent />
-						) : (
-							<MakeTabEmptyState
-								onStartMaking={() => {
-									setActiveTab("chat");
-									activateMakeMode();
-								}}
-							/>
-						)}
-					</TabsContent>
+						<TabsContent value="chat" className="min-h-0 flex-1 overflow-hidden">
+							<MakeFullscreenChat />
+						</TabsContent>
+						<TabsContent value="make" className="min-h-0 flex-1 overflow-hidden">
+							{isExecutionActive && shouldShowExecutionGrid ? (
+								<MakeGridSurface
+									taskExecutions={taskExecutions}
+									onAddTask={handleAddTask}
+								/>
+							) : isExecutionActive ? (
+								<MakeArtifactSurface run={run} />
+							) : makeGalleryItems.length > 0 ? (
+								<MakeGalleryContent items={makeGalleryItems} onItemSelect={handleGalleryItemSelect} />
+							) : !hasLoadedRunHistory ? (
+								<div className="h-full" aria-hidden />
+							) : (
+								<MakeTabEmptyState
+									onStartMaking={() => {
+										setActiveTab("chat");
+										activateMakeMode();
+									}}
+								/>
+							)}
+						</TabsContent>
 					<TabsContent value="search" className="min-h-0 flex-1 overflow-hidden">
 						<MakeSearchPlaceholder />
 					</TabsContent>

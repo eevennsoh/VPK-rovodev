@@ -8,8 +8,10 @@ import { useUrlParams } from "./use-url-params";
 import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scroll-anchoring";
 import type { PanelVariant, Product } from "../types";
 import {
+	buildClarificationSummaryDisplayLabel,
 	buildClarificationDismissPrompt,
 	buildClarificationSummaryPrompt,
+	buildClarificationSummaryRows,
 	createClarificationSubmission,
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
@@ -125,12 +127,21 @@ export function useRovoChatPanel({ product }: Readonly<UseRovoChatPanelOptions>)
 				activeQuestionCard,
 				answers
 			);
+			const clarificationSummary = buildClarificationSummaryRows(
+				activeQuestionCard,
+				answers
+			);
+			const displayLabel = buildClarificationSummaryDisplayLabel(
+				activeQuestionCard,
+				answers
+			);
 
 			await sendPrompt(clarificationPrompt, {
 				...buildSendOptions(),
 				messageMetadata: {
 					source: "clarification-submit",
-					visibility: "hidden",
+					displayLabel,
+					clarificationSummary,
 				},
 				clarification: clarificationSubmission,
 			});

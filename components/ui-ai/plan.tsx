@@ -55,13 +55,14 @@ export type PlanProps = Omit<ComponentProps<typeof Collapsible>, "open" | "defau
 	isStreaming?: boolean;
 	open?: boolean;
 	defaultOpen?: boolean;
+	defaultContentExpanded?: boolean;
 	onOpenChange?: (open: boolean) => void;
 };
 
-export const Plan = ({ className, isStreaming = false, open, defaultOpen = false, onOpenChange, children, ...props }: Readonly<PlanProps>) => {
+export const Plan = ({ className, isStreaming = false, open, defaultOpen = false, defaultContentExpanded = false, onOpenChange, children, ...props }: Readonly<PlanProps>) => {
 	const isControlled = open !== undefined;
 	const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
-	const [isContentExpanded, setIsContentExpanded] = useState(false);
+	const [isContentExpanded, setIsContentExpanded] = useState(defaultContentExpanded);
 	const isOpen = isControlled ? open : uncontrolledOpen;
 
 	const setIsOpen = (next: boolean) => {
@@ -136,7 +137,7 @@ export const PlanDescription = ({ className, children, ...props }: Readonly<Plan
 	const { isStreaming } = usePlan();
 
 	return (
-		<CardDescription className={cn("text-balance", className)} data-slot="plan-description" {...props}>
+		<CardDescription className={className} data-slot="plan-description" {...props}>
 			{isStreaming ? <Shimmer>{children}</Shimmer> : children}
 		</CardDescription>
 	);
@@ -185,7 +186,8 @@ export const PlanSummary = ({ summary, className, emptyMessage = "No summary pro
 	const [hasOverflow, setHasOverflow] = useState(false);
 	const [hasMeasured, setHasMeasured] = useState(false);
 	const contentRef = useRef<HTMLDivElement | null>(null);
-	const content = summary.trim().length > 0 ? summary : emptyMessage;
+	const rawContent = summary.trim().length > 0 ? summary : emptyMessage;
+	const content = rawContent;
 
 	useEffect(() => {
 		if (isContentExpanded || !contentRef.current) return;

@@ -15,8 +15,11 @@ import {
 import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
+	sanitizePlanDescription,
 } from "@/components/templates/shared/lib/plan-identity";
 import { PlanTabContent } from "@/components/templates/shared/lib/plan-card-utils";
+import { computeEstimate, parseAgentMultiplier } from "@/components/templates/shared/lib/agent-multiplier";
+import { useMakeState, useMakeActions } from "@/app/contexts/context-make";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { token } from "@/lib/tokens";
@@ -68,22 +71,6 @@ interface MakeCardWidgetInlineProps {
 	onOpenPreview?: () => void;
 }
 
-const USD_FORMATTER = new Intl.NumberFormat(undefined, {
-	style: "currency",
-	currency: "USD",
-	minimumFractionDigits: 2,
-	maximumFractionDigits: 2,
-});
-
-function parseAgentMultiplier(value: string): number {
-	const parsedValue = Number.parseInt(value, 10);
-	return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 1;
-}
-
-function formatEstimatedDuration(minutes: number): string {
-	return minutes === 1 ? "~1 min" : `~${minutes} min`;
-}
-
 export function MakeCardWidgetInline({
 	title,
 	tasks,
@@ -94,9 +81,10 @@ export function MakeCardWidgetInline({
 	onBuild,
 	onOpenPreview,
 }: Readonly<MakeCardWidgetInlineProps>): React.ReactElement | null {
+	const { agentCount } = useMakeState();
+	const { setAgentCount } = useMakeActions();
 	const [isOpen, setIsOpen] = useState(true);
 	const [internalCollapsed, setInternalCollapsed] = useState(false);
-	const [agentMultiplier, setAgentMultiplier] = useState("1x");
 	const isCollapsed = controlledCollapsed ?? internalCollapsed;
 	const setIsCollapsed = setInternalCollapsed;
 	const contentRef = useRef<HTMLDivElement>(null);
@@ -105,21 +93,8 @@ export function MakeCardWidgetInline({
 		[tasks],
 	);
 	const taskCount = visibleTasks.length;
-	const multiplier = useMemo(() => parseAgentMultiplier(agentMultiplier), [agentMultiplier]);
-	const estimate = useMemo(() => {
-		const baseCostUsd = Math.max(0.2, taskCount * 0.17);
-		const baseDurationMinutes = Math.max(1, Math.round(taskCount * 0.6));
-		const scaledCostUsd = baseCostUsd * multiplier;
-		const scaledDurationMinutes = Math.max(
-			1,
-			Math.round(baseDurationMinutes / (1 + 0.6 * (multiplier - 1))),
-		);
-
-		return {
-			cost: USD_FORMATTER.format(scaledCostUsd),
-			duration: formatEstimatedDuration(scaledDurationMinutes),
-		};
-	}, [multiplier, taskCount]);
+	const estimate = useMemo(() => computeEstimate(taskCount, agentCount), [agentCount, taskCount]);
+	const agentMultiplierDisplay = `${agentCount}x`;
 	const [streamRevealCount, setStreamRevealCount] = useState(0);
 
 	useEffect(() => {
@@ -140,7 +115,7 @@ export function MakeCardWidgetInline({
 
 	const displayTitle = resolvePlanDisplayTitle(title, visibleTasks);
 	const displayEmoji = derivePlanEmojiFromTitle(displayTitle);
-	const descriptionText = description?.trim() ? `${visibleTasks.length} tasks • ${description.trim()}` : `${visibleTasks.length} tasks`;
+	const descriptionText = sanitizePlanDescription(description, visibleTasks.length);
 
 	if (isCollapsed) {
 		return <CollapsedPlanBubble title={displayTitle} emoji={displayEmoji} onExpand={() => setIsCollapsed(false)} />;
@@ -155,7 +130,7 @@ export function MakeCardWidgetInline({
 				<PlanHeader
 					leading={<PlanAvatar emoji={displayEmoji} />}
 					title={<PlanTitle className="truncate text-sm leading-5 font-semibold text-text">{displayTitle}</PlanTitle>}
-					description={<PlanDescription className="text-xs leading-4 text-text-subtlest">{descriptionText}</PlanDescription>}
+					description={<PlanDescription className="truncate text-xs leading-4 text-text-subtlest">{descriptionText}</PlanDescription>}
 				/>
 
 				<PlanContent className="px-0 pb-0 pt-4">
@@ -177,7 +152,7 @@ export function MakeCardWidgetInline({
 							</div>
 							<div className="flex flex-col gap-0.5">
 								<span className="text-xs leading-4 text-text-subtlest">Number of agents</span>
-								<Select value={agentMultiplier} onValueChange={(value) => setAgentMultiplier(value ?? "1x")}>
+								<Select value={agentMultiplierDisplay} onValueChange={(value) => setAgentCount(parseAgentMultiplier(value ?? "1x"))}>
 									<SelectTrigger variant="none" size="sm" className="!h-auto gap-1 !p-0 text-xs leading-4 font-medium text-text">
 										<SelectValue />
 									</SelectTrigger>

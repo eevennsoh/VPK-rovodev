@@ -21,7 +21,7 @@ const RUN_STATUS_RUNNING = "running";
 const RUN_STATUS_COMPLETED = "completed";
 const RUN_STATUS_FAILED = "failed";
 const DEFAULT_MAX_CONCURRENT_AGENTS =
-	getPositiveInteger(process.env.ROVODEV_POOL_SIZE) || 1;
+	getPositiveInteger(process.env.ROVODEV_POOL_SIZE) || 4;
 const MAX_RUN_LIST_LIMIT = 50;
 const STREAMING_UPDATE_CHUNK_SIZE = 120;
 const STREAMING_UPDATE_MAX_CONTENT_CHARS = 8000;
@@ -32,7 +32,7 @@ const GENUI_WIDGET_BLUEPRINTS = [
 		id: "primary-overview-widget",
 		title: "Primary overview widget",
 		focus:
-			"Combine run KPIs, task status distribution, agent progress, and recommended next actions in one interactive overview.",
+			"Combine run KPIs with at least one chart (PieChart for task status distribution or BarChart for tasks per agent), plus recommended next actions in one interactive overview.",
 	},
 ];
 
@@ -572,7 +572,12 @@ function ensureRunDefaults(rawRun) {
 	};
 }
 
-function createInitialRun({ runId, plan, userPrompt, conversationContext, customInstruction }) {
+function normalizeAgentCount(value) {
+	const n = typeof value === "number" ? value : parseInt(value, 10);
+	return Number.isFinite(n) && n >= 1 && n <= 4 ? n : 1;
+}
+
+function createInitialRun({ runId, plan, userPrompt, conversationContext, customInstruction, agentCount }) {
 	const now = toIsoDate();
 	const batchId = createId("batch");
 	const iteration = 1;
@@ -636,6 +641,7 @@ function createInitialRun({ runId, plan, userPrompt, conversationContext, custom
 		genuiSummary: null,
 		userPrompt: userPrompt || "",
 		customInstruction: customInstruction || undefined,
+		agentCount: agentCount || 1,
 		conversationContext,
 		iteration,
 		activeBatchId: batchId,
@@ -661,6 +667,7 @@ function toSerializableRun(run) {
 		genuiSummary: normalizeGenuiSummary(run.genuiSummary),
 		userPrompt: run.userPrompt,
 		customInstruction: run.customInstruction,
+		agentCount: run.agentCount,
 		conversationContext: run.conversationContext,
 		iteration: run.iteration,
 		activeBatchId: run.activeBatchId,
@@ -830,6 +837,11 @@ function createGenuiSummaryPrompt(
 		"Produce exactly one interactive widget experience (not a full-page dashboard).",
 		"The generated spec should be compact, focused, and directly useful for interaction.",
 		"Do not use generic labels such as 'Interactive widget 1' in headings or labels.",
+		"Author the spec so design controls can edit visual presentation only, never underlying data values.",
+		"Use stable semantic element keys (for example: metricsGrid, statusChart, actionsTabs) instead of random IDs.",
+		"For layout containers, include explicit visual props that can be tuned later (Grid columns/gap, Stack direction/gap, Tabs defaultValue).",
+		"For chart elements, include explicit presentational props (chart type compatibility, color, height) separate from the data array.",
+		"Keep data payloads intact and avoid requiring data mutation to adjust layout, appearance, or copy.",
 		"Use the task outcomes and markdown summary below as source material.",
 		"Output exactly one ```spec block with valid RFC 6902 JSON patch lines.",
 		"",
@@ -1690,12 +1702,13 @@ function createRunManager(options) {
 
 	const scheduleRun = async (run) => {
 		const activeTaskPromises = new Map();
+		const effectiveConcurrency = Math.min(run.agentCount || 1, maxConcurrentAgents);
 
 		const launchReadyTasks = () => {
 			markBlockedTasksWithFailedDependencies(run);
 
 			for (const task of run.tasks) {
-				if (activeTaskPromises.size >= maxConcurrentAgents) {
+				if (activeTaskPromises.size >= effectiveConcurrency) {
 					break;
 				}
 
@@ -1987,6 +2000,7 @@ function createRunManager(options) {
 		userPrompt,
 		conversation,
 		customInstruction,
+		agentCount,
 	}) => {
 		const normalizedPlan = normalizePlan(plan);
 		if (!normalizedPlan) {
@@ -2000,6 +2014,7 @@ function createRunManager(options) {
 			userPrompt: getNonEmptyString(userPrompt) || "",
 			conversationContext: buildConversationContext(conversation),
 			customInstruction: getNonEmptyString(customInstruction) || undefined,
+			agentCount: normalizeAgentCount(agentCount),
 		});
 		runsById.set(runId, run);
 		await persistIntermediateSnapshot(run);

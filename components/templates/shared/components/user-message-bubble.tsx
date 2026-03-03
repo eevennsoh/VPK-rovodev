@@ -1,16 +1,44 @@
 import { Message as UiMessage, MessageContent } from "@/components/ui-ai/message";
+import { AnswerCard } from "@/components/blocks/answer-card/components/answer-card";
 import { Button } from "@/components/ui/button";
+import type { RovoMessageMetadata } from "@/lib/rovo-ui-messages";
 import DeleteIcon from "@atlaskit/icon/core/delete";
 
 interface UserMessageBubbleProps {
 	messageText: string;
+	metadata?: RovoMessageMetadata;
 	onDelete?: () => void;
+}
+
+function getClarificationSummaryRows(
+	metadata: RovoMessageMetadata | undefined
+): Array<{ question: string; answer: string }> {
+	if (!metadata || metadata.source !== "clarification-submit") {
+		return [];
+	}
+
+	if (!Array.isArray(metadata.clarificationSummary)) {
+		return [];
+	}
+
+	return metadata.clarificationSummary.filter((summaryRow) => {
+		return (
+			typeof summaryRow?.question === "string" &&
+			summaryRow.question.trim().length > 0 &&
+			typeof summaryRow?.answer === "string" &&
+			summaryRow.answer.trim().length > 0
+		);
+	});
 }
 
 export function UserMessageBubble({
 	messageText,
+	metadata,
 	onDelete,
 }: Readonly<UserMessageBubbleProps>): React.ReactElement {
+	const clarificationSummaryRows = getClarificationSummaryRows(metadata);
+	const showClarificationSummary = clarificationSummaryRows.length > 0;
+
 	return (
 		<div className="group/user-msg relative w-full">
 			{onDelete ? (
@@ -27,9 +55,11 @@ export function UserMessageBubble({
 				</span>
 			) : null}
 			<UiMessage from="user">
-				<MessageContent>
-					{messageText}
-				</MessageContent>
+				{showClarificationSummary ? (
+					<AnswerCard rows={clarificationSummaryRows} />
+				) : (
+					<MessageContent>{messageText}</MessageContent>
+				)}
 			</UiMessage>
 		</div>
 	);

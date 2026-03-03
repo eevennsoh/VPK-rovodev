@@ -167,6 +167,11 @@ import { InputOTP as InputOTPRoot, InputOTPGroup, InputOTPSlot } from "@/compone
 import { Calendar as CalendarPrimitive } from "@/components/ui/calendar";
 import { TooltipProvider, Tooltip as TooltipRoot, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Dialog as DialogRoot, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel";
+import { TimePicker as TimePickerPrimitive } from "@/components/ui/time-picker";
+import { DateTimePicker as DateTimePickerPrimitive } from "@/components/ui/date-time-picker";
 
 // ── Atlaskit icons ────────────────────────────────────────────
 import ChartTrendUpIcon from "@atlaskit/icon/core/chart-trend-up";
@@ -371,6 +376,39 @@ export const { registry } = defineRegistry(catalog, {
 			);
 		},
 
+		AspectRatio: ({ props, children }) => {
+			return (
+				<AspectRatio ratio={props.ratio}>
+					{children}
+				</AspectRatio>
+			);
+		},
+
+		ScrollArea: ({ props, children }) => {
+			const { maxHeight, className } = props;
+			return (
+				<ScrollArea className={cn(className)} style={maxHeight ? { maxHeight } : undefined}>
+					{children}
+				</ScrollArea>
+			);
+		},
+
+		Carousel: ({ props, children }) => {
+			const { orientation = "horizontal" } = props;
+			const childArray = Children.toArray(children);
+			return (
+				<Carousel orientation={nu(orientation)} className="w-full">
+					<CarouselContent>
+						{childArray.map((child, i) => (
+							<CarouselItem key={i}>{child}</CarouselItem>
+						))}
+					</CarouselContent>
+					<CarouselPrevious />
+					<CarouselNext />
+				</Carousel>
+			);
+		},
+
 		// ── Typography ─────────────────────────────────
 		Heading: ({ props }) => {
 			const { level, className } = props;
@@ -391,39 +429,39 @@ export const { registry } = defineRegistry(catalog, {
 			return <Tag className={cn(headingSizeClass, "text-text", className)}>{text}</Tag>;
 		},
 
-			Text: ({ props }) => {
-				const { muted, size = "sm" } = props;
-				const content = toSafeText(props.content);
-				const normalizedContent = content.trim().toLowerCase();
-				const isFigmaFrameDimensionsRow = normalizedContent.startsWith("frame dimensions:");
-				if (hasMermaidFenceBlock(content)) {
-					return (
-						<div className="rounded-md border border-border bg-surface p-3">
-							<MessageResponse mode="static" controls={false} className="text-sm [&_p]:m-0">
-								{content}
-							</MessageResponse>
-						</div>
-					);
-				}
-				const sizeClass =
-					size === "xs"
-						? "text-xs"
-						: size === "base"
-							? isFigmaFrameDimensionsRow
-								? "text-sm"
-								: "text-base"
-							: "text-sm";
-				const textToneClass = isFigmaFrameDimensionsRow
-					? "text-muted-foreground"
-					: muted
-						? "text-text-subtlest"
-						: "text-text-subtle";
+		Text: ({ props }) => {
+			const { muted, size = "sm" } = props;
+			const content = toSafeText(props.content);
+			const normalizedContent = content.trim().toLowerCase();
+			const isFigmaFrameDimensionsRow = normalizedContent.startsWith("frame dimensions:");
+			if (hasMermaidFenceBlock(content)) {
 				return (
-					<p className={cn(sizeClass, textToneClass, isFigmaFrameDimensionsRow ? "-mt-3" : undefined)}>
-						{content}
-					</p>
+					<div className="rounded-md border border-border bg-surface p-3">
+						<MessageResponse mode="static" controls={false} className="text-sm [&_p]:m-0">
+							{content}
+						</MessageResponse>
+					</div>
 				);
-			},
+			}
+			const sizeClass =
+				size === "xs"
+					? "text-xs"
+					: size === "base"
+						? isFigmaFrameDimensionsRow
+							? "text-sm"
+							: "text-base"
+						: "text-sm";
+			const textToneClass = isFigmaFrameDimensionsRow
+				? "text-muted-foreground"
+				: muted
+					? "text-text-subtlest"
+					: "text-text-subtle";
+			return (
+				<p className={cn(sizeClass, textToneClass, isFigmaFrameDimensionsRow ? "-mt-3" : undefined)}>
+					{content}
+				</p>
+			);
+		},
 
 		// ── Data Display ───────────────────────────────
 		Badge: ({ props }) => {
@@ -513,16 +551,27 @@ export const { registry } = defineRegistry(catalog, {
 			return (
 				<Table>
 					<TableHeader>
-						<TableRow>
-							{columns.map((col: { key: string; label: string }) => (
-								<TableHead key={col.key} className="cursor-pointer select-none" onClick={() => handleSort(col.key)}>
-									<div className="flex items-center gap-1">
-										{toSafeText(col.label)}
-										{sortKey === col.key ? sortDir === "asc" ? <ArrowUpIcon label="" size="small" /> : <ArrowDownIcon label="" size="small" /> : <span className="opacity-40"><SortDescendingIcon label="" size="small" /></span>}
-									</div>
-								</TableHead>
-							))}
-						</TableRow>
+							<TableRow>
+								{columns.map((col: { key: string; label: string }) => {
+									const isSortedColumn = sortKey === col.key;
+									const sortIcon = isSortedColumn
+										? sortDir === "asc"
+											? <ArrowUpIcon label="" size="small" />
+											: <ArrowDownIcon label="" size="small" />
+										: <SortDescendingIcon label="" size="small" />;
+
+									return (
+										<TableHead key={col.key} className="cursor-pointer select-none" onClick={() => handleSort(col.key)}>
+											<div className="inline-flex items-center gap-1 leading-none">
+												<span>{toSafeText(col.label)}</span>
+												<span className={cn("inline-flex items-center", isSortedColumn ? "opacity-100" : "opacity-40")}>
+													{sortIcon}
+												</span>
+											</div>
+										</TableHead>
+									);
+								})}
+							</TableRow>
 					</TableHeader>
 					<TableBody>
 						{sortedData.map((row, i: number) => (
@@ -1090,16 +1139,16 @@ export const { registry } = defineRegistry(catalog, {
 			);
 		},
 
-			Lozenge: ({ props }) => {
-				const { text, variant = "neutral", isBold = false } = props;
-				const variantKey = typeof variant === "string" ? variant.toLowerCase() : "neutral";
-				const normalizedVariant = LOZENGE_VARIANT_ALIASES[variantKey] ?? (variant as LozengeProps["variant"]) ?? "neutral";
-				return (
-					<Lozenge variant={normalizedVariant} isBold={isBold}>
-						{toSafeText(text)}
-					</Lozenge>
-				);
-			},
+		Lozenge: ({ props }) => {
+			const { text, variant = "neutral", isBold = false } = props;
+			const variantKey = typeof variant === "string" ? variant.toLowerCase() : "neutral";
+			const normalizedVariant = LOZENGE_VARIANT_ALIASES[variantKey] ?? (variant as LozengeProps["variant"]) ?? "neutral";
+			return (
+				<Lozenge variant={normalizedVariant} isBold={isBold}>
+					{toSafeText(text)}
+				</Lozenge>
+			);
+		},
 
 		Tag: ({ props }) => {
 			const { text, variant = "default", color } = props;
@@ -1299,13 +1348,12 @@ export const { registry } = defineRegistry(catalog, {
 		},
 
 		ProgressTracker: ({ props }) => {
-			const { steps } = props;
-			const mappedSteps = steps.map((step, i) => ({
-				id: `step-${i}`,
+			const steps = props.steps.map((step) => ({
+				id: toSafeText(step.id),
 				label: toSafeText(step.label),
 				state: (step.state ?? "todo") as "todo" | "current" | "done",
 			}));
-			return <ProgressTracker steps={mappedSteps} />;
+			return <ProgressTracker steps={steps} />;
 		},
 
 		// ── Interactive (extended) ────────────────────
@@ -1454,6 +1502,44 @@ export const { registry } = defineRegistry(catalog, {
 						value={dateValue}
 						onChange={(date) => setValue(date ? date.toISOString().split("T")[0] : "")}
 						placeholder={toSafeOptionalText(placeholder)}
+						disabled={nu(disabled)}
+					/>
+				</div>
+			);
+		},
+
+		TimePicker: ({ props, bindings }) => {
+			const { placeholder, label, stepMinutes, disabled } = props;
+			const [value, setValue] = useBoundProp<string>(nu(props.value), bindings?.value);
+			const step = stepMinutes ? (Number(stepMinutes) as 15 | 30 | 60) : undefined;
+			return (
+				<div className="space-y-2">
+					{label ? <Label>{toSafeText(label)}</Label> : null}
+					<TimePickerPrimitive
+						value={value ?? undefined}
+						onChange={setValue}
+						placeholder={toSafeOptionalText(placeholder)}
+						stepMinutes={step}
+						disabled={nu(disabled)}
+					/>
+				</div>
+			);
+		},
+
+		DateTimePicker: ({ props, bindings }) => {
+			const { label, disabled } = props;
+			const [date, setDate] = useBoundProp<string>(nu(props.date), bindings?.date);
+			const [time, setTime] = useBoundProp<string>(nu(props.time), bindings?.time);
+			const dateValue = date ? new Date(date) : undefined;
+			return (
+				<div className="space-y-2">
+					{label ? <Label>{toSafeText(label)}</Label> : null}
+					<DateTimePickerPrimitive
+						value={{ date: dateValue, time: time ?? undefined }}
+						onChange={(val) => {
+							setDate(val.date ? val.date.toISOString().split("T")[0] : "");
+							setTime(val.time ?? "");
+						}}
 						disabled={nu(disabled)}
 					/>
 				</div>

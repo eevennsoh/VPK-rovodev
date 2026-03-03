@@ -36,24 +36,6 @@ const OVERLAY_CARD_BOTTOM_PADDING = "520px";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getWidgetLoadingLabel(widgetType: string | null): string {
-	if (widgetType === "plan") return "Generating your plan";
-	if (widgetType === "work-items") return "Comparing Jira work items";
-	return "Processing your request";
-}
-
-function getAwaitingIndicatorLabel(
-	isWidgetLoading: boolean,
-	widgetLoadingLabel: string,
-	showQuestionCard: boolean,
-	showApprovalCard: boolean,
-): string {
-	if (isWidgetLoading) return widgetLoadingLabel;
-	if (showQuestionCard) return "Waiting for your answers";
-	if (showApprovalCard) return "Waiting for your approval";
-	return "Processing your request";
-}
-
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -195,12 +177,12 @@ export default function PlanChatView() {
 		isStreaming,
 		isSubmitPending,
 		isWidgetLoading,
-		loadingWidgetType,
 		isPlanMessageComplete,
 		uiMessages,
 		normalizedUiMessages: streamingUiMessages,
 		activeQuestionCard,
 		activePlanWidget,
+		activeChatId,
 	} = usePlanState();
 
 	const {
@@ -228,10 +210,11 @@ export default function PlanChatView() {
 	} = useDismissibleCards({
 		activeQuestionCard,
 		activePlanWidget,
+		messages: streamingUiMessages,
+		scopeKey: activeChatId,
 		onDismissQuestionCard: handleClarificationDismiss,
 	});
 
-	const widgetLoadingLabel = getWidgetLoadingLabel(loadingWidgetType);
 	const isRequestInFlight = isStreaming || isSubmitPending;
 	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isWidgetLoading && !isRequestInFlight;
 	const gatedShouldShowApprovalCard = shouldShowApprovalCard && isPlanMessageComplete && !isRequestInFlight;
@@ -265,13 +248,6 @@ export default function PlanChatView() {
 						streamingIndicatorVariant="reasoning-expanded"
 						showFeedbackActions={false}
 						showFollowUpSuggestions={!isAwaitingUserInput}
-						showAwaitingIndicator={isAwaitingUserInput || isWidgetLoading}
-						awaitingIndicatorLabel={getAwaitingIndicatorLabel(
-							isWidgetLoading,
-							widgetLoadingLabel,
-							gatedShouldShowQuestionCard,
-							gatedShouldShowApprovalCard,
-						)}
 						renderLoadingWidget={(widgetType) => (
 							<LoadingWidget widgetType={widgetType} />
 						)}

@@ -5,8 +5,10 @@ import { useRovoChat } from "@/app/contexts";
 import { useSpeechRecognition } from "./use-speech-recognition";
 import { useUrlParams } from "./use-url-params";
 import {
+	buildClarificationSummaryDisplayLabel,
 	buildClarificationDismissPrompt,
 	buildClarificationSummaryPrompt,
+	buildClarificationSummaryRows,
 	createClarificationSubmission,
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
@@ -114,12 +116,21 @@ export function useRovoViewChat() {
 				activeQuestionCard,
 				answers
 			);
+			const clarificationSummary = buildClarificationSummaryRows(
+				activeQuestionCard,
+				answers
+			);
+			const displayLabel = buildClarificationSummaryDisplayLabel(
+				activeQuestionCard,
+				answers
+			);
 
 			await sendPrompt(clarificationPrompt, {
 				...buildSendOptions(),
 				messageMetadata: {
 					source: "clarification-submit",
-					visibility: "hidden",
+					displayLabel,
+					clarificationSummary,
 				},
 				clarification: clarificationSubmission,
 			});

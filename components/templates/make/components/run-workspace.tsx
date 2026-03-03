@@ -16,16 +16,25 @@ import type {
 } from "@/lib/make-run-types";
 import { isAgentRunStreamEvent } from "@/lib/make-run-types";
 import type { AgentExecutionUpdate } from "@/lib/rovo-ui-messages";
-import { deriveTaskExecutionsFromRun } from "@/components/templates/make/lib/execution-data";
+import {
+	deriveTaskExecutionsFromRun,
+	isRunExecutionPhase,
+} from "@/components/templates/make/lib/execution-data";
 import {
 	applyExecutionUpdate,
 	mergeStreamedExecutions,
 	type TaskExecutionByTaskId,
 } from "@/components/templates/make/lib/task-execution-stream";
 import { MakeArtifactSurface } from "@/components/blocks/make-artifact/components/make-artifact-surface";
+import SummaryTitleRow from "@/components/blocks/make-artifact/components/summary-title-row";
 import { MakeGridSurface } from "@/components/blocks/make-grid/components/make-grid-surface";
 import { AppSidebar } from "@/components/templates/make/components/app-sidebar";
 import ChatTitleRow from "@/components/templates/make/components/chat-title-row";
+import type { ChatHistoryItem } from "@/components/templates/make/components/sidebar-chat-history";
+import {
+	resolvePlanDisplayTitle,
+	derivePlanEmojiFromTitle,
+} from "@/components/templates/shared/lib/plan-identity";
 import { useMakeConfig } from "@/components/templates/make/hooks/use-make-config";
 import { useConfigDialogs } from "@/components/templates/make/hooks/use-config-dialogs";
 import { ConfigDialogs } from "@/components/templates/make/components/config-dialogs";
@@ -33,11 +42,13 @@ import {
 	selectRetryTasks,
 	type RetryTaskGroupKey,
 } from "@/components/templates/make/lib/retry-task-groups";
+import { createMakeEntryHref } from "@/components/templates/make/lib/navigation-intent";
 import NotificationIcon from "@atlaskit/icon/core/notification";
 
 interface RunWorkspaceProps {
 	runId: string;
 	initialRun: AgentRun;
+	initialNowMs?: number;
 }
 
 function parseErrorMessage(payload: unknown): string {
@@ -88,6 +99,7 @@ function sortRunsByRecency(leftRun: AgentRunListItem, rightRun: AgentRunListItem
 export function RunWorkspace({
 	runId,
 	initialRun,
+	initialNowMs,
 }: Readonly<RunWorkspaceProps>) {
 	const router = useRouter();
 	const [isOpen, setIsOpen] = useState(true);
@@ -95,6 +107,7 @@ export function RunWorkspace({
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [run, setRun] = useState<AgentRun>(initialRun);
 	const [runHistory, setRunHistory] = useState<AgentRunListItem[]>([]);
+	const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
 	const [isAppending, setIsAppending] = useState(false);
 	const [appendError, setAppendError] = useState<string | null>(null);
 	const [streamedExecutionsByTaskId, setStreamedExecutionsByTaskId] =
@@ -165,8 +178,16 @@ export function RunWorkspace({
 	}, []);
 
 	const handleNavigateToMake = useCallback(() => {
-		router.push("/make");
+		router.push("/make?tab=make");
 	}, [router]);
+
+	const handleSelectChat = useCallback(
+		(chatId: string) => {
+			const encodedChatId = encodeURIComponent(chatId);
+			router.push(`/make?tab=chat&thread=${encodedChatId}`);
+		},
+		[router],
+	);
 
 	const handleSelectRun = useCallback(
 		(targetRunId: string) => {
@@ -197,12 +218,21 @@ export function RunWorkspace({
 		[router, runId]
 	);
 
-	const handleUnusedSelectChat = useCallback((chatId: string) => {
-		void chatId;
-	}, []);
-
-	const handleUnusedDeleteChat = useCallback((chatId: string) => {
-		void chatId;
+	const handleDeleteChat = useCallback(async (chatId: string) => {
+		try {
+			const response = await fetch(API_ENDPOINTS.chatThread(chatId), {
+				method: "DELETE",
+			});
+			if (!response.ok) {
+				console.error("[MAKE] Failed to delete chat thread:", response.status);
+				return;
+			}
+			setChatHistory((previousHistory) =>
+				previousHistory.filter((chatItem) => chatItem.id !== chatId)
+			);
+		} catch (error) {
+			console.error("[MAKE] Failed to delete chat thread:", error);
+		}
 	}, []);
 
 	const closeEventSource = useCallback(() => {
@@ -352,6 +382,64 @@ export function RunWorkspace({
 		};
 	}, [run.runId, run.status]);
 
+	useEffect(() => {
+		let cancelled = false;
+		const loadChatHistory = async () => {
+			try {
+				const response = await fetch(API_ENDPOINTS.chatThreads(), {
+					cache: "no-store",
+				});
+				if (!response.ok || cancelled) {
+					return;
+				}
+
+				const payload = (await response.json()) as { threads?: unknown[] };
+				if (!Array.isArray(payload.threads) || cancelled) {
+					return;
+				}
+
+				const nextChatHistory = payload.threads
+					.map((thread) => {
+						if (!thread || typeof thread !== "object") {
+							return null;
+						}
+
+						const record = thread as { id?: unknown; title?: unknown };
+						if (typeof record.id !== "string" || !record.id.trim()) {
+							return null;
+						}
+
+						return {
+							id: record.id,
+							title:
+								typeof record.title === "string" && record.title.trim().length > 0
+									? record.title
+									: "New chat",
+						} satisfies ChatHistoryItem;
+					})
+					.filter((thread): thread is ChatHistoryItem => thread !== null);
+
+				setChatHistory(nextChatHistory);
+			} catch (error) {
+				console.error("[MAKE] Failed to load chat history:", error);
+			}
+		};
+
+		void loadChatHistory();
+
+		const handleVisibilityChange = () => {
+			if (document.visibilityState === "visible") {
+				void loadChatHistory();
+			}
+		};
+
+		document.addEventListener("visibilitychange", handleVisibilityChange);
+		return () => {
+			cancelled = true;
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
+		};
+	}, []);
+
 	const appendTasksToRun = useCallback(
 		async (
 			targetRunId: string,
@@ -454,8 +542,14 @@ export function RunWorkspace({
 		const baseExecutions = deriveTaskExecutionsFromRun(run);
 		return mergeStreamedExecutions(baseExecutions, streamedExecutionsByTaskId);
 	}, [run, streamedExecutionsByTaskId]);
-	// Show execution grid while the run is actively executing.
-	const shouldShowExecutionGrid = run.status === "running" || isAppending;
+	// Show execution grid while tasks are actively executing.
+	const shouldShowExecutionGrid = isAppending || isRunExecutionPhase(run);
+
+	const summaryTitle = useMemo(() => {
+		const title = resolvePlanDisplayTitle(run.plan.title, run.tasks);
+		const emoji = run.plan.emoji ?? derivePlanEmojiFromTitle(title);
+		return `${emoji} ${title}`;
+	}, [run.plan.title, run.plan.emoji, run.tasks]);
 
 	const sidebarRunHistory = useMemo(() => {
 		const runsById = new Map<string, AgentRunListItem>();
@@ -494,15 +588,16 @@ export function RunWorkspace({
 				isOverlay={false}
 				isHoverReveal={!isOpen && isHovered}
 				onPinSidebar={handlePinSidebar}
-				chatHistory={[]}
+				chatHistory={chatHistory}
 				activeChatId={null}
 				runHistory={sidebarRunHistory}
 				activeRunId={run.runId}
+				initialNowMs={initialNowMs}
 				onSelectRun={handleSelectRun}
 				onDeleteRun={handleDeleteRun}
 				onRetryRunGroup={handleRetryRunGroup}
-				onSelectChat={handleUnusedSelectChat}
-				onDeleteChat={handleUnusedDeleteChat}
+				onSelectChat={handleSelectChat}
+				onDeleteChat={handleDeleteChat}
 				onMouseEnter={handleHoverEnter}
 				onMouseLeave={handleHoverLeave}
 				skills={skills}
@@ -513,8 +608,8 @@ export function RunWorkspace({
 				onNewAgent={sidebarConfigHandlers.onNewAgent}
 				onExportSkill={sidebarConfigHandlers.onExportSkill}
 				onExportAgent={sidebarConfigHandlers.onExportAgent}
-				onNewChat={handleNavigateToMake}
-				onNewProject={handleNavigateToMake}
+				onNewChat={() => router.push(createMakeEntryHref("fresh-chat"))}
+				onNewProject={() => router.push(createMakeEntryHref("fresh-make"))}
 			/>
 			<SidebarInset className="h-svh overflow-hidden">
 				<div className="pointer-events-none absolute top-0 right-0 z-20 flex h-14 items-center gap-0.5 pr-4 text-icon-subtle">
@@ -565,6 +660,15 @@ export function RunWorkspace({
 									{appendError}
 								</p>
 							) : null}
+							<SummaryTitleRow
+								title={summaryTitle}
+								sidebarOpen={isOpen}
+								sidebarHovered={isHovered}
+								onExpandSidebar={() => setIsOpen(true)}
+								onHoverEnter={handleHoverEnter}
+								onHoverLeave={handleHoverLeave}
+								onBack={handleNavigateToMake}
+							/>
 							<div className={cn("min-h-0 flex-1 overflow-hidden", appendError ? "mt-4" : null)}>
 								{shouldShowExecutionGrid ? (
 									<MakeGridSurface

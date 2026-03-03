@@ -70,6 +70,20 @@ function parseFetchFailure(error: unknown, fallbackMessage: string): string {
 	return trimmedMessage;
 }
 
+function resolveInitialNowMs(run: AgentRun): number | undefined {
+	const updatedAtMs = Date.parse(run.updatedAt);
+	if (Number.isFinite(updatedAtMs)) {
+		return updatedAtMs;
+	}
+
+	const createdAtMs = Date.parse(run.createdAt);
+	if (Number.isFinite(createdAtMs)) {
+		return createdAtMs;
+	}
+
+	return undefined;
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function MakeRunPage({ params }: Readonly<RunPageProps>) {
@@ -106,10 +120,10 @@ export default async function MakeRunPage({ params }: Readonly<RunPageProps>) {
 						{errorMessage ?? "No run data found."}
 					</p>
 					<div className="mt-5">
-						<Link
-							href="/make"
-							className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
-						>
+							<Link
+								href="/make?tab=make"
+								className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
+							>
 							Back to Make
 						</Link>
 					</div>
@@ -118,11 +132,14 @@ export default async function MakeRunPage({ params }: Readonly<RunPageProps>) {
 		);
 	}
 
+	const initialNowMs = resolveInitialNowMs(resolvedRun);
+
 	return (
 		<div className="bg-surface">
 			<RunWorkspace
 				runId={runId}
 				initialRun={resolvedRun}
+				initialNowMs={initialNowMs}
 			/>
 		</div>
 	);

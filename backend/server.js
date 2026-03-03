@@ -95,6 +95,8 @@ const {
 	streamGoogleGatewayManualSse,
 } = require("./lib/ai-gateway-helpers");
 const { synthesizeSound } = require("./lib/sound-generation");
+const { generateStandupSummary } = require("./lib/standup-summary");
+const { classifyTickets } = require("./lib/ticket-classifier");
 const {
 	isAudioRequestPrompt,
 	resolveSmartAudioVoiceInput,
@@ -8319,6 +8321,7 @@ app.post("/api/plan/runs", async (req, res) => {
 			userPrompt,
 			conversation,
 			customInstruction,
+			agentCount,
 		} = req.body || {};
 
 		const run = await planRunManager.createRun({
@@ -8326,6 +8329,7 @@ app.post("/api/plan/runs", async (req, res) => {
 			userPrompt,
 			conversation,
 			customInstruction,
+			agentCount,
 		});
 		return res.status(201).json({ run });
 	} catch (error) {
@@ -9042,6 +9046,7 @@ app.post("/api/make/runs", async (req, res) => {
 			userPrompt,
 			conversation,
 			customInstruction,
+			agentCount,
 		} = req.body || {};
 
 		const run = await makeRunManager.createRun({
@@ -9049,6 +9054,7 @@ app.post("/api/make/runs", async (req, res) => {
 			userPrompt,
 			conversation,
 			customInstruction,
+			agentCount,
 		});
 		return res.status(201).json({ run });
 	} catch (error) {
@@ -9619,6 +9625,48 @@ app.get("/api/make/config-summary", (req, res) => {
 	} catch (error) {
 		console.error("[MAKE-FS] Failed to get config summary:", error);
 		return res.status(500).json({ error: "Failed to get config summary" });
+	}
+});
+
+// ─── Ticket Classifier ──────────────────────────────────────────────────────
+
+app.post("/api/ticket-classify", async (req, res) => {
+	try {
+		const { siteUrl, project, excludeStatuses, limit } = req.body || {};
+		const result = await classifyTickets({
+			siteUrl,
+			project,
+			excludeStatuses,
+			limit,
+		});
+		return res.json(result);
+	} catch (error) {
+		const statusCode = error.statusCode || 500;
+		return res.status(statusCode).json({
+			error: "Failed to classify tickets",
+			details: error instanceof Error ? error.message : String(error),
+		});
+	}
+});
+
+// ─── Standup Summary ─────────────────────────────────────────────────────────
+
+app.post("/api/standup", async (req, res) => {
+	try {
+		const { siteUrl, hoursAgo, projects, limit } = req.body || {};
+		const summary = await generateStandupSummary({
+			siteUrl,
+			hoursAgo,
+			projects,
+			limit,
+		});
+		return res.json(summary);
+	} catch (error) {
+		const statusCode = error.statusCode || 500;
+		return res.status(statusCode).json({
+			error: "Failed to generate standup summary",
+			details: error instanceof Error ? error.message : String(error),
+		});
 	}
 });
 

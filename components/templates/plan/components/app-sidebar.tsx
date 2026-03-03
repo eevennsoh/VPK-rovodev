@@ -45,6 +45,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	activeChatId: string | null;
 	runHistory: AgentRunListItem[];
 	activeRunId?: string | null;
+	initialNowMs?: number;
 	isGeneratingTitle?: boolean;
 	pendingTitleChatId?: string | null;
 	onSelectRun?: (runId: string) => void;
@@ -78,6 +79,7 @@ export function AppSidebar({
 	activeChatId,
 	runHistory,
 	activeRunId,
+	initialNowMs,
 	isGeneratingTitle,
 	pendingTitleChatId,
 	onSelectRun,
@@ -235,6 +237,7 @@ export function AppSidebar({
 							<SidebarRunHistory
 								items={filteredRunHistory}
 								activeRunId={activeRunId}
+								initialNowMs={initialNowMs}
 								onSelectRun={onSelectRun}
 								onDeleteRun={onDeleteRun}
 								onRetryRunGroup={onRetryRunGroup}

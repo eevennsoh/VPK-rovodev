@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
 	computeTaskStatusGroupsFromRun,
 	deriveTaskExecutionsFromRun,
+	isRunExecutionPhase,
 } = require("./execution-data.ts");
 
 test("derives separate task executions for repeated agent assignments", () => {
@@ -122,4 +123,46 @@ test("maps failed run tasks into the failed status group", () => {
 		groups.todo.map((task) => task.id),
 		["task-4"]
 	);
+});
+
+test("reports execution phase while running with unfinished tasks", () => {
+	const run = {
+		status: "running",
+		tasks: [
+			{ id: "task-1", status: "done" },
+			{ id: "task-2", status: "in-progress" },
+		],
+	};
+
+	assert.equal(isRunExecutionPhase(run), true);
+});
+
+test("exits execution phase when all tasks are done even if run is still running", () => {
+	const run = {
+		status: "running",
+		tasks: [
+			{ id: "task-1", status: "done" },
+			{ id: "task-2", status: "done" },
+		],
+	};
+
+	assert.equal(isRunExecutionPhase(run), false);
+});
+
+test("returns false for non-running run statuses", () => {
+	const completedRun = {
+		status: "completed",
+		tasks: [{ id: "task-1", status: "in-progress" }],
+	};
+	const failedRun = {
+		status: "failed",
+		tasks: [{ id: "task-1", status: "in-progress" }],
+	};
+
+	assert.equal(isRunExecutionPhase(completedRun), false);
+	assert.equal(isRunExecutionPhase(failedRun), false);
+});
+
+test("returns false when run is missing", () => {
+	assert.equal(isRunExecutionPhase(null), false);
 });

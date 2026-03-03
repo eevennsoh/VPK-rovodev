@@ -17,6 +17,7 @@ import {
 interface SidebarRunHistoryProps {
 	items: AgentRunListItem[];
 	activeRunId?: string | null;
+	initialNowMs?: number;
 	onSelectRun?: (runId: string) => void;
 	onDeleteRun?: (runId: string) => void;
 	onRetryRunGroup?: (
@@ -56,6 +57,7 @@ function isSummaryGenerating(run: AgentRunListItem): boolean {
 export default function SidebarRunHistory({
 	items,
 	activeRunId = null,
+	initialNowMs,
 	onSelectRun,
 	onDeleteRun,
 	onRetryRunGroup,
@@ -92,6 +94,7 @@ export default function SidebarRunHistory({
 							runStatus={run.status}
 							runCreatedAt={run.createdAt}
 							runCompletedAt={resolveRunCompletedAtForDisplay(run)}
+							initialNowMs={initialNowMs}
 							showSummaryRainbow={showSummaryRainbow}
 							runCount={getTaskCount(run)}
 							agentCount={getAgentCount(run)}

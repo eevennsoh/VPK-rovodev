@@ -52,8 +52,8 @@ export default function SummaryTitleRow({
 			</div>
 
 			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<Button aria-label="Go back" size="icon" variant="ghost" onClick={onBack}>
-					<ChevronLeftIcon label="" />
+				<Button aria-label="Go back" size="icon-xs" variant="ghost" onClick={onBack}>
+					<ChevronLeftIcon label="" size="small" />
 				</Button>
 				<p style={{ font: token("font.heading.xsmall") }} className="truncate text-text" title={title}>
 					{title}

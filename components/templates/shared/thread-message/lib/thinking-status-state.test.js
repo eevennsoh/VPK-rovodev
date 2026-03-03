@@ -5,6 +5,7 @@ const {
 	isThinkingStatusActive,
 	isThinkingStatusLifecycleStreaming,
 	isPostToolsGenuiGeneration,
+	resolveThinkingStatusTriggerLabel,
 } = require("./thinking-status-state.ts");
 
 test("keeps thinking status active when thinking events exist without a status part", () => {
@@ -84,5 +85,27 @@ test("does not mark post-tools GenUI generation when no tool calls were observed
 			hasRunningToolCalls: false,
 		}),
 		false
+	);
+});
+
+test("uses a deterministic completed label when phase is completed without duration", () => {
+	assert.equal(
+		resolveThinkingStatusTriggerLabel({
+			resolvedLabel: "Thinking",
+			reasoningPhase: "completed",
+			duration: undefined,
+		}),
+		"Completed"
+	);
+});
+
+test("keeps the existing label when phase is still thinking", () => {
+	assert.equal(
+		resolveThinkingStatusTriggerLabel({
+			resolvedLabel: "Thinking",
+			reasoningPhase: "thinking",
+			duration: undefined,
+		}),
+		"Thinking"
 	);
 });

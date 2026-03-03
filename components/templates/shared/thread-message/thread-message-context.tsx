@@ -50,6 +50,8 @@ export interface ThreadMessageContextValue {
 	thinkingStatusReasoningPhase: ReasoningPhase;
 	/** Completed thinking duration in seconds (when available). */
 	thinkingStatusDuration: number | undefined;
+	/** Whether the backend emitted turn-complete for this message. */
+	hasTurnComplete: boolean;
 	/** True when tools are done and GenUI is still rendering its widget payload. */
 	isPostToolsGenuiGeneration: boolean;
 	/** Tool call summaries to show in the thinking-status section (empty array if standalone tools are shown instead). */

@@ -171,8 +171,15 @@ export interface RovoMessageMetadata {
 		| "plan-approval-submit"
 		| "agent-directive"
 		| "plan-retry";
+	planApprovalDecision?: "auto-accept" | "continue-planning" | "custom";
+	planApprovalPlanKey?: string;
 	/** Short label shown in the user bubble instead of the full prompt text */
 	displayLabel?: string;
+	/** Structured clarification rows shown in the specialized user summary bubble */
+	clarificationSummary?: Array<{
+		question: string;
+		answer: string;
+	}>;
 }
 
 export type RovoUIMessage = UIMessage<RovoMessageMetadata, RovoDataParts>;

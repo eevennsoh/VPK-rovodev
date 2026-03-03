@@ -16,14 +16,41 @@ interface MakeItemCardProps {
 	item: MakeItem;
 	className?: string;
 	onRecurringToggle?: (enabled: boolean) => void;
+	onSelect?: () => void;
 }
 
-export function MakeItemCard({ item, className, onRecurringToggle }: Readonly<MakeItemCardProps>) {
+export function MakeItemCard({ item, className, onRecurringToggle, onSelect }: Readonly<MakeItemCardProps>) {
+	const isSelectable = typeof onSelect === "function";
+	const runStatusLabel =
+		item.runMeta?.status === "running"
+			? "Running"
+			: item.runMeta?.status === "completed"
+				? "Completed"
+				: null;
+
 	return (
-		<Card className={cn("flex flex-row overflow-hidden border border-border bg-surface py-0 shadow-none transition-all duration-200 ease-out hover:-translate-y-1 hover:border-transparent hover:shadow-2xl", className)}>
-			{/* Left: ASCII Preview */}
-			<div className="relative flex w-[280px] shrink-0 items-center justify-center bg-surface overflow-hidden">
-				<div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80 scale-90">
+		<Card
+			className={cn(
+				"flex flex-col overflow-hidden border border-border bg-surface py-0 shadow-none transition-all duration-200 ease-out hover:-translate-y-1 hover:border-transparent hover:shadow-2xl sm:flex-row",
+				isSelectable ? "cursor-pointer" : "cursor-default",
+				className,
+			)}
+			onClick={isSelectable ? onSelect : undefined}
+			onKeyDown={isSelectable
+				? (event) => {
+					if (event.key === "Enter" || event.key === " ") {
+						event.preventDefault();
+						onSelect();
+					}
+				}
+				: undefined
+			}
+			role={isSelectable ? "button" : undefined}
+			tabIndex={isSelectable ? 0 : undefined}
+		>
+			{/* ASCII Preview */}
+			<div className="relative flex h-40 shrink-0 items-center justify-center overflow-hidden bg-surface sm:h-auto sm:w-[280px]">
+				<div className="pointer-events-none absolute inset-0 flex items-center justify-center scale-90 opacity-80">
 					<AnimatedAscii
 						id={item.id}
 						type={item.type}
@@ -33,8 +60,8 @@ export function MakeItemCard({ item, className, onRecurringToggle }: Readonly<Ma
 				</div>
 			</div>
 
-			{/* Right: Details */}
-			<div className="flex flex-1 flex-col justify-between pt-4">
+			{/* Details */}
+			<div className="flex min-w-0 flex-1 flex-col justify-between pt-4">
 				<CardHeader className="pb-0">
 					<Lozenge variant={item.type === "apps" ? "information" : item.type === "agents" ? "discovery" : item.type === "skills" ? "success" : "warning"}>
 						{item.type === "apps" ? "App" : item.type === "agents" ? "Agent" : item.type === "skills" ? "Skill" : "Automation"}
@@ -45,13 +72,26 @@ export function MakeItemCard({ item, className, onRecurringToggle }: Readonly<Ma
 								<Switch
 									checked={item.recurring.enabled}
 									onCheckedChange={onRecurringToggle}
+									onClick={(event) => event.stopPropagation()}
 									aria-label="Toggle recurring schedule"
 								/>
 							) : null}
-							<Button variant="ghost" size="icon-sm" aria-label="Edit" className="text-icon-subtle">
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								aria-label="Edit"
+								className="text-icon-subtle"
+								onClick={(event) => event.stopPropagation()}
+							>
 								<EditIcon label="" size="small" />
 							</Button>
-							<Button variant="ghost" size="icon-sm" aria-label="Share" className="text-icon-subtle">
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								aria-label="Share"
+								className="text-icon-subtle"
+								onClick={(event) => event.stopPropagation()}
+							>
 								<ShareIcon label="" size="small" />
 							</Button>
 						</div>
@@ -70,45 +110,75 @@ export function MakeItemCard({ item, className, onRecurringToggle }: Readonly<Ma
 							<span>🔄 {item.recurring.schedule}</span>
 						</p>
 					) : null}
-					<CardDescription className="text-sm leading-5 text-text-subtle">
+					<CardDescription className="text-sm leading-5 text-text-subtle line-clamp-2">
 						{item.description}
 					</CardDescription>
 				</CardContent>
 
-				<CardFooter className="items-center justify-between bg-transparent rounded-none px-0 mx-4">
-					<div className="flex items-center gap-6">
-						<div className="flex flex-col gap-0.5">
-							<span className="text-xs leading-4 text-text-subtlest">Last updated</span>
-							<span className="text-xs leading-4 font-medium text-text">{item.lastUpdated}</span>
-						</div>
-						<div className="flex flex-col gap-0.5">
-							<span className="text-xs leading-4 text-text-subtlest">Users</span>
-							<span className="text-xs leading-4 font-medium text-text">{item.users.toLocaleString()}</span>
-						</div>
-						<div className="flex flex-col gap-0.5">
-							<span className="text-xs leading-4 text-text-subtlest">Rating</span>
-							<div className="flex items-center gap-1">
-								<span className="text-xs leading-4 font-medium text-text">{item.rating.toFixed(1)}</span>
-								<Icon
-									render={<StarStarredIcon label="" size="small" color="currentColor" />}
-									label="Star"
-									className="text-warning size-3"
-								/>
-								<span className="text-xs leading-4 text-text-subtlest">({item.ratingCount})</span>
+				<CardFooter className="flex-wrap items-center justify-between gap-y-2 bg-transparent rounded-none px-0 mx-4">
+					{item.runMeta ? (
+						<>
+							<div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+								<div className="flex flex-col gap-0.5">
+									<span className="text-xs leading-4 text-text-subtlest">Last updated</span>
+									<span className="text-xs leading-4 font-medium text-text">{item.lastUpdated}</span>
+								</div>
+								<div className="flex flex-col gap-0.5">
+									<span className="text-xs leading-4 text-text-subtlest">Status</span>
+									<span className="text-xs leading-4 font-medium text-text">{runStatusLabel}</span>
+								</div>
+								<div className="flex flex-col gap-0.5">
+									<span className="text-xs leading-4 text-text-subtlest">Tasks</span>
+									<span className="text-xs leading-4 font-medium text-text">
+										{item.runMeta.taskCount.toLocaleString()}
+									</span>
+								</div>
 							</div>
-						</div>
-					</div>
 
-					<div className="flex flex-col items-end gap-0.5">
-						<span className="text-xs leading-4 text-text-subtlest">Maintained by</span>
-						<AvatarGroup>
-							{item.maintainers.slice(0, 4).map((maintainer, i) => (
-								<Avatar key={i} size="xs">
-									<AvatarFallback>{maintainer.name.charAt(0).toUpperCase()}</AvatarFallback>
+							<div className="flex min-w-0 flex-col items-end gap-0.5">
+								<span className="text-xs leading-4 text-text-subtlest">Created by</span>
+								<Avatar size="xs">
+									<AvatarFallback>{item.maintainers[0]?.name.charAt(0).toUpperCase()}</AvatarFallback>
 								</Avatar>
-							))}
-						</AvatarGroup>
-					</div>
+							</div>
+						</>
+					) : (
+						<>
+							<div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+								<div className="flex flex-col gap-0.5">
+									<span className="text-xs leading-4 text-text-subtlest">Last updated</span>
+									<span className="text-xs leading-4 font-medium text-text">{item.lastUpdated}</span>
+								</div>
+								<div className="flex flex-col gap-0.5">
+									<span className="text-xs leading-4 text-text-subtlest">Users</span>
+									<span className="text-xs leading-4 font-medium text-text">{item.users.toLocaleString()}</span>
+								</div>
+								<div className="flex flex-col gap-0.5">
+									<span className="text-xs leading-4 text-text-subtlest">Rating</span>
+									<div className="flex items-center gap-1">
+										<span className="text-xs leading-4 font-medium text-text">{item.rating.toFixed(1)}</span>
+										<Icon
+											render={<StarStarredIcon label="" size="small" color="currentColor" />}
+											label="Star"
+											className="text-warning size-3"
+										/>
+										<span className="text-xs leading-4 text-text-subtlest">({item.ratingCount})</span>
+									</div>
+								</div>
+							</div>
+
+							<div className="flex flex-col items-end gap-0.5">
+								<span className="text-xs leading-4 text-text-subtlest">Maintained by</span>
+								<AvatarGroup>
+									{item.maintainers.slice(0, 4).map((maintainer, i) => (
+										<Avatar key={i} size="xs">
+											<AvatarFallback>{maintainer.name.charAt(0).toUpperCase()}</AvatarFallback>
+										</Avatar>
+									))}
+								</AvatarGroup>
+							</div>
+						</>
+					)}
 				</CardFooter>
 			</div>
 		</Card>

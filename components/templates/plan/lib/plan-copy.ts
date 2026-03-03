@@ -10,7 +10,7 @@ export interface PlanModeCopy {
 
 const ASK_MODE_COPY: PlanModeCopy = {
 	heading: "What do you need?",
-	placeholder: "Ask, @mention, or / for actions",
+	placeholder: "Add more tasks or steer Rovo to do something else",
 	illustration: {
 		light: "/illustration-ai/chat/light.svg",
 		dark: "/illustration-ai/chat/dark.svg",

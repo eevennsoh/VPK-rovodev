@@ -502,62 +502,56 @@ function InlineToolCard({ toolPart }: { toolPart: RovoToolPart }) {
 		toolPart.state === "output-error";
 
 	return (
-		<div style={toolCardStyle}>
-			{/* Header row */}
-			<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-				<span style={toolNameBadgeStyle}>{displayName}</span>
-				{serverName ? <span style={serverBadgeStyle}>{serverName}</span> : null}
-				<StatusBadge state={toolPart.state} />
-				{formattedInput ? (
-					<button
-						type="button"
-						onClick={() => setArgsExpanded((v) => !v)}
-						style={expandButtonStyle}
+		<>
+			{/* Tool call card */}
+			<div style={toolCardStyle}>
+				{/* Header row */}
+				<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+					<span style={toolNameBadgeStyle}>{displayName}</span>
+					{serverName ? <span style={serverBadgeStyle}>{serverName}</span> : null}
+					<StatusBadge state={toolPart.state} />
+					{formattedInput ? (
+						<button
+							type="button"
+							onClick={() => setArgsExpanded((v) => !v)}
+							style={expandButtonStyle}
+						>
+							{argsExpanded ? "▾ Hide args" : "▸ Show args"}
+						</button>
+					) : null}
+				</div>
+
+				{/* Expandable args */}
+				{argsExpanded && formattedInput ? (
+					<pre style={preBlockStyle}>
+						<code>{formattedInput}</code>
+					</pre>
+				) : null}
+
+				{/* Error text */}
+				{errorText ? (
+					<div
+						style={{
+							marginTop: 8,
+							padding: "8px 12px",
+							borderRadius: 6,
+							background: "var(--ds-background-danger, #42221f)",
+							border: "1px solid var(--ds-border-danger, #ae2e24)",
+							color: "var(--ds-text-danger, #fd9891)",
+							fontSize: 13,
+						}}
 					>
-						{argsExpanded ? "▾ Hide args" : "▸ Show args"}
-					</button>
+						<pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
+							{errorText}
+						</pre>
+					</div>
 				) : null}
 			</div>
 
-			{/* Expandable args */}
-			{argsExpanded && formattedInput ? (
-				<pre style={preBlockStyle}>
-					<code>{formattedInput}</code>
-				</pre>
-			) : null}
-
-			{/* Error text */}
-			{errorText ? (
-				<div
-					style={{
-						marginTop: 8,
-						padding: "8px 12px",
-						borderRadius: 6,
-						background: "var(--ds-background-danger, #42221f)",
-						border: "1px solid var(--ds-border-danger, #ae2e24)",
-						color: "var(--ds-text-danger, #fd9891)",
-						fontSize: 13,
-					}}
-				>
-					<pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
-						{errorText}
-					</pre>
-				</div>
-			) : null}
-
-			{/* Result section */}
+			{/* Separate result card (matches teamwork-agent layout) */}
 			{hasOutput && formattedOutput ? (
-				<>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: 8,
-							marginTop: 6,
-							borderTop: "1px solid var(--color-border, var(--ds-border, #dfe1e6))",
-							paddingTop: 6,
-						}}
-					>
+				<div style={toolCardStyle}>
+					<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
 						<span
 							style={{
 								fontSize: 12,
@@ -566,8 +560,9 @@ function InlineToolCard({ toolPart }: { toolPart: RovoToolPart }) {
 								color: "var(--color-text-subtlest, var(--ds-text-subtlest, #6b778c))",
 							}}
 						>
-							↳ result
+							↵
 						</span>
+						<span style={toolNameBadgeStyle}>{rawToolName}</span>
 						<button
 							type="button"
 							onClick={() => setResultExpanded((v) => !v)}
@@ -581,9 +576,9 @@ function InlineToolCard({ toolPart }: { toolPart: RovoToolPart }) {
 							<code>{formattedOutput}</code>
 						</pre>
 					) : null}
-				</>
+				</div>
 			) : null}
-		</div>
+		</>
 	);
 }
 
@@ -623,59 +618,54 @@ function ThinkingToolCard({ toolCall }: { toolCall: ThinkingToolCallSummary }) {
 	const hasOutput = toolCall.state === "completed" || toolCall.state === "error";
 
 	return (
-		<div style={toolCardStyle}>
-			<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-				<span style={toolNameBadgeStyle}>{displayName}</span>
-				{serverName ? <span style={serverBadgeStyle}>{serverName}</span> : null}
-				<PermissionBadge permissionScenario={toolCall.permissionScenario} />
-				<StatusBadge state={displayState} />
-				{formattedInput ? (
-					<button
-						type="button"
-						onClick={() => setArgsExpanded((v) => !v)}
-						style={expandButtonStyle}
+		<>
+			{/* Tool call card */}
+			<div style={toolCardStyle}>
+				<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+					<span style={toolNameBadgeStyle}>{displayName}</span>
+					{serverName ? <span style={serverBadgeStyle}>{serverName}</span> : null}
+					<PermissionBadge permissionScenario={toolCall.permissionScenario} />
+					<StatusBadge state={displayState} />
+					{formattedInput ? (
+						<button
+							type="button"
+							onClick={() => setArgsExpanded((v) => !v)}
+							style={expandButtonStyle}
+						>
+							{argsExpanded ? "▾ Hide args" : "▸ Show args"}
+						</button>
+					) : null}
+				</div>
+
+				{argsExpanded && formattedInput ? (
+					<pre style={preBlockStyle}>
+						<code>{formattedInput}</code>
+					</pre>
+				) : null}
+
+				{toolCall.errorText ? (
+					<div
+						style={{
+							marginTop: 8,
+							padding: "8px 12px",
+							borderRadius: 6,
+							background: "var(--ds-background-danger, #42221f)",
+							border: "1px solid var(--ds-border-danger, #ae2e24)",
+							color: "var(--ds-text-danger, #fd9891)",
+							fontSize: 13,
+						}}
 					>
-						{argsExpanded ? "▾ Hide args" : "▸ Show args"}
-					</button>
+						<pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
+							{toolCall.errorText}
+						</pre>
+					</div>
 				) : null}
 			</div>
 
-			{argsExpanded && formattedInput ? (
-				<pre style={preBlockStyle}>
-					<code>{formattedInput}</code>
-				</pre>
-			) : null}
-
-			{toolCall.errorText ? (
-				<div
-					style={{
-						marginTop: 8,
-						padding: "8px 12px",
-						borderRadius: 6,
-						background: "var(--ds-background-danger, #42221f)",
-						border: "1px solid var(--ds-border-danger, #ae2e24)",
-						color: "var(--ds-text-danger, #fd9891)",
-						fontSize: 13,
-					}}
-				>
-					<pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
-						{toolCall.errorText}
-					</pre>
-				</div>
-			) : null}
-
+			{/* Separate result card (matches teamwork-agent layout) */}
 			{hasOutput && formattedOutput ? (
-				<>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: 8,
-							marginTop: 6,
-							borderTop: "1px solid var(--color-border, var(--ds-border, #dfe1e6))",
-							paddingTop: 6,
-						}}
-					>
+				<div style={toolCardStyle}>
+					<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
 						<span
 							style={{
 								fontSize: 12,
@@ -684,8 +674,9 @@ function ThinkingToolCard({ toolCall }: { toolCall: ThinkingToolCallSummary }) {
 								color: "var(--color-text-subtlest, var(--ds-text-subtlest, #6b778c))",
 							}}
 						>
-							↳ result
+							↵
 						</span>
+						<span style={toolNameBadgeStyle}>{toolCall.toolName}</span>
 						<button
 							type="button"
 							onClick={() => setResultExpanded((v) => !v)}
@@ -699,9 +690,9 @@ function ThinkingToolCard({ toolCall }: { toolCall: ThinkingToolCallSummary }) {
 							<code>{formattedOutput}</code>
 						</pre>
 					) : null}
-				</>
+				</div>
 			) : null}
-		</div>
+		</>
 	);
 }
 
@@ -1037,7 +1028,7 @@ export default function ToolsInvocationDemo(): React.ReactElement {
 										/>
 									</svg>
 								</span>
-								Rovo is working…
+								Rovo Dev is working…
 							</div>
 						) : null}
 					</>

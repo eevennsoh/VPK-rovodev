@@ -9,6 +9,12 @@ import { defaultSuggestions, type RovoSuggestion } from "@/lib/rovo-suggestions"
 interface ChatGreetingProps {
 	/** Optional custom heading text */
 	heading?: string;
+	/** Optional custom light-mode illustration src */
+	illustrationSrc?: string;
+	/** Optional custom dark-mode illustration src */
+	illustrationDarkSrc?: string;
+	/** Optional custom suggestions list */
+	suggestions?: ReadonlyArray<RovoSuggestion>;
 	/** Callback when a suggestion is clicked */
 	onSuggestionClick?: (suggestion: RovoSuggestion) => void;
 }
@@ -58,25 +64,38 @@ function SkillListItem({
 
 export default function ChatGreeting({
 	heading = "How can I help?",
+	illustrationSrc = "/illustration-ai/chat/light.svg",
+	illustrationDarkSrc = "/illustration-ai/chat/dark.svg",
+	suggestions,
 	onSuggestionClick,
 }: Readonly<ChatGreetingProps>) {
+	const greetingSuggestions = suggestions ?? defaultSuggestions;
+
 	return (
 		<div className="w-full max-w-80">
 			<div className="flex flex-col gap-6">
 				<div className="flex flex-col items-center gap-2">
 					<Image
-						src="/illustration-ai/chat/light.svg"
+						src={illustrationSrc}
 						alt="Chat"
 						width={80}
 						height={80}
 						loading="eager"
-						className="h-auto w-auto object-contain"
+						className="h-auto w-auto object-contain dark:hidden"
 					/>
-					<Heading size="large">{heading}</Heading>
+					<Image
+						src={illustrationDarkSrc}
+						alt="Chat"
+						width={80}
+						height={80}
+						loading="eager"
+						className="hidden h-auto w-auto object-contain dark:block"
+					/>
+					<Heading size="large" className="text-center">{heading}</Heading>
 				</div>
 				<div className="w-full">
 					<div className="flex flex-col gap-1">
-						{defaultSuggestions.map((suggestion) => (
+						{greetingSuggestions.map((suggestion) => (
 							<SkillListItem
 								key={suggestion.id}
 								suggestion={suggestion}

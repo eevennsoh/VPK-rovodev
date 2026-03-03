@@ -108,6 +108,18 @@ export interface ProgressDisplayStatusGroups {
 	todo: ProgressDisplayTask[];
 }
 
+/**
+ * Returns true when the run is still in the task execution phase.
+ * We keep the execution grid visible while any task is not marked done.
+ */
+export function isRunExecutionPhase(run: AgentRun | null): boolean {
+	if (!run || run.status !== "running") {
+		return false;
+	}
+
+	return run.tasks.some((task) => task.status !== "done");
+}
+
 function agentStatusToTaskStatus(agentStatus: AgentExecutionStatus): TaskStatus {
 	if (agentStatus === "completed") return "done";
 	if (agentStatus === "failed") return "failed";

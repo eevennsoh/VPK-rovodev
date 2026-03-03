@@ -33,6 +33,7 @@ import {
 } from "@/components/templates/shared/lib/question-card-widget";
 import {
 	createPlanApprovalSubmission,
+	getPlanApprovalKeyFromPlanWidget,
 } from "@/components/templates/shared/lib/plan-approval";
 import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import {
@@ -85,6 +86,7 @@ export interface PlanState {
 	runId: string | null;
 	taskExecutions: TaskExecution[];
 	run: AgentRun | null;
+	agentCount: number;
 
 	// History
 	chatHistory: ChatHistoryItem[];
@@ -134,6 +136,9 @@ export interface PlanActions {
 	handleRetryRunGroup: (runId: string, groupKey: RetryTaskGroupKey, taskIds: string[]) => Promise<void> | void;
 	handleAddTask: (message: string) => void;
 	handleCreatePlan: () => void;
+
+	// Agent multiplier
+	setAgentCount: (count: number) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,6 +238,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 
 	// ---- Run history ----
 	const [runHistory, setRunHistory] = useState<AgentRunListItem[]>([]);
+	const [agentCount, setAgentCount] = useState(1);
 	const hasNavigatedToSummaryRef = useRef(false);
 
 	// ---- Hooks ----
@@ -258,6 +264,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 		submitClarification,
 		dismissClarification,
 		submitPlanApproval,
+		appendPlanApprovalMarker,
 		handleNewChat,
 		handleSelectChat,
 		handleDeleteChat,
@@ -430,7 +437,11 @@ export function PlanProvider({ children }: PlanProviderProps) {
 				activeQuestionCard,
 				answers,
 			);
-			void submitClarification(clarificationPrompt, clarificationSubmission);
+			void submitClarification(
+				clarificationPrompt,
+				clarificationSubmission,
+				activeQuestionCard,
+			);
 		},
 		[activeQuestionCard, submitClarification],
 	);
@@ -449,13 +460,19 @@ export function PlanProvider({ children }: PlanProviderProps) {
 				activePlanWidget,
 			);
 			const shouldStartRun = selection.decision === "auto-accept";
+			const planApprovalPlanKey = getPlanApprovalKeyFromPlanWidget(activePlanWidget);
 
 			if (shouldStartRun && activePlanWidget) {
+				void appendPlanApprovalMarker({
+					decision: "auto-accept",
+					planApprovalPlanKey,
+				});
 				void startExecution({
 					plan: activePlanWidget,
 					userPrompt: latestUserPrompt,
 					conversation: conversationItems,
 					customInstruction: selection.customInstruction,
+					agentCount,
 				});
 				return;
 			}
@@ -464,10 +481,12 @@ export function PlanProvider({ children }: PlanProviderProps) {
 		},
 		[
 			activePlanWidget,
+			agentCount,
 			conversationItems,
 			latestUserPrompt,
 			startExecution,
 			submitPlanApproval,
+			appendPlanApprovalMarker,
 		],
 	);
 
@@ -603,6 +622,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			runId,
 			taskExecutions,
 			run,
+			agentCount,
 			chatHistory,
 			activeChatId,
 			sidebarRunHistory,
@@ -632,6 +652,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			runId,
 			taskExecutions,
 			run,
+			agentCount,
 			chatHistory,
 			activeChatId,
 			sidebarRunHistory,
@@ -666,6 +687,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			handleRetryRunGroup,
 			handleAddTask,
 			handleCreatePlan,
+			setAgentCount,
 		}),
 		[
 			handleHoverEnter,

@@ -149,6 +149,7 @@ export interface AgentRun {
 	genuiSummary: AgentRunGenuiSummary | null;
 	userPrompt: string;
 	customInstruction?: string;
+	agentCount?: number;
 	conversationContext: Array<{ type: "user" | "assistant"; content: string }>;
 	iteration: number;
 	artifacts: AgentRunArtifact[];

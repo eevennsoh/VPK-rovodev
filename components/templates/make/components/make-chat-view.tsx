@@ -40,24 +40,6 @@ const OVERLAY_CARD_BOTTOM_PADDING = "520px";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getWidgetLoadingLabel(widgetType: string | null): string {
-	if (widgetType === "plan") return "Generating your plan";
-	if (widgetType === "work-items") return "Comparing Jira work items";
-	return "Processing your request";
-}
-
-function getAwaitingIndicatorLabel(
-	isWidgetLoading: boolean,
-	widgetLoadingLabel: string,
-	showQuestionCard: boolean,
-	showApprovalCard: boolean,
-): string {
-	if (isWidgetLoading) return widgetLoadingLabel;
-	if (showQuestionCard) return "Waiting for your answers";
-	if (showApprovalCard) return "Waiting for your approval";
-	return "Processing your request";
-}
-
 /**
  * Scans messages for plan widget data parts and returns the message ID
  * of the latest (most recent) plan widget. All earlier plan widgets
@@ -223,13 +205,13 @@ export default function MakeChatView() {
 		isStreaming,
 		isSubmitPending,
 		isWidgetLoading,
-		loadingWidgetType,
 		uiMessages,
 		normalizedUiMessages: streamingUiMessages,
 		activeQuestionCard,
 		activePlanWidget,
 		isPlanMessageComplete,
 		queuedPrompts,
+		activeChatId,
 	} = useMakeState();
 
 	const {
@@ -269,10 +251,11 @@ export default function MakeChatView() {
 	} = useDismissibleCards({
 		activeQuestionCard,
 		activePlanWidget,
+		messages: streamingUiMessages,
+		scopeKey: activeChatId,
 		onDismissQuestionCard: handleClarificationDismiss,
 	});
 
-	const widgetLoadingLabel = getWidgetLoadingLabel(loadingWidgetType);
 	const isRequestInFlight = isStreaming || isSubmitPending;
 	const gatedShouldShowQuestionCard = shouldShowQuestionCard && !isWidgetLoading;
 	const gatedShouldShowApprovalCard =
@@ -394,13 +377,6 @@ export default function MakeChatView() {
 						streamingIndicatorVariant="reasoning-expanded"
 						showFeedbackActions={false}
 						showFollowUpSuggestions={!isAwaitingUserInput}
-						showAwaitingIndicator={isAwaitingUserInput}
-						awaitingIndicatorLabel={getAwaitingIndicatorLabel(
-							isWidgetLoading,
-							widgetLoadingLabel,
-							gatedShouldShowQuestionCard,
-							gatedShouldShowApprovalCard,
-						)}
 						renderLoadingWidget={renderLoadingWidget}
 						renderWidget={renderWidget}
 					/>

@@ -43,7 +43,7 @@ export function PlanPreviewModal({
 					<DialogTitle>{title}</DialogTitle>
 				</DialogHeader>
 
-				<Plan className="min-h-0 flex-1 overflow-y-auto border-0 shadow-none -mx-6 px-6 py-0" defaultOpen>
+				<Plan className="min-h-0 h-full flex-1 overflow-y-auto rounded-none border-0 shadow-none -mx-6 -mt-6 -mb-6 px-6 pt-6 pb-0" defaultOpen defaultContentExpanded>
 					<PlanTabContent
 						description={description}
 						tasks={tasks}

@@ -118,12 +118,8 @@ function stripAssistantTextParts(message: RovoUIMessage): RovoUIMessage {
 	};
 }
 
-function isHiddenPlanningSubmissionMessage(message: RovoUIMessage): boolean {
+function isPlanningSubmissionMessage(message: RovoUIMessage): boolean {
 	if (message.role !== "user") {
-		return false;
-	}
-
-	if (message.metadata?.visibility !== "hidden") {
 		return false;
 	}
 
@@ -138,8 +134,8 @@ export function normalizePlanMessages(
 	rawUiMessages: ReadonlyArray<RovoUIMessage>,
 	isStreaming: boolean
 ): RovoUIMessage[] {
-	const latestHiddenSubmissionIndex = rawUiMessages.findLastIndex(
-		isHiddenPlanningSubmissionMessage
+	const latestPlanningSubmissionIndex = rawUiMessages.findLastIndex(
+		isPlanningSubmissionMessage
 	);
 
 	return rawUiMessages.reduce<RovoUIMessage[]>((result, message, index) => {
@@ -150,8 +146,8 @@ export function normalizePlanMessages(
 
 		const shouldSuppressStreamingText =
 			isStreaming &&
-			latestHiddenSubmissionIndex !== -1 &&
-			index > latestHiddenSubmissionIndex;
+			latestPlanningSubmissionIndex !== -1 &&
+			index > latestPlanningSubmissionIndex;
 		const shouldSuppressPlanText =
 			hasPlanWidgetPart(message) &&
 			hasCreatePlanSkillSignal(message) &&

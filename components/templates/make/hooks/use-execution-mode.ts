@@ -33,6 +33,7 @@ interface StartExecutionOptions {
 	userPrompt?: string;
 	conversation?: ConversationItem[];
 	customInstruction?: string;
+	agentCount?: number;
 }
 
 export interface StartExecutionResult {
@@ -344,6 +345,7 @@ export function useExecutionMode(): UseExecutionModeReturn {
 					userPrompt: options.userPrompt,
 					conversation: options.conversation,
 					customInstruction: options.customInstruction,
+					agentCount: options.agentCount,
 				}),
 			});
 			if (!response.ok) {

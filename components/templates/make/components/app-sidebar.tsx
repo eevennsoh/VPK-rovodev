@@ -30,6 +30,7 @@ import type { MakeSkill, MakeAgent } from "@/lib/make-config-types";
 import type { AgentRunListItem } from "@/lib/make-run-types";
 import type { RetryTaskGroupKey } from "@/components/templates/make/lib/retry-task-groups";
 import { filterItemsBySidebarSearch } from "@/components/templates/make/lib/sidebar-search";
+import { mapRunsToSidebarAppItems } from "@/components/templates/make/lib/make-artifact-items";
 import SidebarChatHistory, {
 	type ChatHistoryItem,
 } from "./sidebar-chat-history";
@@ -45,6 +46,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	activeChatId: string | null;
 	runHistory: AgentRunListItem[];
 	activeRunId?: string | null;
+	initialNowMs?: number;
 	isGeneratingTitle?: boolean;
 	pendingTitleChatId?: string | null;
 	onSelectRun?: (runId: string) => void;
@@ -76,6 +78,7 @@ export function AppSidebar({
 	activeChatId,
 	runHistory,
 	activeRunId,
+	initialNowMs,
 	isGeneratingTitle,
 	pendingTitleChatId,
 	onSelectRun,
@@ -106,6 +109,10 @@ export function AppSidebar({
 	const filteredChatHistory = useMemo(
 		() => filterItemsBySidebarSearch(chatHistory, searchQuery, (chat) => chat.title),
 		[chatHistory, searchQuery]
+	);
+	const appArtifacts = useMemo(
+		() => mapRunsToSidebarAppItems(runHistory),
+		[runHistory],
 	);
 	const hasAnyHistory =
 		runHistory.length > 0 ||
@@ -219,6 +226,18 @@ export function AppSidebar({
 								</button>
 							</div>
 						</div>
+						<div className="flex w-full flex-col">
+							{hasRunHistory ? (
+								<SidebarRunHistory
+									items={filteredRunHistory}
+									activeRunId={activeRunId}
+									initialNowMs={initialNowMs}
+									onSelectRun={onSelectRun}
+									onDeleteRun={onDeleteRun}
+									onRetryRunGroup={onRetryRunGroup}
+								/>
+							) : null}
+						</div>
 						{hasChatHistory ? (
 							<SidebarChatHistory
 								items={filteredChatHistory}
@@ -230,17 +249,6 @@ export function AppSidebar({
 								onDeleteChat={onDeleteChat}
 							/>
 						) : null}
-						<div className="flex w-full flex-col">
-							{hasRunHistory ? (
-								<SidebarRunHistory
-									items={filteredRunHistory}
-									activeRunId={activeRunId}
-									onSelectRun={onSelectRun}
-									onDeleteRun={onDeleteRun}
-									onRetryRunGroup={onRetryRunGroup}
-								/>
-							) : null}
-						</div>
 						{showNoResults ? (
 							<div className="px-3 pb-2">
 								<Empty width="narrow" className="gap-4 py-2">
@@ -289,6 +297,7 @@ export function AppSidebar({
 			</SidebarContent>
 			<SidebarFooterSlot className="max-h-[50%] bg-surface p-0">
 				<SidebarFooter
+					apps={appArtifacts}
 					skills={skills}
 					agents={agents}
 					onEditSkill={onEditSkill}
@@ -297,6 +306,7 @@ export function AppSidebar({
 					onNewAgent={onNewAgent}
 					onExportSkill={onExportSkill}
 					onExportAgent={onExportAgent}
+					onSelectApp={onSelectRun}
 				/>
 			</SidebarFooterSlot>
 		</Sidebar>
