@@ -92,6 +92,8 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				contentBottomPadding={shouldShowQuestionCard && activeQuestionCard !== null ? "24px" : undefined}
 				isStreaming={isStreaming}
 				isSubmitPending={isSubmitPending}
+				showAwaitingIndicator={shouldShowQuestionCardRaw && activeQuestionCard !== null}
+				awaitingIndicatorLabel="Waiting for your answers"
 			/>
 
 			{shouldShowQuestionCard && activeQuestionCard ? (

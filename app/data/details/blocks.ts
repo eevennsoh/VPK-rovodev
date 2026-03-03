@@ -87,6 +87,7 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 	},
 	"answer-card": {
 		description: "Displays captured question/answer pairs as a compact summary card. Typically rendered after a user submits answers to a QuestionCard.",
+		demoLayout: { previewHeight: "default" },
 		usage: `import { AnswerCard } from "@/components/blocks/answer-card/page";
 import type { AnswerCardRow } from "@/components/blocks/answer-card/page";
 
@@ -96,7 +97,7 @@ const rows: AnswerCardRow[] = [
 ];
 
 <AnswerCard rows={rows} />
-<AnswerCard label="Preferences saved" rows={rows} />`,
+<AnswerCard label="Your answers" rows={rows} />`,
 		props: [
 			{
 				name: "rows",
@@ -107,8 +108,14 @@ const rows: AnswerCardRow[] = [
 			{
 				name: "label",
 				type: "string",
-				default: '"Requirements captured"',
-				description: "Header label displayed above the answer rows.",
+				default: '"Your answers"',
+				description: "Header label displayed in the card header.",
+			},
+			{
+				name: "defaultCollapsed",
+				type: "boolean",
+				default: "false",
+				description: "Whether the card starts in a collapsed state.",
 			},
 		],
 	},
@@ -343,7 +350,7 @@ const questions: QuestionCardQuestion[] = [
 	},
 	"approval-card": {
 		description: "ADS-style approval card for plan acceptance with ranked options and a custom input.",
-		demoLayout: { previewHeight: "fit" },
+		demoLayout: { previewHeight: "default" },
 	},
 	chatbot: {
 		description: "Full-featured AI chatbot with conversation, messages, reasoning, suggestions, and model selector.",

@@ -4,7 +4,9 @@ import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
+import CrossIcon from "@atlaskit/icon/core/cross";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type {
 	TimeEntry,
 	Project,
@@ -28,6 +30,7 @@ interface WeeklyViewProps {
 	expandedProjects: Record<string, boolean>;
 	onToggleProject: (projectId: string) => void;
 	onHoursChange: (taskId: string, projectId: string, date: string, hours: number) => void;
+	onDeleteTask: (taskId: string) => void;
 }
 
 export function WeeklyView({
@@ -38,6 +41,7 @@ export function WeeklyView({
 	expandedProjects,
 	onToggleProject,
 	onHoursChange,
+	onDeleteTask,
 }: WeeklyViewProps) {
 	const weekDays = getWeekDays(anchorDate);
 	const weeklyTotal = getWeeklyTotal(entries, anchorDate);
@@ -96,6 +100,7 @@ export function WeeklyView({
 					anchorDate={anchorDate}
 					onToggle={() => onToggleProject(group.project.id)}
 					onHoursChange={onHoursChange}
+					onDeleteTask={onDeleteTask}
 				/>
 			))}
 
@@ -137,6 +142,7 @@ function WeeklyProjectGroup({
 	anchorDate,
 	onToggle,
 	onHoursChange,
+	onDeleteTask,
 }: {
 	group: ProjectGroup;
 	weekDays: string[];
@@ -144,6 +150,7 @@ function WeeklyProjectGroup({
 	anchorDate: string;
 	onToggle: () => void;
 	onHoursChange: (taskId: string, projectId: string, date: string, hours: number) => void;
+	onDeleteTask: (taskId: string) => void;
 }) {
 	const { project, tasks: groupTasks, expanded } = group;
 
@@ -212,6 +219,7 @@ function WeeklyProjectGroup({
 							entries={entries}
 							anchorDate={anchorDate}
 							onHoursChange={onHoursChange}
+							onDeleteTask={onDeleteTask}
 						/>
 					))
 				: null}
@@ -228,6 +236,7 @@ function WeeklyTaskRow({
 	entries,
 	anchorDate,
 	onHoursChange,
+	onDeleteTask,
 }: {
 	task: Task;
 	projectId: string;
@@ -235,14 +244,23 @@ function WeeklyTaskRow({
 	entries: TimeEntry[];
 	anchorDate: string;
 	onHoursChange: (taskId: string, projectId: string, date: string, hours: number) => void;
+	onDeleteTask: (taskId: string) => void;
 }) {
 	const taskWeekTotal = getTaskWeeklyTotal(entries, task.id, anchorDate);
 
 	return (
-		<div className="flex items-center border-b border-border-subtle">
+		<div className="group/task flex items-center border-b border-border-subtle">
 			{/* Task name */}
-			<div className="min-w-[200px] flex-1 py-1.5 pl-11 pr-4 text-sm text-text">
+			<div className="flex min-w-[200px] flex-1 items-center gap-1 py-1.5 pl-11 pr-4 text-sm text-text">
 				{task.name}
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-6 opacity-0 transition-opacity group-hover/task:opacity-100"
+					onClick={() => onDeleteTask(task.id)}
+				>
+					<CrossIcon label="Delete task" size="small" />
+				</Button>
 			</div>
 
 			{/* Day cells */}

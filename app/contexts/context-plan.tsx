@@ -238,7 +238,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 
 	// ---- Run history ----
 	const [runHistory, setRunHistory] = useState<AgentRunListItem[]>([]);
-	const [agentCount, setAgentCount] = useState(1);
+	const [agentCount, setAgentCount] = useState(4);
 	const hasNavigatedToSummaryRef = useRef(false);
 
 	// ---- Hooks ----

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import CheckCircleIcon from "@atlaskit/icon/core/check-circle";
@@ -305,7 +306,26 @@ export default function AgentsProgress({
 	const statusGroups = useMemo(() => buildStatusGroups(taskStatusGroups), [taskStatusGroups]);
 	const runStatusLabel = getRunStatusLabel(runStatus);
 	const runStatusToneClass = getRunStatusToneClass(runStatus);
-	const statusText = runStatus === "running" ? `${agentCount} ${agentCount === 1 ? "agent" : "agents"} cooking` : runStatusLabel;
+	const showRunProgressBar = runStatus === "running";
+	const statusText = showRunProgressBar ? `${agentCount} ${agentCount === 1 ? "agent" : "agents"} cooking` : runStatusLabel;
+	const progressValue = useMemo(() => {
+		const totalTaskCount =
+			taskStatusGroups.done.length +
+			taskStatusGroups.inReview.length +
+			taskStatusGroups.inProgress.length +
+			taskStatusGroups.failed.length +
+			taskStatusGroups.todo.length;
+		if (totalTaskCount === 0) {
+			return runStatus === "completed" ? 100 : 0;
+		}
+
+		const progressedTaskCount =
+			taskStatusGroups.done.length +
+			taskStatusGroups.inReview.length +
+			taskStatusGroups.inProgress.length;
+
+		return Math.round((progressedTaskCount / totalTaskCount) * 100);
+	}, [runStatus, taskStatusGroups]);
 	const handleCardActivate = () => {
 		if (isCollapsible) {
 			setCollapsed((prev) => !prev);
@@ -398,28 +418,55 @@ export default function AgentsProgress({
 					) : null}
 				</div>
 
-				{!collapsed ? (
-					<>
-						<div className="h-px bg-border" />
+					{!collapsed ? (
+						<>
+							<div
+								className={cn(
+									"relative w-full overflow-hidden transition-[height] duration-[var(--duration-normal)] ease-[var(--ease-in-out)]",
+									showRunProgressBar ? "h-1.5" : "h-px"
+								)}
+							>
+								<div
+									aria-hidden={!showRunProgressBar}
+									className={cn(
+										"absolute inset-0 transition-opacity duration-[var(--duration-normal)] ease-[var(--ease-in-out)]",
+										showRunProgressBar ? "opacity-100" : "pointer-events-none opacity-0"
+									)}
+								>
+									<Progress
+										aria-label="Run progress"
+										value={progressValue}
+										variant="inverse"
+										className="w-full"
+									/>
+								</div>
+								<div
+									aria-hidden="true"
+									className={cn(
+										"absolute inset-0 bg-border transition-opacity duration-[var(--duration-normal)] ease-[var(--ease-in-out)]",
+										showRunProgressBar ? "opacity-0" : "opacity-100"
+									)}
+								/>
+							</div>
 
-						<div className="flex items-center gap-1">
-							<span className="text-xs leading-4 text-text-subtlest">
-								{runCount} {runCount === 1 ? "task" : "tasks"}
-							</span>
-							<span className="text-xs leading-4 text-text-subtlest">•</span>
-							{runStatus === "running" ? (
-								<>
-									<span className="inline-flex items-baseline text-xs leading-4 text-text-subtlest">
-										{statusText}
-										<AnimatedDots className="[&>span]:text-xs" />
-									</span>
-								</>
-							) : (
-								<span className={cn("text-xs leading-4", runStatusToneClass)}>{runStatusLabel}</span>
-							)}
-						</div>
-					</>
-				) : null}
+							<div className="flex items-center gap-1">
+								<span className="text-xs leading-4 text-text-subtlest">
+									{runCount} {runCount === 1 ? "task" : "tasks"}
+								</span>
+								<span className="text-xs leading-4 text-text-subtlest">•</span>
+								{runStatus === "running" ? (
+									<>
+										<span className="inline-flex items-baseline text-xs leading-4 text-text-subtlest">
+											{statusText}
+											<AnimatedDots className="[&>span]:text-xs" />
+										</span>
+									</>
+								) : (
+									<span className={cn("text-xs leading-4", runStatusToneClass)}>{runStatusLabel}</span>
+								)}
+							</div>
+						</>
+					) : null}
 			</div>
 
 			{!collapsed ? (

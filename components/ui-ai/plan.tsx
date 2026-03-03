@@ -370,7 +370,7 @@ export const PlanTaskItem = ({ index, label, blockedByLabels, blockedByText, age
 	>
 		<span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">{index}</span>
 		<div className="flex min-w-0 flex-1 flex-col gap-0.5">
-			<span className="text-sm leading-5 text-text">{label}</span>
+			<span className="text-sm leading-5 font-medium text-text">{label}</span>
 			{blockedByText ? <span className="text-xs leading-4 text-text-subtlest">{blockedByText}</span> : null}
 			{!blockedByText && blockedByLabels && blockedByLabels.length > 0 ? <span className="text-xs leading-4 text-text-subtlest">Blocked by: {blockedByLabels.join(", ")}</span> : null}
 		</div>

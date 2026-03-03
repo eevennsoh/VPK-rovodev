@@ -40,6 +40,15 @@ const OVERLAY_CARD_BOTTOM_PADDING = "520px";
 // Helpers
 // ---------------------------------------------------------------------------
 
+function getAwaitingIndicatorLabel(
+	showQuestionCard: boolean,
+	showApprovalCard: boolean,
+): string {
+	if (showQuestionCard) return "Waiting for your answers";
+	if (showApprovalCard) return "Waiting for your approval";
+	return "Awaiting user response";
+}
+
 /**
  * Scans messages for plan widget data parts and returns the message ID
  * of the latest (most recent) plan widget. All earlier plan widgets
@@ -377,6 +386,11 @@ export default function MakeChatView() {
 						streamingIndicatorVariant="reasoning-expanded"
 						showFeedbackActions={false}
 						showFollowUpSuggestions={!isAwaitingUserInput}
+						showAwaitingIndicator={isAwaitingUserInput}
+						awaitingIndicatorLabel={getAwaitingIndicatorLabel(
+							gatedShouldShowQuestionCard,
+							gatedShouldShowApprovalCard,
+						)}
 						renderLoadingWidget={renderLoadingWidget}
 						renderWidget={renderWidget}
 					/>

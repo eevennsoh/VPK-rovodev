@@ -1,10 +1,18 @@
 "use client";
 
-import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, use, useEffect, useMemo, useRef, useState } from "react";
 import UndoIcon from "@atlaskit/icon/core/undo";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -85,11 +93,11 @@ function GUIControl({
 
 	return (
 		<div className="space-y-2">
-			<div className="flex items-center justify-between gap-2">
+			<div className="flex items-center gap-2">
 				<Label htmlFor={`${id}-input`} className="text-xs font-medium text-text">
 					{label}
 				</Label>
-				<div className="flex items-center gap-1">
+				<div className="ml-auto flex shrink-0 items-center gap-1">
 					{defaultValue !== undefined ? (
 						<button
 							type="button"
@@ -138,9 +146,11 @@ function GUIControl({
 						}}
 						className="h-7 w-20 text-right font-mono text-xs tabular-nums"
 					/>
-					<span className="w-8 text-right text-[11px] text-text-subtle">
-						{unit ?? ""}
-					</span>
+					{unit ? (
+						<span className="text-right text-[11px] text-text-subtle">
+							{unit}
+						</span>
+					) : null}
 				</div>
 			</div>
 			{description ? (
@@ -230,6 +240,8 @@ type GUISelectOption<T extends string> = Readonly<{
 	label: string;
 }>;
 
+const GUI_SELECT_SEGMENTED_MAX_OPTIONS = 4;
+
 type GUISelectProps<T extends string> = Readonly<{
 	id: string;
 	label: string;
@@ -250,31 +262,58 @@ function GUISelect<T extends string>({
 	valueKeys,
 }: GUISelectProps<T>) {
 	useGUIValueKeys(valueKeys);
+	const selectedOptionLabel = options.find((option) => option.value === value)?.label;
+	const useDropdown = options.length > GUI_SELECT_SEGMENTED_MAX_OPTIONS;
 	return (
 		<div className="space-y-1.5">
-			<div className="flex items-center justify-between gap-2">
-				<Label htmlFor={`${id}-select`} className="text-xs font-medium text-text">
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor={`${id}-select`} className="text-xs leading-4 font-medium text-text">
 					{label}
 				</Label>
-				<div className="flex gap-0.5 rounded-md bg-bg-neutral p-0.5">
-					{options.map((option) => (
-						<button
-							key={option.value}
-							type="button"
-							onClick={() => {
-								onChange(option.value);
-							}}
-							className={cn(
-								"rounded px-2 py-0.5 text-[11px] font-medium transition-colors",
-								value === option.value
-									? "bg-surface text-text shadow-sm"
-									: "text-text-subtle hover:text-text",
-							)}
+				{useDropdown ? (
+					<Select
+						value={value}
+						onValueChange={(nextValue) => onChange(nextValue as T)}
+					>
+						<SelectTrigger
+							id={`${id}-select`}
+							size="sm"
+							className="w-fit min-w-40 max-w-full"
 						>
-							{option.label}
-						</button>
-					))}
-				</div>
+							<SelectValue>{selectedOptionLabel ?? "Select option"}</SelectValue>
+						</SelectTrigger>
+						<SelectContent>
+							<SelectGroup>
+								{options.map((option) => (
+									<SelectItem key={option.value} value={option.value}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectGroup>
+						</SelectContent>
+					</Select>
+				) : (
+					<div className="inline-flex w-fit max-w-full flex-wrap items-center gap-0.5 rounded-md bg-bg-neutral p-0.5">
+						{options.map((option) => (
+							<button
+								key={option.value}
+								type="button"
+								aria-pressed={value === option.value}
+								onClick={() => {
+									onChange(option.value);
+								}}
+								className={cn(
+									"whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-medium transition-colors",
+									value === option.value
+										? "bg-surface text-text shadow-sm"
+										: "text-text-subtle hover:text-text",
+								)}
+							>
+								{option.label}
+							</button>
+						))}
+					</div>
+				)}
 			</div>
 			{description ? (
 				<p className="text-[12px] leading-4 text-text-subtlest">

@@ -41,14 +41,23 @@ import { PlanPreviewModal } from "./plan-preview-modal";
 const CHAT_COMPOSER_BASE_BOTTOM_PADDING = "128px";
 const CHAT_COMPOSER_WITH_QUEUE_BOTTOM_PADDING = "320px";
 const OVERLAY_CARD_BOTTOM_PADDING = "520px";
-const BASE_COMPOSER_HEIGHT = 106;
-const EXPANDED_GALLERY_COMPOSER_HEIGHT = 130;
-const COMPOSER_CHROME_HEIGHT = 82;
+const BASE_COMPOSER_HEIGHT = 108;
+const EXPANDED_GALLERY_COMPOSER_HEIGHT = 132;
+const COMPOSER_CHROME_HEIGHT = 84;
 
 const MODE_TRANSITION = { duration: 0.2 };
 const MODE_ENTER = { opacity: 1, y: 0 };
 const MODE_EXIT_UP = { opacity: 0, y: -8 };
 const MODE_INITIAL_DOWN = { opacity: 0, y: 8 };
+
+function getAwaitingIndicatorLabel(
+	showQuestionCard: boolean,
+	showApprovalCard: boolean,
+): string {
+	if (showQuestionCard) return "Waiting for your answers";
+	if (showApprovalCard) return "Waiting for your approval";
+	return "Awaiting user response";
+}
 
 function findLatestPlanWidgetMessageId(
 	messages: ReadonlyArray<RovoUIMessage>,
@@ -603,6 +612,11 @@ export function MakeFullscreenChat() {
 						streamingIndicatorVariant="reasoning-expanded"
 						showFeedbackActions={false}
 						showFollowUpSuggestions={!isAwaitingUserInput}
+						showAwaitingIndicator={isAwaitingUserInput}
+						awaitingIndicatorLabel={getAwaitingIndicatorLabel(
+							gatedShouldShowQuestionCard,
+							gatedShouldShowApprovalCard,
+						)}
 						renderWidget={renderWidget}
 					/>
 				</div>

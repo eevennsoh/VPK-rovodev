@@ -81,26 +81,38 @@ function PlanDemoHeader() {
 	);
 }
 
+// Sonnet 4.6 pricing: $3/MTok input, $15/MTok output
+// 10 tasks, ~2K input + ~1K output per task, +~1K input overhead per extra agent
+const AGENT_ESTIMATES: Record<string, { cost: string; time: string }> = {
+	"1": { cost: "$0.32", time: "~5 min" },
+	"2": { cost: "$0.38", time: "~3 min" },
+	"3": { cost: "$0.45", time: "~2 min" },
+	"4": { cost: "$0.52", time: "~1.5 min" },
+};
+
 function PlanDemoFooter() {
+	const [agentCount, setAgentCount] = useState("1");
+	const estimate = AGENT_ESTIMATES[agentCount] ?? AGENT_ESTIMATES["1"];
+
 	return (
 		<PlanFooter className="items-center justify-between">
 			<div className="flex items-center gap-6">
 				<div className="flex flex-col gap-0.5">
 					<span className="text-xs leading-4 text-text-subtlest">Estimated cost and time</span>
-					<span className="text-xs leading-4 font-medium text-text">$0.85 • ~3 min</span>
+					<span className="text-xs leading-4 font-medium text-text">{estimate.cost} • {estimate.time}</span>
 				</div>
 				<div className="flex flex-col gap-0.5">
-					<span className="text-xs leading-4 text-text-subtlest">Number of agents</span>
-					<Select defaultValue="1x">
+					<span className="text-xs leading-4 text-text-subtlest">{`Build with ${agentCount} ${agentCount === "1" ? "agent" : "agents"}`}</span>
+					<Select value={agentCount} onValueChange={(v) => { if (v) setAgentCount(v); }}>
 						<SelectTrigger variant="none" size="sm" className="!h-auto gap-1 !p-0 text-xs leading-4 font-medium text-text">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent alignItemWithTrigger={false} align="start" className="min-w-0">
 							<SelectGroup>
-								<SelectItem value="1x" className="py-1.5 pl-7 pr-2.5 text-xs">1x</SelectItem>
-								<SelectItem value="2x" className="py-1.5 pl-7 pr-2.5 text-xs">2x</SelectItem>
-								<SelectItem value="3x" className="py-1.5 pl-7 pr-2.5 text-xs">3x</SelectItem>
-								<SelectItem value="4x" className="py-1.5 pl-7 pr-2.5 text-xs">4x</SelectItem>
+								<SelectItem value="1" className="py-1.5 pl-7 pr-2.5 text-xs">1</SelectItem>
+								<SelectItem value="2" className="py-1.5 pl-7 pr-2.5 text-xs">2</SelectItem>
+								<SelectItem value="3" className="py-1.5 pl-7 pr-2.5 text-xs">3</SelectItem>
+								<SelectItem value="4" className="py-1.5 pl-7 pr-2.5 text-xs">4</SelectItem>
 							</SelectGroup>
 						</SelectContent>
 					</Select>

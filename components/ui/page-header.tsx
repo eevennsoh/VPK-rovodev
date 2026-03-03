@@ -18,14 +18,14 @@ function PageHeader({
 	...props
 }: Readonly<PageHeaderProps>) {
 	return (
-		<header data-slot="page-header" className={cn("space-y-2", className)} {...props}>
+		<header data-slot="page-header" className={cn("@container/page-header space-y-2", className)} {...props}>
 			{breadcrumbs ? <div>{breadcrumbs}</div> : null}
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div className="space-y-1">
-					<h1 className="text-text text-2xl font-semibold tracking-tight">{title}</h1>
+			<div className="flex items-start justify-between gap-3">
+				<div className="min-w-0 space-y-1">
+					<h1 className="text-text text-xl font-semibold tracking-tight @[480px]/page-header:text-2xl">{title}</h1>
 					{description ? <p className="text-text-subtle text-sm">{description}</p> : null}
 				</div>
-				{actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+				{actions ? <div className="shrink-0 flex items-center gap-2">{actions}</div> : null}
 			</div>
 		</header>
 	)

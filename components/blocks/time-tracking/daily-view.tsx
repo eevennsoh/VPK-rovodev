@@ -3,7 +3,9 @@
 import { useState } from "react";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
+import CrossIcon from "@atlaskit/icon/core/cross";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import type {
 	TimeEntry,
 	Project,
@@ -24,6 +26,7 @@ interface DailyViewProps {
 	expandedProjects: Record<string, boolean>;
 	onToggleProject: (projectId: string) => void;
 	onHoursChange: (taskId: string, projectId: string, date: string, hours: number) => void;
+	onDeleteTask: (taskId: string) => void;
 }
 
 function formatHoursInput(value: number): string {
@@ -38,6 +41,7 @@ export function DailyView({
 	expandedProjects,
 	onToggleProject,
 	onHoursChange,
+	onDeleteTask,
 }: DailyViewProps) {
 	const dateObj = new Date(date + "T00:00:00");
 	const dayLabel = new Intl.DateTimeFormat(undefined, {
@@ -77,6 +81,7 @@ export function DailyView({
 						entries={entries}
 						onToggle={() => onToggleProject(group.project.id)}
 						onHoursChange={onHoursChange}
+						onDeleteTask={onDeleteTask}
 					/>
 				))}
 
@@ -102,12 +107,14 @@ function ProjectGroupRows({
 	entries,
 	onToggle,
 	onHoursChange,
+	onDeleteTask,
 }: {
 	group: ProjectGroup;
 	date: string;
 	entries: TimeEntry[];
 	onToggle: () => void;
 	onHoursChange: (taskId: string, projectId: string, date: string, hours: number) => void;
+	onDeleteTask: (taskId: string) => void;
 }) {
 	const { project, tasks: groupTasks, expanded } = group;
 
@@ -156,6 +163,7 @@ function ProjectGroupRows({
 							date={date}
 							entries={entries}
 							onHoursChange={onHoursChange}
+							onDeleteTask={onDeleteTask}
 						/>
 					))
 				: null}
@@ -171,12 +179,14 @@ function TaskRow({
 	date,
 	entries,
 	onHoursChange,
+	onDeleteTask,
 }: {
 	task: Task;
 	projectId: string;
 	date: string;
 	entries: TimeEntry[];
 	onHoursChange: (taskId: string, projectId: string, date: string, hours: number) => void;
+	onDeleteTask: (taskId: string) => void;
 }) {
 	const currentHours = getTaskHoursForDate(entries, task.id, date);
 	const [localValue, setLocalValue] = useState(formatHoursInput(currentHours));
@@ -197,8 +207,18 @@ function TaskRow({
 	};
 
 	return (
-		<div className="flex items-center border-b border-border-subtle px-4 py-1.5 pl-11">
-			<div className="flex-1 text-sm text-text">{task.name}</div>
+		<div className="group/task flex items-center border-b border-border-subtle px-4 py-1.5 pl-11">
+			<div className="flex flex-1 items-center gap-1 text-sm text-text">
+				{task.name}
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-6 opacity-0 transition-opacity group-hover/task:opacity-100"
+					onClick={() => onDeleteTask(task.id)}
+				>
+					<CrossIcon label="Delete task" size="small" />
+				</Button>
+			</div>
 			<div className="flex w-24 justify-center">
 				<input
 					type="number"

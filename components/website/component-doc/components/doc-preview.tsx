@@ -53,7 +53,7 @@ export function DocPreview({ slug, category, demoLayout }: Readonly<DocPreviewPr
 		</Button>
 	);
 
-	const isFullPage = category === "templates" || category === "blocks";
+	const isFullPage = (category === "templates" || category === "blocks") && demoLayout?.previewHeight !== "default";
 	const fitContent = demoLayout?.previewHeight === "fit";
 
 	return (

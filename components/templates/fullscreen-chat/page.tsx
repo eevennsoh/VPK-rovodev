@@ -85,6 +85,8 @@ export default function RovoView() {
 								contentBottomPadding={shouldShowQuestionCard && activeQuestionCard !== null ? "24px" : undefined}
 								isStreaming={isStreaming}
 								isSubmitPending={isSubmitPending}
+								showAwaitingIndicator={shouldShowQuestionCardRaw && activeQuestionCard !== null}
+								awaitingIndicatorLabel="Waiting for your answers"
 							/>
 						</div>
 					</div>

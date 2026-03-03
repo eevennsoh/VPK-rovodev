@@ -1,7 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ComponentProps } from "react";
+import { Button } from "@/components/ui/button";
+import { Tile } from "@/components/ui/tile";
+import QuestionCircleIcon from "@atlaskit/icon/core/question-circle";
+import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -13,10 +18,12 @@ export interface AnswerCardRow {
 }
 
 export interface AnswerCardProps extends Omit<ComponentProps<"section">, "children"> {
-	/** Label displayed as the section header. @default "Requirements captured" */
+	/** Label displayed as the section header. @default "Your answers" */
 	label?: string;
 	/** Ordered list of question/answer pairs to display. */
 	rows: ReadonlyArray<AnswerCardRow>;
+	/** Whether the card starts collapsed. @default false */
+	defaultCollapsed?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -24,36 +31,71 @@ export interface AnswerCardProps extends Omit<ComponentProps<"section">, "childr
 // ---------------------------------------------------------------------------
 
 function AnswerCard({
-	label = "Requirements captured",
+	label = "Your answers",
 	rows,
+	defaultCollapsed = false,
 	className,
 	...props
 }: Readonly<AnswerCardProps>): React.ReactElement {
+	const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
 	return (
 		<section
 			data-slot="answer-card"
 			className={cn(
-				"w-full rounded-xl border border-border bg-surface-raised px-4 py-3 text-text shadow-sm",
+				"mx-auto w-full overflow-hidden rounded-xl bg-surface-raised shadow-sm",
 				className,
 			)}
 			{...props}
 		>
-			<p className="text-[11px] font-semibold tracking-wide text-text-subtle uppercase">
-				{label}
-			</p>
-			<div className="mt-3 space-y-2">
-				{rows.map((row, index) => (
-					<div
-						key={`${row.question}-${index}`}
-						className="rounded-md border border-border-subtle bg-surface px-3 py-2"
+			<header className="flex items-center gap-3 px-4 py-3">
+				<Tile label="Answers" variant="transparent" size="medium" hasBorder className="text-icon-subtle">
+					<QuestionCircleIcon label="" />
+				</Tile>
+				<span className="min-w-0 flex-1">
+					<span className="block text-sm leading-5 font-bold text-text">{label}</span>
+					<span className="block text-xs leading-4 text-text-subtle">
+						{rows.length} {rows.length === 1 ? "question" : "questions"}
+					</span>
+				</span>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="text-text-subtle"
+					aria-label={collapsed ? "Expand answers" : "Collapse answers"}
+					onClick={() => setCollapsed((prev) => !prev)}
+				>
+					<span
+						className="transition-transform duration-200 ease-in-out"
+						style={{ transform: collapsed ? "rotate(0deg)" : "rotate(180deg)" }}
 					>
-						<p className="text-xs font-medium text-text-subtle">
-							{row.question}
-						</p>
-						<p className="mt-1 text-sm text-text">{row.answer}</p>
-					</div>
-				))}
-			</div>
+						<ChevronDownIcon label="" size="small" />
+					</span>
+				</Button>
+			</header>
+
+			{collapsed ? null : (
+				<div className="px-4 pb-3">
+					<ul className="m-0 flex list-none flex-col gap-1 p-0">
+						{rows.map((row, index) => (
+							<li
+								key={`${row.question}-${index}`}
+								className="flex items-center gap-3 rounded-lg py-1.5"
+							>
+								<span className="inline-flex size-8 shrink-0 items-center justify-center">
+									<span className="inline-flex size-5 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">
+										{index + 1}
+									</span>
+								</span>
+								<div className="min-w-0 flex-1">
+									<p className="text-sm leading-5 font-medium text-text">{row.question}</p>
+									<p className="mt-0.5 text-sm leading-5 text-text-subtle">{row.answer}</p>
+								</div>
+							</li>
+						))}
+					</ul>
+				</div>
+			)}
 		</section>
 	);
 }

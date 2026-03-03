@@ -23,6 +23,8 @@ interface RovoChatMessagesProps {
 	isSubmitPending?: boolean;
 	messageMode?: "plan" | "ask";
 	enableSmartWidgets?: boolean;
+	showAwaitingIndicator?: boolean;
+	awaitingIndicatorLabel?: string;
 	onWidgetPrimaryAction?: (
 		payload: GenerativeWidgetPrimaryActionPayload
 	) => Promise<void> | void;
@@ -42,6 +44,8 @@ export default function RovoChatMessages({
 	isSubmitPending = false,
 	messageMode = "ask",
 	enableSmartWidgets = false,
+	showAwaitingIndicator = false,
+	awaitingIndicatorLabel,
 	onWidgetPrimaryAction,
 }: Readonly<RovoChatMessagesProps>) {
 	return (
@@ -57,6 +61,8 @@ export default function RovoChatMessages({
 			isSubmitPending={isSubmitPending}
 			messageMode={messageMode}
 			showWidgetSections={enableSmartWidgets}
+			showAwaitingIndicator={showAwaitingIndicator}
+			awaitingIndicatorLabel={awaitingIndicatorLabel}
 			streamingIndicatorVariant="reasoning-expanded"
 			renderEmptyState={() => (
 				<ChatEmptyState variant={variant} userName={userName} />

@@ -13,11 +13,24 @@ import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import AddIcon from "@atlaskit/icon/core/add";
 import AgentsProgress from "@/components/blocks/agent-progress/page";
+import type { ProgressStatusGroups } from "@/components/blocks/agent-progress/data/mock-tasks";
 
 interface AgentSummarySidebarProps extends React.ComponentProps<typeof Sidebar> {
 	isOverlay?: boolean;
 	onPinSidebar?: () => void;
 }
+
+const DEMO_COMPLETED_TASK_GROUPS: ProgressStatusGroups = {
+	done: [
+		{ id: "summary-task-1", label: "Audit summary flow", description: "Mapped summary routes, polling lifecycle, and artifact dependencies." },
+		{ id: "summary-task-2", label: "Build summary layout", description: "Shipped final synthesis, interactive summary, and visual summary sections." },
+		{ id: "summary-task-3", label: "Validate fallback states", description: "Confirmed loading, timeout, and manual refresh handling." },
+	],
+	inReview: [],
+	inProgress: [],
+	failed: [],
+	todo: [],
+};
 
 export function AgentSummarySidebar({ isOverlay, onPinSidebar, ...props }: Readonly<AgentSummarySidebarProps>) {
 	const { toggleSidebar } = useSidebar();
@@ -55,7 +68,14 @@ export function AgentSummarySidebar({ isOverlay, onPinSidebar, ...props }: Reado
 						Done
 					</p>
 					<div className="mt-2">
-						<AgentsProgress runStatus="completed" defaultCollapsed planTitle="Flexible Friday Plan" planEmoji="✌️" runCreatedAt="2026-02-17T15:18:00.000Z" runCompletedAt="2026-02-17T15:24:00.000Z" />
+						<AgentsProgress
+							runStatus="completed"
+							planTitle="Flexible Friday Plan"
+							planEmoji="✌️"
+							taskStatusGroups={DEMO_COMPLETED_TASK_GROUPS}
+							runCreatedAt="2026-02-17T15:18:00.000Z"
+							runCompletedAt="2026-02-17T15:24:00.000Z"
+						/>
 					</div>
 				</div>
 			</SidebarContent>

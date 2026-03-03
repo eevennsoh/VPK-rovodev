@@ -577,11 +577,31 @@ function normalizeAgentCount(value) {
 	return Number.isFinite(n) && n >= 1 && n <= 4 ? n : 1;
 }
 
+const DEFAULT_AGENT_NAMES = ["Atlas", "Nova", "Forge", "Orbit"];
+
+function distributeTasksAcrossAgents(tasks, agentCount) {
+	const uniqueAgents = new Set(tasks.map((t) => t.agentName));
+	if (uniqueAgents.size > 1) {
+		return tasks;
+	}
+
+	const count = Math.min(Math.max(agentCount, 1), DEFAULT_AGENT_NAMES.length);
+	return tasks.map((task, index) => {
+		const agentName = DEFAULT_AGENT_NAMES[index % count];
+		return {
+			...task,
+			agentName,
+			agentId: slugifyAgentName(agentName),
+		};
+	});
+}
+
 function createInitialRun({ runId, plan, userPrompt, conversationContext, customInstruction, agentCount }) {
 	const now = toIsoDate();
 	const batchId = createId("batch");
 	const iteration = 1;
-	const tasks = plan.tasks.map((task) => ({
+	const distributedPlanTasks = distributeTasksAcrossAgents(plan.tasks, agentCount || 4);
+	const tasks = distributedPlanTasks.map((task) => ({
 		id: task.id,
 		label: task.label,
 		agentName: task.agentName,
@@ -626,7 +646,7 @@ function createInitialRun({ runId, plan, userPrompt, conversationContext, custom
 			title: plan.title,
 			description: plan.description,
 			emoji: plan.emoji,
-			agents: plan.agents,
+			agents: Array.from(new Set(tasks.map((task) => task.agentName))).sort(),
 			tasks: tasks.map((task) => ({
 				id: task.id,
 				label: task.label,
@@ -888,6 +908,8 @@ function createAppendTasksPrompt(run, prompt, contextPrompt) {
 		"- Do NOT create linear chains unless each task truly requires the prior task's output.",
 		"- Keep labels actionable and implementation-focused.",
 		"- Prefer existing agents when possible.",
+		`- Available agents: ${DEFAULT_AGENT_NAMES.join(", ")}.`,
+		"- Distribute tasks across available agents for parallel execution.",
 		"",
 		`Plan title: ${run.plan.title}`,
 		run.plan.description ? `Plan description: ${run.plan.description}` : null,

@@ -296,7 +296,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 
 	// ---- Navigation tab ----
 	const [activeTab, setActiveTab] = useState<MakeTab>("chat");
-	const [agentCount, setAgentCount] = useState(1);
+	const [agentCount, setAgentCount] = useState(4);
 	const hasRestoredTabRef = useRef(false);
 
 	// Sync activeTab to URL ?tab= param

@@ -27,14 +27,12 @@ export function DemoPreviewShell({ children, fullPage, fitContent }: Readonly<De
 					"[&_[data-slot=sidebar-inset]]:!min-h-0 [&_[data-slot=sidebar-inset]]:!h-full",
 				)}
 				style={{
-					...(fitContent
-						? { minHeight: FULL_PAGE_HEIGHT_PX }
-						: { height: FULL_PAGE_HEIGHT_PX }),
-					border: `1px solid ${token("color.border")}`,
-					borderRadius: token("radius.large"),
-					backgroundColor: token("elevation.surface"),
-					transform: "translateZ(0)",
-				}}
+				...(!fitContent && { height: FULL_PAGE_HEIGHT_PX }),
+				border: `1px solid ${token("color.border")}`,
+				borderRadius: token("radius.large"),
+				backgroundColor: token("elevation.surface"),
+				transform: "translateZ(0)",
+			}}
 			>
 				{children}
 			</div>

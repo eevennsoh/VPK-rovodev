@@ -313,8 +313,11 @@ export const { registry } = defineRegistry(catalog, {
 	components: {
 		// ── Layout ──────────────────────────────────────
 		Stack: ({ props, children }) => {
-			const { direction = "vertical", gap = "md", align, justify, padding, className } = props;
-			const directionClass = direction === "horizontal" ? "flex-row flex-wrap" : "flex-col";
+			const { direction = "vertical", gap = "md", align, justify, padding, wrap, className } = props;
+			const isHorizontal = direction === "horizontal";
+			const directionClass = isHorizontal
+				? wrap ? "flex-row flex-wrap" : "flex-row"
+				: "flex-col";
 			return (
 				<div className="@container/stack">
 					<div
@@ -334,7 +337,9 @@ export const { registry } = defineRegistry(catalog, {
 						)}
 						style={{ padding: padding ? `${padding * 4}px` : undefined }}
 					>
-						{children}
+						{isHorizontal
+							? Children.map(children, (child) => <div className="min-w-0">{child}</div>)
+							: children}
 					</div>
 				</div>
 			);
@@ -417,9 +422,9 @@ export const { registry } = defineRegistry(catalog, {
 			const Tag = normalizedLevel;
 			const normalizedText = text.trim().toLowerCase();
 			const sizes: Record<string, string> = {
-				h1: "text-3xl font-bold",
-				h2: "text-2xl font-semibold",
-				h3: "text-xl font-semibold",
+				h1: "text-2xl font-bold @[480px]/stack:text-3xl",
+				h2: "text-xl font-semibold @[480px]/stack:text-2xl",
+				h3: "text-lg font-semibold @[480px]/stack:text-xl",
 				h4: "text-lg font-medium",
 			};
 			const headingSizeClass =
@@ -549,6 +554,7 @@ export const { registry } = defineRegistry(catalog, {
 			}
 
 			return (
+				<div className="overflow-x-auto">
 				<Table>
 					<TableHeader>
 							<TableRow>
@@ -583,6 +589,7 @@ export const { registry } = defineRegistry(catalog, {
 						))}
 					</TableBody>
 				</Table>
+				</div>
 			);
 		},
 

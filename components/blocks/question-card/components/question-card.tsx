@@ -273,9 +273,9 @@ function QuestionCard({
 			<header data-slot="question-card-header" className="px-4 pb-4 pt-4">
 				<div className="flex items-center justify-between gap-2">
 					<div className="min-w-0">
-						<h2 className="text-sm leading-5 font-medium text-text">{currentQuestion.label}</h2>
+						<h2 className="text-sm leading-5 font-bold text-text">{currentQuestion.label}</h2>
 						{currentQuestion.description ? (
-							<p className="mt-0.5 text-sm leading-5 font-normal text-text-subtle">{currentQuestion.description}</p>
+							<p className="mt-0.5 text-xs leading-4 font-normal text-text-subtle">{currentQuestion.description}</p>
 						) : null}
 					</div>
 					{onDismiss ? (

@@ -4,6 +4,11 @@ import type { ReactNode } from "react";
 import { useCallback, useMemo } from "react";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import { Conversation, ConversationContent } from "@/components/ui-ai/conversation";
+import { Message } from "@/components/ui-ai/message";
+import {
+	AdsReasoningTrigger,
+	Reasoning,
+} from "@/components/ui-ai/reasoning";
 import { cn } from "@/lib/utils";
 import { MessageTurns } from "@/components/templates/shared/message-turns";
 import { ThreadMessage } from "@/components/templates/shared/thread-message";
@@ -16,6 +21,7 @@ import { PreloadThinkingIndicator } from "./preload-thinking-indicator";
 import { StreamingThinkingIndicator } from "./streaming-thinking-indicator";
 import { useStreamingIndicatorState } from "@/components/templates/shared/hooks/use-streaming-indicator";
 import {
+	getAwaitingUserResponseLabel,
 	getDefaultThinkingLabel,
 } from "@/components/templates/shared/lib/reasoning-labels";
 import styles from "./chat-messages.module.css";
@@ -37,6 +43,8 @@ export interface ChatMessagesProps {
 	reasoningContent?: string;
 	streamingIndicatorVariant?: "thinking" | "reasoning-expanded";
 	streamingIndicatorMessages?: RovoUIMessage[];
+	showAwaitingIndicator?: boolean;
+	awaitingIndicatorLabel?: string;
 	showFeedbackActions?: boolean;
 	showFollowUpSuggestions?: boolean;
 	showWidgetSections?: boolean;
@@ -114,6 +122,8 @@ export function ChatMessages({
 	reasoningContent,
 	streamingIndicatorVariant = "thinking",
 	streamingIndicatorMessages,
+	showAwaitingIndicator = false,
+	awaitingIndicatorLabel = getAwaitingUserResponseLabel(),
 	showFeedbackActions,
 	showFollowUpSuggestions,
 	showWidgetSections: showWidgetSectionsProp,
@@ -251,6 +261,15 @@ export function ChatMessages({
 						containerClassName="flex justify-start"
 						phaseProps={indicator.reasoningPhaseProps}
 					/>
+				) : null}
+				{!indicator.shouldShowPreloader && !indicator.shouldShowThinkingStatus && showAwaitingIndicator ? (
+					<div className="flex justify-start">
+						<Message from="assistant" className="max-w-full">
+							<Reasoning className="mb-0" isStreaming>
+								<AdsReasoningTrigger label={awaitingIndicatorLabel} showChevron={false} streaming />
+							</Reasoning>
+						</Message>
+					</div>
 				) : null}
 				<div ref={scrollSpacerRef} aria-hidden className="h-0 shrink-0" />
 			</ConversationContent>

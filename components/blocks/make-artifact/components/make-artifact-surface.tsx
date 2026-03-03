@@ -6,10 +6,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
-import { useTheme } from "@/components/utils/theme-wrapper";
+import { AnimatedDots } from "@/components/ui-ai/animated-dots";
 import type { AgentRun } from "@/lib/make-run-types";
 import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import {
@@ -317,6 +316,12 @@ const CHART_COLOR_OPTIONS = [
 const CHART_COMPONENT_TYPES = new Set(["BarChart", "LineChart", "AreaChart", "PieChart"]);
 const KEY_NESTED_PARENT_TYPES = new Set(["Stack", "Grid", "Tabs", "TabContent"]);
 const MAX_CONTROLS_PER_SECTION = 24;
+const DESIGN_PANEL_VISIBILITY_GROUP_LIMIT = 1;
+const DESIGN_PANEL_VISIBILITY_ITEMS_PER_GROUP = 3;
+const DESIGN_PANEL_CONTENT_LIMIT = 1;
+const DESIGN_PANEL_LAYOUT_LIMIT = 1;
+const DESIGN_PANEL_CHART_LIMIT = 2;
+const DESIGN_PANEL_APPEARANCE_LIMIT = 1;
 
 const COPY_EDITABLE_PROPS: Record<string, string[]> = {
 	Text: ["content"],
@@ -541,9 +546,12 @@ function mapLayoutPropsForType(currentProps: Record<string, unknown>, targetType
 	}
 
 	const inferredDirection =
-		typeof currentProps.columns === "string" && currentProps.columns !== "1"
-			? "horizontal"
-			: normalizeStackDirection(currentProps.direction);
+		typeof currentProps.direction === "string" &&
+		(currentProps.direction === "vertical" || currentProps.direction === "horizontal")
+			? currentProps.direction
+			: typeof currentProps.columns === "string" && currentProps.columns !== "1"
+				? "horizontal"
+				: normalizeStackDirection(currentProps.direction);
 	const align =
 		typeof currentProps.align === "string" && ["start", "center", "end", "stretch"].includes(currentProps.align)
 			? currentProps.align
@@ -758,8 +766,8 @@ function extractLayoutControls(spec: Spec, overrides: SpecOverrides | null | und
 					label: `${label} · Layout Type`,
 					value: "Grid",
 					options: [
-						{ value: "Grid", label: "Grid" },
 						{ value: "Stack", label: "Stack" },
+						{ value: "Grid", label: "Grid" },
 					],
 				});
 			}
@@ -1482,8 +1490,56 @@ function DesignPanel({
 			),
 		[autoControls],
 	);
+	const displayVisibilityGroups = useMemo<Array<[string, VisibilityControl[]]>>(
+		() =>
+			visibilityGroups
+				.slice(0, DESIGN_PANEL_VISIBILITY_GROUP_LIMIT)
+				.map(
+					([groupLabel, controls]) =>
+						[groupLabel, controls.slice(0, DESIGN_PANEL_VISIBILITY_ITEMS_PER_GROUP)] as [string, VisibilityControl[]],
+				),
+		[visibilityGroups],
+	);
+	const displayContentControls = useMemo(
+		() => contentControls.slice(0, DESIGN_PANEL_CONTENT_LIMIT),
+		[contentControls],
+	);
+	const displayLayoutControls = useMemo(() => {
+		const preferredControl =
+			layoutControls.find((control) => control.kind === "component-swap") ??
+			layoutControls.find((control) => control.kind === "select-prop");
+		return preferredControl ? [preferredControl].slice(0, DESIGN_PANEL_LAYOUT_LIMIT) : [];
+	}, [layoutControls]);
+	const displayChartControls = useMemo(() => {
+		const curatedControls: Array<SelectPropControl | ComponentSwapControl | NumberPropControl> = [];
+		const pushControl = (candidate: SelectPropControl | ComponentSwapControl | NumberPropControl | undefined) => {
+			if (!candidate || curatedControls.includes(candidate)) {
+				return;
+			}
+			curatedControls.push(candidate);
+		};
+		pushControl(chartControls.find((control) => control.kind === "component-swap"));
+		pushControl(chartControls.find((control) => control.kind === "number-prop"));
+		pushControl(chartControls.find((control) => control.kind === "select-prop"));
+		for (const control of chartControls) {
+			if (curatedControls.length >= DESIGN_PANEL_CHART_LIMIT) {
+				break;
+			}
+			pushControl(control);
+		}
+		return curatedControls.slice(0, DESIGN_PANEL_CHART_LIMIT);
+	}, [chartControls]);
+	const displayAppearanceControls = useMemo(
+		() => appearanceControls.slice(0, DESIGN_PANEL_APPEARANCE_LIMIT),
+		[appearanceControls],
+	);
 
-	const hasAnyControls = autoControls.length > 0;
+	const hasAnyControls =
+		displayVisibilityGroups.length > 0 ||
+		displayContentControls.length > 0 ||
+		displayLayoutControls.length > 0 ||
+		displayChartControls.length > 0 ||
+		displayAppearanceControls.length > 0;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface">
@@ -1517,10 +1573,10 @@ function DesignPanel({
 					</p>
 				) : (
 					<div className="space-y-4">
-						{visibilityControls.length > 0 ? (
+						{displayVisibilityGroups.length > 0 ? (
 							<div className="space-y-2">
 								<DesignPanelSectionHeading>Sections</DesignPanelSectionHeading>
-								{visibilityGroups.map(([groupLabel, controls]) => (
+								{displayVisibilityGroups.map(([groupLabel, controls]) => (
 									<div key={groupLabel} className="space-y-2 rounded-md border border-border bg-surface p-2.5">
 										<p className="text-[11px] font-medium text-text-subtle">{groupLabel}</p>
 										{controls.map((control) => (
@@ -1537,10 +1593,10 @@ function DesignPanel({
 							</div>
 						) : null}
 
-						{contentControls.length > 0 ? (
+						{displayContentControls.length > 0 ? (
 							<div className="space-y-2">
 								<DesignPanelSectionHeading>Content</DesignPanelSectionHeading>
-								{contentControls.map((control) => {
+								{displayContentControls.map((control) => {
 									const controlId =
 										control.kind === "tabs-label"
 											? `auto-content-${control.elementKey}-tab-${control.tabIndex}`
@@ -1562,10 +1618,10 @@ function DesignPanel({
 							</div>
 						) : null}
 
-						{layoutControls.length > 0 ? (
+						{displayLayoutControls.length > 0 ? (
 							<div className="space-y-2">
 								<DesignPanelSectionHeading>Layout</DesignPanelSectionHeading>
-								{layoutControls.map((control) => {
+								{displayLayoutControls.map((control) => {
 									const controlId =
 										control.kind === "select-prop"
 											? `auto-layout-${control.elementKey}-${control.propName}`
@@ -1584,10 +1640,10 @@ function DesignPanel({
 							</div>
 						) : null}
 
-						{chartControls.length > 0 ? (
+						{displayChartControls.length > 0 ? (
 							<div className="space-y-2">
 								<DesignPanelSectionHeading>Charts</DesignPanelSectionHeading>
-								{chartControls.map((control) => {
+								{displayChartControls.map((control) => {
 									if (control.kind === "number-prop") {
 										return (
 											<GUI.Control
@@ -1621,10 +1677,10 @@ function DesignPanel({
 							</div>
 						) : null}
 
-						{appearanceControls.length > 0 ? (
+						{displayAppearanceControls.length > 0 ? (
 							<div className="space-y-2">
 								<DesignPanelSectionHeading>Appearance</DesignPanelSectionHeading>
-								{appearanceControls.map((control) => (
+								{displayAppearanceControls.map((control) => (
 									<GUI.Select
 										key={`auto-appearance-${control.elementKey}-${control.propName}`}
 										id={`auto-appearance-${control.elementKey}-${control.propName}`}
@@ -1674,23 +1730,12 @@ function EmptyPanel({
 }
 
 function GeneratingPanel() {
-	const { actualTheme } = useTheme();
-	const loadingAnimationSrc =
-		actualTheme === "dark"
-			? "/loading/rovo-create-dark.gif"
-			: "/loading/rovo-create-light.gif";
-
 	return (
 		<div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-xl border border-border bg-surface p-6 text-center">
-			<Image
-				alt=""
-				className="h-28 w-auto"
-				height={280}
-				src={loadingAnimationSrc}
-				unoptimized
-				width={442}
-			/>
-			<p className="text-sm text-text-subtle">Generating output&hellip;</p>
+			<p className="text-sm text-text-subtle">
+				Rovo is cooking
+				<AnimatedDots className="ml-0.5" />
+			</p>
 		</div>
 	);
 }

@@ -25,4 +25,7 @@ export const TEMPLATE_DETAILS: Record<string, ComponentDetail> = {
 	"search": {
 		description: "A search results page with AI-powered summary panel, source cards carousel, and filterable result cards.",
 	},
+	"time-tracking": {
+		description: "A time tracking interface with daily and weekly timesheet views, expandable project groups, inline hour entry, and task management.",
+	},
 };

@@ -25,7 +25,7 @@ export interface ExternalLinkDefinition {
 }
 
 export type DemoContentWidth = "fit" | "full";
-export type DemoPreviewHeight = "fixed" | "fit";
+export type DemoPreviewHeight = "fixed" | "fit" | "default";
 
 export interface DemoLayout {
 	previewContentWidth?: DemoContentWidth;

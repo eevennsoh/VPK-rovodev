@@ -51,6 +51,7 @@ export const schema = defineSchema(
 			"Calendar and meeting agendas should render as a single ordered timeline, not one Card per meeting.",
 			"Prefer Timeline for calendar event lists; if days are grouped, render one Timeline per day section/tab and keep meeting rows inside that Timeline.",
 			"Calendar timeline items should include the start time in the date field and keep location/status in description text.",
+			"Horizontal Stack defaults to nowrap; set wrap=true only for flowing layouts like tag groups or badge lists.",
 		],
 	},
 );
@@ -65,11 +66,12 @@ export const catalog = defineCatalog(schema, {
 				align: z.enum(["start", "center", "end", "stretch"]).nullable(),
 				justify: z.enum(["start", "center", "end", "between"]).nullable(),
 				padding: z.number().nullable(),
+				wrap: z.boolean().nullable(),
 				className: z.string().nullable(),
 			}),
 			slots: ["default"],
-			description: "Flex layout container with direction, gap, and alignment",
-			example: { direction: "vertical", gap: "md", align: null, justify: null, padding: null, className: null },
+			description: "Flex layout container with direction, gap, and alignment. Horizontal Stack defaults to nowrap; set wrap=true only for flowing layouts like tag groups or badge lists.",
+			example: { direction: "vertical", gap: "md", align: null, justify: null, padding: null, wrap: null, className: null },
 		},
 		Card: {
 			props: z.object({

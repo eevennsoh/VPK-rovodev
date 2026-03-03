@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { format, addDays, subDays, addWeeks, subWeeks } from "date-fns";
+import { useState, useCallback, useMemo } from "react";
+import { format, addDays, subDays, addWeeks, subWeeks, startOfWeek, endOfWeek, isToday as isTodayFn, isSameWeek } from "date-fns";
 import ChevronLeftIcon from "@atlaskit/icon/core/chevron-left";
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right";
 import ClockIcon from "@atlaskit/icon/core/clock";
@@ -17,6 +17,7 @@ import {
 	BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { PageHeader } from "@/components/ui/page-header";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Task, ViewMode } from "@/lib/time-tracking-types";
 import {
@@ -33,6 +34,30 @@ export function TimeTrackingTemplate() {
 
 	// Form state
 	const [formOpen, setFormOpen] = useState(false);
+
+	// ── Derived date display ───────────────────────────────────────────────
+
+	const selectedDateObj = useMemo(() => new Date(state.selectedDate + "T00:00:00"), [state.selectedDate]);
+
+	const dateLabel = useMemo(() => {
+		if (state.viewMode === "daily") {
+			return format(selectedDateObj, "EEEE, MMMM d, yyyy");
+		}
+		const weekStart = startOfWeek(selectedDateObj, { weekStartsOn: 1 });
+		const weekEnd = endOfWeek(selectedDateObj, { weekStartsOn: 1 });
+		const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+		if (sameMonth) {
+			return `${format(weekStart, "MMM d")} – ${format(weekEnd, "d, yyyy")}`;
+		}
+		return `${format(weekStart, "MMM d")} – ${format(weekEnd, "MMM d, yyyy")}`;
+	}, [state.viewMode, selectedDateObj]);
+
+	const isViewingToday = useMemo(() => {
+		if (state.viewMode === "daily") {
+			return isTodayFn(selectedDateObj);
+		}
+		return isSameWeek(selectedDateObj, new Date(), { weekStartsOn: 1 });
+	}, [state.viewMode, selectedDateObj]);
 
 	// ── View mode ──────────────────────────────────────────────────────────
 
@@ -151,6 +176,22 @@ export function TimeTrackingTemplate() {
 		});
 	}, []);
 
+	// ── Delete task ───────────────────────────────────────────────────────
+
+	const handleDeleteTask = useCallback((taskId: string) => {
+		setState((prev) => ({
+			...prev,
+			tasks: prev.tasks.filter((t) => t.id !== taskId),
+			entries: prev.entries.filter((e) => e.taskId !== taskId),
+		}));
+	}, []);
+
+	// ── Weekly target ─────────────────────────────────────────────────────
+
+	const handleTargetHoursChange = useCallback((hours: number) => {
+		setState((prev) => ({ ...prev, weeklyTargetHours: hours }));
+	}, []);
+
 	// ── Reset ─────────────────────────────────────────────────────────────
 
 	const handleReset = useCallback(() => {
@@ -196,6 +237,8 @@ export function TimeTrackingTemplate() {
 							</TabsList>
 						</Tabs>
 
+						<Separator orientation="vertical" className="h-5" />
+
 						<div className="flex items-center gap-1">
 							<Button
 								variant="ghost"
@@ -206,7 +249,7 @@ export function TimeTrackingTemplate() {
 								<ChevronLeftIcon label="Previous" size="small" />
 							</Button>
 							<Button
-								variant="ghost"
+								variant={isViewingToday ? "default" : "ghost"}
 								size="sm"
 								onClick={goToToday}
 								className="gap-1.5 px-3"
@@ -223,6 +266,10 @@ export function TimeTrackingTemplate() {
 								<ChevronRightIcon label="Next" size="small" />
 							</Button>
 						</div>
+
+						<span className="text-sm font-medium text-text">
+							{dateLabel}
+						</span>
 					</div>
 
 					{/* Right: Add Task + Reset */}
@@ -263,6 +310,7 @@ export function TimeTrackingTemplate() {
 								expandedProjects={state.expandedProjects}
 								onToggleProject={handleToggleProject}
 								onHoursChange={handleHoursChange}
+								onDeleteTask={handleDeleteTask}
 							/>
 						) : (
 							<WeeklyView
@@ -273,6 +321,7 @@ export function TimeTrackingTemplate() {
 								expandedProjects={state.expandedProjects}
 								onToggleProject={handleToggleProject}
 								onHoursChange={handleHoursChange}
+								onDeleteTask={handleDeleteTask}
 							/>
 						)}
 					</div>
@@ -284,6 +333,7 @@ export function TimeTrackingTemplate() {
 							projects={state.projects}
 							selectedDate={state.selectedDate}
 							weeklyTargetHours={state.weeklyTargetHours}
+							onTargetHoursChange={handleTargetHoursChange}
 						/>
 					</div>
 				</div>

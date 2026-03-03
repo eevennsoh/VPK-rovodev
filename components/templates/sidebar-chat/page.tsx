@@ -8,8 +8,10 @@ import { Conversation, ConversationContent } from "@/components/ui-ai/conversati
 import { MessageTurns } from "@/components/templates/shared/message-turns";
 import { isRenderableRovoUIMessage } from "@/lib/rovo-ui-messages";
 import {
+	buildClarificationSummaryDisplayLabel,
 	buildClarificationDismissPrompt,
 	buildClarificationSummaryPrompt,
+	buildClarificationSummaryRows,
 	createClarificationSubmission,
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
@@ -196,13 +198,16 @@ export default function ChatPanel({
 
 			const clarificationSubmission = createClarificationSubmission(activeQuestionCard, answers);
 			const clarificationPrompt = buildClarificationSummaryPrompt(activeQuestionCard, answers);
+			const clarificationSummary = buildClarificationSummaryRows(activeQuestionCard, answers);
+			const displayLabel = buildClarificationSummaryDisplayLabel(activeQuestionCard, answers);
 
 			void sendPrompt(clarificationPrompt, {
 				...resolvedSendPromptOptions,
 				messageMetadata: {
 					...(resolvedSendPromptOptions?.messageMetadata ?? {}),
 					source: "clarification-submit",
-					visibility: "hidden",
+					displayLabel,
+					clarificationSummary,
 				},
 				clarification: clarificationSubmission,
 			});

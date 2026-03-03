@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const progressIndicatorVariants = cva("h-full rounded-full transition-all", {
 	variants: {
 		variant: {
-			default: "bg-primary",
+			default: "bg-bg-neutral-bold",
 			success: "bg-success",
 			inverse: "bg-foreground",
 		},
@@ -18,7 +18,7 @@ const progressIndicatorVariants = cva("h-full rounded-full transition-all", {
 	},
 });
 
-const progressTrackVariants = cva("relative flex h-1.5 w-full items-center overflow-x-hidden rounded-full", {
+const progressTrackVariants = cva("relative flex h-1.5 w-full items-center overflow-hidden rounded-full", {
 	variants: {
 		variant: {
 			default: "bg-bg-neutral",
@@ -41,18 +41,28 @@ export interface ProgressProps extends Omit<ProgressPrimitive.Root.Props, "value
 }
 
 function Progress({ className, children, value, variant = "default", isIndeterminate = false, ...props }: Readonly<ProgressProps>) {
+	const indicatorVariant = variant === "transparent" ? "default" : variant;
 	return (
 		<ProgressPrimitive.Root
 			value={isIndeterminate ? null : (value ?? null)}
 			data-slot="progress"
 			data-variant={variant}
-			data-indeterminate={isIndeterminate}
+			data-indeterminate={isIndeterminate || undefined}
 			className={cn("flex flex-wrap gap-3 group/progress", className)}
 			{...props}
 		>
 			{children}
 			<ProgressTrack variant={variant}>
-				<ProgressIndicator variant={variant === "transparent" ? "default" : variant} />
+				{isIndeterminate ? (
+					<span
+						className={cn(
+							progressIndicatorVariants({ variant: indicatorVariant }),
+							"absolute inset-y-0 w-[40%] animate-progress-indeterminate rounded-full",
+						)}
+					/>
+				) : (
+					<ProgressIndicator variant={indicatorVariant} />
+				)}
 			</ProgressTrack>
 		</ProgressPrimitive.Root>
 	);
@@ -72,7 +82,7 @@ function ProgressIndicator({ className, variant = "default", ...props }: Readonl
 	return (
 		<ProgressPrimitive.Indicator
 			data-slot="progress-indicator"
-			className={cn(progressIndicatorVariants({ variant }), "group-data-[indeterminate=true]/progress:animate-pulse", className)}
+			className={cn(progressIndicatorVariants({ variant }), className)}
 			{...props}
 		/>
 	);
