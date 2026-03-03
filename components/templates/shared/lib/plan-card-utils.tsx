@@ -69,10 +69,12 @@ export function PlanTabContent({
 	summaryTabContentClassName,
 	tasksTabContentClassName,
 }: Readonly<PlanTabContentProps>) {
-	const normalizedDescription = useMemo(
-		() => stripLeadingMarkdownRule(description),
-		[description],
-	);
+	const normalizedDescription = useMemo(() => {
+		const stripped = stripLeadingMarkdownRule(description);
+		// Ensure trailing newline so the streaming markdown parser
+		// properly closes fenced code blocks at end of content.
+		return stripped && !stripped.endsWith("\n") ? stripped + "\n" : stripped;
+	}, [description]);
 	const visibleTasks = useMemo(
 		() => tasks.filter((task) => task.label.trim().length > 0),
 		[tasks],

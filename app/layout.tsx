@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 import "streamdown/styles.css";
 import "leaflet/dist/leaflet.css";
 import { getSSRAutoScript, getThemeStyles } from "@atlaskit/tokens";
 import { Providers } from "@/app/providers";
-import { DevAgentationMount } from "@/components/utils/dev-agentation-mount";
 import { DevTurbopackCssChunkGuard } from "@/components/utils/dev-turbopack-css-chunk-guard";
+import { DevReactGrabMount } from "@/components/utils/dev-react-grab-mount";
+import { DevAgentationMount } from "@/components/utils/dev-agentation-mount";
 
 // Prevent @atlaskit/tokens from falling back to uninitialized FeatureGates client.
 // Sets the resolver on the same global that @atlaskit/platform-feature-flags uses internally.
@@ -159,19 +159,6 @@ export default async function RootLayout({
 			suppressHydrationWarning
 		>
 			<head>
-        {process.env.NODE_ENV === "development" && (
-          <Script
-            src="//unpkg.com/react-grab/dist/index.global.js"
-            crossOrigin="anonymous"
-            strategy="beforeInteractive"
-          />
-        )}
-        {process.env.NODE_ENV === "development" && (
-          <Script
-            src="//unpkg.com/@react-grab/mcp/dist/client.global.js"
-            strategy="lazyOnload"
-          />
-        )}
 				<script dangerouslySetInnerHTML={{ __html: preHydrationScript }} />
 				{themeStyles.map((themeStyle) => (
 					<style
@@ -187,8 +174,9 @@ export default async function RootLayout({
 			</head>
 			<body suppressHydrationWarning className="antialiased">
 				<Providers>{children}</Providers>
-				<DevTurbopackCssChunkGuard />
+				<DevReactGrabMount />
 				<DevAgentationMount />
+				<DevTurbopackCssChunkGuard />
 			</body>
 		</html>
 	);

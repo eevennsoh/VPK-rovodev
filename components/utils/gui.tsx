@@ -324,9 +324,46 @@ function GUISelect<T extends string>({
 	);
 }
 
+type GUITextInputProps = Readonly<{
+	id: string;
+	label: string;
+	description?: string;
+	placeholder?: string;
+	value: string;
+	onChange: (next: string) => void;
+	valueKeys?: string | readonly string[];
+}>;
+
+function GUITextInput({ id, label, description, placeholder, value, onChange, valueKeys }: GUITextInputProps) {
+	useGUIValueKeys(valueKeys);
+	const inputId = `${id}-text`;
+
+	return (
+		<div className="space-y-1.5">
+			<Label htmlFor={inputId} className="text-xs font-medium text-text">
+				{label}
+			</Label>
+			<Input
+				id={inputId}
+				type="text"
+				placeholder={placeholder}
+				value={value}
+				onChange={(event) => onChange(event.currentTarget.value)}
+				className="h-8 text-xs"
+			/>
+			{description ? (
+				<p className="text-[12px] leading-4 text-text-subtlest">
+					{description}
+				</p>
+			) : null}
+		</div>
+	);
+}
+
 export const GUI = {
 	Control: GUIControl,
 	Panel: GUIPanel,
 	Toggle: GUIToggle,
 	Select: GUISelect,
+	TextInput: GUITextInput,
 } as const;

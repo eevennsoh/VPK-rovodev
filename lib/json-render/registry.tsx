@@ -102,7 +102,7 @@ function toMermaidMarkdown(code: string): string {
 		return normalizedCode;
 	}
 
-	return ["```mermaid", normalizedCode, "```"].join("\n");
+	return ["```mermaid", normalizedCode, "```", ""].join("\n");
 }
 
 function cloneStateModel<TState extends Record<string, unknown>>(state: TState): TState {

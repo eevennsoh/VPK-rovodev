@@ -25,7 +25,7 @@ export function SprintBoardTemplate() {
 			{/* Page Header */}
 			<div className="border-b border-border bg-surface px-6 py-5">
 				<div className="mx-auto max-w-[1400px]">
-					<h1 className="text-xl font-semibold text-text">Sprint Board</h1>
+					<h1 className="text-xl font-semibold text-text">ABCD</h1>
 					<p className="mt-1 text-sm text-text-subtle">
 						Drag tasks between columns to update their status
 					</p>

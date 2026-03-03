@@ -8,6 +8,7 @@ export const MAKE_MODE_CONTEXT_DESCRIPTION = [
 	"After gathering sufficient context, use the create-plan skill to generate a comprehensive plan as a single markdown document.",
 	"Include a Mermaid diagram in the plan showing task dependencies.",
 	"After generating the plan, call update_todo to organize tasks into a structured checklist.",
+	"When writing update_todo task content, use strict dependency prefixes for blocked tasks: [needs <id[,id...]>] (example: [needs 1,2] Wire API). Leave independent tasks without a [needs] prefix.",
 	"Do not finish without generating a plan widget with a concrete task list.",
 ].join(" ");
 
@@ -18,6 +19,7 @@ export const MAKE_MODE_POST_CLARIFICATION_CONTEXT_DESCRIPTION = [
 	"Proceed directly to plan generation now.",
 	"Use the create-plan skill to produce the final plan markdown.",
 	"Then call update_todo so the plan tasks are captured in a structured checklist.",
+	"When writing update_todo task content, use strict dependency prefixes for blocked tasks: [needs <id[,id...]>] (example: [needs 1,2] Wire API). Leave independent tasks without a [needs] prefix.",
 	"Return a plan widget with concrete tasks derived from that checklist.",
 	"Do not finish without generating a plan widget with tasks.",
 ].join(" ");
@@ -26,6 +28,7 @@ export const MAKE_MODE_RETRY_PROMPT = [
 	"The previous response did not include a plan widget with tasks.",
 	"Do not ask more clarification questions.",
 	"Generate the plan now using the create-plan skill, then call update_todo.",
+	"When writing update_todo task content, use strict dependency prefixes for blocked tasks: [needs <id[,id...]>]. Leave independent tasks without a [needs] prefix.",
 	"The plan should include a clear list of actionable tasks and return a plan widget.",
 ].join(" ");
 
@@ -39,6 +42,7 @@ export const MAKE_INTERVIEW_CONTEXT_DESCRIPTION = [
 	"Once you receive the user's answers, use the create-plan skill to produce a detailed plan as a single markdown document.",
 	"Include a Mermaid diagram in the plan showing task dependencies.",
 	"After generating the plan, call update_todo to organize tasks into a structured checklist.",
+	"When writing update_todo task content, use strict dependency prefixes for blocked tasks: [needs <id[,id...]>] (example: [needs 1,2] Wire API). Leave independent tasks without a [needs] prefix.",
 	"Do not finish without generating a plan widget with a concrete task list.",
 ].join(" ");
 
@@ -51,6 +55,7 @@ export const MAKE_INTERVIEW_FOLLOW_UP_CONTEXT_DESCRIPTION = [
 	"Use the create-plan skill to produce a detailed plan as a single markdown document.",
 	"Include a Mermaid diagram in the plan showing task dependencies.",
 	"After generating the plan, call update_todo to organize tasks into a structured checklist.",
+	"When writing update_todo task content, use strict dependency prefixes for blocked tasks: [needs <id[,id...]>] (example: [needs 1,2] Wire API). Leave independent tasks without a [needs] prefix.",
 	"Return a plan widget with a concrete task list derived from update_todo.",
 	"Do not finish without generating a plan widget with tasks.",
 ].join(" ");

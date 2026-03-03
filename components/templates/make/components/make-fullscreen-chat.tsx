@@ -134,6 +134,7 @@ export function MakeFullscreenChat() {
 		isMakeToggleActive,
 		chatTabActiveChatId,
 		executedPlanKey,
+		enrichedPlanTitle,
 	} = useMakeState();
 
 	const {
@@ -383,12 +384,15 @@ export function MakeFullscreenChat() {
 
 			const isCollapsed =
 				latestPlanWidgetMessageId !== null && message.id !== latestPlanWidgetMessageId;
+			const isLatest = message.id === latestPlanWidgetMessageId;
 
 			return (
 				<div className="pt-2">
 					<MakeCardWidgetInline
 						title={parsedPlanWidget.title}
 						description={parsedPlanWidget.description}
+						enrichedTitle={isLatest ? enrichedPlanTitle?.title : undefined}
+						enrichedDescription={isLatest ? enrichedPlanTitle?.description : undefined}
 						tasks={parsedPlanWidget.tasks}
 						agents={parsedPlanWidget.agents}
 						isStreaming={isPlanWidgetStreaming}
@@ -397,8 +401,8 @@ export function MakeFullscreenChat() {
 						onOpenPreview={() =>
 							setPreviewModal({
 								open: true,
-								title: parsedPlanWidget.title,
-								description: parsedPlanWidget.description ?? "",
+								title: isLatest && enrichedPlanTitle ? enrichedPlanTitle.title : parsedPlanWidget.title,
+								description: isLatest && enrichedPlanTitle ? enrichedPlanTitle.description : (parsedPlanWidget.description ?? ""),
 								tasks: parsedPlanWidget.tasks,
 								agents: parsedPlanWidget.agents,
 							})
@@ -407,7 +411,7 @@ export function MakeFullscreenChat() {
 				</div>
 			);
 		},
-		[handleBuild, latestPlanWidgetMessageId],
+		[enrichedPlanTitle, handleBuild, latestPlanWidgetMessageId],
 	);
 
 	const renderWidget = useCallback(

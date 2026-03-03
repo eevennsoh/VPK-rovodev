@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,12 @@ const CARD_ANIMATION_STYLES = `
 	to { transform: rotate(360deg); }
 }
 `;
+
+const CELEBRATORY_EMOJIS = ["🎉", "🥳", "🎊", "🪅", "🥂", "🎈", "🏆", "✨", "💪", "🙌"] as const;
+const EMOJI_ENTER_TRANSITION = { duration: 0.25, ease: [0.175, 0.885, 0.32, 1.275] as const };
+const ICON_TRANSITION = { duration: 0.2, ease: "easeOut" as const };
+const CELEBRATION_HOLD_MS = 1200;
+const GONG_VOLUME = 0.3;
 
 type RunStatus = "running" | "completed" | "failed";
 type IconStatus = "done" | "in-progress" | "failed" | "todo";
@@ -96,9 +103,44 @@ function resolveInitialNowMs({
 	return 0;
 }
 
-function TaskStatusIcon({ status }: Readonly<{ status: IconStatus }>) {
+function TaskStatusIcon({
+	status,
+	celebratingEmoji,
+	shouldReduceMotion = false,
+}: Readonly<{
+	status: IconStatus;
+	celebratingEmoji?: string | null;
+	shouldReduceMotion?: boolean;
+}>) {
 	if (status === "done") {
-		return <CheckCircleIcon label="" size="small" color={token("color.icon.success")} />;
+		return (
+			<AnimatePresence mode="wait" initial={false}>
+				{celebratingEmoji ? (
+					<motion.span
+						key={`emoji-${celebratingEmoji}`}
+						initial={shouldReduceMotion ? false : { scale: 0.3, opacity: 0 }}
+						animate={{ scale: 1, opacity: 1 }}
+						exit={shouldReduceMotion ? undefined : { scale: 0.3, opacity: 0, transition: ICON_TRANSITION }}
+						transition={shouldReduceMotion ? undefined : EMOJI_ENTER_TRANSITION}
+						className="flex items-center justify-center text-sm leading-none"
+						aria-hidden="true"
+					>
+						{celebratingEmoji}
+					</motion.span>
+				) : (
+					<motion.span
+						key="check-icon"
+						initial={shouldReduceMotion ? false : { scale: 0.3, opacity: 0 }}
+						animate={{ scale: 1, opacity: 1 }}
+						exit={shouldReduceMotion ? undefined : { scale: 0.3, opacity: 0, transition: ICON_TRANSITION }}
+						transition={shouldReduceMotion ? undefined : ICON_TRANSITION}
+						className="flex items-center justify-center"
+					>
+						<CheckCircleIcon label="" size="small" color={token("color.icon.success")} />
+					</motion.span>
+				)}
+			</AnimatePresence>
+		);
 	}
 
 	if (status === "in-progress") {
@@ -291,6 +333,33 @@ export default function AgentsProgress({
 	const [retryingGroupKey, setRetryingGroupKey] =
 		useState<RetryableStatusGroupKey | null>(null);
 	const isInteractive = isCollapsible || typeof onCardClick === "function";
+
+	const shouldReduceMotion = useReducedMotion();
+	const prevDoneCountRef = useRef(taskStatusGroups.done.length);
+	const [celebratingEmoji, setCelebratingEmoji] = useState<string | null>(null);
+
+	useEffect(() => {
+		const currentCount = taskStatusGroups.done.length;
+		const prevCount = prevDoneCountRef.current;
+		prevDoneCountRef.current = currentCount;
+
+		if (currentCount > prevCount && currentCount > 0) {
+			const emoji = CELEBRATORY_EMOJIS[Math.floor(Math.random() * CELEBRATORY_EMOJIS.length)];
+			setCelebratingEmoji(emoji);
+
+			if (!shouldReduceMotion) {
+				const sound = new Audio("/sound/gong.mp3");
+				sound.volume = GONG_VOLUME;
+				sound.play().catch(() => {});
+			}
+		}
+	}, [taskStatusGroups.done.length, shouldReduceMotion]);
+
+	useEffect(() => {
+		if (!celebratingEmoji) return;
+		const timerId = setTimeout(() => setCelebratingEmoji(null), CELEBRATION_HOLD_MS);
+		return () => clearTimeout(timerId);
+	}, [celebratingEmoji]);
 
 	useEffect(() => {
 		if (runStatus !== "running" || !runCreatedAt) return;
@@ -485,7 +554,11 @@ export default function AgentsProgress({
 									<div key={group.key} className="flex gap-1">
 										<div className="flex w-5 shrink-0 flex-col items-center">
 											<div className="flex h-8 shrink-0 items-center justify-center">
-												<TaskStatusIcon status={group.iconStatus} />
+												<TaskStatusIcon
+													status={group.iconStatus}
+													celebratingEmoji={group.key === "done" ? celebratingEmoji : undefined}
+													shouldReduceMotion={shouldReduceMotion ?? false}
+												/>
 											</div>
 											{!isLast ? <div className="min-h-2 w-px flex-1 bg-border" /> : null}
 										</div>

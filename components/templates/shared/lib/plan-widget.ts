@@ -1,3 +1,4 @@
+import { API_ENDPOINTS } from "@/lib/api-config";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 import { resolvePlanDisplayTitle } from "@/components/templates/shared/lib/plan-identity";
 
@@ -276,6 +277,7 @@ export function generateMermaidFromPlanTasks(
 		),
 		...edgeLines,
 		"```",
+		"",
 	].join("\n");
 
 	return {
@@ -324,4 +326,28 @@ export function getLatestPlanWidgetPayload(
 	}
 
 	return null;
+}
+
+export async function fetchEnrichedPlanTitle(
+	plan: ParsedPlanWidgetPayload,
+): Promise<{ title: string; description: string } | null> {
+	try {
+		const response = await fetch(API_ENDPOINTS.PLAN_TITLE, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				title: plan.title,
+				description: plan.description,
+				tasks: plan.tasks.map((t) => t.label),
+			}),
+		});
+		if (!response.ok) return null;
+		const data = (await response.json()) as { title?: string; description?: string };
+		const title = data.title?.trim();
+		const description = data.description?.trim();
+		if (!title) return null;
+		return { title, description: description ?? "" };
+	} catch {
+		return null;
+	}
 }

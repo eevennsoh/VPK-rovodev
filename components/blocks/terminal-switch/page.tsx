@@ -437,7 +437,7 @@ export default function TerminalSwitchPanel({
 	return (
 		<div
 			className={cn(
-				"flex h-full flex-col overflow-hidden rounded-[12px] border border-border bg-surface transition-colors duration-200",
+				"flex h-full w-full max-w-[400px] flex-col overflow-hidden rounded-[12px] border border-border bg-surface transition-colors duration-200",
 				className,
 			)}
 			{...(isTerminal ? {

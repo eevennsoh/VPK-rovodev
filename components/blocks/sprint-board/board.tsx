@@ -26,9 +26,12 @@ interface BoardProps {
 	columns: ColumnType[];
 	tasks: Record<string, Task>;
 	onColumnsChange: (columnUpdates: Record<string, string[]>) => void;
+	onTaskClick?: (task: Task) => void;
+	onDeleteTask?: (taskId: string) => void;
+	onAddToColumn?: (columnId: ColumnId) => void;
 }
 
-export function Board({ columns, tasks, onColumnsChange }: BoardProps) {
+export function Board({ columns, tasks, onColumnsChange, onTaskClick, onDeleteTask, onAddToColumn }: BoardProps) {
 	const [activeTask, setActiveTask] = useState<Task | null>(null);
 	const [overColumnId, setOverColumnId] = useState<ColumnId | null>(null);
 
@@ -171,6 +174,7 @@ export function Board({ columns, tasks, onColumnsChange }: BoardProps) {
 
 	return (
 		<DndContext
+			id="sprint-board-dnd"
 			sensors={sensors}
 			collisionDetection={closestCorners}
 			onDragStart={handleDragStart}
@@ -184,6 +188,9 @@ export function Board({ columns, tasks, onColumnsChange }: BoardProps) {
 						column={column}
 						tasks={columnTasks}
 						isOver={overColumnId === column.id}
+						onTaskClick={onTaskClick}
+						onDeleteTask={onDeleteTask}
+						onAddToColumn={onAddToColumn}
 					/>
 				))}
 			</div>

@@ -28,4 +28,7 @@ export const TEMPLATE_DETAILS: Record<string, ComponentDetail> = {
 	"time-tracking": {
 		description: "A time tracking interface with daily and weekly timesheet views, expandable project groups, inline hour entry, and task management.",
 	},
+	"board": {
+		description: "A sprint board with drag-and-drop columns, task cards with assignee avatars and priority indicators, and real-time progress tracking.",
+	},
 };

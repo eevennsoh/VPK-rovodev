@@ -144,7 +144,7 @@ export default function MakeGalleryContent({ onItemSelect, items }: Readonly<Mak
 								<MakeItemCard
 									key={item.id}
 									item={item}
-									className="h-[200px]"
+									className="min-h-[200px]"
 									onSelect={onItemSelect && item.type === "apps" ? () => onItemSelect(item) : undefined}
 									onRecurringToggle={item.recurring
 										? (enabled) => handleRecurringToggle(item.id, enabled)

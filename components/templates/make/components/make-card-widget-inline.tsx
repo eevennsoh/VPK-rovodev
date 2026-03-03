@@ -65,6 +65,8 @@ interface MakeCardWidgetInlineProps {
 	tasks: PlanTask[];
 	agents?: string[];
 	description?: string;
+	enrichedTitle?: string;
+	enrichedDescription?: string;
 	isStreaming?: boolean;
 	collapsed?: boolean;
 	onBuild?: () => void;
@@ -76,6 +78,8 @@ export function MakeCardWidgetInline({
 	tasks,
 	agents = [],
 	description,
+	enrichedTitle,
+	enrichedDescription,
 	isStreaming = false,
 	collapsed: controlledCollapsed,
 	onBuild,
@@ -113,9 +117,9 @@ export function MakeCardWidgetInline({
 		return null;
 	}
 
-	const displayTitle = resolvePlanDisplayTitle(title, visibleTasks);
+	const displayTitle = enrichedTitle || resolvePlanDisplayTitle(title, visibleTasks);
 	const displayEmoji = derivePlanEmojiFromTitle(displayTitle);
-	const descriptionText = sanitizePlanDescription(description, visibleTasks.length);
+	const descriptionText = enrichedDescription || sanitizePlanDescription(description, visibleTasks.length);
 
 	if (isCollapsed) {
 		return <CollapsedPlanBubble title={displayTitle} emoji={displayEmoji} onExpand={() => setIsCollapsed(false)} />;

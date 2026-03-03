@@ -98,7 +98,7 @@ export function MakeItemCard({ item, className, onRecurringToggle, onSelect }: R
 					</CardAction>
 				</CardHeader>
 
-				<CardContent className="flex-1 pt-2 pb-0">
+				<CardContent className="flex-1 pt-2 pb-3">
 					<CardTitle className="text-base leading-5 font-semibold mb-1">{item.title}</CardTitle>
 					{item.recurring ? (
 						<p className={cn(

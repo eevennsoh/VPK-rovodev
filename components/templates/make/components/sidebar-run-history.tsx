@@ -51,7 +51,7 @@ function isSummaryGenerating(run: AgentRunListItem): boolean {
 		return true;
 	}
 
-	return run.summary == null || run.genuiSummary == null;
+	return run.summary == null;
 }
 
 export default function SidebarRunHistory({

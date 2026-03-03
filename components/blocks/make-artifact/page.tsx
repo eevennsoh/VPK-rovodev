@@ -490,7 +490,7 @@ function TwoPanelLayout({
 
 	return (
 		<div className="flex min-h-0 flex-1 gap-4">
-			<div className="min-h-0 w-[62%] shrink-0">
+			<div className="min-h-0 min-w-0 flex-1">
 				{leftMode === "plan" ? (
 					<PlanPanel isRunLoading={isRunLoading} plan={plan} summaryContent={summaryContent} />
 				) : (
@@ -501,7 +501,7 @@ function TwoPanelLayout({
 					/>
 				)}
 			</div>
-			<div className="min-w-0 flex-1">
+			<div className="min-h-0 w-[400px] max-w-full shrink-0">
 				{rightPanel}
 			</div>
 		</div>

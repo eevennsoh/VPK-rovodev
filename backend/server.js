@@ -2711,6 +2711,72 @@ User message: ${message.trim()}`;
 	}
 });
 
+app.post("/api/plan-title", async (req, res) => {
+	try {
+		const { title, description, tasks } = req.body || {};
+
+		if (!title || typeof title !== "string" || !title.trim()) {
+			return res.status(400).json({ error: "A title is required" });
+		}
+
+		const taskLabels = Array.isArray(tasks)
+			? tasks.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim())
+			: [];
+
+		const taskContext = taskLabels.length > 0
+			? `\nTasks (${taskLabels.length}): ${taskLabels.join("; ")}`
+			: "";
+
+		const descriptionContext = typeof description === "string" && description.trim()
+			? `\nCurrent description: ${description.trim()}`
+			: "";
+
+		const enrichPrompt = `Rewrite this plan's title and description to be clear and non-technical.
+
+Current title: ${title.trim()}${descriptionContext}${taskContext}
+
+Rules:
+- Title: 3-8 words, action-oriented, no code/file references
+- Description: 1-2 sentences, explain what the plan accomplishes for the user, no code references`;
+
+		const text = await generateTextViaGateway({
+			system: 'You rewrite technical plan titles and descriptions into concise, user-friendly language. Respond with JSON only: {"title":"...","description":"..."}',
+			prompt: enrichPrompt,
+			maxOutputTokens: 150,
+			temperature: 0.7,
+			allowFallback: true,
+		});
+
+		const trimmed = text.trim();
+		let enrichedTitle = title.trim();
+		let enrichedDescription = (description || "").trim();
+
+		try {
+			const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+			if (jsonMatch) {
+				const parsed = JSON.parse(jsonMatch[0]);
+				if (typeof parsed.title === "string" && parsed.title.trim()) {
+					enrichedTitle = parsed.title.trim().replace(/^["']|["']$/g, "").replace(/\.+$/, "").trim();
+				}
+				if (typeof parsed.description === "string" && parsed.description.trim()) {
+					enrichedDescription = parsed.description.trim().replace(/^["']|["']$/g, "").replace(/\.+$/, "").trim();
+				}
+			}
+		} catch {
+			// If JSON parsing fails, return the original values
+		}
+
+		if (!enrichedTitle) {
+			return res.status(500).json({ error: "Empty title generated" });
+		}
+
+		return res.json({ title: enrichedTitle, description: enrichedDescription });
+	} catch (error) {
+		console.error("Plan title API error:", error);
+		return sendGatewayErrorResponse(res, error, "Failed to generate plan title");
+	}
+});
+
 app.post("/api/chat-sdk", async (req, res) => {
 	try {
 		const {

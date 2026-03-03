@@ -291,6 +291,7 @@ export const TEMPLATE_COMPONENTS: ComponentEntry[] = [
 	templateComponent("fullscreen-chat", "Fullscreen Chat"),
 	templateComponent("search", "Search Results"),
 	templateComponent("time-tracking", "Time Tracking"),
+	templateComponent("board", "ABCD"),
 ] as const;
 
 export const UTILITY_COMPONENTS: ComponentEntry[] = [

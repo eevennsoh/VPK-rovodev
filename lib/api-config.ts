@@ -30,6 +30,7 @@ const API_BASE_URL = '';
 export const API_ENDPOINTS = {
 	CHAT_SDK: `${API_BASE_URL}/api/chat-sdk`,
 	CHAT_TITLE: `${API_BASE_URL}/api/chat-title`,
+	PLAN_TITLE: `${API_BASE_URL}/api/plan-title`,
 	CHAT_CANCEL: `${API_BASE_URL}/api/chat-cancel`,
 	HEALTH: `${API_BASE_URL}/api/health`,
 	PLAN_RUNS: `${API_BASE_URL}/api/plan/runs`,

@@ -2,6 +2,8 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import AddIcon from "@atlaskit/icon/core/add";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Column as ColumnType, ColumnId, Task } from "@/lib/sprint-board-types";
 import { TaskCard } from "./task-card";
@@ -10,6 +12,9 @@ interface ColumnProps {
 	column: ColumnType;
 	tasks: Task[];
 	isOver?: boolean;
+	onTaskClick?: (task: Task) => void;
+	onDeleteTask?: (taskId: string) => void;
+	onAddToColumn?: (columnId: ColumnId) => void;
 }
 
 const columnHeaderColors: Record<ColumnId, string> = {
@@ -18,7 +23,7 @@ const columnHeaderColors: Record<ColumnId, string> = {
 	done: "border-t-4 border-t-border-success",
 };
 
-export function Column({ column, tasks, isOver }: ColumnProps) {
+export function Column({ column, tasks, isOver, onTaskClick, onDeleteTask, onAddToColumn }: ColumnProps) {
 	const { setNodeRef } = useDroppable({
 		id: column.id,
 		data: { type: "Column", column },
@@ -34,10 +39,22 @@ export function Column({ column, tasks, isOver }: ColumnProps) {
 			{/* Column Header */}
 			<div className="px-4 py-3">
 				<div className="flex items-center justify-between">
-					<h3 className="text-sm font-semibold text-text">{column.title}</h3>
-					<span className="rounded-full bg-bg-neutral px-2 py-0.5 text-xs font-medium text-text-subtle">
-						{tasks.length}
-					</span>
+					<div className="flex items-center gap-2">
+						<h3 className="text-sm font-semibold text-text">{column.title}</h3>
+						<span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-bg-neutral px-1.5 text-[11px] font-semibold text-text-subtle">
+							{tasks.length}
+						</span>
+					</div>
+					{onAddToColumn ? (
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-6"
+							onClick={() => onAddToColumn(column.id)}
+						>
+							<AddIcon label="Add task" size="small" />
+						</Button>
+					) : null}
 				</div>
 			</div>
 
@@ -58,6 +75,8 @@ export function Column({ column, tasks, isOver }: ColumnProps) {
 							<TaskCard
 								key={task.id}
 								task={task}
+								onTaskClick={onTaskClick}
+								onDeleteTask={onDeleteTask}
 							/>
 						))
 					) : (

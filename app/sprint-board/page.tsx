@@ -12,8 +12,11 @@ import {
 	BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { PageHeader } from "@/components/ui/page-header";
-import { getInitialBoardState } from "@/lib/sprint-board-data";
+import { getInitialBoardState, SAMPLE_ASSIGNEES } from "@/lib/sprint-board-data";
 import { Board } from "@/components/blocks/sprint-board/board";
+import { CreateTaskDialog } from "@/components/blocks/sprint-board/create-task-dialog";
+import { EditTaskDialog } from "@/components/blocks/sprint-board/edit-task-dialog";
+import type { Priority, ColumnId, Task, TaskLabel } from "@/lib/sprint-board-types";
 
 export default function SprintBoardPage() {
 	const [boardState, setBoardState] = useState(() => getInitialBoardState());
@@ -32,6 +35,110 @@ export default function SprintBoardPage() {
 		},
 		[],
 	);
+
+	// Add a new task
+	const handleAddTask = useCallback(
+		(task: {
+			title: string;
+			description?: string;
+			assigneeId: string;
+			priority: Priority;
+			storyPoints?: number;
+			labels: TaskLabel[];
+			columnId: ColumnId;
+		}) => {
+			setBoardState((prev) => {
+				const assignee = SAMPLE_ASSIGNEES.find((a) => a.id === task.assigneeId) ?? SAMPLE_ASSIGNEES[0];
+				const column = prev.columns.find((col) => col.id === task.columnId);
+				const newId = `task-new-${Date.now()}`;
+				const newTask = {
+					id: newId,
+					title: task.title,
+					description: task.description,
+					assignee,
+					priority: task.priority,
+					storyPoints: task.storyPoints,
+					labels: task.labels.length > 0 ? task.labels : undefined,
+					columnId: task.columnId,
+					order: column ? column.taskIds.length : 0,
+				};
+
+				return {
+					...prev,
+					tasks: { ...prev.tasks, [newId]: newTask },
+					columns: prev.columns.map((col) =>
+						col.id === task.columnId
+							? { ...col, taskIds: [...col.taskIds, newId] }
+							: col,
+					),
+				};
+			});
+		},
+		[],
+	);
+
+	// Edit task state
+	const [editingTask, setEditingTask] = useState<Task | null>(null);
+	const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+	const handleTaskClick = useCallback((task: Task) => {
+		setEditingTask(task);
+		setEditDialogOpen(true);
+	}, []);
+
+	const handleEditTask = useCallback(
+		(taskId: string, updates: Partial<Pick<Task, "title" | "description" | "priority" | "storyPoints" | "labels"> & { assigneeId: string }>) => {
+			setBoardState((prev) => {
+				const existingTask = prev.tasks[taskId];
+				if (!existingTask) return prev;
+
+				const assignee = updates.assigneeId
+					? (SAMPLE_ASSIGNEES.find((a) => a.id === updates.assigneeId) ?? existingTask.assignee)
+					: existingTask.assignee;
+
+				const updatedTask: Task = {
+					...existingTask,
+					title: updates.title ?? existingTask.title,
+					description: updates.description,
+					assignee,
+					priority: updates.priority ?? existingTask.priority,
+					storyPoints: updates.storyPoints,
+					labels: updates.labels,
+				};
+
+				return {
+					...prev,
+					tasks: { ...prev.tasks, [taskId]: updatedTask },
+				};
+			});
+		},
+		[],
+	);
+
+	// Add-to-column state (controlled create dialog)
+	const [addToColumnId, setAddToColumnId] = useState<ColumnId | null>(null);
+	const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+	const handleAddToColumn = useCallback((columnId: ColumnId) => {
+		setAddToColumnId(columnId);
+		setCreateDialogOpen(true);
+	}, []);
+
+	// Delete a task
+	const handleDeleteTask = useCallback((taskId: string) => {
+		setBoardState((prev) => {
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+			const { [taskId]: _removed, ...remainingTasks } = prev.tasks;
+			return {
+				...prev,
+				tasks: remainingTasks,
+				columns: prev.columns.map((col) => ({
+					...col,
+					taskIds: col.taskIds.filter((id) => id !== taskId),
+				})),
+			};
+		});
+	}, []);
 
 	// Reset board to initial state
 	const handleReset = useCallback(() => {
@@ -52,7 +159,7 @@ export default function SprintBoardPage() {
 		<div className="flex min-h-screen flex-col bg-bg-neutral">
 			{/* Page Header */}
 			<PageHeader
-				title="Sprint Board"
+				title="ABCD"
 				description="Drag tasks between columns to update their status"
 				className="border-b border-border-subtle bg-surface px-6 py-5"
 				breadcrumbs={
@@ -63,7 +170,7 @@ export default function SprintBoardPage() {
 							</BreadcrumbItem>
 							<BreadcrumbSeparator />
 							<BreadcrumbItem>
-								<BreadcrumbPage>Sprint Board</BreadcrumbPage>
+								<BreadcrumbPage>ABCD</BreadcrumbPage>
 							</BreadcrumbItem>
 						</BreadcrumbList>
 					</Breadcrumb>
@@ -88,16 +195,22 @@ export default function SprintBoardPage() {
 						</div>
 					</div>
 
-					{/* Reset Button */}
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={handleReset}
-						className="gap-1.5"
-					>
-						<UndoIcon label="" size="small" />
-						Reset
-					</Button>
+					{/* Actions */}
+					<div className="flex items-center gap-2">
+						<CreateTaskDialog
+							assignees={SAMPLE_ASSIGNEES}
+							onCreateTask={handleAddTask}
+						/>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={handleReset}
+							className="gap-1.5"
+						>
+							<UndoIcon label="" size="small" />
+							Reset
+						</Button>
+					</div>
 				</div>
 			</div>
 
@@ -108,9 +221,32 @@ export default function SprintBoardPage() {
 						columns={boardState.columns}
 						tasks={boardState.tasks}
 						onColumnsChange={handleColumnsChange}
+						onTaskClick={handleTaskClick}
+						onDeleteTask={handleDeleteTask}
+						onAddToColumn={handleAddToColumn}
 					/>
 				</div>
 			</div>
+
+			{/* Per-column Create Task Dialog */}
+			<CreateTaskDialog
+				key={addToColumnId ?? "todo"}
+				assignees={SAMPLE_ASSIGNEES}
+				defaultColumnId={addToColumnId ?? "todo"}
+				open={createDialogOpen}
+				onOpenChange={setCreateDialogOpen}
+				onCreateTask={handleAddTask}
+			/>
+
+			{/* Edit Task Dialog */}
+			<EditTaskDialog
+				key={editingTask?.id ?? "none"}
+				task={editingTask}
+				assignees={SAMPLE_ASSIGNEES}
+				open={editDialogOpen}
+				onOpenChange={setEditDialogOpen}
+				onSave={handleEditTask}
+			/>
 		</div>
 	);
 }

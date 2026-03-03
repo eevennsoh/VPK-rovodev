@@ -88,3 +88,90 @@ test("returns null when update_todo has fewer than minimum tasks", () => {
 
 	assert.equal(payload, null);
 });
+
+test("parses strict [needs ...] tags and maps dependencies to canonical task ids", () => {
+	const payload = extractUpdateTodoPlanPayloadFromObservations([
+		{
+			phase: "result",
+			toolName: "update_todo",
+			text: [
+				"<todo>",
+				'{"id":1,"content":"Define schema","status":"pending"}',
+				'{"id":2,"content":"[needs 1] Build data access layer","status":"pending"}',
+				'{"id":3,"content":"[needs 1,2] Wire API to frontend","status":"pending"}',
+			].join("\n"),
+		},
+	]);
+
+	assert.ok(payload);
+	assert.deepEqual(
+		payload.tasks.map((task) => task.label),
+		["Define schema", "Build data access layer", "Wire API to frontend"]
+	);
+	assert.deepEqual(payload.tasks[0].blockedBy, []);
+	assert.deepEqual(payload.tasks[1].blockedBy, ["task-1"]);
+	assert.deepEqual(payload.tasks[2].blockedBy, ["task-1", "task-2"]);
+});
+
+test("merges explicit blockedBy values and [needs] tags from mixed id formats", () => {
+	const payload = extractUpdateTodoPlanPayloadFromObservations([
+		{
+			phase: "result",
+			toolName: "update_todo",
+			rawOutput: {
+				todos: [
+					{ id: "A", content: "Design data model", status: "pending" },
+					{ id: "B", content: "[needs A] Implement db layer", blockedBy: ["A"], status: "pending" },
+					{ id: "C", content: "[needs task-2] Add API endpoints", blockedBy: [2], status: "pending" },
+				],
+			},
+		},
+	]);
+
+	assert.ok(payload);
+	assert.deepEqual(payload.tasks[0].blockedBy, []);
+	assert.deepEqual(payload.tasks[1].blockedBy, ["task-1"]);
+	assert.deepEqual(payload.tasks[2].blockedBy, ["task-2"]);
+});
+
+test("falls back to dependency inference when explicit dependencies are absent", () => {
+	const payload = extractUpdateTodoPlanPayloadFromObservations([
+		{
+			phase: "result",
+			toolName: "update_todo",
+			text: [
+				"<todo>",
+				'{"id":1,"content":"Research authentication options","status":"pending"}',
+				'{"id":2,"content":"Design authentication flow","status":"pending"}',
+				'{"id":3,"content":"Implement authentication service","status":"pending"}',
+				'{"id":4,"content":"Test authentication service","status":"pending"}',
+			].join("\n"),
+		},
+	]);
+
+	assert.ok(payload);
+	assert.deepEqual(payload.tasks[0].blockedBy, []);
+	assert.deepEqual(payload.tasks[1].blockedBy, ["task-1"]);
+	assert.deepEqual(payload.tasks[2].blockedBy, ["task-2"]);
+	assert.deepEqual(payload.tasks[3].blockedBy, ["task-3"]);
+});
+
+test("does not apply inference when at least one explicit dependency is present", () => {
+	const payload = extractUpdateTodoPlanPayloadFromObservations([
+		{
+			phase: "result",
+			toolName: "update_todo",
+			text: [
+				"<todo>",
+				'{"id":1,"content":"Research authentication options","status":"pending"}',
+				'{"id":2,"content":"[needs 1] Design authentication flow","status":"pending"}',
+				'{"id":3,"content":"Implement authentication service","status":"pending"}',
+			].join("\n"),
+		},
+	]);
+
+	assert.ok(payload);
+	assert.deepEqual(payload.tasks[0].blockedBy, []);
+	assert.deepEqual(payload.tasks[1].blockedBy, ["task-1"]);
+	assert.deepEqual(payload.tasks[2].blockedBy, []);
+});

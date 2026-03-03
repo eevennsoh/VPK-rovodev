@@ -13,11 +13,21 @@ export interface Assignee {
 	avatarUrl?: string;
 }
 
+export type LabelColor = "blue" | "green" | "purple" | "orange" | "teal" | "red" | "yellow" | "magenta";
+
+export interface TaskLabel {
+	text: string;
+	color: LabelColor;
+}
+
 export interface Task {
 	id: string;
 	title: string;
+	description?: string;
 	assignee: Assignee;
 	priority: Priority;
+	storyPoints?: number;
+	labels?: TaskLabel[];
 	columnId: ColumnId;
 	order: number; // For maintaining order within a column
 }

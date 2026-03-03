@@ -1,6 +1,9 @@
+const { inferTaskDependencies } = require("./dag-inference");
+
 const MAX_TASKS = 20;
 const DEFAULT_MIN_TASKS = 2;
 const MAX_RECURSION_DEPTH = 6;
+const NEEDS_PREFIX_PATTERN = /^\s*\[\s*needs\s+([^\]]+)\]\s*/i;
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -13,6 +16,91 @@ function getNonEmptyString(value) {
 
 function normalizeWhitespace(value) {
 	return value.replace(/\s+/g, " ").trim();
+}
+
+function dedupeStringArray(values) {
+	if (!Array.isArray(values)) {
+		return [];
+	}
+
+	const dedupedValues = [];
+	const seenValues = new Set();
+	for (const value of values) {
+		const normalizedValue = getNonEmptyString(value);
+		if (!normalizedValue || seenValues.has(normalizedValue)) {
+			continue;
+		}
+
+		seenValues.add(normalizedValue);
+		dedupedValues.push(normalizedValue);
+	}
+
+	return dedupedValues;
+}
+
+function normalizeTaskReference(value) {
+	if (typeof value === "number" && Number.isInteger(value)) {
+		return String(value);
+	}
+
+	const asString = getNonEmptyString(value);
+	if (!asString) {
+		return null;
+	}
+
+	if (/^\d+$/.test(asString)) {
+		return String(Number.parseInt(asString, 10));
+	}
+
+	const taskMatch = asString.match(/^task-(\d+)$/i);
+	if (taskMatch?.[1]) {
+		return `task-${Number.parseInt(taskMatch[1], 10)}`;
+	}
+
+	return asString;
+}
+
+function normalizeTaskDependencies(value) {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	const normalizedDependencies = value
+		.map((entry) => normalizeTaskReference(entry))
+		.filter(Boolean);
+	return dedupeStringArray(normalizedDependencies);
+}
+
+function parseNeedsDependencies(label) {
+	const normalizedLabel = getNonEmptyString(label);
+	if (!normalizedLabel) {
+		return {
+			label: null,
+			dependencies: [],
+		};
+	}
+
+	const needsMatch = normalizedLabel.match(NEEDS_PREFIX_PATTERN);
+	if (!needsMatch?.[1]) {
+		return {
+			label: normalizeWhitespace(normalizedLabel),
+			dependencies: [],
+		};
+	}
+
+	const dependencies = dedupeStringArray(
+		needsMatch[1]
+			.split(",")
+			.map((rawEntry) => normalizeTaskReference(rawEntry))
+			.filter(Boolean)
+	);
+
+	const strippedLabel = normalizeWhitespace(normalizedLabel.slice(needsMatch[0].length));
+
+	return {
+		label: strippedLabel || normalizeWhitespace(normalizedLabel),
+		dependencies,
+	};
 }
 
 function truncateWords(value, maxWords) {
@@ -67,16 +155,6 @@ function isUpdateTodoToolName(toolName) {
 	return /(?:^|[./:_-])update_todo$/.test(lowered);
 }
 
-function normalizeBlockedBy(value) {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-
-	return value
-		.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
-		.map((entry) => entry.trim());
-}
-
 function normalizeTaskRecord(record, fallbackIndex) {
 	if (!record || typeof record !== "object") {
 		return null;
@@ -93,13 +171,25 @@ function normalizeTaskRecord(record, fallbackIndex) {
 		return null;
 	}
 
-	const idValue = getNonEmptyString(record.id);
+	const idValue = normalizeTaskReference(record.id);
 	const id = idValue || `task-${fallbackIndex + 1}`;
+	const parsedNeeds = parseNeedsDependencies(label);
+	const normalizedLabel = parsedNeeds.label;
+	if (!normalizedLabel) {
+		return null;
+	}
+
+	const blockedByFromTool = normalizeTaskDependencies(record.blockedBy);
+	const blockedBy = dedupeStringArray([
+		...blockedByFromTool,
+		...parsedNeeds.dependencies,
+	]);
 
 	return {
 		id,
-		label: normalizeWhitespace(label),
-		blockedBy: normalizeBlockedBy(record.blockedBy),
+		label: normalizedLabel,
+		blockedBy,
+		hasExplicitBlockedBy: blockedBy.length > 0,
 	};
 }
 
@@ -288,7 +378,7 @@ function dedupeTasks(tasks, maxTasks) {
 	const seenLabels = new Set();
 	const dedupedTasks = [];
 
-	for (const [index, task] of tasks.entries()) {
+	for (const task of tasks) {
 		const normalizedLabel = normalizeWhitespace(task.label).toLowerCase();
 		if (!normalizedLabel || seenLabels.has(normalizedLabel)) {
 			continue;
@@ -296,19 +386,105 @@ function dedupeTasks(tasks, maxTasks) {
 
 		seenLabels.add(normalizedLabel);
 		dedupedTasks.push({
-			id: task.id || `task-${index + 1}`,
+			id: normalizeTaskReference(task.id) || `task-${dedupedTasks.length + 1}`,
 			label: normalizeWhitespace(task.label),
-			blockedBy: Array.isArray(task.blockedBy) ? task.blockedBy : [],
+			blockedBy: normalizeTaskDependencies(task.blockedBy),
+			hasExplicitBlockedBy: task.hasExplicitBlockedBy === true,
 		});
 		if (dedupedTasks.length >= maxTasks) {
 			break;
 		}
 	}
 
-	return dedupedTasks.map((task, index) => ({
+	const canonicalTasks = dedupedTasks.map((task, index) => ({
 		id: `task-${index + 1}`,
+		rawId: task.id,
 		label: task.label,
 		blockedBy: task.blockedBy,
+		hasExplicitBlockedBy: task.hasExplicitBlockedBy,
+	}));
+
+	const dependencyAliasMap = new Map();
+	for (const [index, task] of canonicalTasks.entries()) {
+		const canonicalId = task.id;
+		const oneBasedIndex = String(index + 1);
+		const aliases = dedupeStringArray([
+			task.rawId,
+			canonicalId,
+			oneBasedIndex,
+			`task-${oneBasedIndex}`,
+		]);
+		for (const alias of aliases) {
+			if (!dependencyAliasMap.has(alias)) {
+				dependencyAliasMap.set(alias, canonicalId);
+			}
+		}
+	}
+
+	const withCanonicalDependencies = canonicalTasks.map((task) => {
+		const resolvedDependencies = [];
+		const seenDependencies = new Set();
+
+		for (const rawDependency of task.blockedBy) {
+			const normalizedDependency = normalizeTaskReference(rawDependency);
+			if (!normalizedDependency) {
+				continue;
+			}
+
+			let canonicalDependencyId = dependencyAliasMap.get(normalizedDependency);
+			if (!canonicalDependencyId) {
+				const taskMatch = normalizedDependency.match(/^task-(\d+)$/);
+				if (taskMatch?.[1]) {
+					canonicalDependencyId = `task-${taskMatch[1]}`;
+				} else if (/^\d+$/.test(normalizedDependency)) {
+					canonicalDependencyId = `task-${normalizedDependency}`;
+				}
+			}
+
+			if (
+				!canonicalDependencyId ||
+				canonicalDependencyId === task.id ||
+				!dependencyAliasMap.has(canonicalDependencyId) ||
+				seenDependencies.has(canonicalDependencyId)
+			) {
+				continue;
+			}
+
+			seenDependencies.add(canonicalDependencyId);
+			resolvedDependencies.push(canonicalDependencyId);
+		}
+
+		return {
+			id: task.id,
+			label: task.label,
+			blockedBy: resolvedDependencies,
+			hasExplicitBlockedBy: task.hasExplicitBlockedBy,
+		};
+	});
+
+	const hasAnyExplicitDependencies = withCanonicalDependencies.some(
+		(task) => task.hasExplicitBlockedBy
+	);
+	if (hasAnyExplicitDependencies) {
+		return withCanonicalDependencies.map((task) => ({
+			id: task.id,
+			label: task.label,
+			blockedBy: task.blockedBy,
+		}));
+	}
+
+	const inferredTasks = inferTaskDependencies(
+		withCanonicalDependencies.map((task) => ({
+			id: task.id,
+			label: task.label,
+			blockedBy: [],
+		}))
+	);
+
+	return inferredTasks.map((task) => ({
+		id: task.id,
+		label: task.label,
+		blockedBy: normalizeTaskDependencies(task.blockedBy),
 	}));
 }
 

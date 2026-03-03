@@ -39,7 +39,7 @@ import {
 	getPlanApprovalKeyFromPlanWidget,
 	serializePlanApprovalKey,
 } from "@/components/templates/shared/lib/plan-approval";
-import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
+import { getLatestPlanWidgetPayload, fetchEnrichedPlanTitle } from "@/components/templates/shared/lib/plan-widget";
 import {
 	selectRetryTasks,
 } from "@/components/templates/make/lib/retry-task-groups";
@@ -102,6 +102,7 @@ export interface MakeState {
 	// Derived
 	activeQuestionCard: ParsedQuestionCardPayload | null;
 	activePlanWidget: ParsedPlanWidgetPayload | null;
+	enrichedPlanTitle: { title: string; description: string } | null;
 	isWidgetLoading: boolean;
 	loadingWidgetType: string | null;
 	isPlanMessageComplete: boolean;
@@ -297,6 +298,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 	// ---- Navigation tab ----
 	const [activeTab, setActiveTab] = useState<MakeTab>("chat");
 	const [agentCount, setAgentCount] = useState(4);
+	const [enrichedPlanTitle, setEnrichedPlanTitle] = useState<{ title: string; description: string } | null>(null);
 	const hasRestoredTabRef = useRef(false);
 
 	// Sync activeTab to URL ?tab= param
@@ -504,6 +506,38 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		() => toConversationItems(chatTabMessages),
 		[chatTabMessages],
 	);
+
+	// Reset enriched title when the active plan widget changes
+	const enrichedPlanWidgetKeyRef = useRef<string | null>(null);
+	const currentPlanWidgetKey = activePlanWidget
+		? `${activePlanWidget.title}::${activePlanWidget.tasks.length}`
+		: null;
+	if (enrichedPlanWidgetKeyRef.current !== currentPlanWidgetKey) {
+		enrichedPlanWidgetKeyRef.current = currentPlanWidgetKey;
+		if (enrichedPlanTitle !== null) {
+			setEnrichedPlanTitle(null);
+		}
+	}
+
+	// Enrich plan title via AI after streaming completes
+	useEffect(() => {
+		if (!isPlanMessageComplete || !activePlanWidget || isExecutionActive || isStreaming) {
+			return;
+		}
+		if (enrichedPlanTitle !== null) {
+			return;
+		}
+
+		const enrichDelay = setTimeout(() => {
+			void fetchEnrichedPlanTitle(activePlanWidget).then((result) => {
+				if (result) {
+					setEnrichedPlanTitle(result);
+				}
+			});
+		}, 2000);
+
+		return () => clearTimeout(enrichDelay);
+	}, [activePlanWidget, enrichedPlanTitle, isExecutionActive, isPlanMessageComplete, isStreaming]);
 
 	const activeChatTabTitle =
 		chatTabActiveChatId !== null
@@ -982,6 +1016,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			queuedPrompts,
 			activeQuestionCard,
 			activePlanWidget,
+			enrichedPlanTitle,
 			isWidgetLoading,
 			loadingWidgetType,
 			isPlanMessageComplete,
@@ -1027,6 +1062,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			queuedPrompts,
 			activeQuestionCard,
 			activePlanWidget,
+			enrichedPlanTitle,
 			isWidgetLoading,
 			loadingWidgetType,
 			isPlanMessageComplete,

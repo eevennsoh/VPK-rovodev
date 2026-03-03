@@ -218,6 +218,7 @@ export default function MakeChatView() {
 		normalizedUiMessages: streamingUiMessages,
 		activeQuestionCard,
 		activePlanWidget,
+		enrichedPlanTitle,
 		isPlanMessageComplete,
 		queuedPrompts,
 		activeChatId,
@@ -309,12 +310,15 @@ export default function MakeChatView() {
 			if (!parsedPlanWidget) return null;
 
 			const isCollapsed = latestPlanWidgetMessageId !== null && message.id !== latestPlanWidgetMessageId;
+			const isLatest = message.id === latestPlanWidgetMessageId;
 
 			return (
 				<div className="pt-2">
 					<MakeCardWidgetInline
 						title={parsedPlanWidget.title}
 						description={parsedPlanWidget.description}
+						enrichedTitle={isLatest ? enrichedPlanTitle?.title : undefined}
+						enrichedDescription={isLatest ? enrichedPlanTitle?.description : undefined}
 						tasks={parsedPlanWidget.tasks}
 						agents={parsedPlanWidget.agents}
 						isStreaming={isPlanWidgetStreaming}
@@ -323,8 +327,8 @@ export default function MakeChatView() {
 						onOpenPreview={() =>
 							setPreviewModal({
 								open: true,
-								title: parsedPlanWidget.title,
-								description: parsedPlanWidget.description ?? "",
+								title: isLatest && enrichedPlanTitle ? enrichedPlanTitle.title : parsedPlanWidget.title,
+								description: isLatest && enrichedPlanTitle ? enrichedPlanTitle.description : (parsedPlanWidget.description ?? ""),
 								tasks: parsedPlanWidget.tasks,
 								agents: parsedPlanWidget.agents,
 							})
@@ -333,7 +337,7 @@ export default function MakeChatView() {
 				</div>
 			);
 		},
-		[latestPlanWidgetMessageId, onBuildPlan],
+		[enrichedPlanTitle, latestPlanWidgetMessageId, onBuildPlan],
 	);
 
 	const renderWidget = useCallback(

@@ -11,9 +11,15 @@ const {
 	detectEndpointType,
 	resolveGatewayUrl,
 } = require("../lib/ai-gateway-helpers");
-const { getGenuiSummarySystemPrompt } = require("../lib/genui-system-prompt");
-const { analyzeGeneratedText, pickBestSpec } = require("../lib/genui-spec-utils");
 const { inferTaskDependencies, isLinearChain } = require("../lib/dag-inference");
+const {
+	snapshotUntrackedFiles,
+	computeCreatedFiles,
+	readCreatedFilesFromDisk,
+	writeCreatedFilesToDisk,
+	deleteCreatedFiles,
+	createSnapshotLock,
+} = require("./make-file-tracker");
 
 const TERMINAL_TASK_STATUSES = new Set(["done", "failed", "blocked-failed"]);
 const FAILURE_TASK_STATUSES = new Set(["failed", "blocked-failed"]);
@@ -27,14 +33,6 @@ const STREAMING_UPDATE_CHUNK_SIZE = 120;
 const STREAMING_UPDATE_MAX_CONTENT_CHARS = 8000;
 const STREAMING_UPDATE_FLUSH_MS = 1000;
 const GENUI_WIDGET_COUNT = 1;
-const GENUI_WIDGET_BLUEPRINTS = [
-	{
-		id: "primary-overview-widget",
-		title: "Primary overview widget",
-		focus:
-			"Combine run KPIs with at least one chart (PieChart for task status distribution or BarChart for tasks per agent), plus recommended next actions in one interactive overview.",
-	},
-];
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -358,6 +356,7 @@ function buildRunPaths(baseDir, runId) {
 		summaryJsonPath: path.join(runDir, "summary.json"),
 		summaryMarkdownPath: path.join(runDir, "summary.md"),
 		genuiSummaryJsonPath: path.join(runDir, "genui-summary.json"),
+		createdFilesPath: path.join(runDir, "created-files.json"),
 		agentsDir: path.join(runDir, "agents"),
 		tasksDir: path.join(runDir, "tasks"),
 	};
@@ -566,6 +565,7 @@ function ensureRunDefaults(rawRun) {
 		conversationContext: buildConversationContext(rawRun.conversationContext),
 		iteration,
 		activeBatchId: getNonEmptyString(rawRun.activeBatchId) || null,
+		createdFiles: Array.isArray(rawRun.createdFiles) ? rawRun.createdFiles : [],
 		events: [],
 		subscribers: new Set(),
 		schedulerPromise: null,
@@ -665,6 +665,7 @@ function createInitialRun({ runId, plan, userPrompt, conversationContext, custom
 		conversationContext,
 		iteration,
 		activeBatchId: batchId,
+		createdFiles: [],
 		events: [],
 		subscribers: new Set(),
 		schedulerPromise: null,
@@ -691,6 +692,7 @@ function toSerializableRun(run) {
 		conversationContext: run.conversationContext,
 		iteration: run.iteration,
 		activeBatchId: run.activeBatchId,
+		createdFiles: run.createdFiles || [],
 	};
 }
 
@@ -773,40 +775,6 @@ function createTaskPrompt(run, task, dependencyOutputs, directivesForAgent, skil
 		.join("\n");
 }
 
-function createSummaryPrompt(run, tasksForSummary, isFailedStatus) {
-	const taskSections = tasksForSummary
-		.map((task) => {
-			const taskOutput = task.output?.trim() || task.error || "No output generated.";
-			return [
-				`Task ${task.id} (${task.agentName})`,
-				`Label: ${task.label}`,
-				`Status: ${task.status}`,
-				"Output:",
-				taskOutput,
-			].join("\n");
-		})
-		.join("\n\n---\n\n");
-
-	return [
-		`Synthesize a final report for the plan \"${run.plan.title}\".`,
-		run.plan.description ? `Plan description: ${run.plan.description}` : null,
-		isFailedStatus
-			? "Some tasks failed or were blocked. Clearly state what is complete vs missing."
-			: "All tasks completed successfully.",
-		"",
-		"Produce a single cohesive markdown report with:",
-		"1) Executive summary",
-		"2) Detailed outcomes by theme",
-		"3) Open risks / decisions",
-		"4) Recommended next actions",
-		"",
-		"Task outputs:",
-		taskSections,
-	]
-		.filter(Boolean)
-		.join("\n");
-}
-
 function createFallbackSummary(run, tasksForSummary, isFailedStatus) {
 	const lines = [
 		`# ${run.plan.title}`,
@@ -824,57 +792,6 @@ function createFallbackSummary(run, tasksForSummary, isFailedStatus) {
 	];
 
 	return lines.filter(Boolean).join("\n\n");
-}
-
-function createGenuiSummaryPrompt(
-	run,
-	summaryContent,
-	tasksForSummary,
-	isFailedStatus,
-	widgetBlueprint
-) {
-	const taskSections = tasksForSummary
-		.map((task) => {
-			return [
-				`Task ${task.id} (${task.agentName})`,
-				`Label: ${task.label}`,
-				`Status: ${task.status}`,
-				"Output:",
-				task.output?.trim() || task.error || "No output generated.",
-			].join("\n");
-		})
-		.join("\n\n---\n\n");
-
-	return [
-		`Create one focused interactive summary widget for the plan \"${run.plan.title}\".`,
-		run.plan.description ? `Plan description: ${run.plan.description}` : null,
-		isFailedStatus
-			? "This run has partial completion due to failed or blocked tasks."
-			: "This run completed successfully.",
-		"",
-		`Widget focus: ${widgetBlueprint.focus}`,
-		"Design this as one primary interactive widget card that can stand alone in the preview.",
-		"Produce exactly one interactive widget experience (not a full-page dashboard).",
-		"The generated spec should be compact, focused, and directly useful for interaction.",
-		"Do not use generic labels such as 'Interactive widget 1' in headings or labels.",
-		"Author the spec so design controls can edit visual presentation only, never underlying data values.",
-		"Use stable semantic element keys (for example: metricsGrid, statusChart, actionsTabs) instead of random IDs.",
-		"For layout containers, include explicit visual props that can be tuned later (Grid columns/gap, Stack direction/gap, Tabs defaultValue).",
-		"For chart elements, include explicit presentational props (chart type compatibility, color, height) separate from the data array.",
-		"Keep data payloads intact and avoid requiring data mutation to adjust layout, appearance, or copy.",
-		"Use the task outcomes and markdown summary below as source material.",
-		"Output exactly one ```spec block with valid RFC 6902 JSON patch lines.",
-		"",
-		`Widget ID: ${widgetBlueprint.id}`,
-		"",
-		"Markdown summary:",
-		summaryContent,
-		"",
-		"Task outputs:",
-		taskSections,
-	]
-		.filter(Boolean)
-		.join("\n");
 }
 
 function createAppendTasksPrompt(run, prompt, contextPrompt) {
@@ -940,6 +857,7 @@ function createRunManager(options) {
 	const runsById = new Map();
 	const runRootsDir = path.join(baseDir, "make-runs");
 	const aiGatewayProvider = createAIGatewayProvider({ logger });
+	const fileSnapshotLock = createSnapshotLock();
 
 	const ensureRunDirectories = async (runId) => {
 		const paths = buildRunPaths(runRootsDir, runId);
@@ -1345,6 +1263,19 @@ function createRunManager(options) {
 		}
 		const provider = rovodevReady ? "rovodev" : "ai-gateway";
 
+			// Snapshot untracked files before task execution for file tracking
+			let beforeSnapshot = null;
+			try {
+				const releaseLock = await fileSnapshotLock.acquire();
+				try {
+					beforeSnapshot = await snapshotUntrackedFiles();
+				} finally {
+					releaseLock();
+				}
+			} catch (snapshotError) {
+				logger.warn(`[make-file-tracker] Pre-task snapshot failed for task ${task.id}: ${snapshotError.message}`);
+			}
+
 			let output = "";
 			let pendingStreamChunk = "";
 			let pendingFlushTimeoutId = null;
@@ -1464,6 +1395,31 @@ function createRunManager(options) {
 				throw error;
 			} finally {
 				clearPendingWorkingUpdateFlush();
+
+				// Snapshot untracked files after task execution and persist delta
+				if (beforeSnapshot) {
+					try {
+						const releaseLock = await fileSnapshotLock.acquire();
+						let afterSnapshot;
+						try {
+							afterSnapshot = await snapshotUntrackedFiles();
+						} finally {
+							releaseLock();
+						}
+						const newFiles = computeCreatedFiles(beforeSnapshot, afterSnapshot);
+						if (newFiles.length > 0) {
+							const existing = new Set(run.createdFiles || []);
+							for (const file of newFiles) {
+								existing.add(file);
+							}
+							run.createdFiles = Array.from(existing);
+							const paths = buildRunPaths(runRootsDir, run.id);
+							await writeCreatedFilesToDisk(paths.runDir, run.createdFiles);
+						}
+					} catch (snapshotError) {
+						logger.warn(`[make-file-tracker] Post-task snapshot failed for task ${task.id}: ${snapshotError.message}`);
+					}
+				}
 			}
 		};
 
@@ -1497,124 +1453,14 @@ function createRunManager(options) {
 		}
 	};
 
-	const synthesizeGenuiWidget = async (
-		run,
-		summaryContent,
-		tasksForSummary,
-		isFailedStatus,
-		widgetBlueprint,
-		genuiSystemPrompt
-	) => {
-		const prompt = createGenuiSummaryPrompt(
-			run,
-			summaryContent,
-			tasksForSummary,
-			isFailedStatus,
-			widgetBlueprint
-		);
-		const createdAt = toIsoDate();
-
-		try {
-			const rawText = await callModelForMarkdown({
-				provider: "rovodev",
-				prompt,
-				conversationHistory: [],
-				contextDescription: `Interactive summary widget ${widgetBlueprint.id} for run ${run.id}`,
-				customSystemPrompt: genuiSystemPrompt,
-				userName: "GenUI Presenter",
-				conflictPolicy: "wait-for-turn",
-			});
-
-			const analysis = analyzeGeneratedText(rawText);
-			const bestSpec = pickBestSpec(analysis);
-			if (!bestSpec) {
-				logger.warn?.(
-					"[AGENTS-RUN] GenUI widget spec was not renderable; using fallback.",
-					{
-						runId: run.id,
-						widgetId: widgetBlueprint.id,
-					}
-				);
-				return {
-					id: widgetBlueprint.id,
-					title: widgetBlueprint.title,
-					spec: createEmptyGenuiSpec(),
-					status: "failed",
-					createdAt,
-					error: "Generated spec was not renderable.",
-				};
-			}
-
-			return {
-				id: widgetBlueprint.id,
-				title: widgetBlueprint.title,
-				spec: bestSpec,
-				status: "ready",
-				createdAt,
-			};
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Failed to generate interactive widget.";
-			logger.warn?.("[AGENTS-RUN] GenUI widget synthesis failed", error);
-			return {
-				id: widgetBlueprint.id,
-				title: widgetBlueprint.title,
-				spec: createEmptyGenuiSpec(),
-				status: "failed",
-				createdAt,
-				error: errorMessage,
-			};
-		}
-	};
-
-	const synthesizeGenuiSummary = async (run, summaryContent, tasksForSummary, isFailedStatus) => {
-		const genuiSystemPrompt = getGenuiSummarySystemPrompt();
-		const primaryWidgetBlueprint = GENUI_WIDGET_BLUEPRINTS[0];
-		const primaryWidget = await synthesizeGenuiWidget(
-			run,
-			summaryContent,
-			tasksForSummary,
-			isFailedStatus,
-			primaryWidgetBlueprint,
-			genuiSystemPrompt
-		);
-		const widgets = [primaryWidget];
-		const readyWidgets = widgets.filter(
-			(widget) => widget.status === "ready" && hasRenderableGenuiSpec(widget.spec)
-		);
-		const status = readyWidgets.length > 0 ? "ready" : "failed";
-		const summaryError =
-			status === "failed"
-				? widgets
-						.map((widget) => widget.error)
-						.filter((error) => typeof error === "string" && error.trim())
-						.join(" | ") || "Failed to generate interactive summary widgets."
-				: undefined;
-
-		return {
-			widgets,
-			spec:
-				readyWidgets[0]?.spec ||
-				(hasRenderableGenuiSpec(widgets[0]?.spec)
-					? widgets[0].spec
-					: createEmptyGenuiSpec()),
-			partial: isFailedStatus,
-			createdAt: toIsoDate(),
-			status,
-			error: summaryError,
-		};
-	};
-
 	const writeIterationSummaryFiles = async ({
 		run,
 		iteration,
 		summary,
-		genuiSummary,
 	}) => {
 		const paths = await ensureRunDirectories(run.id);
 		const summaryMarkdownFileName = `summary.iteration-${iteration}.md`;
 		const summaryJsonFileName = `summary.iteration-${iteration}.json`;
-		const genuiJsonFileName = `genui-summary.iteration-${iteration}.json`;
 
 		const summaryMarkdownPath = path.join(paths.runDir, summaryMarkdownFileName);
 		const summaryJsonPath = path.join(paths.runDir, summaryJsonFileName);
@@ -1622,49 +1468,22 @@ function createRunManager(options) {
 		await writeJsonFile(summaryJsonPath, { ...summary, iteration });
 		await writeTextFile(paths.summaryMarkdownPath, summary.content);
 		await writeJsonFile(paths.summaryJsonPath, summary);
-
-		const genuiJsonPath = path.join(paths.runDir, genuiJsonFileName);
-		await writeJsonFile(genuiJsonPath, { ...genuiSummary, iteration });
-		await writeJsonFile(paths.genuiSummaryJsonPath, genuiSummary);
 	};
 
 	const synthesizeRunSummary = async (run, iteration, isFailedStatus) => {
 		const tasksForSummary = run.tasks.filter(
 			(task) => (getPositiveInteger(task.iteration) || 1) <= iteration
 		);
-		const summaryPrompt = createSummaryPrompt(run, tasksForSummary, isFailedStatus);
-		let summaryContent = "";
-
-		try {
-			summaryContent = await callModelForMarkdown({
-				provider: "ai-gateway",
-				prompt: summaryPrompt,
-				conversationHistory: [],
-				contextDescription: `Final synthesis for run ${run.id}`,
-				customSystemPrompt:
-					"You combine multi-agent outputs into one cohesive, user-facing report.",
-				userName: "Synthesis Agent",
-				conflictPolicy: "wait-for-turn",
-			});
-		} catch (error) {
-			logger.warn?.("[AGENTS-RUN] Summary synthesis failed; using fallback", error);
-			summaryContent = createFallbackSummary(run, tasksForSummary, isFailedStatus);
-		}
+		const summaryContent = createFallbackSummary(run, tasksForSummary, isFailedStatus);
 
 		const summary = {
 			content: summaryContent,
 			partial: isFailedStatus,
 			createdAt: toIsoDate(),
 		};
-		const genuiSummary = await synthesizeGenuiSummary(
-			run,
-			summaryContent,
-			tasksForSummary,
-			isFailedStatus
-		);
 
 		run.summary = summary;
-		run.genuiSummary = genuiSummary;
+		run.genuiSummary = null;
 		updateRunTimestamp(run);
 
 		try {
@@ -1672,7 +1491,6 @@ function createRunManager(options) {
 				run,
 				iteration,
 				summary,
-				genuiSummary,
 			});
 			await persistRunSnapshot(run);
 		} catch (error) {
@@ -1846,6 +1664,13 @@ function createRunManager(options) {
 		diskRun.events = [];
 		diskRun.subscribers = new Set();
 		diskRun.schedulerPromise = null;
+
+		// Restore created files from the dedicated file if not already in run.json
+		if (!diskRun.createdFiles || diskRun.createdFiles.length === 0) {
+			const paths = buildRunPaths(runRootsDir, runId);
+			diskRun.createdFiles = await readCreatedFilesFromDisk(paths.runDir);
+		}
+
 		runsById.set(runId, diskRun);
 		return diskRun;
 	};
@@ -2339,9 +2164,23 @@ function createRunManager(options) {
 	};
 
 	const deleteRun = async (runId) => {
+		// Clean up source files created during this run
+		const activeRun = runsById.get(runId);
+		const paths = buildRunPaths(runRootsDir, runId);
+		try {
+			const createdFiles = activeRun?.createdFiles?.length
+				? activeRun.createdFiles
+				: await readCreatedFilesFromDisk(paths.runDir);
+			if (createdFiles.length > 0) {
+				await deleteCreatedFiles(createdFiles, logger);
+				logger.info(`[make-file-tracker] Deleted ${createdFiles.length} created file(s) for run ${runId}`);
+			}
+		} catch (error) {
+			logger.warn(`[make-file-tracker] Failed to clean up created files for run ${runId}: ${error.message}`);
+		}
+
 		runsById.delete(runId);
 
-		const paths = buildRunPaths(runRootsDir, runId);
 		try {
 			await fs.rm(paths.runDir, { recursive: true, force: true });
 		} catch (error) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { usePathname } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Icon } from "@/components/ui/icon";
@@ -9,7 +10,11 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import { AnimatedDots } from "@/components/ui-ai/animated-dots";
+import { useTheme } from "@/components/utils/theme-wrapper";
+import Image from "next/image";
 import type { AgentRun } from "@/lib/make-run-types";
+import { DEFAULT_DESIGN_CONFIG, type DesignConfig } from "@/lib/design-config-bridge";
+import { DesignConfigInjector } from "@/components/utils/design-config-injector";
 import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
 import {
 	derivePlanEmojiFromTitle,
@@ -20,6 +25,8 @@ import ClipboardIcon from "@atlaskit/icon/core/clipboard";
 import PaintPaletteIcon from "@atlaskit/icon/core/paint-palette";
 import AiChatIcon from "@atlaskit/icon/core/ai-chat";
 import FolderClosedIcon from "@atlaskit/icon/core/folder-closed";
+import LinkExternalIcon from "@atlaskit/icon/core/link-external";
+import RefreshIcon from "@atlaskit/icon/core/refresh";
 import UndoIcon from "@atlaskit/icon/core/undo";
 import TerminalSwitchPanel from "@/components/blocks/terminal-switch/page";
 import { MessageResponse } from "@/components/ui-ai/message";
@@ -30,6 +37,7 @@ import {
 } from "@/components/ui-ai/file-tree";
 import { GUI } from "@/components/utils/gui";
 import { JsonRenderView } from "@/lib/json-render/renderer";
+import { MakePreviewReactGrabMount } from "@/components/utils/make-preview-react-grab-mount";
 import type { Spec } from "@json-render/react";
 
 type ArtifactRightPanelMode = "design" | "chat" | "files";
@@ -159,6 +167,18 @@ type RunFileTreeModel = {
 	filePaths: string[];
 	firstFilePath: string | null;
 };
+
+function isMakeArtifactTemplateRoute(pathname: string | null): boolean {
+	if (!pathname) {
+		return false;
+	}
+
+	return (
+		pathname === "/make"
+		|| pathname.startsWith("/make/")
+		|| pathname === "/preview/templates/make"
+	);
+}
 
 function hasRenderableSpec(spec: unknown): spec is Spec {
 	if (!spec || typeof spec !== "object" || Array.isArray(spec)) {
@@ -1041,6 +1061,147 @@ function resolveRenderableOutput(run: AgentRun | null): RenderableOutput | null 
 	};
 }
 
+function escapeRegexForPattern(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countTokenMentions(source: string, token: string): number {
+	const normalizedToken = token.trim().toLowerCase();
+	if (!normalizedToken) {
+		return 0;
+	}
+
+	const pattern = new RegExp(
+		`(^|[^a-z0-9-])${escapeRegexForPattern(normalizedToken)}(?=$|[^a-z0-9-])`,
+		"gi",
+	);
+	let count = 0;
+	while (pattern.exec(source) !== null) {
+		count += 1;
+	}
+	return count;
+}
+
+function countSubstringMentions(source: string, needle: string): number {
+	if (!source || !needle) {
+		return 0;
+	}
+
+	let count = 0;
+	let searchIndex = 0;
+	while (searchIndex < source.length) {
+		const nextIndex = source.indexOf(needle, searchIndex);
+		if (nextIndex < 0) {
+			break;
+		}
+		count += 1;
+		searchIndex = nextIndex + needle.length;
+	}
+	return count;
+}
+
+function routeFromAppPageFilePath(filePath: string): string | null {
+	if (filePath === "app/page.tsx") {
+		return "/";
+	}
+
+	if (!filePath.startsWith("app/") || !filePath.endsWith("/page.tsx")) {
+		return null;
+	}
+
+	const relativePath = filePath.slice("app/".length, -"/page.tsx".length);
+	if (!relativePath) {
+		return "/";
+	}
+
+	const rawSegments = relativePath.split("/").filter((segment) => segment.length > 0);
+	const routeSegments: string[] = [];
+	for (const rawSegment of rawSegments) {
+		if (/^\(.*\)$/.test(rawSegment)) {
+			continue;
+		}
+		if (rawSegment.startsWith("(") || rawSegment.startsWith("@")) {
+			return null;
+		}
+		if (rawSegment.includes("[") || rawSegment.includes("]")) {
+			return null;
+		}
+		routeSegments.push(rawSegment);
+	}
+
+	if (routeSegments.length === 0) {
+		return "/";
+	}
+	return `/${routeSegments.join("/")}`;
+}
+
+function resolveAppPreviewRoute(run: AgentRun | null): string | null {
+	if (!run) {
+		return null;
+	}
+
+	const routeCandidates = Array.from(
+		new Set(
+			collectRunFilePaths(run)
+				.map((filePath) => routeFromAppPageFilePath(filePath))
+				.filter((routePath): routePath is string => typeof routePath === "string"),
+		),
+	);
+	if (routeCandidates.length === 0) {
+		return null;
+	}
+
+	const focusText = [
+		run.userPrompt,
+		run.plan.title,
+		run.plan.description,
+		...run.plan.tasks.map((task) => task.label),
+	]
+		.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+		.join("\n")
+		.toLowerCase();
+
+	const broadText = extractTextCandidatesFromRun(run).join("\n").toLowerCase();
+
+	const scoredRoutes = routeCandidates.map((routePath) => {
+		const normalizedRoute = routePath === "/" ? "" : routePath.slice(1).toLowerCase();
+		const leafSegment = normalizedRoute.split("/").at(-1) ?? normalizedRoute;
+		const sourcePagePath =
+			routePath === "/" ? "app/page.tsx" : `app/${normalizedRoute}/page.tsx`;
+		const depth = normalizedRoute.length > 0 ? normalizedRoute.split("/").length : 0;
+
+		const focusRouteMentions =
+			normalizedRoute.length > 0 ? countTokenMentions(focusText, normalizedRoute) : 0;
+		const focusLeafMentions =
+			leafSegment.length > 0 ? countTokenMentions(focusText, leafSegment) : 0;
+		const sourcePageMentions = countSubstringMentions(broadText, sourcePagePath.toLowerCase());
+
+		const score =
+			(focusRouteMentions * 200) +
+			(sourcePageMentions * 60) +
+			(focusLeafMentions * 12) +
+			(depth * 2) +
+			(routePath.length * 0.01);
+
+		return {
+			routePath,
+			score,
+		};
+	});
+
+	scoredRoutes.sort((leftRoute, rightRoute) => {
+		if (rightRoute.score !== leftRoute.score) {
+			return rightRoute.score - leftRoute.score;
+		}
+		if (rightRoute.routePath.length !== leftRoute.routePath.length) {
+			return rightRoute.routePath.length - leftRoute.routePath.length;
+		}
+		return leftRoute.routePath.localeCompare(rightRoute.routePath);
+	});
+
+	return scoredRoutes[0]?.routePath ?? null;
+}
+
 const ALLOWED_RUN_FILE_EXTENSIONS = new Set([
 	"ts",
 	"tsx",
@@ -1419,7 +1580,7 @@ function FilesPanel({
 function DesignPanelSectionHeading({ children }: Readonly<{ children: React.ReactNode }>) {
 	return (
 		<div className="flex items-center gap-2 pt-2 pb-1">
-			<span className="text-[11px] font-medium tracking-wider text-text-subtlest">
+			<span className="text-xs font-medium tracking-wider text-text-subtlest">
 				{children}
 			</span>
 			<div className="h-px flex-1 bg-border" />
@@ -1429,17 +1590,23 @@ function DesignPanelSectionHeading({ children }: Readonly<{ children: React.Reac
 
 function DesignPanel({
 	isRunLoading,
+	isLiveAppPreview,
 	hasRenderableOutput,
 	autoControls,
 	hasOverrides,
+	designConfig,
 	onAutoControlChange,
+	onDesignConfigChange,
 	onReset,
 }: Readonly<{
 	isRunLoading: boolean;
+	isLiveAppPreview: boolean;
 	hasRenderableOutput: boolean;
 	autoControls: AutoControl[];
 	hasOverrides: boolean;
+	designConfig: DesignConfig;
 	onAutoControlChange: (control: AutoControl, nextValue: unknown) => void;
+	onDesignConfigChange: (next: DesignConfig) => void;
 	onReset: () => void;
 }>) {
 	const visibilityControls = useMemo(
@@ -1563,6 +1730,125 @@ function DesignPanel({
 					<p className="text-sm text-text-subtle">
 						Generating controls from the latest artifact...
 					</p>
+				) : isLiveAppPreview ? (
+					<div className="space-y-4">
+						<DesignPanelSectionHeading>Appearance</DesignPanelSectionHeading>
+						<GUI.Select
+							id="design-theme"
+							label="Theme"
+							value={designConfig.theme}
+							options={[
+								{ value: "light" as const, label: "Light" },
+								{ value: "dark" as const, label: "Dark" },
+							]}
+							onChange={(next) => onDesignConfigChange({ ...designConfig, theme: next })}
+						/>
+						<GUI.Control
+							id="design-radius"
+							label="Corner Radius"
+							value={designConfig.radius}
+							defaultValue={DEFAULT_DESIGN_CONFIG.radius}
+							min={0}
+							max={24}
+							step={1}
+							unit="px"
+							onChange={(next) => onDesignConfigChange({ ...designConfig, radius: next })}
+						/>
+						<GUI.Select
+							id="design-density"
+							label="Density"
+							value={designConfig.density}
+							options={[
+								{ value: "compact" as const, label: "Compact" },
+								{ value: "default" as const, label: "Default" },
+								{ value: "spacious" as const, label: "Spacious" },
+							]}
+							onChange={(next) => onDesignConfigChange({ ...designConfig, density: next })}
+						/>
+						<GUI.Select
+							id="design-shadow"
+							label="Shadow"
+							value={designConfig.shadow}
+							options={[
+								{ value: "none" as const, label: "None" },
+								{ value: "subtle" as const, label: "Subtle" },
+								{ value: "raised" as const, label: "Raised" },
+							]}
+							onChange={(next) => onDesignConfigChange({ ...designConfig, shadow: next })}
+						/>
+						<GUI.Toggle
+							id="design-animation"
+							label="Animation"
+							description="Enable transitions and animations"
+							checked={designConfig.animation}
+							onChange={(next) => onDesignConfigChange({ ...designConfig, animation: next })}
+						/>
+						<GUI.Toggle
+							id="design-borders"
+							label="Borders"
+							description="Show element borders"
+							checked={designConfig.borders}
+							onChange={(next) => onDesignConfigChange({ ...designConfig, borders: next })}
+						/>
+						<GUI.Toggle
+							id="design-grayscale"
+							label="Grayscale"
+							description="Remove color to check contrast"
+							checked={designConfig.grayscale}
+							onChange={(next) => onDesignConfigChange({ ...designConfig, grayscale: next })}
+						/>
+
+						<DesignPanelSectionHeading>Typography</DesignPanelSectionHeading>
+						<GUI.Control
+							id="design-font-scale"
+							label="Font Scale"
+							value={designConfig.fontScale}
+							defaultValue={DEFAULT_DESIGN_CONFIG.fontScale}
+							min={0.75}
+							max={1.5}
+							step={0.05}
+							unit="x"
+							onChange={(next) => onDesignConfigChange({ ...designConfig, fontScale: next })}
+						/>
+						<GUI.Select
+							id="design-font-family"
+							label="Font Family"
+							value={designConfig.fontFamily}
+							options={[
+								{ value: "system" as const, label: "System" },
+								{ value: "mono" as const, label: "Mono" },
+								{ value: "serif" as const, label: "Serif" },
+							]}
+							onChange={(next) => onDesignConfigChange({ ...designConfig, fontFamily: next })}
+						/>
+						<GUI.Control
+							id="design-letter-spacing"
+							label="Letter Spacing"
+							value={designConfig.letterSpacing}
+							defaultValue={DEFAULT_DESIGN_CONFIG.letterSpacing}
+							min={-2}
+							max={4}
+							step={0.5}
+							unit="px"
+							onChange={(next) => onDesignConfigChange({ ...designConfig, letterSpacing: next })}
+						/>
+
+						<DesignPanelSectionHeading>Copy</DesignPanelSectionHeading>
+						<GUI.TextInput
+							id="design-heading"
+							label="Heading"
+							placeholder="Override h1 text"
+							value={designConfig.heading}
+							onChange={(next) => onDesignConfigChange({ ...designConfig, heading: next })}
+						/>
+						<GUI.TextInput
+							id="design-subheading"
+							label="Subheading"
+							placeholder="Override h2 / subtitle text"
+							value={designConfig.subheading}
+							onChange={(next) => onDesignConfigChange({ ...designConfig, subheading: next })}
+						/>
+					</div>
 				) : !hasRenderableOutput ? (
 					<p className="text-sm text-text-subtle">
 						Generate an artifact to unlock visual controls.
@@ -1730,12 +2016,73 @@ function EmptyPanel({
 }
 
 function GeneratingPanel() {
+	const { actualTheme } = useTheme();
+	const loadingAnimationSrc =
+		actualTheme === "dark"
+			? "/loading/rovo-create-dark.gif"
+			: "/loading/rovo-create-light.gif";
+
 	return (
 		<div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-xl border border-border bg-surface p-6 text-center">
-			<p className="text-sm text-text-subtle">
+			<Image
+				alt=""
+				className="h-28 w-auto"
+				height={280}
+				src={loadingAnimationSrc}
+				unoptimized
+				width={442}
+			/>
+			<p className="text-sm text-muted-foreground">
 				Rovo is cooking
-				<AnimatedDots className="ml-0.5" />
+				<AnimatedDots />
 			</p>
+		</div>
+	);
+}
+
+function PreviewHeader({
+	title,
+	subtitle,
+	onOpenExternal,
+	onRefresh,
+}: Readonly<{
+	title: string;
+	subtitle?: string;
+	onOpenExternal?: () => void;
+	onRefresh?: () => void;
+}>) {
+	return (
+		<div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2.5">
+			<div className="min-w-0 flex-1">
+				<p className="truncate text-sm font-medium text-text">{title}</p>
+				{subtitle ? (
+					<p className="truncate text-xs text-text-subtlest">{subtitle}</p>
+				) : null}
+			</div>
+			{onRefresh || onOpenExternal ? (
+				<div className="flex shrink-0 items-center gap-1">
+					{onRefresh ? (
+						<button
+							type="button"
+							onClick={onRefresh}
+							className="flex size-7 items-center justify-center rounded-md text-icon-subtle transition-colors hover:bg-bg-neutral-subtle-hovered hover:text-icon"
+							aria-label="Refresh preview"
+						>
+							<Icon render={<RefreshIcon label="" />} label="Refresh" />
+						</button>
+					) : null}
+					{onOpenExternal ? (
+						<button
+							type="button"
+							onClick={onOpenExternal}
+							className="flex size-7 items-center justify-center rounded-md text-icon-subtle transition-colors hover:bg-bg-neutral-subtle-hovered hover:text-icon"
+							aria-label="Open in new tab"
+						>
+							<Icon render={<LinkExternalIcon label="" />} label="Open externally" />
+						</button>
+					) : null}
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -1743,25 +2090,76 @@ function GeneratingPanel() {
 function PreviewOutputPanel({
 	isRunLoading,
 	run,
+	appPreviewRoute,
+	enableReactGrabInPreview,
 	hasDraftPlan,
 	renderableOutput,
 	previewState,
 	specOverrides,
+	designConfig,
+	iframeRef,
 	onPreviewStateChange,
 }: Readonly<{
 	isRunLoading: boolean;
 	run: AgentRun | null;
+	appPreviewRoute: string | null;
+	enableReactGrabInPreview: boolean;
 	hasDraftPlan: boolean;
 	renderableOutput: RenderableOutput | null;
 	previewState: Record<string, unknown>;
 	specOverrides: SpecOverrides;
+	designConfig: DesignConfig;
+	iframeRef: RefObject<HTMLIFrameElement | null>;
 	onPreviewStateChange: (changes: Array<{ path: string; value: unknown }>) => void;
 }>) {
+	const handleOpenExternal = useCallback(() => {
+		if (appPreviewRoute) {
+			window.open(appPreviewRoute, "_blank");
+		}
+	}, [appPreviewRoute]);
+
+	const handleRefresh = useCallback(() => {
+		const iframe = iframeRef.current;
+		if (iframe) {
+			iframe.src = iframe.src;
+		}
+	}, [iframeRef]);
+
 	if (isRunLoading) {
 		return <LoadingPanel title="Loading GenUI output..." />;
 	}
 
+	const previewTitle = (renderableOutput?.title
+		?? resolvePlanDisplayTitle(run?.plan.title ?? "", run?.plan.tasks ?? []))
+		|| "Preview";
+
 	if (run) {
+		if (appPreviewRoute) {
+			return (
+				<div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-surface">
+					<PreviewHeader
+						title={previewTitle}
+						subtitle={appPreviewRoute}
+						onOpenExternal={handleOpenExternal}
+						onRefresh={handleRefresh}
+					/>
+					<MakePreviewReactGrabMount
+						iframeRef={iframeRef}
+						enabled={enableReactGrabInPreview}
+						active={false}
+					/>
+					<DesignConfigInjector iframeRef={iframeRef} config={designConfig} />
+					<iframe
+						ref={iframeRef}
+						title={`Live app preview (${appPreviewRoute})`}
+						className="h-full min-h-0 w-full flex-1 border-0 bg-surface"
+						sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+						src={appPreviewRoute}
+					/>
+				</div>
+			);
+		}
+
 		if (renderableOutput) {
 			const overriddenSpec = applySpecOverrides(renderableOutput.spec, specOverrides);
 			const specWithLiveState = {
@@ -1770,11 +2168,7 @@ function PreviewOutputPanel({
 			};
 			return (
 				<div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-surface">
-					<div className="border-b border-border px-4 py-3">
-						<p style={{ font: token("font.heading.xsmall") }} className="text-text">
-							{renderableOutput.title}
-						</p>
-					</div>
+					<PreviewHeader title={previewTitle} />
 					<div className="min-h-0 flex-1 overflow-auto p-3">
 						<JsonRenderView spec={specWithLiveState} onStateChange={onPreviewStateChange} />
 					</div>
@@ -1892,6 +2286,8 @@ function TwoPanelLayout({
 	isRunLoading,
 	plan,
 	run,
+	appPreviewRoute,
+	enableReactGrabInPreview,
 	hasDraftPlan,
 	summaryContent,
 	renderableOutput,
@@ -1908,6 +2304,8 @@ function TwoPanelLayout({
 	isRunLoading: boolean;
 	plan: DisplayPlan | null;
 	run: AgentRun | null;
+	appPreviewRoute: string | null;
+	enableReactGrabInPreview: boolean;
 	hasDraftPlan: boolean;
 	summaryContent: string;
 	renderableOutput: RenderableOutput | null;
@@ -1919,6 +2317,52 @@ function TwoPanelLayout({
 	onAutoControlChange: (control: AutoControl, nextValue: unknown) => void;
 	onReset: () => void;
 }>) {
+	const { actualTheme } = useTheme();
+	const iframeRef = useRef<HTMLIFrameElement>(null);
+	const [hasCustomizedPreviewTheme, setHasCustomizedPreviewTheme] = useState(false);
+	const [designConfig, setDesignConfig] = useState<DesignConfig>(() => ({
+		...DEFAULT_DESIGN_CONFIG,
+		theme: actualTheme,
+	}));
+
+	const isLiveAppPreview = appPreviewRoute !== null;
+
+	const effectiveDesignConfig = useMemo(() => ({
+		...designConfig,
+		theme: hasCustomizedPreviewTheme
+			? designConfig.theme
+			: actualTheme,
+	}), [actualTheme, designConfig, hasCustomizedPreviewTheme]);
+
+	const liveAppHasOverrides = isLiveAppPreview && (
+		effectiveDesignConfig.theme !== actualTheme ||
+		effectiveDesignConfig.radius !== DEFAULT_DESIGN_CONFIG.radius ||
+		effectiveDesignConfig.density !== DEFAULT_DESIGN_CONFIG.density ||
+		effectiveDesignConfig.shadow !== DEFAULT_DESIGN_CONFIG.shadow ||
+		effectiveDesignConfig.animation !== DEFAULT_DESIGN_CONFIG.animation ||
+		effectiveDesignConfig.fontScale !== DEFAULT_DESIGN_CONFIG.fontScale ||
+		effectiveDesignConfig.fontFamily !== DEFAULT_DESIGN_CONFIG.fontFamily ||
+		effectiveDesignConfig.letterSpacing !== DEFAULT_DESIGN_CONFIG.letterSpacing ||
+		effectiveDesignConfig.borders !== DEFAULT_DESIGN_CONFIG.borders ||
+		effectiveDesignConfig.grayscale !== DEFAULT_DESIGN_CONFIG.grayscale ||
+		effectiveDesignConfig.heading !== DEFAULT_DESIGN_CONFIG.heading ||
+		effectiveDesignConfig.subheading !== DEFAULT_DESIGN_CONFIG.subheading
+	);
+
+	const handleDesignConfigChange = useCallback((nextConfig: DesignConfig) => {
+		setHasCustomizedPreviewTheme(nextConfig.theme !== actualTheme);
+		setDesignConfig(nextConfig);
+	}, [actualTheme]);
+
+	const handleDesignReset = useCallback(() => {
+		if (isLiveAppPreview) {
+			setHasCustomizedPreviewTheme(false);
+			setDesignConfig({ ...DEFAULT_DESIGN_CONFIG, theme: actualTheme });
+		} else {
+			onReset();
+		}
+	}, [isLiveAppPreview, actualTheme, onReset]);
+
 	const rightPanel =
 		panelMode === "chat"
 			? <TerminalSwitchPanel />
@@ -1927,17 +2371,20 @@ function TwoPanelLayout({
 				: (
 				<DesignPanel
 					isRunLoading={isRunLoading}
-					hasRenderableOutput={renderableOutput !== null}
+					isLiveAppPreview={isLiveAppPreview}
+					hasRenderableOutput={renderableOutput !== null && !isLiveAppPreview}
 					autoControls={autoControls}
-					hasOverrides={hasOverrides}
+					hasOverrides={isLiveAppPreview ? liveAppHasOverrides : hasOverrides}
+					designConfig={effectiveDesignConfig}
 					onAutoControlChange={onAutoControlChange}
-					onReset={onReset}
+					onDesignConfigChange={handleDesignConfigChange}
+					onReset={handleDesignReset}
 				/>
 			);
 
 	return (
 		<div className="flex min-h-0 flex-1 gap-4">
-			<div className="min-h-0 w-[62%] shrink-0">
+			<div className="min-h-0 min-w-0 flex-1">
 				{leftMode === "plan" ? (
 					<PlanPanel
 						isRunLoading={isRunLoading}
@@ -1948,15 +2395,19 @@ function TwoPanelLayout({
 					<PreviewOutputPanel
 						isRunLoading={isRunLoading}
 						run={run}
+						appPreviewRoute={appPreviewRoute}
+						enableReactGrabInPreview={enableReactGrabInPreview}
 						hasDraftPlan={hasDraftPlan}
-						renderableOutput={renderableOutput}
-						previewState={previewState}
-						specOverrides={specOverrides}
-						onPreviewStateChange={onPreviewStateChange}
-					/>
+							renderableOutput={renderableOutput}
+							previewState={previewState}
+							specOverrides={specOverrides}
+							designConfig={effectiveDesignConfig}
+							iframeRef={iframeRef}
+							onPreviewStateChange={onPreviewStateChange}
+						/>
 				)}
 			</div>
-			<div className="min-w-0 flex-1">
+			<div className="min-h-0 w-[400px] max-w-full shrink-0">
 				{rightPanel}
 			</div>
 		</div>
@@ -1969,10 +2420,12 @@ export function MakeArtifactSurface({
 	isRunLoading = false,
 	className,
 }: Readonly<MakeArtifactSurfaceProps>) {
+	const pathname = usePathname();
 	const [panelMode, setPanelMode] = useState<ArtifactRightPanelMode>("chat");
 	const [leftMode, setLeftMode] = useState<ArtifactLeftPanelMode>("preview");
 	const [previewState, setPreviewState] = useState<Record<string, unknown>>({});
 	const [specOverrides, setSpecOverrides] = useState<SpecOverrides>({ elements: {} });
+	const enableReactGrabInPreview = isMakeArtifactTemplateRoute(pathname);
 
 	const previewSummaryContent = useMemo(() => {
 		const runSummaryContent = run?.summary?.content;
@@ -2026,6 +2479,7 @@ export function MakeArtifactSurface({
 	}, [fallbackPlan, run]);
 
 	const renderableOutput = useMemo(() => resolveRenderableOutput(run), [run]);
+	const appPreviewRoute = useMemo(() => resolveAppPreviewRoute(run), [run]);
 
 	const initialPreviewState = useMemo(
 		() => normalizeStateModel(renderableOutput?.spec.state),
@@ -2037,8 +2491,11 @@ export function MakeArtifactSurface({
 	}, [initialPreviewState]);
 
 	const autoControls = useMemo(
-		() => (renderableOutput ? extractAutoControls(renderableOutput.spec, specOverrides) : []),
-		[renderableOutput, specOverrides]
+		() =>
+			renderableOutput && appPreviewRoute === null
+				? extractAutoControls(renderableOutput.spec, specOverrides)
+				: [],
+		[appPreviewRoute, renderableOutput, specOverrides]
 	);
 	const hasOverrides = Object.keys(specOverrides.elements).length > 0;
 
@@ -2051,7 +2508,7 @@ export function MakeArtifactSurface({
 
 	const handleAutoControlChange = useCallback(
 		(control: AutoControl, nextValue: unknown) => {
-			if (!renderableOutput) {
+			if (!renderableOutput || appPreviewRoute !== null) {
 				return;
 			}
 
@@ -2269,7 +2726,7 @@ export function MakeArtifactSurface({
 				return hasChanges ? { elements: nextElements } : previousOverrides;
 			});
 		},
-		[renderableOutput]
+		[appPreviewRoute, renderableOutput]
 	);
 
 	const handleReset = useCallback(() => {
@@ -2291,6 +2748,8 @@ export function MakeArtifactSurface({
 				isRunLoading={isRunLoading}
 				plan={displayPlan}
 				run={run}
+				appPreviewRoute={appPreviewRoute}
+				enableReactGrabInPreview={enableReactGrabInPreview}
 				hasDraftPlan={run === null && fallbackPlan !== null}
 				summaryContent={previewSummaryContent}
 				renderableOutput={renderableOutput}
