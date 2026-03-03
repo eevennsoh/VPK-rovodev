@@ -61,9 +61,33 @@ export const ExecutionGridView = memo(function ExecutionGridView({
 	showGeneratingEmptyState = false,
 }: Readonly<ExecutionGridViewProps>) {
 	const { actualTheme } = useTheme();
-	const visibleExecutions = taskExecutions.filter(
-		(execution) => execution.status === "working"
-	);
+	const visibleExecutions = (() => {
+		const latestWorkingByAgentId = new Map<string, TaskExecution>();
+		for (const execution of taskExecutions) {
+			if (execution.status !== "working") {
+				continue;
+			}
+			latestWorkingByAgentId.set(execution.agentId, execution);
+		}
+
+		const toLaneIndex = (agentId: string): number => {
+			const laneMatch = /^lane-(\d+)$/i.exec(agentId);
+			if (!laneMatch) {
+				return Number.POSITIVE_INFINITY;
+			}
+			return Number.parseInt(laneMatch[1], 10);
+		};
+
+		return Array.from(latestWorkingByAgentId.values()).sort((leftExecution, rightExecution) => {
+			const leftLaneIndex = toLaneIndex(leftExecution.agentId);
+			const rightLaneIndex = toLaneIndex(rightExecution.agentId);
+			if (leftLaneIndex !== rightLaneIndex) {
+				return leftLaneIndex - rightLaneIndex;
+			}
+
+			return leftExecution.agentName.localeCompare(rightExecution.agentName);
+		});
+	})();
 	const loadingAnimationSrc = actualTheme === "dark"
 		? "/loading/rovo-create-dark.gif"
 		: "/loading/rovo-create-light.gif";

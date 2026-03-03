@@ -13,6 +13,7 @@ export interface ExecutionTask {
 	label: string;
 	status: TaskStatus;
 	agentName?: string;
+	blockedBy?: string[];
 }
 
 export interface TaskExecution {
@@ -25,6 +26,7 @@ export interface TaskExecution {
 	content: string;
 	attempts?: number;
 	permanentlyFailed?: boolean;
+	blockedBy?: string[];
 }
 
 /** Maximum total attempts per task (initial + 2 retries). */
@@ -43,43 +45,6 @@ export function isTaskPermanentlyFailed(task: TaskExecution): boolean {
  */
 export function isTaskActive(task: TaskExecution): boolean {
 	return task.status === "working";
-}
-
-/**
- * Derive a short agent display name from a task label.
- * Extracts the key noun/verb phrase and appends "Agent".
- *
- * Examples:
- *   "Build the API endpoints" -> "API Agent"
- *   "Design the frontend layout" -> "Frontend Agent"
- *   "Write database migrations" -> "Database Agent"
- *   "Set up authentication" -> "Authentication Agent"
- */
-export function deriveAgentNameFromTask(taskLabel: string): string {
-	const cleaned = stripTaskMarkdownDecorators(taskLabel);
-
-	// Try to extract a key noun from the label:
-	// Pattern: look for common task verb prefixes and grab what follows
-	const verbPrefixes =
-		/^(?:build|create|design|develop|implement|set\s+up|write|add|configure|deploy|integrate|fix|update|refactor|test|review|optimize|migrate|generate|analyze|establish)\s+(?:the\s+|a\s+|an\s+)?/i;
-	const afterVerb = cleaned.replace(verbPrefixes, "");
-
-	// Take the first meaningful word(s) as the agent identity
-	const words = afterVerb.split(/[\s\u2014\u2013\-:,]+/).filter(Boolean);
-	if (words.length === 0) {
-		return "Agent";
-	}
-
-	// Capitalize the first word and use it as the agent name
-	const keyWord = words[0];
-	const capitalized = keyWord.charAt(0).toUpperCase() + keyWord.slice(1).toLowerCase();
-
-	// If the word already ends in "agent" (case-insensitive), just return it capitalized
-	if (/agent$/i.test(capitalized)) {
-		return capitalized;
-	}
-
-	return `${capitalized} Agent`;
 }
 
 export type AgentExecution = TaskExecution;
@@ -131,6 +96,21 @@ function runTaskStatusToTaskStatus(runTaskStatus: AgentRunTask["status"]): TaskS
 	if (runTaskStatus === "in-progress") return "in-progress";
 	if (runTaskStatus === "failed" || runTaskStatus === "blocked-failed") return "failed";
 	return "todo";
+}
+
+function formatBlockedDependencyId(dependencyId: string): string {
+	return dependencyId.startsWith("#") ? dependencyId : `#${dependencyId}`;
+}
+
+function buildTaskMetadata(task: ExecutionTask): string {
+	const taskId = task.id.trim();
+	const blockedBy = task.blockedBy ?? [];
+	if (blockedBy.length === 0) {
+		return taskId;
+	}
+
+	const blockedByText = blockedBy.map(formatBlockedDependencyId).join(", ");
+	return `${taskId} · blocked by ${blockedByText}`;
 }
 
 function stripTaskMarkdownDecorators(label: string): string {
@@ -257,6 +237,7 @@ export function computeTaskStatusGroups(
 export function computeTaskStatusGroupsFromRun(
 	runTasks: ReadonlyArray<AgentRunTask>
 ): TaskStatusGroups {
+	const tasksById = new Map(runTasks.map((task) => [task.id, task] as const));
 	const groups: TaskStatusGroups = {
 		done: [],
 		inReview: [],
@@ -267,11 +248,17 @@ export function computeTaskStatusGroupsFromRun(
 
 	for (const task of runTasks) {
 		const mappedStatus = runTaskStatusToTaskStatus(task.status);
+		const rawBlockedBy = Array.isArray(task.blockedBy) ? task.blockedBy : [];
+		const blockedBy = rawBlockedBy.filter((dependencyId) => {
+			const dependencyTask = tasksById.get(dependencyId);
+			return !dependencyTask || dependencyTask.status !== "done";
+		});
 		const executionTask: ExecutionTask = {
 			id: task.id,
 			label: task.label,
 			status: mappedStatus,
 			agentName: task.agentName,
+			blockedBy,
 		};
 
 		if (mappedStatus === "done") {
@@ -294,7 +281,7 @@ function toProgressDisplayTask(task: ExecutionTask): ProgressDisplayTask {
 	return {
 		id: task.id,
 		label: extractTaskHeading(task.label),
-		description: task.id,
+		description: buildTaskMetadata(task),
 		agentName: task.agentName,
 	};
 }
@@ -354,6 +341,7 @@ export function deriveTaskExecutionsFromRun(
 				content,
 				attempts: task.attempts,
 				permanentlyFailed: status === "failed" && task.attempts >= MAX_TASK_ATTEMPTS,
+				blockedBy: Array.isArray(task.blockedBy) && task.blockedBy.length > 0 ? task.blockedBy : undefined,
 			},
 		];
 	});

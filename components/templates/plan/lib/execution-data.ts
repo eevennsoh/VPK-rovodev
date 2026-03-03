@@ -13,6 +13,7 @@ export interface ExecutionTask {
 	label: string;
 	status: TaskStatus;
 	agentName?: string;
+	blockedBy?: string[];
 }
 
 export interface TaskExecution {
@@ -23,6 +24,7 @@ export interface TaskExecution {
 	agentAvatarUrl?: string;
 	status: AgentExecutionStatus;
 	content: string;
+	blockedBy?: string[];
 }
 
 export type AgentExecution = TaskExecution;
@@ -62,6 +64,21 @@ function runTaskStatusToTaskStatus(runTaskStatus: AgentRunTask["status"]): TaskS
 	if (runTaskStatus === "in-progress") return "in-progress";
 	if (runTaskStatus === "failed" || runTaskStatus === "blocked-failed") return "failed";
 	return "todo";
+}
+
+function formatBlockedDependencyId(dependencyId: string): string {
+	return dependencyId.startsWith("#") ? dependencyId : `#${dependencyId}`;
+}
+
+function buildTaskMetadata(task: ExecutionTask): string {
+	const taskId = task.id.trim();
+	const blockedBy = task.blockedBy ?? [];
+	if (blockedBy.length === 0) {
+		return taskId;
+	}
+
+	const blockedByText = blockedBy.map(formatBlockedDependencyId).join(", ");
+	return `${taskId} · blocked by ${blockedByText}`;
 }
 
 function stripTaskMarkdownDecorators(label: string): string {
@@ -187,6 +204,7 @@ export function computeTaskStatusGroups(
 export function computeTaskStatusGroupsFromRun(
 	runTasks: ReadonlyArray<AgentRunTask>
 ): TaskStatusGroups {
+	const tasksById = new Map(runTasks.map((task) => [task.id, task] as const));
 	const groups: TaskStatusGroups = {
 		done: [],
 		inReview: [],
@@ -197,11 +215,17 @@ export function computeTaskStatusGroupsFromRun(
 
 	for (const task of runTasks) {
 		const mappedStatus = runTaskStatusToTaskStatus(task.status);
+		const rawBlockedBy = Array.isArray(task.blockedBy) ? task.blockedBy : [];
+		const blockedBy = rawBlockedBy.filter((dependencyId) => {
+			const dependencyTask = tasksById.get(dependencyId);
+			return !dependencyTask || dependencyTask.status !== "done";
+		});
 		const executionTask: ExecutionTask = {
 			id: task.id,
 			label: task.label,
 			status: mappedStatus,
 			agentName: task.agentName,
+			blockedBy,
 		};
 
 		if (mappedStatus === "done") {
@@ -224,7 +248,7 @@ function toProgressDisplayTask(task: ExecutionTask): ProgressDisplayTask {
 	return {
 		id: task.id,
 		label: extractTaskHeading(task.label),
-		description: task.id,
+		description: buildTaskMetadata(task),
 		agentName: task.agentName,
 	};
 }
@@ -280,6 +304,7 @@ export function deriveTaskExecutionsFromRun(
 				agentName: task.agentName || agent?.agentName || "Agent",
 				status,
 				content,
+				blockedBy: Array.isArray(task.blockedBy) && task.blockedBy.length > 0 ? task.blockedBy : undefined,
 			},
 		];
 	});

@@ -27,8 +27,10 @@ function areAgentScreenPropsEqual(
 		previous.execution.taskId === next.execution.taskId &&
 		previous.execution.taskLabel === next.execution.taskLabel &&
 		previous.execution.agentId === next.execution.agentId &&
+		previous.execution.agentName === next.execution.agentName &&
 		previous.execution.status === next.execution.status &&
-		previous.execution.content === next.execution.content
+		previous.execution.content === next.execution.content &&
+		previous.execution.blockedBy === next.execution.blockedBy
 	);
 }
 
@@ -37,6 +39,9 @@ export const AgentScreen = memo(function AgentScreen({
 	className,
 }: Readonly<AgentScreenProps>) {
 	const isWorking = execution.status === "working";
+	const blockedByText = execution.blockedBy && execution.blockedBy.length > 0
+		? `Blocked by: ${execution.blockedBy.map((id) => (id.startsWith("#") ? id : `#${id}`)).join(", ")}`
+		: null;
 
 	const conversation = useMemo(() => {
 		const result: { id: string; role: "assistant"; content: string }[] = [];
@@ -62,11 +67,16 @@ export const AgentScreen = memo(function AgentScreen({
 							style={{ font: token("font.heading.xsmall") }}
 							className="truncate text-text"
 						>
+							{execution.agentName}
+						</span>
+						<span className="truncate text-xs leading-4 text-text-subtlest">
 							{execution.taskLabel}
 						</span>
-						<span className="text-xs leading-4 text-text-subtlest">
-							{execution.taskId}
-						</span>
+						{blockedByText ? (
+							<span className="truncate text-xs leading-4 text-text-subtlest">
+								{blockedByText}
+							</span>
+						) : null}
 					</div>
 				</div>
 			</div>

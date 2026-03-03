@@ -13,6 +13,14 @@ const {
 } = require("../lib/ai-gateway-helpers");
 const { inferTaskDependencies, isLinearChain } = require("../lib/dag-inference");
 const {
+	normalizeTeamAgentCount,
+	resolveRunLaneDefinitions,
+	assignTasksToLanes,
+	buildConversationContextWithBudget,
+	mergeConversationContextWithBudget,
+	ensureRunLaneDefinitions,
+} = require("../lib/team-run-lanes");
+const {
 	snapshotUntrackedFiles,
 	computeCreatedFiles,
 	readCreatedFilesFromDisk,
@@ -319,33 +327,7 @@ function normalizePlanDelta(rawPlanDelta, existingTaskIds) {
 }
 
 function buildConversationContext(rawConversation) {
-	if (!Array.isArray(rawConversation)) {
-		return [];
-	}
-
-	return rawConversation
-		.map((entry) => {
-			if (!entry || typeof entry !== "object") {
-				return null;
-			}
-
-			const type =
-				entry.role === "assistant" || entry.type === "assistant"
-					? "assistant"
-					: "user";
-			const content =
-				getNonEmptyString(entry.content) || getNonEmptyString(entry.text) || null;
-			if (!content) {
-				return null;
-			}
-
-			return {
-				type,
-				content,
-			};
-		})
-		.filter(Boolean)
-		.slice(-20);
+	return buildConversationContextWithBudget(rawConversation);
 }
 
 function buildRunPaths(baseDir, runId) {
@@ -573,34 +555,18 @@ function ensureRunDefaults(rawRun) {
 }
 
 function normalizeAgentCount(value) {
-	const n = typeof value === "number" ? value : parseInt(value, 10);
-	return Number.isFinite(n) && n >= 1 && n <= 4 ? n : 1;
-}
-
-const DEFAULT_AGENT_NAMES = ["Atlas", "Nova", "Forge", "Orbit"];
-
-function distributeTasksAcrossAgents(tasks, agentCount) {
-	const uniqueAgents = new Set(tasks.map((t) => t.agentName));
-	if (uniqueAgents.size > 1) {
-		return tasks;
-	}
-
-	const count = Math.min(Math.max(agentCount, 1), DEFAULT_AGENT_NAMES.length);
-	return tasks.map((task, index) => {
-		const agentName = DEFAULT_AGENT_NAMES[index % count];
-		return {
-			...task,
-			agentName,
-			agentId: slugifyAgentName(agentName),
-		};
-	});
+	return normalizeTeamAgentCount(value, 1);
 }
 
 function createInitialRun({ runId, plan, userPrompt, conversationContext, customInstruction, agentCount }) {
 	const now = toIsoDate();
 	const batchId = createId("batch");
 	const iteration = 1;
-	const distributedPlanTasks = distributeTasksAcrossAgents(plan.tasks, agentCount || 4);
+	const laneDefinitions = resolveRunLaneDefinitions({
+		tasks: plan.tasks,
+		agentCount: normalizeAgentCount(agentCount),
+	});
+	const distributedPlanTasks = assignTasksToLanes(plan.tasks, laneDefinitions);
 	const tasks = distributedPlanTasks.map((task) => ({
 		id: task.id,
 		label: task.label,
@@ -618,22 +584,15 @@ function createInitialRun({ runId, plan, userPrompt, conversationContext, custom
 		batchId,
 	}));
 
-	const agents = Array.from(
-		new Map(
-			tasks.map((task) => [
-				task.agentId,
-				{
-					agentId: task.agentId,
-					agentName: task.agentName,
-					status: "idle",
-					currentTaskId: null,
-					currentTaskLabel: null,
-					latestContent: "",
-					updatedAt: now,
-				},
-			]),
-		).values()
-	);
+	const agents = laneDefinitions.map((lane) => ({
+		agentId: lane.agentId,
+		agentName: lane.agentName,
+		status: "idle",
+		currentTaskId: null,
+		currentTaskLabel: null,
+		latestContent: "",
+		updatedAt: now,
+	}));
 
 	return {
 		id: runId,
@@ -646,7 +605,7 @@ function createInitialRun({ runId, plan, userPrompt, conversationContext, custom
 			title: plan.title,
 			description: plan.description,
 			emoji: plan.emoji,
-			agents: Array.from(new Set(tasks.map((task) => task.agentName))).sort(),
+			agents: laneDefinitions.map((lane) => lane.agentName),
 			tasks: tasks.map((task) => ({
 				id: task.id,
 				label: task.label,
@@ -798,6 +757,9 @@ function createAppendTasksPrompt(run, prompt, contextPrompt) {
 	const taskContext = run.tasks
 		.map((task) => `${task.id} | ${task.label} | status=${task.status}`)
 		.join("\n");
+	const availableAgents = Array.isArray(run.plan?.agents) && run.plan.agents.length > 0
+		? run.plan.agents.join(", ")
+		: "Generalist 1";
 
 	return [
 		"You are planning additional tasks for an in-progress multi-agent run.",
@@ -823,9 +785,11 @@ function createAppendTasksPrompt(run, prompt, contextPrompt) {
 		"- Use blockedBy ONLY for genuine data dependencies where one task requires another's output.",
 		"- Tasks working on different aspects MUST have empty blockedBy arrays so they run in parallel.",
 		"- Do NOT create linear chains unless each task truly requires the prior task's output.",
+		"- If dependency certainty is low, leave blockedBy empty and favor parallel starts.",
+		"- Minimize blockers so the scheduler can activate as many agents as possible.",
 		"- Keep labels actionable and implementation-focused.",
 		"- Prefer existing agents when possible.",
-		`- Available agents: ${DEFAULT_AGENT_NAMES.join(", ")}.`,
+		`- Available agents: ${availableAgents}.`,
 		"- Distribute tasks across available agents for parallel execution.",
 		"",
 		`Plan title: ${run.plan.title}`,
@@ -1079,6 +1043,7 @@ function createRunManager(options) {
 		userName,
 		conflictPolicy,
 		timeoutMs,
+		cancelOnComplete,
 		onTextDelta,
 	}) => {
 		const systemPrompt = createSystemPrompt(userName, customSystemPrompt);
@@ -1115,6 +1080,7 @@ function createRunManager(options) {
 				},
 				conflictPolicy,
 				timeoutMs: resolvedTimeoutMs,
+				cancelOnComplete: Boolean(cancelOnComplete),
 				failOnError: true,
 			});
 
@@ -1130,10 +1096,11 @@ function createRunManager(options) {
 		return result.trim();
 	};
 
-	const callModelForMarkdown = async ({ provider, onTextDelta, ...rest }) => {
+	const callModelForMarkdown = async ({ provider, onTextDelta, cancelOnComplete, ...rest }) => {
 		if (provider === "rovodev") {
 			return callRovoDevForMarkdown({
 				...rest,
+				cancelOnComplete,
 				onTextDelta,
 			});
 		}
@@ -1336,6 +1303,7 @@ function createRunManager(options) {
 				customSystemPrompt: taskSystemPrompt,
 				userName: agent.agentName,
 				conflictPolicy: "wait-for-turn",
+				cancelOnComplete: true,
 				onTextDelta: (textDelta) => {
 					if (!textDelta) {
 						return;
@@ -1564,6 +1532,9 @@ function createRunManager(options) {
 					return dependencyTask.status === "done";
 				});
 				if (!dependenciesResolved) {
+					continue;
+				}
+				if (isAgentBusy(run, task.agentId)) {
 					continue;
 				}
 
@@ -1799,13 +1770,14 @@ function createRunManager(options) {
 	};
 
 	const createFallbackPlanDelta = (run, prompt) => {
+		const fallbackAgentName = getNonEmptyString(run?.plan?.agents?.[0]) || "Generalist 1";
 		return {
 			title: run.plan.title,
 			tasks: [
 				{
 					id: `followup-${run.iteration + 1}`,
 					label: prompt,
-					agent: "Rovo",
+					agent: fallbackAgentName,
 					blockedBy: [],
 				},
 			],
@@ -2028,7 +2000,12 @@ function createRunManager(options) {
 		const nextIteration = (run.iteration || 1) + 1;
 		const batchId = createId("batch");
 		const now = toIsoDate();
-		const appendedTasks = normalizedPlanDelta.tasks.map((task) => ({
+		const runLaneDefinitions = ensureRunLaneDefinitions(run);
+		const remappedPlanDeltaTasks = assignTasksToLanes(
+			normalizedPlanDelta.tasks,
+			runLaneDefinitions
+		);
+		const appendedTasks = remappedPlanDeltaTasks.map((task) => ({
 			id: task.id,
 			label: task.label,
 			agentName: task.agentName,
@@ -2055,12 +2032,10 @@ function createRunManager(options) {
 			}))
 		);
 
-		const mergedAgents = new Set(run.plan.agents || []);
 		for (const task of appendedTasks) {
-			mergedAgents.add(task.agentName);
 			ensureAgentRecord(run, task);
 		}
-		run.plan.agents = Array.from(mergedAgents).sort();
+		run.plan.agents = runLaneDefinitions.map((lane) => lane.agentName);
 
 		run.status = RUN_STATUS_RUNNING;
 		run.error = null;
@@ -2074,19 +2049,20 @@ function createRunManager(options) {
 			run.customInstruction = normalizedCustomInstruction;
 		}
 
-		const nextConversationEntries = [
-			...run.conversationContext,
-			...buildConversationContext(conversation),
-			...(normalizedPrompt
-				? [
-					{
-						type: "user",
-						content: normalizedPrompt,
-					},
-				]
-				: []),
-		];
-		run.conversationContext = nextConversationEntries.slice(-20);
+		run.conversationContext = mergeConversationContextWithBudget(
+			run.conversationContext,
+			[
+				...buildConversationContext(conversation),
+				...(normalizedPrompt
+					? [
+						{
+							type: "user",
+							content: normalizedPrompt,
+						},
+					]
+					: []),
+			]
+		);
 
 		for (const agent of run.agents) {
 			if (agent.status === "failed") {
@@ -2108,8 +2084,8 @@ function createRunManager(options) {
 				title: normalizedPlanDelta.title,
 				description: normalizedPlanDelta.description,
 				emoji: normalizedPlanDelta.emoji,
-				agents: normalizedPlanDelta.agents,
-				tasks: normalizedPlanDelta.tasks.map((task) => ({
+				agents: run.plan.agents,
+				tasks: remappedPlanDeltaTasks.map((task) => ({
 					id: task.id,
 					label: task.label,
 					agent: task.agentName,

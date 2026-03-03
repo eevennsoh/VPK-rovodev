@@ -21,6 +21,7 @@ export interface MakeItem {
 	type: Category;
 	ascii: string;
 	color: string;
+	animationId?: string;
 	lastUpdated: string;
 	users: number;
 	rating: number;

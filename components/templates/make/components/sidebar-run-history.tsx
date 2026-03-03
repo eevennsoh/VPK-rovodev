@@ -32,6 +32,22 @@ function getTaskCount(run: AgentRunListItem): number {
 }
 
 function getAgentCount(run: AgentRunListItem): number {
+	if (run.status === "running") {
+		const activeAgentCount = new Set(
+			run.tasks
+				.filter((task) => task.status === "in-progress")
+				.map((task) => task.agentName)
+				.filter((agentName): agentName is string => Boolean(agentName))
+		).size;
+		if (activeAgentCount > 0) {
+			return activeAgentCount;
+		}
+	}
+
+	if (typeof run.agentCount === "number" && run.agentCount > 0) {
+		return run.agentCount;
+	}
+
 	return Math.max(
 		1,
 		new Set(

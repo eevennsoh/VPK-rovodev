@@ -156,7 +156,14 @@ function isPromptTooLongError(err) {
 		return false;
 	}
 	const msg = err.message;
-	return /prompt is too long/i.test(msg) || /tokens?\s*>\s*\d+\s*maximum/i.test(msg);
+	return (
+		/prompt is too long/i.test(msg) ||
+		/tokens?\s*>\s*\d+\s*maximum/i.test(msg) ||
+		/context limit(?: exceeded)?/i.test(msg) ||
+		/maximum context(?: length| window)?/i.test(msg) ||
+		/context window(?: exceeded| overflow)?/i.test(msg) ||
+		/too many tokens/i.test(msg)
+	);
 }
 
 /**
@@ -817,6 +824,7 @@ function resolveToolCallInput({
  * @param {number} [params.port] - Explicit RovoDev port number for dedicated assignment
  * @param {number} [params.portIndex] - Sticky port index for dedicated assignment (e.g. multiports)
  * @param {(port: number) => void} [params.onPortAcquired] - Called once with the resolved port after acquisition
+ * @param {boolean} [params.cancelOnComplete] - Cancel lingering chat state before releasing the port after a successful stream
  * @param {boolean} [params.failOnError] - Reject on non-409 stream errors instead of writing inline warning text
  * @returns {Promise<void>}
  */
@@ -837,6 +845,7 @@ async function streamViaRovoDev({
 	portIndex,
 	onPortAcquired,
 	onComplete,
+	cancelOnComplete = false,
 	failOnError = false,
 }) {
 	const waitForTurn = conflictPolicy === "wait-for-turn";
@@ -1408,6 +1417,17 @@ async function streamViaRovoDev({
 				console.warn(
 					"[streamViaRovoDev] onComplete callback error:",
 					onCompleteErr?.message || onCompleteErr
+				);
+			}
+		}
+		if (!portStuck && cancelOnComplete) {
+			try {
+				await cancelChat(handle.port, { timeoutMs: 3_000 });
+			} catch (error) {
+				console.warn(
+					`[streamViaRovoDev] port ${handle.port} cancel failed during cleanup: ${
+						error instanceof Error ? error.message : String(error)
+					}`
 				);
 			}
 		}

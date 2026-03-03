@@ -35,18 +35,18 @@ export const PROJECTS: Project[] = [
 
 export const TASKS: Task[] = [
 	// Atlas Platform
-	{ id: "task-1", name: "Frontend build", projectId: "proj-1" },
-	{ id: "task-2", name: "Backend services", projectId: "proj-1" },
-	{ id: "task-3", name: "Performance testing", projectId: "proj-1" },
+	{ id: "task-1", name: "Frontend build", projectId: "proj-1", issueKey: "ATLAS-142", issueUrl: "/jira" },
+	{ id: "task-2", name: "Backend services", projectId: "proj-1", issueKey: "ATLAS-198", issueUrl: "/jira" },
+	{ id: "task-3", name: "Performance testing", projectId: "proj-1", issueKey: "ATLAS-215", issueUrl: "/jira" },
 	// Design System
-	{ id: "task-4", name: "Component library", projectId: "proj-2" },
-	{ id: "task-5", name: "Token migration", projectId: "proj-2" },
+	{ id: "task-4", name: "Component library", projectId: "proj-2", issueKey: "DS-87", issueUrl: "/jira" },
+	{ id: "task-5", name: "Token migration", projectId: "proj-2", issueKey: "DS-91", issueUrl: "/jira" },
 	// API Integration
-	{ id: "task-6", name: "REST endpoints", projectId: "proj-3" },
-	{ id: "task-7", name: "Auth flow", projectId: "proj-3" },
+	{ id: "task-6", name: "REST endpoints", projectId: "proj-3", issueKey: "API-34", issueUrl: "/jira" },
+	{ id: "task-7", name: "Auth flow", projectId: "proj-3", issueKey: "API-52", issueUrl: "/jira" },
 	// Documentation
-	{ id: "task-8", name: "API docs", projectId: "proj-4" },
-	{ id: "task-9", name: "User guides", projectId: "proj-4" },
+	{ id: "task-8", name: "API docs", projectId: "proj-4", issueKey: "DOC-12", issueUrl: "/jira" },
+	{ id: "task-9", name: "User guides", projectId: "proj-4", issueKey: "DOC-18", issueUrl: "/jira" },
 	// Meetings
 	{ id: "task-10", name: "Stand-ups", projectId: "proj-5" },
 	{ id: "task-11", name: "Sprint planning", projectId: "proj-5" },
@@ -254,5 +254,6 @@ export function getInitialTimeTrackingState(): TimeTrackingState {
 		selectedDate: today,
 		weeklyTargetHours: 40,
 		expandedProjects,
+		activeTimer: null,
 	};
 }

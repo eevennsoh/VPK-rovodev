@@ -23,8 +23,10 @@ type RunnableMakeRun = AgentRunListItem & {
 
 const APP_GALLERY_TEMPLATE =
 	GALLERY_ITEMS.find((item) => item.type === "apps") ?? {
+		id: "sprint-board",
 		ascii: "",
 		color: "text-text-subtle",
+		description: "",
 	};
 
 function toDateTimestamp(value: string): number {
@@ -98,6 +100,9 @@ function resolveRunTitle(run: AgentRunListItem): string {
 }
 
 function resolveRunDescription(run: AgentRunListItem): string {
+	if (!run.plan.description && APP_GALLERY_TEMPLATE.description) {
+		return APP_GALLERY_TEMPLATE.description;
+	}
 	return sanitizePlanDescription(run.plan.description, run.tasks.length);
 }
 
@@ -136,6 +141,7 @@ export function mapRunsToMakeGalleryItems(
 			type: "apps",
 			ascii: APP_GALLERY_TEMPLATE.ascii,
 			color: APP_GALLERY_TEMPLATE.color,
+			animationId: APP_GALLERY_TEMPLATE.id,
 			lastUpdated: formatRunDate(run.updatedAt),
 			users: runMeta.taskCount,
 			rating: runMeta.status === "completed" ? 5 : 4,

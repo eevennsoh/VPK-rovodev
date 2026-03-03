@@ -662,11 +662,6 @@ export function RunWorkspace({
 							) : null}
 							<SummaryTitleRow
 								title={summaryTitle}
-								sidebarOpen={isOpen}
-								sidebarHovered={isHovered}
-								onExpandSidebar={() => setIsOpen(true)}
-								onHoverEnter={handleHoverEnter}
-								onHoverLeave={handleHoverLeave}
 								onBack={handleNavigateToMake}
 							/>
 							<div className={cn("min-h-0 flex-1 overflow-hidden", appendError ? "mt-4" : null)}>

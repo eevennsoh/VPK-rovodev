@@ -95,6 +95,8 @@ export function PlanCardWidgetInline({
 	const taskCount = visibleTasks.length;
 	const estimate = useMemo(() => computeEstimate(taskCount, agentCount), [agentCount, taskCount]);
 	const agentMultiplierDisplay = `${agentCount}x`;
+	const getAgentBuildLabel = (count: number) =>
+		`Build with ${count} ${count === 1 ? "agent" : "agents"}`;
 	const [streamRevealCount, setStreamRevealCount] = useState(0);
 
 	useEffect(() => {
@@ -151,7 +153,7 @@ export function PlanCardWidgetInline({
 								</span>
 							</div>
 							<div className="flex flex-col gap-0.5">
-								<span className="text-xs leading-4 text-text-subtlest">Number of agents</span>
+								<span className="text-xs leading-4 text-text-subtlest">{getAgentBuildLabel(agentCount)}</span>
 								<Select value={agentMultiplierDisplay} onValueChange={(value) => setAgentCount(parseAgentMultiplier(value ?? "1x"))}>
 									<SelectTrigger variant="none" size="sm" className="!h-auto gap-1 !p-0 text-xs leading-4 font-medium text-text">
 										<SelectValue />

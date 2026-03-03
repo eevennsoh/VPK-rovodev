@@ -53,6 +53,7 @@ export function MakeItemCard({ item, className, onRecurringToggle, onSelect }: R
 				<div className="pointer-events-none absolute inset-0 flex items-center justify-center scale-90 opacity-80">
 					<AnimatedAscii
 						id={item.id}
+						animationId={item.animationId}
 						type={item.type}
 						ascii={item.ascii}
 						color={item.color}

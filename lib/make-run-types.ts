@@ -134,6 +134,7 @@ export type AgentRunListItem = Pick<
 	| "completedAt"
 	| "plan"
 	| "tasks"
+	| "agentCount"
 > &
 	Partial<Pick<AgentRun, "summary" | "genuiSummary">>;
 

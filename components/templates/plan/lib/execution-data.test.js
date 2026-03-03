@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
 	computeTaskStatusGroupsFromRun,
 	deriveTaskExecutionsFromRun,
+	toProgressDisplayStatusGroups,
 } = require("./execution-data.ts");
 
 test("derives separate task executions for repeated agent assignments", () => {
@@ -122,4 +123,34 @@ test("maps failed run tasks into the failed status group", () => {
 		groups.todo.map((task) => task.id),
 		["task-4"]
 	);
+});
+
+test("shows unresolved blockers in progress metadata", () => {
+	const groups = computeTaskStatusGroupsFromRun([
+		{
+			id: "1",
+			label: "Foundation",
+			agentName: "Agent A",
+			blockedBy: [],
+			status: "in-progress",
+		},
+		{
+			id: "6",
+			label: "Polish",
+			agentName: "Agent B",
+			blockedBy: ["1", "2"],
+			status: "todo",
+		},
+		{
+			id: "2",
+			label: "Scaffold",
+			agentName: "Agent C",
+			blockedBy: [],
+			status: "done",
+		},
+	]);
+
+	const display = toProgressDisplayStatusGroups(groups);
+	assert.equal(display.todo.length, 1);
+	assert.equal(display.todo[0].description, "6 · blocked by #1");
 });

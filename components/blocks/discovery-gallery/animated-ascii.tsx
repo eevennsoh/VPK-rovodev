@@ -6,13 +6,15 @@ import { getFramesForId } from "./ascii-frames";
 
 interface AnimatedAsciiProps {
 	id: string;
+	animationId?: string;
 	type: Category;
 	ascii: string;
 	color: string;
 }
 
-export function AnimatedAscii({ id, type, ascii, color }: AnimatedAsciiProps) {
-	const customFrames = getFramesForId(id);
+export function AnimatedAscii({ id, animationId, type, ascii, color }: AnimatedAsciiProps) {
+	const effectiveId = animationId ?? id;
+	const customFrames = getFramesForId(effectiveId);
 	const [animatedAscii, setAnimatedAscii] = useState(customFrames ? customFrames[0] : ascii);
 
 	useEffect(() => {
@@ -24,7 +26,21 @@ export function AnimatedAscii({ id, type, ascii, color }: AnimatedAsciiProps) {
 				frame = (frame + 1) % customFrames.length;
 				setAnimatedAscii(customFrames[frame]);
 			}, 1000);
-		} else if (id === "time-tracker") {
+		} else if (effectiveId === "sprint-board") {
+			let step = 0;
+			intervalId = setInterval(() => {
+				step = (step + 1) % 4;
+				let next = ascii;
+				if (step === 1) {
+					next = next.replace("24 pts", "25 pts").replace("75% done", "79% done");
+				} else if (step === 2) {
+					next = next.replace("24 pts", "26 pts").replace("75% done", "83% done");
+				} else if (step === 3) {
+					next = next.replace("24 pts", "28 pts").replace("75% done", "92% done");
+				}
+				setAnimatedAscii(next);
+			}, 2000);
+		} else if (effectiveId === "time-tracker") {
 			let seconds = 18;
 			let minutes = 34;
 			let hours = 2;
@@ -41,7 +57,7 @@ export function AnimatedAscii({ id, type, ascii, color }: AnimatedAsciiProps) {
 				const formattedTime = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 				setAnimatedAscii((prev) => prev.replace(/\d{2}:\d{2}:\d{2}/, formattedTime));
 			}, 1000);
-		} else if (id === "onboarding-buddy") {
+		} else if (effectiveId === "onboarding-buddy") {
 			let step = 0;
 			intervalId = setInterval(() => {
 				step++;
@@ -59,7 +75,7 @@ export function AnimatedAscii({ id, type, ascii, color }: AnimatedAsciiProps) {
 					return next;
 				});
 			}, 2000);
-		} else if (id === "asset-registry") {
+		} else if (effectiveId === "asset-registry") {
 			let active = false;
 			intervalId = setInterval(() => {
 				active = !active;
@@ -82,7 +98,7 @@ export function AnimatedAscii({ id, type, ascii, color }: AnimatedAsciiProps) {
 		return () => {
 			if (intervalId) clearInterval(intervalId);
 		};
-	}, [id, ascii, customFrames]);
+	}, [effectiveId, ascii, customFrames]);
 
 	const lineCount = ascii.split("\n").length;
 	const isTall = lineCount > 14;

@@ -20,6 +20,10 @@ export interface Task {
 	id: string;
 	name: string;
 	projectId: string;
+	/** Optional Jira issue key (e.g. "ATLAS-1234") */
+	issueKey?: string;
+	/** Optional Jira issue URL */
+	issueUrl?: string;
 }
 
 // ── Time Entry ───────────────────────────────────────────────────────────
@@ -42,6 +46,16 @@ export interface ProjectGroup {
 	expanded: boolean;
 }
 
+// ── Timer ─────────────────────────────────────────────────────────────────
+
+/** Tracks a running timer for a single task. Only one timer can be active at a time. */
+export interface ActiveTimer {
+	taskId: string;
+	projectId: string;
+	/** ISO timestamp when the timer was started. */
+	startedAt: string;
+}
+
 // ── Application state ────────────────────────────────────────────────────
 
 export interface TimeTrackingState {
@@ -53,4 +67,6 @@ export interface TimeTrackingState {
 	weeklyTargetHours: number;
 	/** Track which project groups are expanded in the table view. */
 	expandedProjects: Record<string, boolean>;
+	/** Currently running timer (only one at a time). */
+	activeTimer: ActiveTimer | null;
 }

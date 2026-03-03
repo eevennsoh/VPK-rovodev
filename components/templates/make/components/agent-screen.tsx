@@ -11,7 +11,7 @@ import {
 import { Message, MessageContent, MessageResponse } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import { REASONING_LABELS } from "@/components/templates/shared/lib/reasoning-labels";
-import { deriveAgentNameFromTask, type TaskExecution } from "../lib/execution-data";
+import type { TaskExecution } from "../lib/execution-data";
 
 interface AgentScreenProps {
 	execution: TaskExecution;
@@ -27,10 +27,12 @@ function areAgentScreenPropsEqual(
 		previous.execution.taskId === next.execution.taskId &&
 		previous.execution.taskLabel === next.execution.taskLabel &&
 		previous.execution.agentId === next.execution.agentId &&
+		previous.execution.agentName === next.execution.agentName &&
 		previous.execution.status === next.execution.status &&
 		previous.execution.content === next.execution.content &&
 		previous.execution.attempts === next.execution.attempts &&
-		previous.execution.permanentlyFailed === next.execution.permanentlyFailed
+		previous.execution.permanentlyFailed === next.execution.permanentlyFailed &&
+		previous.execution.blockedBy === next.execution.blockedBy
 	);
 }
 
@@ -40,11 +42,9 @@ export const AgentScreen = memo(function AgentScreen({
 }: Readonly<AgentScreenProps>) {
 	const isWorking = execution.status === "working";
 	const isFailed = execution.status === "failed";
-
-	const displayName = useMemo(
-		() => deriveAgentNameFromTask(execution.taskLabel),
-		[execution.taskLabel]
-	);
+	const blockedByText = execution.blockedBy && execution.blockedBy.length > 0
+		? `Blocked by: ${execution.blockedBy.map((id) => (id.startsWith("#") ? id : `#${id}`)).join(", ")}`
+		: null;
 
 	const conversation = useMemo(() => {
 		const result: { id: string; role: "assistant"; content: string }[] = [];
@@ -74,11 +74,16 @@ export const AgentScreen = memo(function AgentScreen({
 								isFailed ? "text-text-danger" : "text-text"
 							)}
 						>
-							{displayName}
+							{execution.agentName}
 						</h3>
 						<span className="truncate text-xs leading-4 text-text-subtlest">
 							{execution.taskLabel}
 						</span>
+						{blockedByText ? (
+							<span className="truncate text-xs leading-4 text-text-subtlest">
+								{blockedByText}
+							</span>
+						) : null}
 					</div>
 				</div>
 				{execution.permanentlyFailed ? (

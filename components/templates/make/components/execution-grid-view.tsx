@@ -71,17 +71,32 @@ function getSpanClass(span: 1 | 2): string | undefined {
 	return undefined;
 }
 
-/**
- * Filter task executions to only include active/visible panes.
- * Working tasks are always visible. Failed tasks are shown briefly
- * (they remain visible so users can see the error state), and completed
- * tasks are hidden from the grid (they appear in the progress sidebar).
- */
 function getVisibleExecutions(taskExecutions: TaskExecution[]): TaskExecution[] {
-	return taskExecutions.filter(
-		(execution) =>
-			execution.status === "working" || execution.status === "failed"
-	);
+	const latestWorkingByAgentId = new Map<string, TaskExecution>();
+	for (const execution of taskExecutions) {
+		if (execution.status !== "working") {
+			continue;
+		}
+		latestWorkingByAgentId.set(execution.agentId, execution);
+	}
+
+	const toLaneIndex = (agentId: string): number => {
+		const laneMatch = /^lane-(\d+)$/i.exec(agentId);
+		if (!laneMatch) {
+			return Number.POSITIVE_INFINITY;
+		}
+		return Number.parseInt(laneMatch[1], 10);
+	};
+
+	return Array.from(latestWorkingByAgentId.values()).sort((leftExecution, rightExecution) => {
+		const leftLaneIndex = toLaneIndex(leftExecution.agentId);
+		const rightLaneIndex = toLaneIndex(rightExecution.agentId);
+		if (leftLaneIndex !== rightLaneIndex) {
+			return leftLaneIndex - rightLaneIndex;
+		}
+
+		return leftExecution.agentName.localeCompare(rightExecution.agentName);
+	});
 }
 
 export const ExecutionGridView = memo(function ExecutionGridView({
