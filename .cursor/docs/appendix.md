@@ -12,7 +12,7 @@ app/
   preview/                     # Component preview routes (blocks, templates)
   providers.tsx                # Client-side provider composition
   [category]/page.tsx          # Category landing routes (ui, ui-ai, blocks, templates)
-  [page routes]/               # plan/, confluence/, fullscreen-chat/, jira/, search/, sidebar-chat/
+  [page routes]/               # plan/, make/, confluence/, fullscreen-chat/, jira/, search/, sidebar-chat/
   layout.tsx                   # Root layout (server component)
 
 backend/
@@ -30,12 +30,17 @@ backend/
 
 components/
   templates/                   # ADS-themed feature surfaces
-    plan/               # Agent team interface
+    asset-requests/            # Asset request management
     confluence/                # Document editing
+    dashboard/                 # Dashboard view
     fullscreen-chat/           # Full-screen AI chat
+    inventory/                 # Inventory management
     jira/                      # Kanban board
+    make/                      # Make/creation interface
+    plan/                      # Agent team interface
     search/                    # Search results
     sidebar-chat/              # Chat with sidebar
+    work-items/                # Work items management
     shared/                    # Shared template utilities (ThreadMessage compound component, message processing)
   ui-ai/                       # AI element components (TS excluded)
   blocks/                      # Block features
@@ -89,11 +94,11 @@ Optional environment variables:
 
 | Context         | File                                       | Purpose                                             |
 | --------------- | ------------------------------------------ | --------------------------------------------------- |
-| Chat panel      | `app/contexts/context-chat.tsx`            | Generic chat panel state                            |
 | Rovo chat       | `app/contexts/context-rovo-chat.tsx`       | AI chat via AI SDK `useChat` with streaming/widgets |
 | Creation mode   | `app/contexts/context-creation-mode.tsx`   | Creation mode state                                 |
 | Sidebar         | `app/contexts/context-sidebar.tsx`         | Sidebar visibility and route                        |
-| Agents team     | `app/contexts/context-plan.tsx`     | Agent team State/Actions/Meta (route-level mount)   |
+| Agents team     | `app/contexts/context-plan.tsx`            | Agent team State/Actions/Meta (route-level mount)   |
+| Make            | `app/contexts/context-make.tsx`            | Make/creation mode state and actions                |
 | Work item modal | `app/contexts/context-work-item-modal.tsx` | Work item detail modal using State/Actions/Meta     |
 | Theme           | `components/utils/theme-wrapper.tsx`       | Light/dark/system mode                              |
 

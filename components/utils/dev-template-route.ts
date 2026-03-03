@@ -2,20 +2,13 @@
 
 const PREVIEW_TEMPLATES_PREFIX = "/preview/templates/";
 const EXCLUDED_APP_ROOT_SEGMENTS = new Set([
-	"asset-requests",
-	"board",
 	"confluence",
-	"dashboard",
 	"fullscreen-chat",
-	"inventory",
 	"jira",
 	"make",
 	"plan",
 	"search",
 	"sidebar-chat",
-	"sprint-board",
-	"time-tracking",
-	"work-items",
 ]);
 
 function normalizePathname(pathname: string): string {

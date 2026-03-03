@@ -16,7 +16,7 @@ Next.js 16 (React 19, Tailwind CSS v4) + Express backend with AI SDK (Vercel) an
 - Primary frontend edits are in `components/templates/`, `components/blocks/`, and `app/` route files.
 - Backend API edits are in `backend/server.js` and `app/api/*/route.ts` (dev proxy).
 - Validate every change with `pnpm run lint` and `pnpm tsc --noEmit`.
-- For UI changes, also run visual + accessibility checks (see `## Workflows -> Validation`).
+- For UI changes, also run visual + accessibility checks (see `## Workflows (Extended) -> Validation`).
 
 ## Documentation Index
 

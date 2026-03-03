@@ -22,9 +22,9 @@ The `rovodev` script starts all three processes concurrently (single-instance by
 
 - `app/` - Next.js App Router routes, providers, and dev proxy handlers
 - `backend/` - Express production runtime and API handlers
-- `components/templates/` - ADS-themed feature surfaces (plan, confluence, fullscreen-chat, jira, search, sidebar-chat)
-- `components/blocks/` - standalone block surfaces (app-sidebar, approval-card, chat, chat-composer, chatbot, chatgpt, dashboard, data-table, generative, ide, login, product-sidebar, prompt-gallery, question-card, settings-dialog, shared-ui, sidebar, sidebar-rail, signup, top-navigation, work-items-widget, workflow)
-- `components/charts/` - chart components (area, bar, line, pie, radar, radial, tooltip)
+- `components/templates/` - ADS-themed feature surfaces (asset-requests, confluence, dashboard, fullscreen-chat, inventory, jira, make, plan, search, sidebar-chat, work-items)
+- `components/blocks/` - standalone block surfaces (agent-grid, agent-progress, agent-summary, answer-card, approval-card, asset-request, board, chat, chat-composer, chatbot, chatgpt, dashboard, data-table, discovery-gallery, figma-demo, generative, ide, inventory, it-assets, kanban-sprint, login, make-artifact, make-gallery, make-grid, make-item, make-page, product-sidebar, prompt-gallery, question-card, settings-dialog, shared-ui, sidebar, sidebar-rail, signup, sprint-board, terminal-switch, time-tracking, top-navigation, work-item-detail, work-item-widget, workflow)
+- `components/charts/` - chart components (area, bar, data, line, pie, radar, radial, tooltip)
 - `components/ui/` - shared shadcn/Base UI primitives
 - `components/website/` - component documentation and demo site
 - `lib/` - shared utilities and token helpers
@@ -59,6 +59,7 @@ Common routes:
 
 - `/` -> `app/page.tsx`
 - `/plan` -> `components/templates/plan/`
+- `/make` -> `components/templates/make/`
 - `/sidebar-chat` -> `components/templates/sidebar-chat/`
 - `/fullscreen-chat` -> `components/templates/fullscreen-chat/`
 - `/confluence` -> `components/templates/confluence/`
