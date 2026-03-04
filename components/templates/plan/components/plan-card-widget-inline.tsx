@@ -81,7 +81,7 @@ export function PlanCardWidgetInline({
 	onBuild,
 	onOpenPreview,
 }: Readonly<PlanCardWidgetInlineProps>): React.ReactElement | null {
-	const { agentCount } = usePlanState();
+	const { agentCount, enrichedPlanTitle } = usePlanState();
 	const { setAgentCount } = usePlanActions();
 	const [isOpen, setIsOpen] = useState(true);
 	const [internalCollapsed, setInternalCollapsed] = useState(false);
@@ -115,9 +115,9 @@ export function PlanCardWidgetInline({
 		return null;
 	}
 
-	const displayTitle = resolvePlanDisplayTitle(title, visibleTasks);
+	const displayTitle = enrichedPlanTitle?.title ?? resolvePlanDisplayTitle(title, visibleTasks);
 	const displayEmoji = derivePlanEmojiFromTitle(displayTitle);
-	const descriptionText = sanitizePlanDescription(description, visibleTasks.length);
+	const descriptionText = sanitizePlanDescription(enrichedPlanTitle?.description ?? description, visibleTasks.length);
 
 	if (isCollapsed) {
 		return <CollapsedPlanBubble title={displayTitle} emoji={displayEmoji} onExpand={() => setIsCollapsed(false)} />;

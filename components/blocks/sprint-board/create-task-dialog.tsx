@@ -223,7 +223,7 @@ export function CreateTaskDialog({
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="todo">todo</SelectItem>
+										<SelectItem value="todo">To Do</SelectItem>
 										<SelectItem value="in-progress">In Progress</SelectItem>
 										<SelectItem value="done">Done</SelectItem>
 									</SelectContent>

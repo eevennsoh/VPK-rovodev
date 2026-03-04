@@ -43,7 +43,7 @@ export const AgentScreen = memo(function AgentScreen({
 	const isWorking = execution.status === "working";
 	const isFailed = execution.status === "failed";
 	const blockedByText = execution.blockedBy && execution.blockedBy.length > 0
-		? `Blocked by: ${execution.blockedBy.map((id) => (id.startsWith("#") ? id : `#${id}`)).join(", ")}`
+		? `Blocked by: ${execution.blockedBy.map((id) => `#${id.replace(/^#?task-/, "")}`).join(", ")}`
 		: null;
 
 	const conversation = useMemo(() => {

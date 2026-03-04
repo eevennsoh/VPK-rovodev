@@ -137,8 +137,8 @@ function TopNavBar() {
 					<NotificationIcon label="" />
 				</Button>
 				<Avatar size="sm">
-					<AvatarImage src="" alt="Profile" />
-					<AvatarFallback>M</AvatarFallback>
+					<AvatarImage src="/avatar-human/austin-lambert.png" alt="User avatar" />
+					<AvatarFallback>A</AvatarFallback>
 				</Avatar>
 			</div>
 		</div>
@@ -435,7 +435,7 @@ function PlanPanel({
 						<ol className="flex flex-col gap-0">
 							{plan.tasks.map((task, index) => {
 								const blockedByText = task.blockedBy.length > 0
-									? `Blocked by ${task.blockedBy.map((id) => `#${id}`).join(", ")}`
+									? `Blocked by ${task.blockedBy.map((id) => `#${id.replace(/^task-/, "")}`).join(", ")}`
 									: undefined;
 								return (
 									<li

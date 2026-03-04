@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import EditIcon from "@atlaskit/icon/core/edit";
 import ShareIcon from "@atlaskit/icon/core/share";
-import { AvatarGroup, Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarGroup, Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { AnimatedAscii } from "@/components/blocks/discovery-gallery/animated-ascii";
 import StarStarredIcon from "@atlaskit/icon/core/star-starred";
@@ -139,6 +139,9 @@ export function MakeItemCard({ item, className, onRecurringToggle, onSelect }: R
 							<div className="flex min-w-0 flex-col items-end gap-0.5">
 								<span className="text-xs leading-4 text-text-subtlest">Created by</span>
 								<Avatar size="xs">
+									{item.maintainers[0]?.src ? (
+										<AvatarImage src={item.maintainers[0].src} alt={item.maintainers[0].name} />
+									) : null}
 									<AvatarFallback>{item.maintainers[0]?.name.charAt(0).toUpperCase()}</AvatarFallback>
 								</Avatar>
 							</div>

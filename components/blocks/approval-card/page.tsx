@@ -121,6 +121,31 @@ export function ApprovalCard({ onSubmit, onDismiss, isSubmitting = false }: Read
 					handleDismiss();
 					break;
 				}
+				default: {
+					if (isCustomInputFocused) break;
+					const digit = Number(event.key);
+					if (digit >= 1 && digit <= 9) {
+						const index = digit - 1;
+						if (index < MAX_GENERATED_OPTIONS) {
+							event.preventDefault();
+							const option = APPROVAL_OPTIONS[index];
+							if (option) {
+								handleSelectOption(option.id);
+								if (onSubmit) {
+									onSubmit({
+										decision: option.id,
+										customInstruction: undefined,
+									});
+								}
+							}
+						} else if (index === CUSTOM_OPTION_INDEX) {
+							event.preventDefault();
+							customInputRef.current?.focus();
+							setFocusedIndex(CUSTOM_OPTION_INDEX);
+						}
+					}
+					break;
+				}
 			}
 		},
 		[focusedIndex, handleSelectOption, handleSubmit, handleDismiss, onSubmit],
@@ -136,7 +161,7 @@ export function ApprovalCard({ onSubmit, onDismiss, isSubmitting = false }: Read
 			role="dialog"
 			aria-label="Accept this plan?"
 			onKeyDown={handleKeyDown}
-			className="mx-auto w-full max-w-[776px] overflow-hidden rounded-xl border border-border bg-surface shadow-[0_-2px_50px_8px_rgba(30,31,33,0.08)] outline-none"
+			className="mx-auto w-full overflow-hidden rounded-xl border border-border bg-surface shadow-[0_-2px_50px_8px_rgba(30,31,33,0.08)] outline-none"
 		>
 			<header className="px-4 pt-4">
 				<div className="flex h-6 items-center justify-between gap-3">

@@ -99,7 +99,8 @@ function runTaskStatusToTaskStatus(runTaskStatus: AgentRunTask["status"]): TaskS
 }
 
 function formatBlockedDependencyId(dependencyId: string): string {
-	return dependencyId.startsWith("#") ? dependencyId : `#${dependencyId}`;
+	const stripped = dependencyId.replace(/^#?task-/, "");
+	return `#${stripped}`;
 }
 
 function buildTaskMetadata(task: ExecutionTask): string {

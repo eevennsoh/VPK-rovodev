@@ -114,17 +114,15 @@ function BottomOverlay({
 
 	if (showApprovalCard && activePlanKey) {
 		return (
-			<div className="px-1">
-				<ApprovalCard
-					key={activePlanKey}
-					isSubmitting={isRequestInFlight}
-					onSubmit={(selection) => {
-						onApprovalSubmit(selection);
-						onDismissApprovalCard();
-					}}
-					onDismiss={onDismissApprovalCard}
-				/>
-			</div>
+			<ApprovalCard
+				key={activePlanKey}
+				isSubmitting={isRequestInFlight}
+				onSubmit={(selection) => {
+					onApprovalSubmit(selection);
+					onDismissApprovalCard();
+				}}
+				onDismiss={onDismissApprovalCard}
+			/>
 		);
 	}
 
@@ -292,7 +290,7 @@ export default function PlanChatView() {
 				/>
 			) : null}
 
-			<div className="pointer-events-none absolute inset-x-0 bottom-8 z-20 px-4">
+			<div className="pointer-events-none absolute inset-x-0 bottom-8 z-20">
 				<div className="pointer-events-auto relative mx-auto w-full">
 					<ScrollToBottomButton visible={showScrollButton} onClick={scrollToBottom} />
 					{showBottomOverlayCard ? (

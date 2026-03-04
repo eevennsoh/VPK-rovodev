@@ -263,6 +263,25 @@ export function useQuestionCard({
 					onDismiss?.();
 					break;
 				}
+				default: {
+					if (isCustomInputFocused) break;
+					const digit = Number(event.key);
+					if (digit >= 1 && digit <= 9) {
+						const index = digit - 1;
+						if (index < visibleOptionCount) {
+							event.preventDefault();
+							const option = currentQuestion.options[index];
+							if (option) {
+								handleSelectOption(option.id);
+							}
+						} else if (showCustomInput && index === customOptionIndex) {
+							event.preventDefault();
+							customInputRef.current?.focus();
+							setFocusedIndex(customOptionIndex);
+						}
+					}
+					break;
+				}
 			}
 		},
 		[

@@ -1056,7 +1056,7 @@ function resolveRenderableOutput(run: AgentRun | null): RenderableOutput | null 
 	}
 
 	return {
-		title: primaryWidget?.title || "Primary GenUI output",
+		title: primaryWidget?.title || "Primary output",
 		spec: renderableSpec,
 	};
 }
@@ -2126,7 +2126,7 @@ function PreviewOutputPanel({
 	}, [iframeRef]);
 
 	if (isRunLoading) {
-		return <LoadingPanel title="Loading GenUI output..." />;
+		return <LoadingPanel title="Loading output..." />;
 	}
 
 	const previewTitle = (renderableOutput?.title
@@ -2182,8 +2182,8 @@ function PreviewOutputPanel({
 
 		return (
 			<EmptyPanel
-				title="No GenUI output yet"
-				description="This run does not have a renderable GenUI output yet."
+				title="No output yet"
+				description="This run does not have a renderable output yet."
 			/>
 		);
 	}
@@ -2191,7 +2191,7 @@ function PreviewOutputPanel({
 	if (hasDraftPlan) {
 		return (
 			<EmptyPanel
-				title="No GenUI output yet"
+				title="No output yet"
 				description="A draft plan was found in chat history, but no saved make run output exists yet."
 			/>
 		);
@@ -2251,7 +2251,7 @@ function PlanPanel({
 						<ol className="flex flex-col gap-0">
 							{plan.tasks.map((task, index) => {
 								const blockedByText = task.blockedBy.length > 0
-									? `Blocked by ${task.blockedBy.map((id) => `#${id}`).join(", ")}`
+									? `Blocked by ${task.blockedBy.map((id) => `#${id.replace(/^task-/, "")}`).join(", ")}`
 									: undefined;
 								return (
 									<li

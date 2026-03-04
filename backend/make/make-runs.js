@@ -544,6 +544,7 @@ function ensureRunDefaults(rawRun) {
 		genuiSummary: normalizeGenuiSummary(rawRun.genuiSummary),
 		userPrompt: getNonEmptyString(rawRun.userPrompt) || "",
 		customInstruction: getNonEmptyString(rawRun.customInstruction) || undefined,
+		agentCount: normalizeAgentCount(rawRun.agentCount),
 		conversationContext: buildConversationContext(rawRun.conversationContext),
 		iteration,
 		activeBatchId: getNonEmptyString(rawRun.activeBatchId) || null,
@@ -558,14 +559,21 @@ function normalizeAgentCount(value) {
 	return normalizeTeamAgentCount(value, 1);
 }
 
+function createGeneralPurposeLaneDefinitions(agentCount, tasks) {
+	const normalizedAgentCount = normalizeAgentCount(agentCount);
+
+	return resolveRunLaneDefinitions({
+		tasks: Array.isArray(tasks) ? tasks : [],
+		agentCount: normalizedAgentCount,
+	});
+}
+
 function createInitialRun({ runId, plan, userPrompt, conversationContext, customInstruction, agentCount }) {
 	const now = toIsoDate();
 	const batchId = createId("batch");
 	const iteration = 1;
-	const laneDefinitions = resolveRunLaneDefinitions({
-		tasks: plan.tasks,
-		agentCount: normalizeAgentCount(agentCount),
-	});
+	const normalizedAgentCount = normalizeAgentCount(agentCount);
+	const laneDefinitions = createGeneralPurposeLaneDefinitions(normalizedAgentCount, plan.tasks);
 	const distributedPlanTasks = assignTasksToLanes(plan.tasks, laneDefinitions);
 	const tasks = distributedPlanTasks.map((task) => ({
 		id: task.id,
@@ -620,7 +628,7 @@ function createInitialRun({ runId, plan, userPrompt, conversationContext, custom
 		genuiSummary: null,
 		userPrompt: userPrompt || "",
 		customInstruction: customInstruction || undefined,
-		agentCount: agentCount || 1,
+		agentCount: normalizedAgentCount,
 		conversationContext,
 		iteration,
 		activeBatchId: batchId,
@@ -1130,6 +1138,24 @@ function createRunManager(options) {
 	const isAgentBusy = (run, agentId) =>
 		run.tasks.some((task) => task.agentId === agentId && task.status === "in-progress");
 
+	const getAvailableAgentForTask = (run, task) => {
+		const preferredAgent = run.agents.find(
+			(agent) =>
+				agent.agentId === task.agentId &&
+				agent.status !== "failed" &&
+				!isAgentBusy(run, agent.agentId)
+		);
+		if (preferredAgent) {
+			return preferredAgent;
+		}
+
+		return (
+			run.agents.find(
+				(agent) => agent.status !== "failed" && !isAgentBusy(run, agent.agentId)
+			) || null
+		);
+	};
+
 	const markBlockedTasksWithFailedDependencies = (run) => {
 		let changed = false;
 
@@ -1177,12 +1203,14 @@ function createRunManager(options) {
 		return agent;
 	};
 
-	const runTask = async (run, task) => {
-		const agent = getAgentByTask(run, task) || ensureAgentRecord(run, task);
+	const runTask = async (run, task, claimedAgent) => {
+		const agent = claimedAgent || getAgentByTask(run, task) || ensureAgentRecord(run, task);
 		if (!agent) {
 			throw new Error(`Agent not found for task ${task.id}`);
 		}
 
+		task.agentId = agent.agentId;
+		task.agentName = agent.agentName;
 		task.status = "in-progress";
 		task.startedAt = toIsoDate();
 		task.completedAt = null;
@@ -1211,7 +1239,7 @@ function createRunManager(options) {
 		const directivesForAgent = run.directives.filter(
 			(directive) => directive.agentId === agent.agentId
 		);
-		const skillContents = resolveSkillContentsForAgentName(task.agentName);
+		const skillContents = resolveSkillContentsForAgentName(agent.agentName);
 		const taskPrompt = createTaskPrompt(
 			run,
 			task,
@@ -1347,7 +1375,7 @@ function createRunManager(options) {
 			task.error = error instanceof Error ? error.message : String(error);
 			agent.latestContent = task.error;
 			if (!isAgentBusy(run, agent.agentId)) {
-				agent.status = "failed";
+				agent.status = "idle";
 				agent.currentTaskId = null;
 				agent.currentTaskLabel = null;
 			}
@@ -1391,11 +1419,11 @@ function createRunManager(options) {
 			}
 		};
 
-	const executeTaskWithRetry = async (run, task) => {
+	const executeTaskWithRetry = async (run, task, claimedAgent) => {
 		const maxAttempts = 2;
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 			try {
-				await runTask(run, task);
+				await runTask(run, task, claimedAgent);
 				return;
 			} catch {
 				if (attempt >= maxAttempts) {
@@ -1534,11 +1562,12 @@ function createRunManager(options) {
 				if (!dependenciesResolved) {
 					continue;
 				}
-				if (isAgentBusy(run, task.agentId)) {
+				const availableAgent = getAvailableAgentForTask(run, task);
+				if (!availableAgent) {
 					continue;
 				}
 
-				const taskPromise = executeTaskWithRetry(run, task)
+				const taskPromise = executeTaskWithRetry(run, task, availableAgent)
 					.catch((error) => {
 						logger.error?.("[AGENTS-RUN] Task execution failed", error);
 					})

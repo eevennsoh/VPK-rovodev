@@ -35,7 +35,7 @@ import {
 	createPlanApprovalSubmission,
 	getPlanApprovalKeyFromPlanWidget,
 } from "@/components/templates/shared/lib/plan-approval";
-import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
+import { getLatestPlanWidgetPayload, fetchEnrichedPlanTitle } from "@/components/templates/shared/lib/plan-widget";
 import {
 	selectRetryTasks,
 } from "@/components/templates/plan/lib/retry-task-groups";
@@ -98,6 +98,7 @@ export interface PlanState {
 	isActiveChatTitlePending: boolean;
 	isGeneratingTitle: boolean;
 	pendingTitleChatId: string | null;
+	enrichedPlanTitle: { title: string; description: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +381,42 @@ export function PlanProvider({ children }: PlanProviderProps) {
 		return Array.from(runsById.values()).sort(sortRunsByRecency);
 	}, [run, runHistory]);
 
+	// ---- Enriched plan title ----
+
+	const [enrichedPlanTitle, setEnrichedPlanTitle] = useState<{ title: string; description: string } | null>(null);
+
+	// Reset enriched title when the active plan widget changes
+	const enrichedPlanWidgetKeyRef = useRef<string | null>(null);
+	const currentPlanWidgetKey = activePlanWidget
+		? `${activePlanWidget.title}::${activePlanWidget.tasks.length}`
+		: null;
+	if (enrichedPlanWidgetKeyRef.current !== currentPlanWidgetKey) {
+		enrichedPlanWidgetKeyRef.current = currentPlanWidgetKey;
+		if (enrichedPlanTitle !== null) {
+			setEnrichedPlanTitle(null);
+		}
+	}
+
+	// Enrich plan title via AI after streaming completes
+	useEffect(() => {
+		if (!isPlanMessageComplete || !activePlanWidget || isExecutionActive || isStreaming) {
+			return;
+		}
+		if (enrichedPlanTitle !== null) {
+			return;
+		}
+
+		const enrichDelay = setTimeout(() => {
+			void fetchEnrichedPlanTitle(activePlanWidget).then((result) => {
+				if (result) {
+					setEnrichedPlanTitle(result);
+				}
+			});
+		}, 2000);
+
+		return () => clearTimeout(enrichDelay);
+	}, [activePlanWidget, enrichedPlanTitle, isExecutionActive, isPlanMessageComplete, isStreaming]);
+
 	// ---- Effects ----
 
 	useEffect(() => {
@@ -463,12 +500,15 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			const planApprovalPlanKey = getPlanApprovalKeyFromPlanWidget(activePlanWidget);
 
 			if (shouldStartRun && activePlanWidget) {
+				const enrichedPlan = enrichedPlanTitle
+					? { ...activePlanWidget, title: enrichedPlanTitle.title, description: enrichedPlanTitle.description || activePlanWidget.description }
+					: activePlanWidget;
 				void appendPlanApprovalMarker({
 					decision: "auto-accept",
 					planApprovalPlanKey,
 				});
 				void startExecution({
-					plan: activePlanWidget,
+					plan: enrichedPlan,
 					userPrompt: latestUserPrompt,
 					conversation: conversationItems,
 					customInstruction: selection.customInstruction,
@@ -483,6 +523,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			activePlanWidget,
 			agentCount,
 			conversationItems,
+			enrichedPlanTitle,
 			latestUserPrompt,
 			startExecution,
 			submitPlanApproval,
@@ -630,6 +671,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			isActiveChatTitlePending,
 			isGeneratingTitle,
 			pendingTitleChatId,
+			enrichedPlanTitle,
 		}),
 		[
 			isOpen,
@@ -660,6 +702,7 @@ export function PlanProvider({ children }: PlanProviderProps) {
 			isActiveChatTitlePending,
 			isGeneratingTitle,
 			pendingTitleChatId,
+			enrichedPlanTitle,
 		],
 	);
 

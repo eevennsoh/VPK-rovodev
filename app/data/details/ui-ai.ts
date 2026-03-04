@@ -127,7 +127,7 @@ export const UI_AI_DETAILS: Record<string, ComponentDetail> = {
 			"Animated colored dots with staggered opacity reveal, used as a loading or thinking indicator alongside text labels.",
 		usage: `import { AnimatedDots } from "@/components/ui-ai/animated-dots";
 
-<span className="inline-flex items-baseline gap-0.5 text-sm">
+<span className="inline-flex items-baseline text-sm">
   Thinking
   <AnimatedDots />
 </span>`,

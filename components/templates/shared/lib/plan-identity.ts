@@ -32,12 +32,23 @@ function normalizeWhitespace(value: string): string {
 	return value.replace(/\s+/g, " ").trim();
 }
 
+/** Words that produce broken-looking titles when they appear at the end after truncation. */
+const DANGLING_TAIL_WORDS = new Set([
+	"a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+	"of", "with", "by", "from", "into", "via", "using", "as", "its", "their",
+]);
+
 function truncateWords(value: string, maxWords: number = TITLE_MAX_WORDS): string {
 	const words = normalizeWhitespace(value).split(" ").filter(Boolean);
 	if (words.length === 0) {
 		return "";
 	}
-	return words.slice(0, maxWords).join(" ");
+	const sliced = words.slice(0, maxWords);
+	// Drop trailing dangling prepositions/conjunctions/articles
+	while (sliced.length > 1 && DANGLING_TAIL_WORDS.has(sliced[sliced.length - 1].toLowerCase())) {
+		sliced.pop();
+	}
+	return sliced.join(" ");
 }
 
 function stripMarkdownDecorators(value: string): string {
@@ -76,6 +87,8 @@ function stripCodeArtifacts(value: string): string {
 		value
 			// Remove file paths like "in lib/foo-bar.ts" or standalone "src/components/X.tsx"
 			.replace(/\b(?:in\s+)?(?:[\w@.-]+\/)+[\w.-]+\b/g, "")
+			// Remove standalone filenames with code extensions (e.g. "layout.tsx", "server.js")
+			.replace(/\b[\w.-]+\.(?:tsx?|jsx?|mjs|cjs|css|html|json|ya?ml|md|sh|py|rs|go)\b/g, "")
 			// Remove words that look like code identifiers (camelCase, snake_case with 2+ segments)
 			.replace(/\b[a-z]+(?:[A-Z][a-z]+){2,}\b/g, "")
 			// Remove leftover "in" preposition when its object was stripped

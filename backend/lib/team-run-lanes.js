@@ -2,6 +2,16 @@ const MAX_TEAM_AGENT_COUNT = 4;
 const DEFAULT_CONTEXT_MAX_MESSAGES = 12;
 const DEFAULT_CONTEXT_MAX_CHARS = 8000;
 const DEFAULT_CONTEXT_MAX_ENTRY_CHARS = 1200;
+const DEFAULT_FALLBACK_LANE_NAMES = [
+	"Implementation Agent",
+	"Frontend Agent",
+	"Backend Agent",
+	"QA Agent",
+	"Integration Agent",
+	"Platform Agent",
+	"Validation Agent",
+	"Release Agent",
+];
 
 const TOKEN_STOPWORDS = new Set([
 	"a",
@@ -206,9 +216,16 @@ function buildContextualLaneNames(tasks, laneCount, usedNames = new Set()) {
 		usedNames.add(loweredCandidateName);
 	}
 
-	let fallbackIndex = 1;
+	let fallbackIndex = 0;
 	while (laneNames.length < laneCount) {
-		const fallbackName = `Agent ${fallbackIndex}`;
+		const baseName =
+			DEFAULT_FALLBACK_LANE_NAMES[
+				fallbackIndex % DEFAULT_FALLBACK_LANE_NAMES.length
+			];
+		const cycle = Math.floor(
+			fallbackIndex / DEFAULT_FALLBACK_LANE_NAMES.length
+		);
+		const fallbackName = cycle > 0 ? `${baseName} ${cycle + 1}` : baseName;
 		fallbackIndex += 1;
 		const loweredFallbackName = fallbackName.toLowerCase();
 		if (usedNames.has(loweredFallbackName)) {

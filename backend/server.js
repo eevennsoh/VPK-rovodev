@@ -98,6 +98,11 @@ const { synthesizeSound } = require("./lib/sound-generation");
 const { generateStandupSummary } = require("./lib/standup-summary");
 const { classifyTickets } = require("./lib/ticket-classifier");
 const {
+	handleGetClaimTest,
+	handlePostClaimTest,
+	handleDeleteClaimTest,
+} = require("./lib/claim-test-handler");
+const {
 	isAudioRequestPrompt,
 	resolveSmartAudioVoiceInput,
 	stripConversationalFiller,
@@ -2731,16 +2736,16 @@ app.post("/api/plan-title", async (req, res) => {
 			? `\nCurrent description: ${description.trim()}`
 			: "";
 
-		const enrichPrompt = `Rewrite this plan's title and description to be clear and non-technical.
+		const enrichPrompt = `Name the app or product this plan will build, and describe it in plain language.
 
 Current title: ${title.trim()}${descriptionContext}${taskContext}
 
 Rules:
-- Title: 3-8 words, action-oriented, no code/file references
-- Description: 1-2 sentences, explain what the plan accomplishes for the user, no code references`;
+- Title: 2-5 words, name the final app/product/feature being built (e.g. "Time Tracking Dashboard", "Sprint Board", "Team Chat App"), no code/file references, no verbs like "Create" or "Build"
+- Description: 1-2 sentences, explain what the finished product does for the user, no code references`;
 
 		const text = await generateTextViaGateway({
-			system: 'You rewrite technical plan titles and descriptions into concise, user-friendly language. Respond with JSON only: {"title":"...","description":"..."}',
+			system: 'You name apps and products based on their technical plans. Given task details, identify what is being built and give it a clear product name. Respond with JSON only: {"title":"...","description":"..."}',
 			prompt: enrichPrompt,
 			maxOutputTokens: 150,
 			temperature: 0.7,
@@ -9711,6 +9716,47 @@ app.post("/api/ticket-classify", async (req, res) => {
 		return res.status(statusCode).json({
 			error: "Failed to classify tickets",
 			details: error instanceof Error ? error.message : String(error),
+		});
+	}
+});
+
+// ─── Claim Test ──────────────────────────────────────────────────────────────
+
+app.get("/api/claim-test", async (req, res) => {
+	try {
+		const result = await handleGetClaimTest(req.query);
+		res.status(result.status).json(result.body);
+	} catch (error) {
+		console.error("Claim test GET error:", error);
+		res.status(500).json({
+			error: "Claim test GET failed",
+			details: error.message,
+		});
+	}
+});
+
+app.post("/api/claim-test", async (req, res) => {
+	try {
+		const result = await handlePostClaimTest(req.body);
+		res.status(result.status).json(result.body);
+	} catch (error) {
+		console.error("Claim test POST error:", error);
+		res.status(500).json({
+			error: "Claim test POST failed",
+			details: error.message,
+		});
+	}
+});
+
+app.delete("/api/claim-test", async (req, res) => {
+	try {
+		const result = await handleDeleteClaimTest(req.query);
+		res.status(result.status).json(result.body);
+	} catch (error) {
+		console.error("Claim test DELETE error:", error);
+		res.status(500).json({
+			error: "Claim test DELETE failed",
+			details: error.message,
 		});
 	}
 });

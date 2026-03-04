@@ -69,28 +69,10 @@ function getRunAgentCount(run: AgentRunListItem): number {
 	return Math.max(taskAgentCount, planAgentCount, 1);
 }
 
-function getRunMaintainers(run: AgentRunListItem): Array<{ name: string }> {
-	const uniqueNames = new Set<string>();
+const DEFAULT_USER = { name: "User", src: "/avatar-human/austin-lambert.png" };
 
-	for (const task of run.tasks) {
-		if (task.agentName) {
-			uniqueNames.add(task.agentName);
-		}
-	}
-
-	if (uniqueNames.size === 0 && Array.isArray(run.plan.agents)) {
-		for (const planAgent of run.plan.agents) {
-			if (typeof planAgent === "string" && planAgent.trim()) {
-				uniqueNames.add(planAgent.trim());
-			}
-		}
-	}
-
-	if (uniqueNames.size === 0) {
-		return [{ name: "Rovo" }];
-	}
-
-	return Array.from(uniqueNames).map((name) => ({ name }));
+function getRunMaintainers(_run: AgentRunListItem): Array<{ name: string; src?: string }> {
+	return [DEFAULT_USER];
 }
 
 function resolveRunTitle(run: AgentRunListItem): string {

@@ -15,3 +15,8 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **What happened:** The cancel-and-retry conflict strategy for `streamViaRovoDev()` caused destructive cascades in multiports — panels aggressively canceled each other's turns, pre-canceled sessions that weren't stale, and triggered force port recovery (SIGTERM/SIGKILL). Even after killing all ports and restarting, the demo was unusable.
 - **Why:** Cancel-and-retry is wrong for shared ports. `generateTextViaRovoDev()` already had `"wait-for-turn"` but `streamViaRovoDev()` only supported `cancelOnConflict`/`cancelAfterMs` with no patient queue option.
 - **Rule:** Use `conflictPolicy: "wait-for-turn"` for all interactive chat streaming. Skip pre-cancel in wait-for-turn mode. Let the retry loop wait with bounded backoff and a 10-minute patience budget. Show "Queued — waiting for turn" in the reasoning indicator.
+
+### 2026-03-04 - Clean up lib data/types when removing a feature
+- **What happened:** Features (time-tracking, inventory, it-assets, asset-requests) were removed from `app/` and `components/templates/` but their supporting files in `lib/` (types, seed data), `hooks/` (storage hooks), `components/blocks/`, and `components/ui-ai/` were left behind as dead code.
+- **Why:** Deletion only targeted the route and template entry points without tracing the full dependency chain downward.
+- **Rule:** When removing a feature/template, trace and remove the full dependency chain: route files → template components → block components → hooks → lib types → lib seed data → ui-ai cards. Run `pnpm tsc --noEmit` after to catch any remaining broken imports.
