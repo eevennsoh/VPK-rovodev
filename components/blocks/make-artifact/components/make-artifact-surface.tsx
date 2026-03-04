@@ -1101,6 +1101,14 @@ function countSubstringMentions(source: string, needle: string): number {
 }
 
 function routeFromAppPageFilePath(filePath: string): string | null {
+	// Generated apps: components/generated-apps/<slug>/page.tsx → /apps/<slug>
+	const generatedAppMatch = filePath.match(
+		/^components\/generated-apps\/([^/]+)\/page\.tsx$/,
+	);
+	if (generatedAppMatch) {
+		return `/apps/${generatedAppMatch[1]}`;
+	}
+
 	if (filePath === "app/page.tsx") {
 		return "/";
 	}
@@ -1135,9 +1143,9 @@ function routeFromAppPageFilePath(filePath: string): string | null {
 	return `/${routeSegments.join("/")}`;
 }
 
-function resolveAppPreviewRoute(run: AgentRun | null): string | null {
+function resolveAppPreviewRoutes(run: AgentRun | null): string[] {
 	if (!run) {
-		return null;
+		return [];
 	}
 
 	const routeCandidates = Array.from(
@@ -1148,7 +1156,7 @@ function resolveAppPreviewRoute(run: AgentRun | null): string | null {
 		),
 	);
 	if (routeCandidates.length === 0) {
-		return null;
+		return [];
 	}
 
 	const focusText = [
@@ -1199,7 +1207,40 @@ function resolveAppPreviewRoute(run: AgentRun | null): string | null {
 		return leftRoute.routePath.localeCompare(rightRoute.routePath);
 	});
 
-	return scoredRoutes[0]?.routePath ?? null;
+	return scoredRoutes.map((scoredRoute) => scoredRoute.routePath);
+}
+
+async function isRoutePreviewReachable(
+	routePath: string,
+	signal?: AbortSignal,
+): Promise<boolean> {
+	if (!routePath.startsWith("/")) {
+		return false;
+	}
+
+	const request = async (method: "HEAD" | "GET") => {
+		try {
+			return await fetch(routePath, {
+				method,
+				cache: "no-store",
+				credentials: "same-origin",
+				headers: {
+					Accept: "text/html",
+				},
+				signal,
+			});
+		} catch {
+			return null;
+		}
+	};
+
+	const headResponse = await request("HEAD");
+	if (headResponse && headResponse.status !== 405 && headResponse.status !== 501) {
+		return headResponse.ok;
+	}
+
+	const getResponse = await request("GET");
+	return Boolean(getResponse?.ok);
 }
 
 const ALLOWED_RUN_FILE_EXTENSIONS = new Set([
@@ -2091,6 +2132,7 @@ function PreviewOutputPanel({
 	isRunLoading,
 	run,
 	appPreviewRoute,
+	isResolvingPreviewRoute,
 	enableReactGrabInPreview,
 	hasDraftPlan,
 	renderableOutput,
@@ -2103,6 +2145,7 @@ function PreviewOutputPanel({
 	isRunLoading: boolean;
 	run: AgentRun | null;
 	appPreviewRoute: string | null;
+	isResolvingPreviewRoute: boolean;
 	enableReactGrabInPreview: boolean;
 	hasDraftPlan: boolean;
 	renderableOutput: RenderableOutput | null;
@@ -2176,7 +2219,7 @@ function PreviewOutputPanel({
 			);
 		}
 
-		if (run.status === "running") {
+		if (run.status === "running" || isResolvingPreviewRoute) {
 			return <GeneratingPanel />;
 		}
 
@@ -2287,6 +2330,7 @@ function TwoPanelLayout({
 	plan,
 	run,
 	appPreviewRoute,
+	isResolvingPreviewRoute,
 	enableReactGrabInPreview,
 	hasDraftPlan,
 	summaryContent,
@@ -2305,6 +2349,7 @@ function TwoPanelLayout({
 	plan: DisplayPlan | null;
 	run: AgentRun | null;
 	appPreviewRoute: string | null;
+	isResolvingPreviewRoute: boolean;
 	enableReactGrabInPreview: boolean;
 	hasDraftPlan: boolean;
 	summaryContent: string;
@@ -2396,6 +2441,7 @@ function TwoPanelLayout({
 						isRunLoading={isRunLoading}
 						run={run}
 						appPreviewRoute={appPreviewRoute}
+						isResolvingPreviewRoute={isResolvingPreviewRoute}
 						enableReactGrabInPreview={enableReactGrabInPreview}
 						hasDraftPlan={hasDraftPlan}
 							renderableOutput={renderableOutput}
@@ -2479,7 +2525,67 @@ export function MakeArtifactSurface({
 	}, [fallbackPlan, run]);
 
 	const renderableOutput = useMemo(() => resolveRenderableOutput(run), [run]);
-	const appPreviewRoute = useMemo(() => resolveAppPreviewRoute(run), [run]);
+	const appPreviewRouteCandidates = useMemo(
+		() => resolveAppPreviewRoutes(run),
+		[run],
+	);
+	const [appPreviewRoute, setAppPreviewRoute] = useState<string | null>(null);
+	const [isResolvingPreviewRoute, setIsResolvingPreviewRoute] = useState(false);
+
+	useEffect(() => {
+		let cancelled = false;
+		const abortController = new AbortController();
+
+		const MAX_RETRIES = 5;
+		const RETRY_DELAY_MS = 1500;
+
+		const delay = (ms: number) =>
+			new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+		const resolvePreviewRoute = async () => {
+			if (appPreviewRouteCandidates.length === 0) {
+				setAppPreviewRoute(null);
+				setIsResolvingPreviewRoute(false);
+				return;
+			}
+
+			setIsResolvingPreviewRoute(true);
+
+			for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+				if (cancelled) return;
+				if (attempt > 0) {
+					await delay(RETRY_DELAY_MS);
+					if (cancelled) return;
+				}
+
+				for (const routeCandidate of appPreviewRouteCandidates) {
+					const isReachable = await isRoutePreviewReachable(
+						routeCandidate,
+						abortController.signal,
+					);
+					if (cancelled) return;
+					if (isReachable) {
+						setAppPreviewRoute(routeCandidate);
+						setIsResolvingPreviewRoute(false);
+						return;
+					}
+				}
+			}
+
+			// All retries exhausted — use first candidate anyway
+			if (!cancelled) {
+				setAppPreviewRoute(appPreviewRouteCandidates[0] ?? null);
+				setIsResolvingPreviewRoute(false);
+			}
+		};
+
+		void resolvePreviewRoute();
+
+		return () => {
+			cancelled = true;
+			abortController.abort();
+		};
+	}, [appPreviewRouteCandidates, run?.updatedAt]);
 
 	const initialPreviewState = useMemo(
 		() => normalizeStateModel(renderableOutput?.spec.state),
@@ -2749,6 +2855,7 @@ export function MakeArtifactSurface({
 				plan={displayPlan}
 				run={run}
 				appPreviewRoute={appPreviewRoute}
+				isResolvingPreviewRoute={isResolvingPreviewRoute}
 				enableReactGrabInPreview={enableReactGrabInPreview}
 				hasDraftPlan={run === null && fallbackPlan !== null}
 				summaryContent={previewSummaryContent}

@@ -27,11 +27,11 @@ interface BoardProps {
 	tasks: Record<string, Task>;
 	onColumnsChange: (columnUpdates: Record<string, string[]>) => void;
 	onTaskClick?: (task: Task) => void;
-	onDeleteTask?: (taskId: string) => void;
+	onDeleteTask?: (task: Task) => void;
 	onAddToColumn?: (columnId: ColumnId) => void;
 }
 
-export function Board({ columns, tasks, onColumnsChange, onTaskClick, onDeleteTask, onAddToColumn }: BoardProps) {
+export function Board({ columns, tasks, onColumnsChange, onTaskClick, onAddToColumn }: BoardProps) {
 	const [activeTask, setActiveTask] = useState<Task | null>(null);
 	const [overColumnId, setOverColumnId] = useState<ColumnId | null>(null);
 
@@ -189,7 +189,6 @@ export function Board({ columns, tasks, onColumnsChange, onTaskClick, onDeleteTa
 						tasks={columnTasks}
 						isOver={overColumnId === column.id}
 						onTaskClick={onTaskClick}
-						onDeleteTask={onDeleteTask}
 						onAddToColumn={onAddToColumn}
 					/>
 				))}

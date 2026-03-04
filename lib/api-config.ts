@@ -102,4 +102,7 @@ export const API_ENDPOINTS = {
 		`${API_BASE_URL}/api/make/skills/${encodeURIComponent(name)}/raw`,
 	makeAgentRaw: (name: string) =>
 		`${API_BASE_URL}/api/make/agents/${encodeURIComponent(name)}/raw`,
+	APPS: `${API_BASE_URL}/api/apps`,
+	app: (slug: string) =>
+		`${API_BASE_URL}/api/apps/${encodeURIComponent(slug)}`,
 };

@@ -388,12 +388,12 @@ export default function AgentsProgress({
 			return runStatus === "completed" ? 100 : 0;
 		}
 
-		const progressedTaskCount =
-			taskStatusGroups.done.length +
-			taskStatusGroups.inReview.length +
-			taskStatusGroups.inProgress.length;
+		const weightedProgress =
+			taskStatusGroups.done.length * 1.0 +
+			taskStatusGroups.inReview.length * 0.75 +
+			taskStatusGroups.inProgress.length * 0.5;
 
-		return Math.round((progressedTaskCount / totalTaskCount) * 100);
+		return Math.round((weightedProgress / totalTaskCount) * 100);
 	}, [runStatus, taskStatusGroups]);
 	const handleCardActivate = () => {
 		if (isCollapsible) {

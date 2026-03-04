@@ -716,6 +716,20 @@ function createTaskPrompt(run, task, dependencyOutputs, directivesForAgent, skil
 			? directivesForAgent.map((directive) => `- ${directive.message}`).join("\n")
 			: "- None";
 
+	// File placement instructions for generated apps
+	const appSlug = run.appSlug;
+	const filePlacementSection = appSlug
+		? [
+			"",
+			"## File placement rules",
+			`All source files you create for this app MUST be placed under components/generated-apps/${appSlug}/.`,
+			`The entry component must be at components/generated-apps/${appSlug}/page.tsx.`,
+			"Do NOT create files inside app/. The routing is handled automatically.",
+			"You may import shared code from @/components/ui/, @/lib/, etc.",
+			"",
+		].join("\n")
+		: null;
+
 	return [
 		`You are ${task.agentName}, an expert contributor in a multi-agent plan.`,
 		`Plan: ${run.plan.title}`,
@@ -726,6 +740,7 @@ function createTaskPrompt(run, task, dependencyOutputs, directivesForAgent, skil
 		skillSection ? "## Equipped Skills\n" : null,
 		skillSection,
 		skillSection ? "" : null,
+		filePlacementSection,
 		"Dependency outputs:",
 		dependencySection,
 		"",
@@ -818,6 +833,7 @@ function createRunManager(options) {
 		baseDir,
 		buildSystemPrompt,
 		configManager,
+		appRegistry = null,
 		logger = console,
 		isRovoDevAvailable = async () => false,
 	} = options;
@@ -1856,6 +1872,23 @@ function createRunManager(options) {
 		}
 
 		const runId = createId("run");
+
+		// Derive a slug and register in the app registry
+		let appSlug = null;
+		if (appRegistry && normalizedPlan.title) {
+			try {
+				appSlug = await appRegistry.deriveSlug(normalizedPlan.title);
+				await appRegistry.registerApp({
+					slug: appSlug,
+					runId,
+					title: normalizedPlan.title,
+				});
+			} catch (registryError) {
+				logger.warn(`[app-registry] Failed to register app for run ${runId}: ${registryError.message}`);
+				appSlug = null;
+			}
+		}
+
 		const run = createInitialRun({
 			runId,
 			plan: normalizedPlan,
@@ -1864,6 +1897,7 @@ function createRunManager(options) {
 			customInstruction: getNonEmptyString(customInstruction) || undefined,
 			agentCount: normalizeAgentCount(agentCount),
 		});
+		run.appSlug = appSlug;
 		runsById.set(runId, run);
 		await persistIntermediateSnapshot(run);
 		emitRunStateEvent(run, "run.started", {});
@@ -2169,6 +2203,15 @@ function createRunManager(options) {
 	};
 
 	const deleteRun = async (runId) => {
+		// Unregister generated app from the registry
+		if (appRegistry) {
+			try {
+				await appRegistry.unregisterByRunId(runId);
+			} catch (registryError) {
+				logger.warn(`[app-registry] Failed to unregister app for run ${runId}: ${registryError.message}`);
+			}
+		}
+
 		// Clean up source files created during this run
 		const activeRun = runsById.get(runId);
 		const paths = buildRunPaths(runRootsDir, runId);

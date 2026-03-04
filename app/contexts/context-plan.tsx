@@ -446,8 +446,8 @@ export function PlanProvider({ children }: PlanProviderProps) {
 				if (!cancelled && Array.isArray(payload.runs)) {
 					setRunHistory(payload.runs);
 				}
-			} catch (error) {
-				console.error("[PLAN] Failed to load sidebar run history:", error);
+			} catch {
+				// Network errors are expected during dev when the backend restarts.
 			}
 		};
 

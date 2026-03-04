@@ -65,7 +65,7 @@ import { useConfigDialogs } from "@/components/templates/make/hooks/use-config-d
 // State
 // ---------------------------------------------------------------------------
 
-export type MakeTab = "home" | "make" | "chat" | "search";
+export type MakeTab = "chat" | "make";
 
 export interface MakeState {
 	// Sidebar
@@ -319,7 +319,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		if (typeof window === "undefined") return;
 		const params = new URLSearchParams(window.location.search);
 		const tabParam = params.get("tab");
-		if (tabParam && ["home", "chat", "make", "search"].includes(tabParam)) {
+		if (tabParam && ["chat", "make"].includes(tabParam)) {
 			setActiveTab(tabParam as MakeTab);
 		}
 		hasRestoredTabRef.current = true;
@@ -637,8 +637,8 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			if (Array.isArray(payload.runs)) {
 				setRunHistory(payload.runs);
 			}
-		} catch (error) {
-			console.error("[PLAN] Failed to load sidebar run history:", error);
+		} catch {
+			// Network errors are expected during dev when the backend restarts.
 		} finally {
 			setHasLoadedRunHistory(true);
 		}

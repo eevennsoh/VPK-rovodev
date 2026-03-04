@@ -13,7 +13,7 @@ interface ColumnProps {
 	tasks: Task[];
 	isOver?: boolean;
 	onTaskClick?: (task: Task) => void;
-	onDeleteTask?: (taskId: string) => void;
+	onDeleteTask?: (task: Task) => void;
 	onAddToColumn?: (columnId: ColumnId) => void;
 }
 
@@ -76,7 +76,7 @@ export function Column({ column, tasks, isOver, onTaskClick, onDeleteTask, onAdd
 								key={task.id}
 								task={task}
 								onTaskClick={onTaskClick}
-								onDeleteTask={onDeleteTask}
+								onDeleteClick={onDeleteTask}
 							/>
 						))
 					) : (

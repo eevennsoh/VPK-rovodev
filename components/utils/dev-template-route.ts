@@ -2,10 +2,10 @@
 
 const PREVIEW_TEMPLATES_PREFIX = "/preview/templates/";
 const EXCLUDED_APP_ROOT_SEGMENTS = new Set([
+	"apps",
 	"confluence",
 	"fullscreen-chat",
 	"jira",
-	"make",
 	"plan",
 	"search",
 	"sidebar-chat",

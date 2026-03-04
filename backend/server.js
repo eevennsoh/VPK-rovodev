@@ -19,6 +19,7 @@ const { createRunManager: createMakeRunManager } = require("./make/make-runs");
 const { createThreadManager } = require("./lib/chat");
 const planFs = require("./lib/plan-filesystem");
 const makeFs = require("./make/make-filesystem");
+const { createAppRegistry } = require("./make/make-app-registry");
 const { genuiChatHandler, generateGenuiFromRovodevResponse } = require("./lib/genui-chat-handler");
 const {
 	streamViaRovoDev,
@@ -1204,9 +1205,15 @@ const makeRunManager = createMakeRunManager({
 	baseDir: path.join(__dirname, "data", "make"),
 	buildSystemPrompt: null, // Not used in RovoDev-only mode
 	configManager: makeConfigManager,
+	appRegistry,
 	logger: console,
 	isRovoDevAvailable,
 	isAIGatewayFallbackEnabled: () => false,
+});
+
+const appRegistry = createAppRegistry({
+	baseDir: path.join(__dirname, "data", "make"),
+	logger: console,
 });
 
 const orchestratorLog = createOrchestratorLog({
@@ -9688,6 +9695,64 @@ app.get("/api/make/agents/:name/raw", (req, res) => {
 });
 
 // --- Config summary (for make context injection) ---
+
+// ─── Generated Apps Registry ────────────────────────────────────────────────
+
+app.get("/api/apps", async (_req, res) => {
+	try {
+		const apps = await appRegistry.listApps();
+		return res.status(200).json({ apps });
+	} catch (error) {
+		console.error("[APP-REGISTRY] Failed to list apps:", error);
+		return res.status(500).json({ error: "Failed to list apps" });
+	}
+});
+
+app.get("/api/apps/:slug", async (req, res) => {
+	try {
+		const slug = req.params.slug;
+		const app = await appRegistry.getApp(slug);
+		if (!app) {
+			return res.status(404).json({ error: "App not found" });
+		}
+		return res.status(200).json({ app });
+	} catch (error) {
+		console.error("[APP-REGISTRY] Failed to get app:", error);
+		return res.status(500).json({ error: "Failed to get app" });
+	}
+});
+
+app.delete("/api/apps/:slug", async (req, res) => {
+	try {
+		const slug = req.params.slug;
+		const app = await appRegistry.getApp(slug);
+		if (!app) {
+			return res.status(404).json({ error: "App not found" });
+		}
+
+		// Delete the generated app files
+		const appDir = `components/generated-apps/${slug}`;
+		const fsPromises = require("node:fs/promises");
+		const appDirPath = path.resolve(__dirname, "..", appDir);
+		try {
+			await fsPromises.rm(appDirPath, { recursive: true, force: true });
+			console.log(`[APP-REGISTRY] Deleted app directory: ${appDir}`);
+		} catch (dirError) {
+			if (dirError.code !== "ENOENT") {
+				console.warn(`[APP-REGISTRY] Failed to delete app directory: ${dirError.message}`);
+			}
+		}
+
+		// Remove from registry
+		await appRegistry.unregisterApp(slug);
+		return res.status(200).json({ deleted: true });
+	} catch (error) {
+		console.error("[APP-REGISTRY] Failed to delete app:", error);
+		return res.status(500).json({ error: "Failed to delete app" });
+	}
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.get("/api/make/config-summary", (req, res) => {
 	try {

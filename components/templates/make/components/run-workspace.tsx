@@ -370,8 +370,8 @@ export function RunWorkspace({
 				if (!cancelled && Array.isArray(payload.runs)) {
 					setRunHistory(payload.runs);
 				}
-			} catch (error) {
-				console.error("[MAKE] Failed to load sidebar run history:", error);
+			} catch {
+				// Network errors are expected during dev when the backend restarts.
 			}
 		};
 
@@ -641,10 +641,8 @@ export function RunWorkspace({
 						isTitlePending={false}
 						leftSlot={(
 							<TabsList className="mr-3 w-fit shrink-0">
-								<TabsTrigger value="home">Home</TabsTrigger>
 								<TabsTrigger value="chat">Chat</TabsTrigger>
 								<TabsTrigger value="make">Make</TabsTrigger>
-								<TabsTrigger value="search">Search</TabsTrigger>
 							</TabsList>
 						)}
 						sidebarOpen={isOpen}

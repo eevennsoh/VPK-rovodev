@@ -23,7 +23,6 @@ import { AppSidebar } from "./components/app-sidebar";
 import { MakeFullscreenChat } from "./components/make-fullscreen-chat";
 import ChatTitleRow from "./components/chat-title-row";
 import { ConfigDialogs } from "./components/config-dialogs";
-import { MakeSearchPlaceholder } from "./components/make-search-placeholder";
 import { AnimatedCodeAscii } from "./components/animated-code-ascii";
 import type { MakeItem } from "@/components/blocks/make-item/lib/types";
 import { mapRunsToMakeGalleryItems } from "@/components/templates/make/lib/make-artifact-items";
@@ -209,10 +208,8 @@ function MakeLayout() {
 						isTitlePending={false}
 						leftSlot={(
 							<TabsList className="mr-3 w-fit shrink-0">
-								<TabsTrigger value="home">Home</TabsTrigger>
 								<TabsTrigger value="chat">Chat</TabsTrigger>
 								<TabsTrigger value="make">Make</TabsTrigger>
-								<TabsTrigger value="search">Search</TabsTrigger>
 							</TabsList>
 						)}
 						sidebarOpen={sidebarOpen}
@@ -221,37 +218,29 @@ function MakeLayout() {
 						onHoverEnter={handleHoverEnter}
 						onHoverLeave={handleHoverLeave}
 					/>
-					<TabsContent value="home" className="min-h-0 flex-1 overflow-hidden">
-						<div className="flex h-full flex-col items-center justify-center gap-3 text-text-subtlest">
-							<p className="text-sm">Home</p>
-						</div>
+					<TabsContent value="chat" className="min-h-0 flex-1 overflow-hidden">
+						<MakeFullscreenChat />
 					</TabsContent>
-						<TabsContent value="chat" className="min-h-0 flex-1 overflow-hidden">
-							<MakeFullscreenChat />
-						</TabsContent>
-						<TabsContent value="make" className="min-h-0 flex-1 overflow-hidden">
-							{isExecutionActive && shouldShowExecutionGrid ? (
-								<MakeGridSurface
-									taskExecutions={taskExecutions}
-									onAddTask={handleAddTask}
-								/>
-							) : isExecutionActive ? (
-								<MakeArtifactSurface run={run} />
-							) : makeGalleryItems.length > 0 ? (
-								<MakeGalleryContent items={makeGalleryItems} onItemSelect={handleGalleryItemSelect} />
-							) : !hasLoadedRunHistory ? (
-								<div className="h-full" aria-hidden />
-							) : (
-								<MakeTabEmptyState
-									onStartMaking={() => {
-										setActiveTab("chat");
-										activateMakeMode();
-									}}
-								/>
-							)}
-						</TabsContent>
-					<TabsContent value="search" className="min-h-0 flex-1 overflow-hidden">
-						<MakeSearchPlaceholder />
+					<TabsContent value="make" className="min-h-0 flex-1 overflow-hidden">
+						{isExecutionActive && shouldShowExecutionGrid ? (
+							<MakeGridSurface
+								taskExecutions={taskExecutions}
+								onAddTask={handleAddTask}
+							/>
+						) : isExecutionActive ? (
+							<MakeArtifactSurface run={run} />
+						) : makeGalleryItems.length > 0 ? (
+							<MakeGalleryContent items={makeGalleryItems} onItemSelect={handleGalleryItemSelect} />
+						) : !hasLoadedRunHistory ? (
+							<div className="h-full" aria-hidden />
+						) : (
+							<MakeTabEmptyState
+								onStartMaking={() => {
+									setActiveTab("chat");
+									activateMakeMode();
+								}}
+							/>
+						)}
 					</TabsContent>
 				</Tabs>
 			</SidebarInset>

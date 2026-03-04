@@ -40,7 +40,14 @@ interface EditTaskDialogProps {
 	assignees: Assignee[];
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onSave: (taskId: string, updates: Partial<Pick<Task, "title" | "description" | "priority" | "storyPoints" | "labels"> & { assigneeId: string }>) => void;
+	onSave: (
+		taskId: string,
+		updates: Partial<
+			Pick<Task, "title" | "description" | "priority" | "storyPoints" | "labels">
+		> & {
+			assigneeId: string;
+		},
+	) => void;
 }
 
 export function EditTaskDialog({
