@@ -228,6 +228,12 @@ export default function MakeGridPage() {
 					</div>
 					<SummaryTitleRow
 						title="Flexible Friday Plan"
+						showActions={false}
+						sidebarOpen={isOpen}
+						sidebarHovered={isHovered}
+						onExpandSidebar={handlePinSidebar}
+						onHoverEnter={handleHoverEnter}
+						onHoverLeave={handleHoverLeave}
 					/>
 					<div className="min-h-0 min-w-0 flex-1">
 						<MakeGridSurface taskExecutions={executions} />

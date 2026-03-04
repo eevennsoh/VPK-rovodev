@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/utils/theme-wrapper";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -29,7 +28,6 @@ import { MakeArtifactSurface } from "@/components/blocks/make-artifact/component
 import SummaryTitleRow from "@/components/blocks/make-artifact/components/summary-title-row";
 import { MakeGridSurface } from "@/components/blocks/make-grid/components/make-grid-surface";
 import { AppSidebar } from "@/components/templates/make/components/app-sidebar";
-import ChatTitleRow from "@/components/templates/make/components/chat-title-row";
 import type { ChatHistoryItem } from "@/components/templates/make/components/sidebar-chat-history";
 import {
 	resolvePlanDisplayTitle,
@@ -562,15 +560,6 @@ export function RunWorkspace({
 			.sort(sortRunsByRecency);
 	}, [run, runHistory]);
 
-	const handleTabChange = useCallback(
-		(value: string) => {
-			if (value !== "make") {
-				router.push("/make");
-			}
-		},
-		[router]
-	);
-
 	return (
 		<SidebarProvider
 			open={isOpen || isHovered}
@@ -612,56 +601,42 @@ export function RunWorkspace({
 				onNewProject={() => router.push(createMakeEntryHref("fresh-make"))}
 			/>
 			<SidebarInset className="h-svh overflow-hidden">
-				<div className="pointer-events-none absolute top-0 right-0 z-20 flex h-14 items-center gap-0.5 pr-4 text-icon-subtle">
-					<div className="pointer-events-auto">
-						<ThemeToggle />
-					</div>
-					<Button
-						aria-label="Notifications"
-						size="icon"
-						variant="ghost"
-						className="pointer-events-auto"
-					>
-						<NotificationIcon label="" />
-					</Button>
-					<div className="pointer-events-auto flex size-8 items-center justify-center">
-						<Avatar size="sm" className="cursor-pointer">
-							<AvatarImage src="/avatar-human/austin-lambert.png" alt="User avatar" />
-							<AvatarFallback>U</AvatarFallback>
-						</Avatar>
-					</div>
-				</div>
-				<Tabs
-					value="make"
-					onValueChange={handleTabChange}
-					className="flex h-full min-h-0 flex-col gap-0"
-				>
-					<ChatTitleRow
-						title={null}
-						isTitlePending={false}
-						leftSlot={(
-							<TabsList className="mr-3 w-fit shrink-0">
-								<TabsTrigger value="chat">Chat</TabsTrigger>
-								<TabsTrigger value="make">Make</TabsTrigger>
-							</TabsList>
-						)}
+				<div className="flex h-full min-h-0 flex-col gap-0">
+					<SummaryTitleRow
+						title={summaryTitle}
+						onBack={handleNavigateToMake}
+						showActions={!shouldShowExecutionGrid}
 						sidebarOpen={isOpen}
 						sidebarHovered={isHovered}
-						onExpandSidebar={() => setIsOpen(true)}
+						onExpandSidebar={handlePinSidebar}
 						onHoverEnter={handleHoverEnter}
 						onHoverLeave={handleHoverLeave}
+						rightSlot={(
+							<div className="flex items-center gap-0.5 text-icon-subtle">
+								<ThemeToggle />
+								<Button
+									aria-label="Notifications"
+									size="icon"
+									variant="ghost"
+								>
+									<NotificationIcon label="" />
+								</Button>
+								<div className="flex size-8 items-center justify-center">
+									<Avatar size="sm" className="cursor-pointer">
+										<AvatarImage src="/avatar-human/austin-lambert.png" alt="User avatar" />
+										<AvatarFallback>U</AvatarFallback>
+									</Avatar>
+								</div>
+							</div>
+						)}
 					/>
-					<TabsContent value="make" className="min-h-0 flex-1 overflow-hidden">
+					<div className="min-h-0 flex-1 overflow-hidden">
 						<div className="flex h-full min-h-0 flex-col">
 							{appendError ? (
 								<p className="mx-4 mt-4 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm text-text-danger md:mx-6">
 									{appendError}
 								</p>
 							) : null}
-							<SummaryTitleRow
-								title={summaryTitle}
-								onBack={handleNavigateToMake}
-							/>
 							<div className={cn("min-h-0 flex-1 overflow-hidden", appendError ? "mt-4" : null)}>
 								{shouldShowExecutionGrid ? (
 									<MakeGridSurface
@@ -674,8 +649,8 @@ export function RunWorkspace({
 								)}
 							</div>
 						</div>
-					</TabsContent>
-				</Tabs>
+					</div>
+				</div>
 			</SidebarInset>
 			<ConfigDialogs
 				skillDialog={skillDialogProps}

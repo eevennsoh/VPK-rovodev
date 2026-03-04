@@ -140,6 +140,7 @@ function MakeLayout() {
 					<ChatTitleRow
 						title={null}
 						isTitlePending={false}
+						showDivider={false}
 						sidebarOpen={sidebarOpen}
 						sidebarHovered={sidebarHovered}
 						onExpandSidebar={() => setSidebarOpen(true)}

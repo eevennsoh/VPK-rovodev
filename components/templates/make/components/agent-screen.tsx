@@ -8,7 +8,7 @@ import {
 	ConversationContent,
 	ConversationScrollButton,
 } from "@/components/ui-ai/conversation";
-import { Message, MessageContent, MessageResponse } from "@/components/ui-ai/message";
+import { Message, MessageContent } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import { REASONING_LABELS } from "@/components/templates/shared/lib/reasoning-labels";
 import type { TaskExecution } from "../lib/execution-data";
@@ -64,7 +64,12 @@ export const AgentScreen = memo(function AgentScreen({
 				className
 			)}
 		>
-			<div className="flex items-center px-3 py-2" role="banner">
+			<div className="relative z-10 flex items-center px-3 py-2" role="banner">
+				{/* Progressive blur — fades content scrolling underneath */}
+				<div className="pointer-events-none absolute inset-x-0 -bottom-6 h-6" aria-hidden>
+					<div className="absolute inset-0 backdrop-blur-[2px] [mask-image:linear-gradient(to_bottom,black_20%,transparent)]" />
+					<div className="absolute inset-0 bg-gradient-to-b from-surface to-transparent" />
+				</div>
 				<div className="flex min-w-0 items-center">
 					<div className="flex min-w-0 flex-col items-start">
 						<h3
@@ -103,7 +108,9 @@ export const AgentScreen = memo(function AgentScreen({
 						conversation.map((msg) => (
 							<Message key={msg.id} from="assistant" className="max-w-full">
 								<MessageContent>
-									<MessageResponse isAnimating={isWorking}>{msg.content}</MessageResponse>
+									<div className="whitespace-pre-wrap break-words text-sm leading-6 text-text">
+										{msg.content}
+									</div>
 								</MessageContent>
 							</Message>
 						))

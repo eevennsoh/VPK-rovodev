@@ -13,6 +13,7 @@ interface ChatTitleRowProps {
 	isTitlePending: boolean;
 	leftSlot?: ReactNode;
 	centerSlot?: ReactNode;
+	showDivider?: boolean;
 	sidebarOpen: boolean;
 	sidebarHovered: boolean;
 	onExpandSidebar: () => void;
@@ -25,6 +26,7 @@ export default function ChatTitleRow({
 	isTitlePending,
 	leftSlot,
 	centerSlot,
+	showDivider = true,
 	sidebarOpen,
 	sidebarHovered,
 	onExpandSidebar,
@@ -34,7 +36,12 @@ export default function ChatTitleRow({
 	const displayTitle = title ?? "New chat";
 
 	return (
-		<div className="grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center px-4">
+		<div className="relative z-10 grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center px-4">
+			{/* Progressive blur — fades content scrolling underneath */}
+			<div className="pointer-events-none absolute inset-x-0 -bottom-6 h-6" aria-hidden>
+				<div className="absolute inset-0 backdrop-blur-[2px] [mask-image:linear-gradient(to_bottom,black_20%,transparent)]" />
+				<div className="absolute inset-0 bg-gradient-to-b from-surface to-transparent" />
+			</div>
 			<div className="flex min-w-0 items-center">
 				<div
 					className={cn(
@@ -61,7 +68,7 @@ export default function ChatTitleRow({
 							Rovo
 						</span>
 					</div>
-					<div className="mx-1 h-5 w-px shrink-0 bg-border" />
+					{showDivider ? <div className="mx-1 h-5 w-px shrink-0 bg-border" /> : null}
 				</div>
 				{leftSlot}
 				{title !== null ? (

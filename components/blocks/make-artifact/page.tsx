@@ -796,6 +796,11 @@ export default function MakeArtifactBlock() {
 					<TopNavBar />
 					<SummaryTitleRow
 						title={summaryTitle}
+						sidebarOpen={isOpen}
+						sidebarHovered={isHovered}
+						onExpandSidebar={handlePinSidebar}
+						onHoverEnter={handleHoverEnter}
+						onHoverLeave={handleHoverLeave}
 					/>
 					<main className="flex min-h-0 flex-1 flex-col gap-4 bg-surface p-4">
 						<ContentTabBar
