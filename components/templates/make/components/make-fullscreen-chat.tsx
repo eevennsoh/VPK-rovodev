@@ -336,6 +336,13 @@ export function MakeFullscreenChat() {
 		[measurePreviewPromptHeight, previewPrompt, setPrompt]
 	);
 
+	const handleMakeToggle = useCallback(() => {
+		if (isMakeToggleActive) {
+			setGalleryExpanded(false);
+		}
+		toggleMakeMode();
+	}, [isMakeToggleActive, toggleMakeMode]);
+
 	const handleTextareaReady = useCallback(
 		(textareaElement: HTMLTextAreaElement | null) => {
 			textareaElementRef.current = textareaElement;
@@ -465,7 +472,7 @@ export function MakeFullscreenChat() {
 			onStop: stopStreaming,
 			onRemoveQueuedPrompt: removeQueuedPrompt,
 			isMakeActive: isMakeToggleActive,
-			onMakeToggle: toggleMakeMode,
+			onMakeToggle: handleMakeToggle,
 		}),
 		[
 			chatTabPrompt,
@@ -478,7 +485,7 @@ export function MakeFullscreenChat() {
 			stopStreaming,
 			removeQueuedPrompt,
 			isMakeToggleActive,
-			toggleMakeMode,
+			handleMakeToggle,
 		],
 	);
 
@@ -491,89 +498,89 @@ export function MakeFullscreenChat() {
 			<>
 				<div
 					className={cn(
-						"flex h-full min-h-0 flex-1 flex-col items-center overflow-y-auto px-4",
+						"flex h-full min-h-0 flex-1 flex-col overflow-y-auto px-4",
 						galleryExpanded && "pt-16",
 					)}
 				>
 					<div className={cn(
-						"flex w-full flex-col items-center gap-2",
-						!galleryExpanded && "my-auto",
+						"flex w-full flex-1 flex-col items-center gap-2",
+						!galleryExpanded && "justify-center",
 					)}>
-						<AnimatePresence mode="wait">
-							<motion.div
-								key={isMakeToggleActive ? "make" : "chat"}
-								className="flex flex-col items-center gap-6 px-4 py-6"
-								initial={MODE_INITIAL_DOWN}
-								animate={MODE_ENTER}
-								exit={MODE_EXIT_UP}
-								transition={MODE_TRANSITION}
-								style={{ willChange: "opacity, transform" }}
-							>
-								<Image
-									src={illustrationSrc}
-									alt={modeCopy.illustrationAlt}
-									width={80}
-									height={80}
-								/>
-
-								<h2
-									style={{ font: token("font.heading.xxlarge") }}
-									className="text-text text-center"
-								>
-									{modeCopy.heading}
-								</h2>
-							</motion.div>
-						</AnimatePresence>
-
-						<div
-							ref={composerContainerRef}
-							className="w-full max-w-[800px] px-1"
-						>
-							<MakeComposer
-								{...composerProps}
-								onPromptChange={handlePromptChange}
-								customHeight={customComposerHeight}
-								isPreviewPlaceholderActive={isPreviewPlaceholderActive}
-								onTextareaReady={handleTextareaReady}
-							/>
-						</div>
-
-						<div className="mt-4 w-full max-w-[800px] px-1">
 							<AnimatePresence mode="wait">
-								{isMakeToggleActive ? (
-									<motion.div
-										key="discovery"
-										initial={MODE_INITIAL_DOWN}
-										animate={MODE_ENTER}
-										exit={MODE_EXIT_UP}
-										transition={MODE_TRANSITION}
-										style={{ willChange: "opacity, transform" }}
+								<motion.div
+									key={isMakeToggleActive ? "make" : "chat"}
+									className="flex flex-col items-center gap-6 px-4 py-6"
+									initial={MODE_INITIAL_DOWN}
+									animate={MODE_ENTER}
+									exit={MODE_EXIT_UP}
+									transition={MODE_TRANSITION}
+									style={{ willChange: "opacity, transform" }}
+								>
+									<Image
+										src={illustrationSrc}
+										alt={modeCopy.illustrationAlt}
+										width={80}
+										height={80}
+									/>
+
+									<h2
+										style={{ font: token("font.heading.xxlarge") }}
+										className="text-text text-center"
 									>
-										<DiscoveryGallery
-											onSelect={handlePromptGallerySelect}
-											onPreviewStart={handlePreviewStart}
-											onPreviewEnd={handlePreviewEnd}
-										/>
-									</motion.div>
-								) : (
-									<motion.div
-										key="prompt"
-										initial={MODE_INITIAL_DOWN}
-										animate={MODE_ENTER}
-										exit={MODE_EXIT_UP}
-										transition={MODE_TRANSITION}
-										style={{ willChange: "opacity, transform" }}
-									>
-										<PromptGallery
-											onSelect={handlePromptGallerySelect}
-											onPreviewStart={handlePreviewStart}
-											onPreviewEnd={handlePreviewEnd}
-											onExpandChange={setGalleryExpanded}
-										/>
-									</motion.div>
-								)}
+										{modeCopy.heading}
+									</h2>
+								</motion.div>
 							</AnimatePresence>
-						</div>
+
+							<div
+								ref={composerContainerRef}
+								className="w-full max-w-[800px] px-1"
+							>
+								<MakeComposer
+									{...composerProps}
+									onPromptChange={handlePromptChange}
+									customHeight={customComposerHeight}
+									isPreviewPlaceholderActive={isPreviewPlaceholderActive}
+									onTextareaReady={handleTextareaReady}
+								/>
+							</div>
+
+							<div className="mt-4 w-full max-w-[800px] px-1">
+								<AnimatePresence mode="wait">
+									{isMakeToggleActive ? (
+										<motion.div
+											key="discovery"
+											initial={MODE_INITIAL_DOWN}
+											animate={MODE_ENTER}
+											exit={MODE_EXIT_UP}
+											transition={MODE_TRANSITION}
+											style={{ willChange: "opacity, transform" }}
+										>
+											<DiscoveryGallery
+												onSelect={handlePromptGallerySelect}
+												onPreviewStart={handlePreviewStart}
+												onPreviewEnd={handlePreviewEnd}
+											/>
+										</motion.div>
+									) : (
+										<motion.div
+											key="prompt"
+											initial={MODE_INITIAL_DOWN}
+											animate={MODE_ENTER}
+											exit={MODE_EXIT_UP}
+											transition={MODE_TRANSITION}
+											style={{ willChange: "opacity, transform" }}
+										>
+											<PromptGallery
+												onSelect={handlePromptGallerySelect}
+												onPreviewStart={handlePreviewStart}
+												onPreviewEnd={handlePreviewEnd}
+												onExpandChange={setGalleryExpanded}
+											/>
+										</motion.div>
+									)}
+								</AnimatePresence>
+							</div>
 					</div>
 
 					<Footer className="mt-6" />
