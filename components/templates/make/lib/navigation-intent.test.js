@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
 	parseMakeNavigationIntent,
+	parseMakeNavigationPrompt,
 	createMakeEntryHref,
 	clearMakeNavigationIntentParams,
 } = require("./navigation-intent.ts");
@@ -26,23 +27,40 @@ test("parseMakeNavigationIntent returns null for missing or unknown values", () 
 	);
 });
 
-test("createMakeEntryHref creates tab+intent URLs", () => {
-	assert.equal(createMakeEntryHref("fresh-chat"), "/make?tab=chat&intent=fresh-chat");
-	assert.equal(createMakeEntryHref("fresh-make"), "/make?tab=chat&intent=fresh-make");
+test("createMakeEntryHref creates intent URLs", () => {
+	assert.equal(createMakeEntryHref("fresh-chat"), "/make?intent=fresh-chat");
+	assert.equal(createMakeEntryHref("fresh-make"), "/make?intent=fresh-make");
 });
 
-test("clearMakeNavigationIntentParams removes only intent/thread", () => {
+test("createMakeEntryHref includes prompt when provided", () => {
+	assert.equal(
+		createMakeEntryHref("fresh-make", "Build a todo app"),
+		"/make?intent=fresh-make&prompt=Build+a+todo+app"
+	);
+});
+
+test("parseMakeNavigationPrompt extracts prompt", () => {
+	assert.equal(
+		parseMakeNavigationPrompt(new URLSearchParams("prompt=Build+a+todo+app")),
+		"Build a todo app"
+	);
+	assert.equal(parseMakeNavigationPrompt(new URLSearchParams("")), null);
+	assert.equal(parseMakeNavigationPrompt(new URLSearchParams("prompt=")), null);
+});
+
+test("clearMakeNavigationIntentParams removes intent, prompt, and thread", () => {
 	const params = new URLSearchParams(
-		"tab=chat&intent=fresh-chat&thread=abc123&foo=bar"
+		"intent=fresh-chat&prompt=hello&thread=abc123&foo=bar"
 	);
 	const cleanedParams = clearMakeNavigationIntentParams(params);
 
-	assert.equal(cleanedParams.get("tab"), "chat");
 	assert.equal(cleanedParams.get("foo"), "bar");
 	assert.equal(cleanedParams.has("intent"), false);
+	assert.equal(cleanedParams.has("prompt"), false);
 	assert.equal(cleanedParams.has("thread"), false);
 
 	// Original params remain unchanged.
 	assert.equal(params.get("intent"), "fresh-chat");
+	assert.equal(params.get("prompt"), "hello");
 	assert.equal(params.get("thread"), "abc123");
 });

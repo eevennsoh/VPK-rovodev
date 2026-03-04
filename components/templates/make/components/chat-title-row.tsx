@@ -34,7 +34,7 @@ export default function ChatTitleRow({
 	const displayTitle = title ?? "New chat";
 
 	return (
-		<div className="grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b border-border px-4">
+		<div className="grid h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center px-4">
 			<div className="flex min-w-0 items-center">
 				<div
 					className={cn(

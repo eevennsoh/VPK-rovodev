@@ -101,7 +101,7 @@ export default function MakeGallery() {
 					</h2>
 				</div>
 
-				<div ref={composerContainerRef} className="w-full max-w-[800px] px-1">
+				<div ref={composerContainerRef} className="w-full max-w-[800px]">
 					<div className="relative z-10 rounded-xl border border-border bg-surface px-4 pb-4 pt-4" style={{ boxShadow: composerUpwardShadow }}>
 						<PromptInput allowOverflow onSubmit={handleSubmit} className={`${composerPromptInputClassName} relative z-10`}>
 							<PromptInputBody>
@@ -181,7 +181,7 @@ export default function MakeGallery() {
 					<style>{textareaCSS}</style>
 				</div>
 
-				<div className="mt-8 md:mt-12 w-full max-w-[800px] px-1">
+				<div className="mt-8 md:mt-12 w-full max-w-[800px]">
 					<DiscoveryGallery
 						onSelect={handlePromptGallerySelect}
 						onPreviewStart={setPreviewPrompt}

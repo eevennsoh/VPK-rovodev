@@ -53,6 +53,7 @@ import {
 } from "@/components/templates/make/lib/message-utils";
 import {
 	parseMakeNavigationIntent,
+	parseMakeNavigationPrompt,
 	clearMakeNavigationIntentParams,
 } from "@/components/templates/make/lib/navigation-intent";
 import { useMakeChat } from "@/components/templates/make/hooks/use-make-chat";
@@ -65,15 +66,10 @@ import { useConfigDialogs } from "@/components/templates/make/hooks/use-config-d
 // State
 // ---------------------------------------------------------------------------
 
-export type MakeTab = "chat" | "make";
-
 export interface MakeState {
 	// Sidebar
 	sidebarOpen: boolean;
 	sidebarHovered: boolean;
-
-	// Navigation
-	activeTab: MakeTab;
 
 	// Chat
 	prompt: string;
@@ -139,9 +135,6 @@ export interface MakeActions {
 	handleHoverEnter: () => void;
 	handleHoverLeave: () => void;
 	handlePinSidebar: () => void;
-
-	// Navigation
-	setActiveTab: (tab: MakeTab) => void;
 
 	// Chat
 	setPrompt: (value: string) => void;
@@ -289,6 +282,25 @@ interface MakeProviderProps {
 
 export function MakeProvider({ children }: MakeProviderProps) {
 	const router = useRouter();
+	const initialMakeEntryStateRef = useRef<{
+		intent: ReturnType<typeof parseMakeNavigationIntent>;
+		prompt: string | null;
+	} | null>(null);
+	if (initialMakeEntryStateRef.current === null) {
+		if (typeof window === "undefined") {
+			initialMakeEntryStateRef.current = {
+				intent: null,
+				prompt: null,
+			};
+		} else {
+			const initialSearchParams = new URLSearchParams(window.location.search);
+			initialMakeEntryStateRef.current = {
+				intent: parseMakeNavigationIntent(initialSearchParams),
+				prompt: parseMakeNavigationPrompt(initialSearchParams),
+			};
+		}
+	}
+	const initialMakeEntryState = initialMakeEntryStateRef.current;
 
 	// ---- Local sidebar state ----
 	const [isOpen, setIsOpen] = useState(true);
@@ -296,34 +308,8 @@ export function MakeProvider({ children }: MakeProviderProps) {
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	// ---- Navigation tab ----
-	const [activeTab, setActiveTab] = useState<MakeTab>("chat");
 	const [agentCount, setAgentCount] = useState(4);
 	const [enrichedPlanTitle, setEnrichedPlanTitle] = useState<{ title: string; description: string } | null>(null);
-	const hasRestoredTabRef = useRef(false);
-
-	// Sync activeTab to URL ?tab= param
-	useEffect(() => {
-		if (!hasRestoredTabRef.current) return;
-		if (typeof window === "undefined") return;
-		const url = new URL(window.location.href);
-		const currentTabParam = url.searchParams.get("tab");
-		if (currentTabParam !== activeTab) {
-			url.searchParams.set("tab", activeTab);
-			window.history.replaceState({}, "", url.toString());
-		}
-	}, [activeTab]);
-
-	// Restore tab from URL on mount
-	useEffect(() => {
-		if (hasRestoredTabRef.current) return;
-		if (typeof window === "undefined") return;
-		const params = new URLSearchParams(window.location.search);
-		const tabParam = params.get("tab");
-		if (tabParam && ["chat", "make"].includes(tabParam)) {
-			setActiveTab(tabParam as MakeTab);
-		}
-		hasRestoredTabRef.current = true;
-	}, []);
 
 	// ---- Run history ----
 	const [runHistory, setRunHistory] = useState<AgentRunListItem[]>([]);
@@ -386,6 +372,8 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		mode: "chat",
 		syncUrlThreadParam: true,
 		chatRuntime,
+		initialPlanMode: initialMakeEntryState.intent === "fresh-make",
+		initialPrompt: initialMakeEntryState.prompt ?? "",
 	});
 
 	const {
@@ -585,10 +573,11 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			return;
 		}
 
+		const entryPrompt = parseMakeNavigationPrompt(currentUrl.searchParams);
+
 		// Explicit entry intent should win over summary auto-navigation.
 		hasNavigatedToSummaryRef.current = true;
-		setActiveTab("chat");
-		handleNewChatTabChat();
+		handleNewChatTabChat({ clearPrompt: !entryPrompt });
 
 		if (entryIntent === "fresh-make") {
 			if (!chatTabIsPlanMode) {
@@ -596,6 +585,10 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			}
 		} else if (chatTabIsPlanMode) {
 			chatTabTogglePlanMode();
+		}
+
+		if (entryPrompt && chatTabPrompt !== entryPrompt) {
+			setChatTabPrompt(entryPrompt);
 		}
 
 		const nextParams = clearMakeNavigationIntentParams(currentUrl.searchParams);
@@ -607,9 +600,10 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		}
 	}, [
 		chatTabIsPlanMode,
+		chatTabPrompt,
 		chatTabTogglePlanMode,
 		handleNewChatTabChat,
-		setActiveTab,
+		setChatTabPrompt,
 	]);
 
 	useEffect(() => {
@@ -741,9 +735,8 @@ export function MakeProvider({ children }: MakeProviderProps) {
 					agentCount,
 				});
 				if (chatTabIsPlanMode) {
-					chatTabTogglePlanMode();
+				chatTabTogglePlanMode();
 				}
-				setActiveTab("make");
 				return;
 			}
 
@@ -786,7 +779,6 @@ export function MakeProvider({ children }: MakeProviderProps) {
 				if (chatTabIsPlanMode) {
 					chatTabTogglePlanMode();
 				}
-				setActiveTab("make");
 				return;
 			}
 
@@ -833,7 +825,6 @@ export function MakeProvider({ children }: MakeProviderProps) {
 				conversation: runConversation,
 				agentCount,
 			});
-			setActiveTab("make");
 		},
 		[
 			agentCount,
@@ -879,16 +870,15 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		const currentPrompt = prompt.trim();
 		if (!currentPrompt) return;
 
-		// Clear the make tab prompt and switch to chat tab
+		// Clear the make tab prompt
 		setPrompt("");
-		setActiveTab("chat");
 
 		// Send via the chat runtime (accepts prompt directly, no state timing issues)
 		await handleChatTabSuggestedQuestionClick(currentPrompt);
-	}, [prompt, setPrompt, setActiveTab, handleChatTabSuggestedQuestionClick]);
+	}, [prompt, setPrompt, handleChatTabSuggestedQuestionClick]);
 
 	const handleCreatePlan = useCallback(() => {
-		setActiveTab("chat");
+		// no-op: tab system removed
 	}, []);
 
 	const activateMakeMode = useCallback(() => {
@@ -905,7 +895,6 @@ export function MakeProvider({ children }: MakeProviderProps) {
 
 	const handleSelectChatWithTab = useCallback(
 		(id: string) => {
-			setActiveTab("chat");
 			handleSelectChatTabChat(id);
 		},
 		[handleSelectChatTabChat],
@@ -993,7 +982,6 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		() => ({
 			sidebarOpen: isOpen,
 			sidebarHovered: isHovered,
-			activeTab,
 			prompt,
 			isStreaming,
 			isSubmitPending,
@@ -1039,7 +1027,6 @@ export function MakeProvider({ children }: MakeProviderProps) {
 		[
 			isOpen,
 			isHovered,
-			activeTab,
 			prompt,
 			isStreaming,
 			isSubmitPending,
@@ -1086,7 +1073,6 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			handleHoverEnter,
 			handleHoverLeave,
 			handlePinSidebar,
-			setActiveTab,
 			setPrompt,
 			handleSubmit: handleMakeTabSubmit,
 			stopStreaming,

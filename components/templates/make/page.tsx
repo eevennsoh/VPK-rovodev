@@ -1,32 +1,21 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/utils/theme-wrapper";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 import NotificationIcon from "@atlaskit/icon/core/notification";
 import {
 	MakeProvider,
 	useMakeState,
 	useMakeActions,
 	useMakeMeta,
-	type MakeTab,
 } from "@/app/contexts/context-make";
-import { MakeArtifactSurface } from "@/components/blocks/make-artifact/components/make-artifact-surface";
-import { MakeGridSurface } from "@/components/blocks/make-grid/components/make-grid-surface";
-import MakeGalleryContent from "@/components/blocks/make-page/components/make-gallery-content";
 import { AppSidebar } from "./components/app-sidebar";
 import { MakeFullscreenChat } from "./components/make-fullscreen-chat";
 import ChatTitleRow from "./components/chat-title-row";
 import { ConfigDialogs } from "./components/config-dialogs";
-import { AnimatedCodeAscii } from "./components/animated-code-ascii";
-import type { MakeItem } from "@/components/blocks/make-item/lib/types";
-import { mapRunsToMakeGalleryItems } from "@/components/templates/make/lib/make-artifact-items";
-import { isRunExecutionPhase } from "@/components/templates/make/lib/execution-data";
 
 export default function MakeView() {
 	return (
@@ -36,44 +25,13 @@ export default function MakeView() {
 	);
 }
 
-function MakeTabEmptyState({ onStartMaking }: Readonly<{ onStartMaking: () => void }>) {
-	return (
-		<div className="flex h-full items-center justify-center">
-			<Empty>
-				<EmptyHeader>
-					<EmptyMedia className="mb-6">
-						<AnimatedCodeAscii />
-					</EmptyMedia>
-						<EmptyTitle>Nothing made yet</EmptyTitle>
-						<EmptyDescription>
-							Apps, agents, skills, and automations
-							<br />
-							that you create will appear here.
-						</EmptyDescription>
-					</EmptyHeader>
-				<EmptyContent>
-					<Button onClick={onStartMaking} className="cursor-pointer">
-						Start making
-					</Button>
-				</EmptyContent>
-			</Empty>
-		</div>
-	);
-}
-
 function MakeLayout() {
 	const {
 		sidebarOpen,
 		sidebarHovered,
-		activeTab,
-		isExecutionActive,
-		executionState,
-		taskExecutions,
-		run,
 		chatHistory,
 		activeChatId,
 		sidebarRunHistory,
-		hasLoadedRunHistory,
 		runId,
 		isGeneratingTitle,
 		pendingTitleChatId,
@@ -81,7 +39,6 @@ function MakeLayout() {
 
 	const {
 		setSidebarOpen,
-		setActiveTab,
 		handleHoverEnter,
 		handleHoverLeave,
 		handlePinSidebar,
@@ -91,7 +48,6 @@ function MakeLayout() {
 		handleSelectChat,
 		handleDeleteChat,
 		handleNewChat,
-		handleAddTask,
 		activateMakeMode,
 		deactivateMakeMode,
 	} = useMakeActions();
@@ -111,30 +67,15 @@ function MakeLayout() {
 	} = useMakeMeta();
 
 	const handleNewProject = useCallback(() => {
-		setActiveTab("chat");
 		handleNewChat();
 		activateMakeMode();
-	}, [handleNewChat, setActiveTab, activateMakeMode]);
-
-	const makeGalleryItems = useMemo(
-		() => mapRunsToMakeGalleryItems(sidebarRunHistory),
-		[sidebarRunHistory],
-	);
-
-	const handleGalleryItemSelect = useCallback((item: MakeItem) => {
-		const selectedRunId = item.runMeta?.runId ?? item.id;
-		handleSelectRun(selectedRunId);
-	}, [handleSelectRun]);
+	}, [handleNewChat, activateMakeMode]);
 
 	const isSidebarCollapsedAndHovered = !sidebarOpen && sidebarHovered;
-	const handleNewChatAndSwitchTab = useCallback(() => {
-		setActiveTab("chat");
+	const handleNewChatAndDeactivate = useCallback(() => {
 		handleNewChat();
 		deactivateMakeMode();
-	}, [handleNewChat, setActiveTab, deactivateMakeMode]);
-	// Show execution grid while tasks are still active; switch once all tasks are done.
-	const shouldShowExecutionGrid =
-		executionState === "executing" && (run === null || isRunExecutionPhase(run));
+	}, [handleNewChat, deactivateMakeMode]);
 
 	return (
 		<SidebarProvider
@@ -145,14 +86,11 @@ function MakeLayout() {
 					"--sidebar-width": "320px",
 				} as React.CSSProperties
 			}
-			className={cn(
-				"[&_[data-slot=sidebar-gap]]:ease-[var(--ease-in-out)] [&_[data-slot=sidebar-container]]:ease-[var(--ease-in-out)]",
-				isSidebarCollapsedAndHovered && activeTab === "make" && "[&_[data-slot=sidebar-gap]]:w-0!",
-			)}
+			className="[&_[data-slot=sidebar-gap]]:ease-[var(--ease-in-out)] [&_[data-slot=sidebar-container]]:ease-[var(--ease-in-out)]"
 		>
 			<AppSidebar
-				isOverlay={isSidebarCollapsedAndHovered && activeTab === "make"}
-				isHoverReveal={isSidebarCollapsedAndHovered && activeTab !== "make"}
+				isOverlay={false}
+				isHoverReveal={isSidebarCollapsedAndHovered}
 				onPinSidebar={handlePinSidebar}
 				chatHistory={chatHistory}
 				activeChatId={activeChatId}
@@ -175,7 +113,7 @@ function MakeLayout() {
 				onNewAgent={sidebarConfigHandlers.onNewAgent}
 				onExportSkill={sidebarConfigHandlers.onExportSkill}
 				onExportAgent={sidebarConfigHandlers.onExportAgent}
-				onNewChat={handleNewChatAndSwitchTab}
+				onNewChat={handleNewChatAndDeactivate}
 				onNewProject={handleNewProject}
 			/>
 			<SidebarInset className="h-svh overflow-hidden">
@@ -198,51 +136,20 @@ function MakeLayout() {
 						</Avatar>
 					</div>
 				</div>
-				<Tabs
-					value={activeTab}
-					onValueChange={(value) => setActiveTab(value as MakeTab)}
-					className="flex h-full min-h-0 flex-col gap-0"
-				>
+				<div className="flex h-full min-h-0 flex-col gap-0">
 					<ChatTitleRow
 						title={null}
 						isTitlePending={false}
-						leftSlot={(
-							<TabsList className="mr-3 w-fit shrink-0">
-								<TabsTrigger value="chat">Chat</TabsTrigger>
-								<TabsTrigger value="make">Make</TabsTrigger>
-							</TabsList>
-						)}
 						sidebarOpen={sidebarOpen}
 						sidebarHovered={sidebarHovered}
 						onExpandSidebar={() => setSidebarOpen(true)}
 						onHoverEnter={handleHoverEnter}
 						onHoverLeave={handleHoverLeave}
 					/>
-					<TabsContent value="chat" className="min-h-0 flex-1 overflow-hidden">
+					<div className="min-h-0 flex-1 overflow-hidden">
 						<MakeFullscreenChat />
-					</TabsContent>
-					<TabsContent value="make" className="min-h-0 flex-1 overflow-hidden">
-						{isExecutionActive && shouldShowExecutionGrid ? (
-							<MakeGridSurface
-								taskExecutions={taskExecutions}
-								onAddTask={handleAddTask}
-							/>
-						) : isExecutionActive ? (
-							<MakeArtifactSurface run={run} />
-						) : makeGalleryItems.length > 0 ? (
-							<MakeGalleryContent items={makeGalleryItems} onItemSelect={handleGalleryItemSelect} />
-						) : !hasLoadedRunHistory ? (
-							<div className="h-full" aria-hidden />
-						) : (
-							<MakeTabEmptyState
-								onStartMaking={() => {
-									setActiveTab("chat");
-									activateMakeMode();
-								}}
-							/>
-						)}
-					</TabsContent>
-				</Tabs>
+					</div>
+				</div>
 			</SidebarInset>
 			<ConfigDialogs
 				skillDialog={skillDialogProps}

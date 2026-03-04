@@ -1201,6 +1201,11 @@ const chatThreadManager = createThreadManager({
 });
 
 const makeConfigManager = makeFs.createConfigManagerCompat();
+const appRegistry = createAppRegistry({
+	baseDir: path.join(__dirname, "data", "make"),
+	logger: console,
+});
+
 const makeRunManager = createMakeRunManager({
 	baseDir: path.join(__dirname, "data", "make"),
 	buildSystemPrompt: null, // Not used in RovoDev-only mode
@@ -1209,11 +1214,6 @@ const makeRunManager = createMakeRunManager({
 	logger: console,
 	isRovoDevAvailable,
 	isAIGatewayFallbackEnabled: () => false,
-});
-
-const appRegistry = createAppRegistry({
-	baseDir: path.join(__dirname, "data", "make"),
-	logger: console,
 });
 
 const orchestratorLog = createOrchestratorLog({

@@ -206,6 +206,22 @@
 		transition: transform var(--duration-instant) var(--ease-out);
 	}
 
+	/* Stagger entrance — composited fade + slide for mount animations */
+	@keyframes stagger-fade-in {
+		from {
+			opacity: 0;
+			transform: translateY(12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.stagger-fade-in {
+		animation: stagger-fade-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+	}
+
 	/* Parallax — apply transform via JS scroll handler */
 	.parallax-slow {
 		will-change: transform;

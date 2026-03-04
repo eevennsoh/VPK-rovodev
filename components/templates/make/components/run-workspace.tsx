@@ -178,13 +178,13 @@ export function RunWorkspace({
 	}, []);
 
 	const handleNavigateToMake = useCallback(() => {
-		router.push("/make?tab=make");
+		router.push("/make/artifacts");
 	}, [router]);
 
 	const handleSelectChat = useCallback(
 		(chatId: string) => {
 			const encodedChatId = encodeURIComponent(chatId);
-			router.push(`/make?tab=chat&thread=${encodedChatId}`);
+			router.push(`/make?thread=${encodedChatId}`);
 		},
 		[router],
 	);

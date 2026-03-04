@@ -177,6 +177,7 @@ function isMakeArtifactTemplateRoute(pathname: string | null): boolean {
 		pathname === "/make"
 		|| pathname.startsWith("/make/")
 		|| pathname === "/preview/templates/make"
+		|| pathname.startsWith("/preview/templates/make/")
 	);
 }
 

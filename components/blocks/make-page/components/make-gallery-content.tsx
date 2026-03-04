@@ -33,6 +33,13 @@ function filterItems(items: MakeItem[], category: Category): MakeItem[] {
 	return items.filter((item) => item.type === category);
 }
 
+const STAGGER_DELAY_STEP = 0.06;
+
+function staggerStyle(index: number): React.CSSProperties | undefined {
+	if (index === 0) return undefined;
+	return { animationDelay: `${STAGGER_DELAY_STEP * index}s` };
+}
+
 interface MakeGalleryContentProps {
 	onItemSelect?: (item: MakeItem) => void;
 	items?: MakeItem[];
@@ -95,7 +102,9 @@ export default function MakeGalleryContent({ onItemSelect, items }: Readonly<Mak
 	return (
 		<div className="h-full overflow-y-auto">
 			<div className="mx-auto w-full max-w-[800px] px-6 pt-8 pb-8">
-				<div className="mb-6 flex items-center justify-between">
+				<div
+					className="stagger-fade-in mb-6 flex items-center justify-between"
+				>
 					<h1
 						style={{ font: token("font.heading.large") }}
 						className="text-text"
@@ -105,7 +114,10 @@ export default function MakeGalleryContent({ onItemSelect, items }: Readonly<Mak
 					<Button>Create</Button>
 				</div>
 
-				<div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+				<div
+					className="stagger-fade-in mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+					style={staggerStyle(1)}
+				>
 					<ToggleGroup
 						aria-label="Filter by category"
 						value={[resolvedActiveCategory]}
@@ -140,17 +152,22 @@ export default function MakeGalleryContent({ onItemSelect, items }: Readonly<Mak
 				{appFiltered.length > 0 && (
 					<section className="mb-6">
 						<div className="flex flex-col gap-4">
-							{appFiltered.map((item) => (
-								<MakeItemCard
+							{appFiltered.map((item, index) => (
+								<div
 									key={item.id}
-									item={item}
-									className="min-h-[200px]"
-									onSelect={onItemSelect && item.type === "apps" ? () => onItemSelect(item) : undefined}
-									onRecurringToggle={item.recurring
-										? (enabled) => handleRecurringToggle(item.id, enabled)
-										: undefined
-									}
-								/>
+									className="stagger-fade-in"
+									style={staggerStyle(index + 2)}
+								>
+									<MakeItemCard
+										item={item}
+										className="min-h-[200px]"
+										onSelect={onItemSelect && item.type === "apps" ? () => onItemSelect(item) : undefined}
+										onRecurringToggle={item.recurring
+											? (enabled) => handleRecurringToggle(item.id, enabled)
+											: undefined
+										}
+									/>
+								</div>
 							))}
 						</div>
 					</section>

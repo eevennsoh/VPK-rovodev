@@ -79,7 +79,7 @@ export default function MakeInitialView() {
 					</h2>
 				</div>
 
-				<div ref={composerContainerRef} className="w-full max-w-[800px] px-1">
+				<div ref={composerContainerRef} className="w-full max-w-[800px]">
 					<MakeComposer
 						prompt={prompt}
 						placeholder={previewPrompt ?? modeCopy.placeholder}
@@ -92,7 +92,7 @@ export default function MakeInitialView() {
 					/>
 				</div>
 
-				<div className="mt-4 w-full max-w-[800px] px-1">
+				<div className="mt-4 w-full max-w-[800px]">
 					<DiscoveryGallery
 						onSelect={handlePromptGallerySelect}
 						onPreviewStart={setPreviewPrompt}

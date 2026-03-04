@@ -10,7 +10,7 @@ interface SidebarEmptyStateProps {
 export default function SidebarEmptyState({ onNewChat, onNewProject }: Readonly<SidebarEmptyStateProps>) {
 	return (
 		<div className="flex w-full flex-col items-center gap-4 px-6 text-center">
-			<div className="flex w-full flex-col items-center gap-1">
+			<div className="stagger-fade-in flex w-full flex-col items-center gap-1">
 				<Heading as="h3" size="xsmall">
 					Get started
 				</Heading>
@@ -18,7 +18,7 @@ export default function SidebarEmptyState({ onNewChat, onNewProject }: Readonly<
 					Start a conversation or make something new.
 				</p>
 			</div>
-			<div className="flex w-full flex-row gap-2">
+			<div className="stagger-fade-in flex w-full flex-row gap-2" style={{ animationDelay: "0.06s" }}>
 				<button
 					type="button"
 					onClick={onNewChat}

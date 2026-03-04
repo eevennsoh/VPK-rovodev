@@ -113,7 +113,7 @@ interface UsePlanChatReturn {
 	) => Promise<void>;
 	submitPlanApproval: (approval: PlanApprovalSubmission) => Promise<void>;
 	sendAgentDirective: (agentName: string, message: string) => Promise<void>;
-	handleNewChat: () => void;
+	handleNewChat: (options?: { clearPrompt?: boolean }) => void;
 	handleSelectChat: (id: string) => void;
 	handleDeleteChat: (id: string) => void;
 	handleDeleteMessage: (messageId: string) => void;
@@ -164,12 +164,14 @@ export function useMakeChat(options: {
 	mode?: "make" | "chat";
 	syncUrlThreadParam?: boolean;
 	chatRuntime: ChatRuntime;
+	initialPlanMode?: boolean;
+	initialPrompt?: string;
 }): UsePlanChatReturn {
 	const hookMode = options?.mode ?? "chat";
 	const historyCategory: ThreadCategory = "chat";
 	const syncUrlThreadParam = options?.syncUrlThreadParam ?? false;
-	const [prompt, setPrompt] = useState("");
-	const [isPlanMode, setIsPlanMode] = useState(false);
+	const [prompt, setPrompt] = useState(() => options.initialPrompt ?? "");
+	const [isPlanMode, setIsPlanMode] = useState(() => options.initialPlanMode ?? false);
 	const [planningSession, setPlanningSession] =
 		useState<PlanningSession | null>(null);
 	const [isChatMode, setIsChatMode] = useState(false);
@@ -460,11 +462,14 @@ export function useMakeChat(options: {
 					snapshotThreadMessages(activeChatIdRef.current, uiMessagesRef.current);
 				}
 
-				await stopStreaming();
-				replaceMessages(nextMessages);
+				// Clear composer input before awaiting async work so follow-up
+				// prompt presets (for entry intents) are not overwritten later.
 				if (clearPrompt) {
 					setPrompt("");
 				}
+
+				await stopStreaming();
+				replaceMessages(nextMessages);
 				setPlanningSession(null);
 				setIsChatMode(nextIsChatMode);
 				setActiveChatId(nextChatId);
@@ -1017,11 +1022,13 @@ export function useMakeChat(options: {
 		hasStreamedOnceRef.current = false;
 	}, []);
 
-	const handleNewChat = useCallback(() => {
+	const handleNewChat = useCallback((options?: { clearPrompt?: boolean }) => {
+		const shouldClearPrompt = options?.clearPrompt ?? true;
 		void transitionChatState({
 			nextChatId: null,
 			nextMessages: [],
 			nextIsChatMode: false,
+			clearPrompt: shouldClearPrompt,
 		})
 			.catch((error) => {
 				console.error("[AGENTS-TEAM] Failed to start new chat:", error);

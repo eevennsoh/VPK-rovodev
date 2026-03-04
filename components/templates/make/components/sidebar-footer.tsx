@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import {
@@ -169,11 +170,14 @@ export default function SidebarFooter({
 				</CollapsibleSection>
 			</div>
 
-			{/* Bottom label — always pinned */}
-			<div className="flex shrink-0 items-center justify-center border-t border-border p-3">
-				<span className="text-xs text-text-subtlest">
-					Make • Concept
-				</span>
+			{/* View all link — always pinned */}
+			<div className="shrink-0 border-t border-border">
+				<Link
+					href="/make/artifacts"
+					className="flex h-10 w-full items-center justify-center text-xs text-text-subtlest no-underline transition-colors hover:bg-bg-neutral hover:no-underline"
+				>
+					View all artifacts
+				</Link>
 			</div>
 		</div>
 	);

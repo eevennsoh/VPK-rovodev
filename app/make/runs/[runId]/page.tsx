@@ -121,7 +121,7 @@ export default async function MakeRunPage({ params }: Readonly<RunPageProps>) {
 					</p>
 					<div className="mt-5">
 							<Link
-								href="/make?tab=make"
+								href="/make/artifacts"
 								className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-text hover:bg-bg-neutral-subtle-hovered"
 							>
 							Back to Make

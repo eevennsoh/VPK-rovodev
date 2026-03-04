@@ -56,9 +56,9 @@ export default function PromptGallery({
 
 	const closeMoreSection = () => {
 		setIsClosingMore(true);
-		onExpandChange?.(false);
 
 		setTimeout(() => {
+			onExpandChange?.(false);
 			setShowMoreSection(false);
 			setIsClosingMore(false);
 		}, 350);

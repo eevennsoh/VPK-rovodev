@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { isDevToolsExcludedRoute } from "@/components/utils/dev-template-route";
 
 const REACT_GRAB_SCRIPT_ID = "vpk-dev-react-grab-script";
 const REACT_GRAB_MCP_SCRIPT_ID = "vpk-dev-react-grab-mcp-script";
@@ -39,50 +38,12 @@ function ensureScript({
 	});
 }
 
-function clearReactGrabArtifacts() {
-	if (typeof window === "undefined") {
-		return;
-	}
-
-	window.document.querySelectorAll("[data-react-grab],[data-react-grab-toolbar],[data-react-grab-context-menu],[data-react-grab-history-dropdown],[data-react-grab-clear-history-prompt],[data-react-grab-overlay-canvas],[data-react-grab-selection-label],[data-react-grab-completion],[data-react-grab-error]").forEach((element) => {
-		element.remove();
-	});
-
-	window.document.querySelectorAll("[data-react-grab-frozen-styles],[data-react-grab-global-freeze],[data-react-grab-frozen-pseudo],[data-react-grab-cursor]").forEach((element) => {
-		element.remove();
-	});
-
-	window.document.getElementById("react-grab-fonts")?.remove();
-}
-
 export function DevReactGrabMount() {
 	const pathname = usePathname();
-	const shouldDisable = isDevToolsExcludedRoute(pathname);
 
 	useEffect(() => {
 		if (process.env.NODE_ENV !== "development") {
 			return;
-		}
-
-		if (shouldDisable) {
-			const globalApi = (window as typeof window & {
-				__REACT_GRAB__?: { deactivate?: () => void };
-			}).__REACT_GRAB__;
-
-			globalApi?.deactivate?.();
-			clearReactGrabArtifacts();
-
-			const rafId = window.requestAnimationFrame(() => {
-				clearReactGrabArtifacts();
-			});
-			const timeoutId = window.setTimeout(() => {
-				clearReactGrabArtifacts();
-			}, 120);
-
-			return () => {
-				window.cancelAnimationFrame(rafId);
-				window.clearTimeout(timeoutId);
-			};
 		}
 
 		let cancelled = false;
@@ -113,7 +74,7 @@ export function DevReactGrabMount() {
 		return () => {
 			cancelled = true;
 		};
-	}, [shouldDisable]);
+	}, [pathname]);
 
 	return null;
 }

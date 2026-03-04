@@ -15,10 +15,22 @@ export function parseMakeNavigationIntent(
 	return intent;
 }
 
-export function createMakeEntryHref(intent: MakeNavigationIntent): string {
+export function parseMakeNavigationPrompt(
+	params: URLSearchParams
+): string | null {
+	const prompt = params.get("prompt");
+	return prompt && prompt.trim() ? prompt.trim() : null;
+}
+
+export function createMakeEntryHref(
+	intent: MakeNavigationIntent,
+	prompt?: string,
+): string {
 	const params = new URLSearchParams();
-	params.set("tab", "chat");
 	params.set("intent", intent);
+	if (prompt) {
+		params.set("prompt", prompt);
+	}
 	return `/make?${params.toString()}`;
 }
 
@@ -27,6 +39,7 @@ export function clearMakeNavigationIntentParams(
 ): URLSearchParams {
 	const nextParams = new URLSearchParams(params.toString());
 	nextParams.delete("intent");
+	nextParams.delete("prompt");
 	nextParams.delete("thread");
 	return nextParams;
 }

@@ -24,6 +24,18 @@ function getFirstPathSegment(pathname: string): string | null {
 	return firstSegment ?? null;
 }
 
+export function isPreviewTemplatesRoute(pathname: string | null): boolean {
+	if (!pathname || pathname === "") {
+		return false;
+	}
+
+	const normalizedPathname = normalizePathname(pathname);
+	return (
+		normalizedPathname === "/preview/templates"
+		|| normalizedPathname.startsWith(PREVIEW_TEMPLATES_PREFIX)
+	);
+}
+
 export function isDevToolsExcludedRoute(pathname: string | null): boolean {
 	if (!pathname || pathname === "") {
 		return false;
@@ -31,10 +43,7 @@ export function isDevToolsExcludedRoute(pathname: string | null): boolean {
 
 	const normalizedPathname = normalizePathname(pathname);
 
-	if (
-		normalizedPathname === "/preview/templates"
-		|| normalizedPathname.startsWith(PREVIEW_TEMPLATES_PREFIX)
-	) {
+	if (isPreviewTemplatesRoute(normalizedPathname)) {
 		return true;
 	}
 
