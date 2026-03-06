@@ -1,6 +1,6 @@
 "use client";
 
-const PREVIEW_TEMPLATES_PREFIX = "/preview/templates/";
+const PREVIEW_PROJECTS_PREFIX = "/preview/projects/";
 const EXCLUDED_APP_ROOT_SEGMENTS = new Set([
 	"apps",
 	"confluence",
@@ -24,15 +24,15 @@ function getFirstPathSegment(pathname: string): string | null {
 	return firstSegment ?? null;
 }
 
-export function isPreviewTemplatesRoute(pathname: string | null): boolean {
+export function isPreviewProjectsRoute(pathname: string | null): boolean {
 	if (!pathname || pathname === "") {
 		return false;
 	}
 
 	const normalizedPathname = normalizePathname(pathname);
 	return (
-		normalizedPathname === "/preview/templates"
-		|| normalizedPathname.startsWith(PREVIEW_TEMPLATES_PREFIX)
+		normalizedPathname === "/preview/projects"
+		|| normalizedPathname.startsWith(PREVIEW_PROJECTS_PREFIX)
 	);
 }
 
@@ -43,7 +43,7 @@ export function isDevToolsExcludedRoute(pathname: string | null): boolean {
 
 	const normalizedPathname = normalizePathname(pathname);
 
-	if (isPreviewTemplatesRoute(normalizedPathname)) {
+	if (isPreviewProjectsRoute(normalizedPathname)) {
 		return true;
 	}
 

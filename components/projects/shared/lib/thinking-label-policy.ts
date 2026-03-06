@@ -1,4 +1,4 @@
-import type { ReasoningPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
+import type { ReasoningPhase } from "@/components/projects/shared/hooks/use-reasoning-phase";
 
 interface ResolveThinkingLabelForSurfaceOptions {
 	baseLabel: string;

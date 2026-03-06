@@ -160,6 +160,10 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"button-demo-variants-and-sizes": dynamic(() => import("./demos/ui/button-demo").then((mod) => ({ default: mod.ButtonDemoVariantsAndSizes })), { ssr: false }),
 	// Badge
 	"badge-demo-default": dynamic(() => import("./demos/ui/badge-demo").then((mod) => ({ default: mod.BadgeDemoDefault })), { ssr: false }),
+	"badge-demo-primary": dynamic(() => import("./demos/ui/badge-demo").then((mod) => ({ default: mod.BadgeDemoPrimary })), { ssr: false }),
+	"badge-demo-important": dynamic(() => import("./demos/ui/badge-demo").then((mod) => ({ default: mod.BadgeDemoImportant })), { ssr: false }),
+	"badge-demo-added": dynamic(() => import("./demos/ui/badge-demo").then((mod) => ({ default: mod.BadgeDemoAdded })), { ssr: false }),
+	"badge-demo-removed": dynamic(() => import("./demos/ui/badge-demo").then((mod) => ({ default: mod.BadgeDemoRemoved })), { ssr: false }),
 	"badge-demo-secondary": dynamic(() => import("./demos/ui/badge-demo").then((mod) => ({ default: mod.BadgeDemoSecondary })), { ssr: false }),
 	"badge-demo-destructive": dynamic(() => import("./demos/ui/badge-demo").then((mod) => ({ default: mod.BadgeDemoDestructive })), { ssr: false }),
 	"badge-demo-success": dynamic(() => import("./demos/ui/badge-demo").then((mod) => ({ default: mod.BadgeDemoSuccess })), { ssr: false }),
@@ -1170,15 +1174,15 @@ const BLOCK_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"question-card-demo-pre-populated": dynamic(() => import("./demos/blocks/question-card-demo").then((mod) => ({ default: mod.QuestionCardDemoPrePopulated })), { ssr: false }),
 };
 
-const TEMPLATE_DEMOS: Record<string, ComponentType> = {
-	layout: dynamic(() => import("./demos/templates/layout-demo"), { ssr: false }),
-	plan: dynamic(() => import("./demos/templates/plan-demo"), { ssr: false }),
-	make: dynamic(() => import("./demos/templates/make-demo"), { ssr: false }),
-	"sidebar-chat": dynamic(() => import("./demos/templates/sidebar-chat-demo"), { ssr: false }),
-	confluence: dynamic(() => import("./demos/templates/confluence-demo"), { ssr: false }),
-	jira: dynamic(() => import("./demos/templates/jira-demo"), { ssr: false }),
-	"fullscreen-chat": dynamic(() => import("./demos/templates/fullscreen-chat-demo"), { ssr: false }),
-	search: dynamic(() => import("./demos/templates/search-demo"), { ssr: false }),
+const PROJECT_DEMOS: Record<string, ComponentType> = {
+	layout: dynamic(() => import("./demos/projects/layout-demo"), { ssr: false }),
+	plan: dynamic(() => import("./demos/projects/plan-demo"), { ssr: false }),
+	make: dynamic(() => import("./demos/projects/make-demo"), { ssr: false }),
+	"sidebar-chat": dynamic(() => import("./demos/projects/sidebar-chat-demo"), { ssr: false }),
+	confluence: dynamic(() => import("./demos/projects/confluence-demo"), { ssr: false }),
+	jira: dynamic(() => import("./demos/projects/jira-demo"), { ssr: false }),
+	"fullscreen-chat": dynamic(() => import("./demos/projects/fullscreen-chat-demo"), { ssr: false }),
+	search: dynamic(() => import("./demos/projects/search-demo"), { ssr: false }),
 };
 
 const CHART_DEMOS: Record<string, ComponentType> = {
@@ -1283,13 +1287,13 @@ const VISUAL_DEMOS: Record<string, ComponentType> = {
 const CATEGORY_REGISTRIES: Record<string, Record<string, ComponentType>> = {
 	visual: VISUAL_DEMOS,
 	utility: UTILITY_DEMOS,
-	templates: TEMPLATE_DEMOS,
+	projects: PROJECT_DEMOS,
 	blocks: BLOCK_DEMOS,
 	"ui-ai": UI_AI_DEMO,
 	ui: UI_DEMO,
 };
 
-export function getDemoComponent(slug: string, category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual"): ComponentType | null {
+export function getDemoComponent(slug: string, category: "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual"): ComponentType | null {
 	const registry = CATEGORY_REGISTRIES[category];
 	return registry?.[slug] ?? null;
 }
@@ -1300,7 +1304,7 @@ const VARIANT_REGISTRIES: Record<string, Record<string, ComponentType>> = {
 	ui: UI_VARIANT_DEMOS,
 };
 
-export function getVariantDemoComponent(slug: string, category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual"): ComponentType | null {
+export function getVariantDemoComponent(slug: string, category: "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual"): ComponentType | null {
 	const registry = VARIANT_REGISTRIES[category];
 	return registry?.[slug] ?? null;
 }

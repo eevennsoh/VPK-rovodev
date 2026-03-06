@@ -2,12 +2,12 @@
 
 import { cn } from "@/lib/utils";
 import { useRovoChatPanel } from "../hooks/use-rovo-chat-panel";
-import { useDismissibleCards } from "@/components/templates/shared/hooks/use-dismissible-cards";
+import { useDismissibleCards } from "@/components/projects/shared/hooks/use-dismissible-cards";
 import RovoChatHeader from "./rovo-chat-header";
 import RovoChatMessages from "./rovo-chat-messages";
 import RovoChatInput from "./rovo-chat-input";
-import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
-import { QuestionCardShortcutsFooter } from "@/components/templates/shared/components/question-card-shortcuts-footer";
+import { ClarificationQuestionCard } from "@/components/projects/shared/components/clarification-question-card";
+import { QuestionCardShortcutsFooter } from "@/components/projects/shared/components/question-card-shortcuts-footer";
 import styles from "./rovo-chat-panel.module.css";
 import type { Product } from "../types";
 

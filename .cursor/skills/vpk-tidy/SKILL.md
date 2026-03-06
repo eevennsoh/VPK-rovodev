@@ -130,152 +130,43 @@ Report both outcomes clearly:
 
 ## Architectural Rules
 
-These rules are **mandatory** for every refactored component:
+These rules are **mandatory** for every refactored component. For detailed examples, see `references/patterns.md`.
 
 ### 1. Modular Components
 
-Break designs into independent files. Avoid large, single-file outputs.
+Break designs into independent files. Components exceeding 150 lines must be split.
 
 ```
-# Bad: One 500-line file
-components/blocks/dashboard/page.tsx  (500 lines)
-
-# Good: Modular structure
 components/blocks/dashboard/
 ├── page.tsx                    (50 lines - composes sub-components)
 ├── components/
 │   ├── dashboard-header.tsx    (80 lines)
 │   ├── stats-grid.tsx          (60 lines)
-│   ├── activity-feed.tsx       (90 lines)
-│   └── quick-actions.tsx       (70 lines)
+│   └── activity-feed.tsx       (90 lines)
 └── hooks/
     └── use-dashboard-data.ts   (40 lines)
 ```
 
-**Rule:** Components exceeding 150 lines must be split.
-
 ### 2. Logic Isolation
 
-Move event handlers and business logic into custom hooks.
-
-```tsx
-// Bad: Logic mixed with UI
-function SearchResults() {
-	const [results, setResults] = useState([]);
-	const [loading, setLoading] = useState(false);
-	const [error, setError] = useState(null);
-
-	const handleSearch = async (query) => {
-		setLoading(true);
-		try {
-			const data = await fetch(`/api/search?q=${query}`);
-			setResults(await data.json());
-		} catch (e) {
-			setError(e.message);
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	// ... 100 more lines of UI
-}
-
-// Good: Logic extracted to hook
-// hooks/use-search.ts
-function useSearch() {
-	const [results, setResults] = useState([]);
-	const [loading, setLoading] = useState(false);
-	const [error, setError] = useState(null);
-
-	const search = useCallback(async (query) => {
-		setLoading(true);
-		try {
-			const data = await fetch(`/api/search?q=${query}`);
-			setResults(await data.json());
-		} catch (e) {
-			setError(e.message);
-		} finally {
-			setLoading(false);
-		}
-	}, []);
-
-	return { results, loading, error, search };
-}
-
-// Component is now pure UI
-function SearchResults() {
-	const { results, loading, error, search } = useSearch();
-	// Clean UI code only
-}
-```
+Move event handlers and business logic into custom hooks. Components should be pure UI; hooks own state and async logic. See `references/patterns.md` § "Custom Hooks for Logic".
 
 ### 3. Data Decoupling
 
-Move all static text, image URLs, and lists to separate data files.
-
-```tsx
-// Bad: Hardcoded data in component
-function Navigation() {
-	return (
-		<nav>
-			<NavItem href="/home" icon={HomeIcon} label="Home" />
-			<NavItem href="/projects" icon={FolderIcon} label="Projects" />
-			<NavItem href="/settings" icon={SettingsIcon} label="Settings" />
-		</nav>
-	);
-}
-
-// Good: Data extracted
-// data/navigation.ts
-export const NAV_ITEMS = [
-	{ href: "/home", icon: HomeIcon, label: "Home" },
-	{ href: "/projects", icon: FolderIcon, label: "Projects" },
-	{ href: "/settings", icon: SettingsIcon, label: "Settings" },
-] as const;
-
-// Component uses data
-import { NAV_ITEMS } from "./data/navigation";
-
-function Navigation() {
-	return (
-		<nav>
-			{NAV_ITEMS.map((item) => (
-				<NavItem key={item.href} {...item} />
-			))}
-		</nav>
-	);
-}
-```
-
-**Extract to data files:**
-
-- Navigation items
-- Menu options
-- Feature lists
-- Image URLs and assets
-- Static content strings
-- Configuration objects
+Move static text, image URLs, navigation items, menu options, feature lists, and configuration objects to `data/` files. Components iterate over imported data rather than hardcoding values inline.
 
 ### 4. Type Safety
 
 Every component must define a TypeScript interface named `[ComponentName]Props` and use `Readonly<>` wrapper in the function parameter.
 
 ```tsx
-// Required pattern for all components
-interface ComponentNameProps {
-	// Props definition
-}
-
-// Example
 interface CardProps {
 	title: string;
-	description?: string;
 	variant?: "default" | "elevated" | "outlined";
 	children: React.ReactNode;
-	onClick?: () => void;
 }
 
-export function Card({ title, description, variant = "default", children, onClick }: Readonly<CardProps>) {
+export function Card({ title, variant = "default", children }: Readonly<CardProps>) {
 	// Implementation
 }
 ```
@@ -285,555 +176,56 @@ export function Card({ title, description, variant = "default", children, onClic
 - Define interface as `[ComponentName]Props`, use `Readonly<>` in function parameter
 - Export props interface when component is exported
 - Use discriminated unions for variant props
-- Avoid `any` - use `unknown` with type guards if needed
-
-#### Single Element Wrapping
-
-Each component should wrap exactly ONE HTML element. This ensures predictable behavior when spreading props.
-
-```tsx
-// Good: Wraps a single button element
-interface ButtonProps extends React.ComponentProps<"button"> {
-	variant?: "primary" | "secondary";
-}
-
-export function Button({ variant = "primary", className, ...props }: Readonly<ButtonProps>) {
-	return <button className={cn(buttonStyles[variant], className)} {...props} />;
-}
-
-// Bad: Wraps multiple elements (unpredictable prop spreading)
-function Button({ ...props }: ButtonProps) {
-	return (
-		<div>
-			<button {...props} /> {/* Where do the props go? */}
-			<span>Icon</span>
-		</div>
-	);
-}
-```
-
-Always use `cn()` from `@/lib/utils` to merge className props. Never concatenate class strings manually.
-
-#### Extending HTML Attributes
-
-Extend native element props for full DOM compatibility:
-
-```tsx
-// Pattern: Extend React.ComponentProps<'element'>
-interface InputProps extends React.ComponentProps<"input"> {
-	label?: string;
-	error?: string;
-}
-
-export function Input({ label, error, className, ...props }: Readonly<InputProps>) {
-	return (
-		<div>
-			{label && <label>{label}</label>}
-			<input className={cn(inputStyles, className)} {...props} />
-			{error && <span className={errorStyles}>{error}</span>}
-		</div>
-	);
-}
-```
-
-#### Variant Styling with CVA
-
-Use `cva()` from `class-variance-authority` for declarative variant management in UI primitives:
-
-```tsx
-import { cn } from "@/lib/utils";
-import { cva, type VariantProps } from "class-variance-authority";
-
-const buttonVariants = cva("inline-flex items-center justify-center", {
-	variants: {
-		variant: { default: "bg-surface-raised", destructive: "bg-bg-danger" },
-		size: { sm: "h-8 px-3 text-sm", md: "h-10 px-4" },
-	},
-	defaultVariants: { variant: "default", size: "md" },
-});
-
-interface ButtonProps extends React.ComponentProps<"button">, VariantProps<typeof buttonVariants> {}
-
-export function Button({ variant, size, className, ...props }: Readonly<ButtonProps>) {
-	return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />;
-}
-```
-
-#### Props Spread Last
-
-Always spread props last so user overrides take precedence:
-
-```tsx
-// Good: User can override className, aria-label, etc.
-<button
-  className={cn(baseStyles, className)}
-  aria-label={label}
-  {...props}
-/>
-
-// Bad: Component styles override user props
-<button {...props} className={baseStyles} />
-```
+- Extend `React.ComponentProps<'element'>` for DOM compatibility
+- Single element wrapping — one component wraps one HTML element
+- Props spread last so user overrides take precedence
+- Use `cn()` from `@/lib/utils` to merge className props
+- Use `cva()` from `class-variance-authority` for variant styling in UI primitives
 
 ---
 
 ## Code Simplification Rules
 
-Apply these refinements to improve code clarity while preserving functionality:
+Apply these during refactoring. For detailed examples, see `references/patterns.md` § "Code Simplification Patterns".
 
-### 1. Clarity Over Brevity
+| Rule | Guidance |
+| --- | --- |
+| **Clarity over brevity** | No nested ternaries; use if/else or switch |
+| **Flatten nesting** | Async/await over nested `.then()` chains |
+| **Named conditions** | Extract complex boolean expressions to named variables |
+| **React 19 patterns** | `use(Ctx)` not `useContext()`, `<Ctx value={}>` not `<Ctx.Provider>`, `ref` as prop (no `forwardRef`) |
+| **Derive during render** | Compute from state/props inline or `useMemo`; never sync derived state via `useEffect` |
+| **Functional setState** | `setState(prev => !prev)` not `setState(!value)` |
+| **Safe conditional rendering** | `cond ? <X /> : null` not `count && <X />` (avoids rendering `0`) |
+| **Project standards** | `function` keyword for top-level, explicit return types for exports |
 
-Prefer explicit, readable code over compact solutions. Avoid nested ternary operators.
+**What to simplify:** nested ternaries, callback pyramids, redundant wrappers, inconsistent patterns, stale-closure setState, event logic in effects.
 
-```tsx
-// Bad: Nested ternary
-const status = isLoading ? 'loading' : isError ? 'error' : isSuccess ? 'success' : 'idle';
-
-// Good: Explicit conditions
-function getStatus() {
-  if (isLoading) return 'loading';
-  if (isError) return 'error';
-  if (isSuccess) return 'success';
-  return 'idle';
-}
-````
-
-### 2. Reduce Unnecessary Complexity
-
-Eliminate redundant nesting and simplify conditionals.
-
-```tsx
-// Bad: Deeply nested callbacks
-useEffect(() => {
-	fetchData().then((data) => {
-		processData(data).then((result) => {
-			saveResult(result).then(() => {
-				notifyUser();
-			});
-		});
-	});
-}, []);
-
-// Good: Flat async/await
-useEffect(() => {
-	async function loadAndProcess() {
-		const data = await fetchData();
-		const result = await processData(data);
-		await saveResult(result);
-		notifyUser();
-	}
-	loadAndProcess();
-}, []);
-```
-
-### 3. Extract Complex Conditions
-
-Move complex boolean expressions to named variables.
-
-```tsx
-// Bad: Inline complex condition
-if (user && user.permissions && user.permissions.includes("admin") && !user.suspended) {
-	showAdminPanel();
-}
-
-// Good: Named condition
-const canAccessAdmin = user?.permissions?.includes("admin") && !user?.suspended;
-if (canAccessAdmin) {
-	showAdminPanel();
-}
-```
-
-### 4. React 19 Patterns
-
-When refactoring, update legacy React patterns:
-
-| Legacy | Modern (React 19) |
-|--------|-------------------|
-| `useContext(Ctx)` | `use(Ctx)` (import from `react`) |
-| `<Ctx.Provider value={...}>` | `<Ctx value={...}>` |
-| `forwardRef((props, ref) => ...)` | Regular component with `ref` prop |
-| `setState(!value)` | `setState(prev => !prev)` |
-
-```tsx
-// Before
-import { useContext, forwardRef } from "react";
-const value = useContext(MyContext);
-const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => (
-	<input ref={ref} {...props} />
-));
-
-// After
-import { use } from "react";
-const value = use(MyContext);
-function Input({ ref, ...props }: Readonly<InputProps>) {
-	return <input ref={ref} {...props} />;
-}
-```
-
-### 5. Derive During Render
-
-If a value can be computed from existing state or props, compute it inline or with `useMemo`. Do not store in state + sync with useEffect.
-
-```tsx
-// Bad: unnecessary state + effect
-const [fullName, setFullName] = useState('');
-useEffect(() => setFullName(`${first} ${last}`), [first, last]);
-
-// Good: derive during render
-const fullName = `${first} ${last}`;
-
-// Good: derive with memoization for expensive computations
-const sortedItems = useMemo(() => items.toSorted((a, b) => a.name.localeCompare(b.name)), [items]);
-```
-
-### 6. Project Standards
-
-- Use `function` keyword over arrow functions for top-level functions
-- Use explicit return type annotations for exported functions
-- Follow proper import sorting (ES modules)
-- Maintain consistent naming conventions
-
-### 7. Preserve Helpful Abstractions
-
-Don't remove abstractions that improve organization - only eliminate truly redundant ones.
-
-**What to simplify:**
-
-- Nested ternary operators → switch/if-else chains
-- Deeply nested callbacks → named async functions
-- Redundant wrappers → inline when clearer
-- Inconsistent patterns → align with project standards
-- Stale-closure setState → functional updates (`setState(prev => ...)`)
-- Falsy `&&` rendering → ternary to avoid rendering `0` (`count > 0 ? <Foo /> : null`)
-- Event logic in effects → move interaction-triggered logic to event handlers
-
-**What to preserve:**
-
-- Helpful abstractions that improve organization
-- Type safety (don't weaken types for brevity)
-- Readable structure (don't over-compress)
-- Useful comments that explain "why"
+**What to preserve:** helpful abstractions, type safety, readable structure, comments that explain "why".
 
 ---
 
 ## Composition Patterns
 
-### Avoid Boolean Prop Proliferation
+For detailed examples with full code, see `references/patterns.md`.
 
-Never accumulate boolean props. Use compound components, lifting state, or composing internals.
+| Pattern | When to Use |
+| --- | --- |
+| **Variant props** | Replace related boolean props with a single discriminated union |
+| **Compound components** | Multiple related parts sharing implicit state (Root, Trigger, Content, etc.) |
+| **Lift state up** | Multiple components need the same state — lift to nearest common ancestor |
+| **Controlled + uncontrolled** | Support both patterns for maximum flexibility |
+| **Data attributes** | Use `data-state`, `data-slot` for styling and testing |
+| **Compose internals** | Build complex components from private sub-components |
+| **asChild / polymorphic** | Delegate rendering to consumer-provided element |
 
-```tsx
-// Bad: Boolean prop explosion
-<Button
-  isLoading
-  isDisabled
-  isCompact
-  isFullWidth
-  isPrimary
-  hasIcon
-  hasDropdown
-/>
-
-// Good: Compound components
-<Button appearance="primary" size="compact" width="full">
-  <Button.Icon><AddIcon /></Button.Icon>
-  <Button.Label>Create</Button.Label>
-  <Button.Dropdown>
-    <DropdownItem>Option 1</DropdownItem>
-  </Button.Dropdown>
-</Button>
-```
-
-### Compound Component Pattern
-
-Use when components have multiple related parts sharing implicit state.
-
-#### Standard Naming Conventions
-
-| Name          | Purpose                                               |
-| ------------- | ----------------------------------------------------- |
-| `Root`        | Top-level container providing context                 |
-| `Trigger`     | Element that activates something (opens menu, dialog) |
-| `Content`     | Main content area that appears/changes                |
-| `Header`      | Top section of a container                            |
-| `Body`        | Main content section                                  |
-| `Footer`      | Bottom section of a container                         |
-| `Title`       | Primary heading text                                  |
-| `Description` | Secondary descriptive text                            |
-| `Item`        | Individual item in a list/collection                  |
-| `List`        | Container for multiple items                          |
-
-#### Implementation Example
-
-```tsx
-// Implementation
-const TabsContext = createContext<TabsContextValue | null>(null);
-
-function Tabs({ children, defaultValue }: Readonly<TabsProps>) {
-	const [activeTab, setActiveTab] = useState(defaultValue);
-
-	return <TabsContext.Provider value={{ activeTab, setActiveTab }}>{children}</TabsContext.Provider>;
-}
-
-Tabs.List = TabList;
-Tabs.Tab = Tab;
-Tabs.Panel = TabPanel;
-
-// Usage
-<Tabs defaultValue="tab1">
-	<Tabs.List>
-		<Tabs.Tab value="tab1">First</Tabs.Tab>
-		<Tabs.Tab value="tab2">Second</Tabs.Tab>
-	</Tabs.List>
-	<Tabs.Panel value="tab1">Content 1</Tabs.Panel>
-	<Tabs.Panel value="tab2">Content 2</Tabs.Panel>
-</Tabs>;
-```
-
-### Lift State Up
-
-When multiple components need the same state, lift it to the nearest common ancestor.
-
-```tsx
-// Bad: Duplicated state
-function FilterPanel() {
-	const [filters, setFilters] = useState({});
-	// ...
-}
-
-function ResultsList() {
-	const [filters, setFilters] = useState({}); // Duplicated!
-	// ...
-}
-
-// Good: Lifted state
-function SearchPage() {
-	const [filters, setFilters] = useState({});
-
-	return (
-		<>
-			<FilterPanel filters={filters} onChange={setFilters} />
-			<ResultsList filters={filters} />
-		</>
-	);
-}
-```
-
-### Controlled vs Uncontrolled
-
-Support both patterns for maximum flexibility. See `references/patterns.md` for full examples.
-
-```tsx
-interface ToggleProps {
-  // Controlled mode
-  isChecked?: boolean;
-  onChange?: (isChecked: boolean) => void;
-  // Uncontrolled mode
-  defaultChecked?: boolean;
-  // Common
-  label: string;
-}
-
-function Toggle({
-  isChecked: controlledChecked,
-  onChange,
-  defaultChecked = false,
-  label,
-}: Readonly<ToggleProps>) {
-  const [internalChecked, setInternalChecked] = useState(defaultChecked);
-
-  const isControlled = controlledChecked !== undefined;
-  const checked = isControlled ? controlledChecked : internalChecked;
-
-  const handleChange = () => {
-    const newValue = !checked;
-    if (!isControlled) setInternalChecked(newValue);
-    onChange?.(newValue);
-  };
-
-  return (
-    <label>
-      <input type="checkbox" checked={checked} onChange={handleChange} />
-      {label}
-    </label>
-  );
-}
-
-// Controlled: parent owns state
-<Toggle label="Dark mode" isChecked={darkMode} onChange={setDarkMode} />
-
-// Uncontrolled: component owns state
-<Toggle label="Remember me" defaultChecked />
-```
-
-### Data Attributes
-
-Use data attributes to expose component state for styling and testing.
-
-#### `data-state` for Visual States
-
-Expose component states to enable CSS-based styling:
-
-```tsx
-function Accordion({ open, children }: Readonly<AccordionProps>) {
-  return (
-    <div data-state={open ? 'open' : 'closed'}>
-      {children}
-    </div>
-  );
-}
-
-// Tailwind styling
-<div className="data-[state=open]:bg-blue-100 data-[state=closed]:opacity-50">
-```
-
-#### `data-slot` for Component Identification
-
-Mark component parts for parent-aware styling:
-
-```tsx
-function Card({ children }: Readonly<CardProps>) {
-  return <div data-slot="card">{children}</div>;
-}
-
-function CardHeader({ children }: Readonly<CardHeaderProps>) {
-  return <div data-slot="card-header">{children}</div>;
-}
-
-// Parent can style child slots
-.card-container [data-slot="card-header"] {
-  border-bottom: 1px solid var(--border);
-}
-```
-
-#### Common Data Attribute Patterns
-
-| Attribute       | Values                                 | Purpose                 |
-| --------------- | -------------------------------------- | ----------------------- |
-| `data-state`    | `open`, `closed`, `active`, `inactive` | Visual/behavioral state |
-| `data-slot`     | Component name                         | Enable parent styling   |
-| `data-disabled` | `true`, `false`                        | Disabled state          |
-| `data-selected` | `true`, `false`                        | Selection state         |
-
-### Compose Internals
-
-Build complex components by composing simpler internal components.
-
-```tsx
-// Internal components (not exported)
-function CardHeader({ title, actions }: Readonly<CardHeaderProps>) {
-	return (
-		<Flex justifyContent="space-between" alignItems="center">
-			<Heading size="small">{title}</Heading>
-			{actions}
-		</Flex>
-	);
-}
-
-function CardBody({ children }: Readonly<CardBodyProps>) {
-	return <Box paddingBlock="space.200">{children}</Box>;
-}
-
-function CardFooter({ children }: Readonly<CardFooterProps>) {
-	return (
-		<Inline space="space.100" alignInline="end">
-			{children}
-		</Inline>
-	);
-}
-
-// Public API uses slots
-interface CardProps {
-	title: string;
-	actions?: React.ReactNode;
-	children: React.ReactNode;
-	footer?: React.ReactNode;
-}
-
-export function Card({ title, actions, children, footer }: Readonly<CardProps>) {
-	return (
-		<Box backgroundColor="elevation.surface.raised" padding="space.200">
-			<CardHeader title={title} actions={actions} />
-			<CardBody>{children}</CardBody>
-			{footer && <CardFooter>{footer}</CardFooter>}
-		</Box>
-	);
-}
-```
+**Anti-patterns:** boolean prop proliferation (max 2-3 booleans), prop drilling (use context), god components (split), inline object/array props (extract).
 
 ---
 
 ## Accessibility
 
-Build accessible components from the start. These patterns ensure usability for all users.
-
-### Core Principles
-
-| Principle         | Description                                                              |
-| ----------------- | ------------------------------------------------------------------------ |
-| **Semantic HTML** | Use correct elements (`button`, `nav`, `main`, not `div` for everything) |
-| **Keyboard**      | All interactive elements reachable and operable via keyboard             |
-| **Screen Reader** | Proper labels, roles, and live regions                                   |
-| **Visual**        | Sufficient contrast, focus indicators, motion preferences                |
-
-### Quick Accessibility Checklist
-
-| Element              | Required                                                 |
-| -------------------- | -------------------------------------------------------- |
-| Interactive elements | `<button>`, `<a>`, `<input>` (not `<div onClick>`)       |
-| Icon-only buttons    | `aria-label="Description"`                               |
-| Form fields          | Associated `<label>` or `aria-label`                     |
-| Images               | Meaningful `alt` text (or empty `alt=""` for decorative) |
-| Modals               | Focus trap, Escape to close, restore focus on close      |
-| Dynamic content      | `aria-live` regions for updates                          |
-
-### Focus Management
-
-For modals and overlays, manage focus programmatically:
-
-```tsx
-function Modal({ isOpen, onClose, children }: Readonly<ModalProps>) {
-	const closeButtonRef = useRef<HTMLButtonElement>(null);
-	const previousFocusRef = useRef<HTMLElement | null>(null);
-
-	useEffect(() => {
-		if (isOpen) {
-			// Save current focus
-			previousFocusRef.current = document.activeElement as HTMLElement;
-			// Move focus into modal
-			closeButtonRef.current?.focus();
-		} else if (previousFocusRef.current) {
-			// Restore focus when closing
-			previousFocusRef.current.focus();
-		}
-	}, [isOpen]);
-
-	// Handle Escape key
-	useEffect(() => {
-		if (!isOpen) return;
-
-		function handleKeyDown(e: KeyboardEvent) {
-			if (e.key === "Escape") onClose();
-		}
-
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [isOpen, onClose]);
-
-	if (!isOpen) return null;
-
-	return (
-		<div role="dialog" aria-modal="true" aria-labelledby="modal-title">
-			<button ref={closeButtonRef} onClick={onClose} aria-label="Close">
-				<CloseIcon />
-			</button>
-			{children}
-		</div>
-	);
-}
-```
-
-### When to Add Accessibility During Refactoring
+For detailed patterns and focus management examples, see `references/accessibility.md`.
 
 | If You Find...             | Add...                                      |
 | -------------------------- | ------------------------------------------- |
@@ -996,6 +388,7 @@ After structural refactoring, apply code clarity improvements:
 
 ## References
 
-For detailed guidance, see:
+For detailed guidance with full code examples, see:
 
-- **`references/patterns.md`** - Advanced composition patterns with full examples
+- **`references/patterns.md`** — Advanced composition patterns, code simplification, hooks, anti-patterns (1000+ lines)
+- **`references/accessibility.md`** — Accessibility patterns, focus management, data attributes

@@ -1,0 +1,185 @@
+{
+  "metadata": {
+    "skill_name": "vpk-component",
+    "skill_path": ".cursor/skills/vpk-component/SKILL.md",
+    "executor_model": "claude-opus-4-6",
+    "analyzer_model": "claude-opus-4-6",
+    "timestamp": "2026-03-06T00:10:00Z",
+    "evals_run": ["lozenge-mapping", "tooltip-enrichment", "badge-full-workflow"],
+    "runs_per_configuration": 1
+  },
+
+  "runs": [
+    {
+      "eval_id": 1,
+      "eval_name": "Lozenge Mapping",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 557.6,
+        "tokens": 115805,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Structured ADS→VPK mapping table", "passed": true, "evidence": "Comprehensive mapping tables for semantic, accent, bold variants"},
+        {"text": "Preserves shadcn naming convention", "passed": true, "evidence": "All VPK variant names preserved: neutral, success, danger, etc."},
+        {"text": "Uses ADS token triplets (rest/hovered/pressed)", "passed": true, "evidence": "Complete rest/hover/active triplets documented per variant"},
+        {"text": "References computed styles from live page", "passed": true, "evidence": "Used Playwright browser_evaluate to extract computed RGB values, border-radius, height, font-size"},
+        {"text": "Fills structured audit template", "passed": true, "evidence": "Comprehensive audit template with 'Current | Visual Styling Assessment' columns"}
+      ]
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "Lozenge Mapping",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 240.6,
+        "tokens": 74981,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Structured ADS→VPK mapping table", "passed": true, "evidence": "Good mapping tables for semantic and accent variants"},
+        {"text": "Preserves shadcn naming convention", "passed": true, "evidence": "Correctly uses VPK names throughout"},
+        {"text": "Uses ADS token triplets (rest/hovered/pressed)", "passed": true, "evidence": "Mentions hovered/pressed tokens exist but doesn't extract them"},
+        {"text": "References computed styles from live page", "passed": false, "evidence": "No Playwright extraction; relied on documentation and source code reading"},
+        {"text": "Fills structured audit template", "passed": false, "evidence": "Narrative documentation format, not structured audit template"}
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "Tooltip Enrichment",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.83,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 940.9,
+        "tokens": 118150,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Uses shadow-xl (overlay elevation)", "passed": false, "evidence": "Used shadow-md (raised) — deliberately, arguing tooltip is NOT on overlay list. This may be a BETTER decision than the assertion expects."},
+        {"text": "Preserves shadcn API (props, variants, sub-components)", "passed": true, "evidence": "All 4 sub-components and all prop names preserved"},
+        {"text": "Uses ADS background token (not generic bg-black)", "passed": true, "evidence": "Uses bg-bg-neutral-bold (#292A2E), verified via Playwright"},
+        {"text": "No ring border on tooltip popup", "passed": true, "evidence": "No ring-* classes added; only shadow-md and outline-hidden"},
+        {"text": "Lint passes", "passed": true, "evidence": "0 errors, 0 warnings"},
+        {"text": "Typecheck passes", "passed": true, "evidence": "0 new errors in modified files"}
+      ],
+      "notes": ["The shadow assertion may be incorrectly specified — agent's shadow-md choice matches the skill's categorization of tooltip as 'raised' not 'overlay'"]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "Tooltip Enrichment",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 276.3,
+        "tokens": 134,
+        "errors": 1
+      },
+      "expectations": [
+        {"text": "Uses shadow-xl (overlay elevation)", "passed": false, "evidence": "FAILED: 429 rate limit"},
+        {"text": "Preserves shadcn API", "passed": false, "evidence": "FAILED: 429 rate limit"},
+        {"text": "Uses ADS background token", "passed": false, "evidence": "FAILED: 429 rate limit"},
+        {"text": "No ring border on tooltip popup", "passed": false, "evidence": "FAILED: 429 rate limit"},
+        {"text": "Lint passes", "passed": false, "evidence": "FAILED: 429 rate limit"},
+        {"text": "Typecheck passes", "passed": false, "evidence": "FAILED: 429 rate limit"}
+      ],
+      "notes": ["Run FAILED due to 429 rate limit. All failures are infrastructure, not skill-quality. Needs retry."]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "Badge Full Workflow",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 872.2,
+        "tokens": 148596,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Preserves shadcn variant names (default, secondary, destructive, outline)", "passed": true, "evidence": "All shadcn variant names preserved"},
+        {"text": "ADS state tokens applied (hover/active/disabled per variant)", "passed": true, "evidence": "All 18 variants have ADS token triplets"},
+        {"text": "Bold variants use bg-bg-disabled; subtle variants use opacity", "passed": true, "evidence": "boldDisabled/subtleDisabled constants correctly assigned"},
+        {"text": "At least 2 demo files created", "passed": true, "evidence": "4 new ADS-mirroring demos as named exports"},
+        {"text": "Demos mirror ADS docs structure", "passed": true, "evidence": "Primary, Important, Added, Removed match ADS docs"},
+        {"text": "BadgeProps exported with Readonly<>", "passed": true, "evidence": "Interface and Readonly<> wrapper preserved"},
+        {"text": "Lint passes", "passed": true, "evidence": "0 errors on all modified files"},
+        {"text": "Typecheck passes", "passed": true, "evidence": "0 new errors"}
+      ]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "Badge Full Workflow",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 1192.6,
+        "tokens": 120777,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Preserves shadcn variant names (default, secondary, destructive, outline)", "passed": true, "evidence": "All shadcn variant names preserved"},
+        {"text": "ADS state tokens applied (hover/active/disabled per variant)", "passed": true, "evidence": "All variants have ADS token triplets"},
+        {"text": "Bold variants use bg-bg-disabled; subtle variants use opacity", "passed": true, "evidence": "boldDisabled/subtleDisabled constants correctly assigned"},
+        {"text": "At least 2 demo files created", "passed": true, "evidence": "7 separate demo files in badge/ subfolder"},
+        {"text": "Demos mirror ADS docs structure", "passed": true, "evidence": "Demo names reference ADS docs sections"},
+        {"text": "BadgeProps exported with Readonly<>", "passed": true, "evidence": "Interface and Readonly<> wrapper preserved"},
+        {"text": "Lint passes", "passed": true, "evidence": "Clean pass"},
+        {"text": "Typecheck passes", "passed": true, "evidence": "No new errors"}
+      ],
+      "notes": ["Without-skill agent passed ALL assertions, matching with-skill. Assertions may not be discriminating enough for this eval."]
+    }
+  ],
+
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 0.94, "stddev": 0.10, "min": 0.83, "max": 1.0},
+      "time_seconds": {"mean": 790.2, "stddev": 196.6, "min": 557.6, "max": 940.9},
+      "tokens": {"mean": 127517, "stddev": 17493, "min": 115805, "max": 148596}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.53, "stddev": 0.51, "min": 0.0, "max": 1.0},
+      "time_seconds": {"mean": 569.8, "stddev": 518.2, "min": 240.6, "max": 1192.6},
+      "tokens": {"mean": 65297, "stddev": 60755, "min": 134, "max": 120777}
+    },
+    "delta": {
+      "pass_rate": "+0.41",
+      "time_seconds": "+220.4",
+      "tokens": "+62220"
+    }
+  },
+
+  "notes": [
+    "Eval 2 (Tooltip) without-skill baseline FAILED due to 429 rate limit — not a valid comparison. Excluding this, the effective pass_rate delta is +0.20 (with_skill 0.94 vs without_skill 0.80).",
+    "Eval 3 (Badge) shows 100% pass rate for BOTH configurations — assertions are not discriminating. The without-skill agent independently discovered the same enrichments. Consider adding assertions for: icon wrapper enforcement, demo organization style, registry/metadata updates.",
+    "Eval 1 (Lozenge) is the most discriminating: computed style extraction and audit template format strongly differentiate skill-guided output.",
+    "The with-skill tooltip agent made a nuanced shadow decision (shadow-md not shadow-xl) that is arguably more correct than the assertion. Consider revising the shadow assertion.",
+    "Time cost: with-skill runs average ~790s vs ~570s without-skill (excluding failed run). The skill adds ~220s overhead from reading skill docs and following the structured workflow, but produces more consistent, structured output.",
+    "Token cost: with-skill uses ~62K more tokens on average (skill document + structured output generation).",
+    "Qualitative differences not captured by assertions: with-skill uses VPK <Icon> wrapper (without-skill uses raw Atlaskit icons); with-skill adds demos as named exports in existing file (without-skill creates separate files in subdirectory); with-skill updates registry.ts and details/ui.ts (without-skill only updates component file)."
+  ]
+}

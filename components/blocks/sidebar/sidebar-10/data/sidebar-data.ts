@@ -68,7 +68,7 @@ export const NAV_SECONDARY_ITEMS = [
 		icon: Settings2,
 	},
 	{
-		title: "Templates",
+		title: "Projects",
 		url: "#",
 		icon: Blocks,
 	},

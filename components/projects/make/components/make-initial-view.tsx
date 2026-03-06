@@ -6,7 +6,7 @@ import DiscoveryGallery from "@/components/blocks/discovery-gallery/page";
 import { Footer } from "@/components/ui/footer";
 import { token } from "@/lib/tokens";
 import { useTheme } from "@/components/utils/theme-wrapper";
-import { getPlanModeCopy } from "@/components/templates/make/lib/make-copy";
+import { getPlanModeCopy } from "@/components/projects/make/lib/make-copy";
 import {
 	useMakeState,
 	useMakeActions,

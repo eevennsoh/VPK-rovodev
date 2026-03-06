@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { getTemplatePageTitle } from "@/lib/template-page-title";
+import { getProjectPageTitle } from "@/lib/project-page-title";
 
 export const metadata: Metadata = {
-	title: getTemplatePageTitle("jira"),
+	title: getProjectPageTitle("jira"),
 	description: "Jira board view",
 	openGraph: {
-		title: `${getTemplatePageTitle("jira")} — VPK`,
+		title: `${getProjectPageTitle("jira")} — VPK`,
 		description: "Jira board view",
 	},
 };

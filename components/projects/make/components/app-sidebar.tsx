@@ -28,9 +28,9 @@ import {
 } from "@/components/ui/empty";
 import type { MakeSkill, MakeAgent } from "@/lib/make-config-types";
 import type { AgentRunListItem } from "@/lib/make-run-types";
-import type { RetryTaskGroupKey } from "@/components/templates/make/lib/retry-task-groups";
-import { filterItemsBySidebarSearch } from "@/components/templates/make/lib/sidebar-search";
-import { mapRunsToSidebarAppItems } from "@/components/templates/make/lib/make-artifact-items";
+import type { RetryTaskGroupKey } from "@/components/projects/make/lib/retry-task-groups";
+import { filterItemsBySidebarSearch } from "@/components/projects/make/lib/sidebar-search";
+import { mapRunsToSidebarAppItems } from "@/components/projects/make/lib/make-artifact-items";
 import SidebarChatHistory, {
 	type ChatHistoryItem,
 } from "./sidebar-chat-history";
@@ -44,6 +44,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	onPinSidebar?: () => void;
 	chatHistory: ChatHistoryItem[];
 	activeChatId: string | null;
+	thinkingChatId?: string | null;
 	runHistory: AgentRunListItem[];
 	activeRunId?: string | null;
 	initialNowMs?: number;
@@ -76,6 +77,7 @@ export function AppSidebar({
 	onPinSidebar,
 	chatHistory,
 	activeChatId,
+	thinkingChatId,
 	runHistory,
 	activeRunId,
 	initialNowMs,
@@ -151,6 +153,20 @@ export function AppSidebar({
 						</div>
 						<Link
 							href="/make"
+							onClick={(event) => {
+								const isModifiedClick =
+									event.metaKey ||
+									event.ctrlKey ||
+									event.shiftKey ||
+									event.altKey ||
+									event.button !== 0;
+								if (isModifiedClick) {
+									return;
+								}
+
+								event.preventDefault();
+								onNewChat();
+							}}
 							className="flex items-center gap-2 rounded-md p-1 text-text no-underline transition-colors hover:bg-surface-hovered hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focused"
 							aria-label="Go to plan"
 						>
@@ -242,6 +258,7 @@ export function AppSidebar({
 							<SidebarChatHistory
 								items={filteredChatHistory}
 								activeChatId={activeChatId}
+								thinkingChatId={thinkingChatId}
 								isGeneratingTitle={showGeneratingTitle}
 								pendingChatId={pendingTitleChatId}
 								sectionLabel="Chats"

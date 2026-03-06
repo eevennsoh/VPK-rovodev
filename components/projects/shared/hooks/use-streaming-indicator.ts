@@ -7,17 +7,17 @@ import {
 	hasTurnCompleteSignal,
 	type RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
-import { useDynamicThinkingLabel } from "@/components/templates/shared/hooks/use-dynamic-thinking-label";
+import { useDynamicThinkingLabel } from "@/components/projects/shared/hooks/use-dynamic-thinking-label";
 import {
 	useReasoningPhase,
 	getReasoningPropsForPhase,
 	type ReasoningPhase,
 	type ReasoningPhaseProps,
-} from "@/components/templates/shared/hooks/use-reasoning-phase";
-import { resolveThinkingLabelForSurface } from "@/components/templates/shared/lib/thinking-label-policy";
+} from "@/components/projects/shared/hooks/use-reasoning-phase";
+import { resolveThinkingLabelForSurface } from "@/components/projects/shared/lib/thinking-label-policy";
 import {
 	resolveThinkingIndicatorVisibility,
-} from "@/components/templates/shared/lib/reasoning-display-phase";
+} from "@/components/projects/shared/lib/reasoning-display-phase";
 
 interface UseStreamingIndicatorOptions {
 	isStreaming: boolean;

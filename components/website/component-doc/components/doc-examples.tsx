@@ -27,7 +27,7 @@ function slugify(name: string) {
 
 interface DocExamplesProps {
 	examples: ExampleDefinition[];
-	category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual";
+	category: "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual";
 }
 
 function ExampleSkeleton() {

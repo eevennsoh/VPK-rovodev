@@ -2,11 +2,11 @@
 
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
-import { ChatMessages } from "@/components/templates/shared/components/chat-messages";
-import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
-import type { GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
+import { ChatMessages } from "@/components/projects/shared/components/chat-messages";
+import { GenerativeWidgetCard } from "@/components/projects/shared/components/generative-widget-card";
+import type { GenerativeWidgetPrimaryActionPayload } from "@/components/projects/shared/lib/generative-widget";
 import ChatEmptyState from "./chat-empty-state";
-import LoadingWidget from "@/components/templates/shared/components/loading-widget";
+import LoadingWidget from "@/components/projects/shared/components/loading-widget";
 import type { PanelVariant } from "../types";
 
 interface RovoChatMessagesProps {

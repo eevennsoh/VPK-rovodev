@@ -1,6 +1,6 @@
 "use client";
 
-import AppLayout from "@/components/templates/page";
+import AppLayout from "@/components/projects/page";
 import { SidebarProvider } from "@/app/contexts/context-sidebar";
 import { RovoChatProvider } from "@/app/contexts";
 

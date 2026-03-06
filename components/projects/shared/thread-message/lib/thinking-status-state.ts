@@ -1,5 +1,5 @@
-import type { ReasoningPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
-import { getReasoningCompletedLabel } from "@/components/templates/shared/lib/reasoning-labels";
+import type { ReasoningPhase } from "@/components/projects/shared/hooks/use-reasoning-phase";
+import { getReasoningCompletedLabel } from "@/components/projects/shared/lib/reasoning-labels";
 
 interface ResolveThinkingStatusActiveOptions {
 	hasThinkingStatusPart: boolean;

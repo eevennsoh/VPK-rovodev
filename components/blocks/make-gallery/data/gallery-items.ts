@@ -405,7 +405,7 @@ const REPORT_GENERATOR_ASCII = `  +--[ Report Generator ]-------+
   |          [ Generate >>> ]   |
   +------------------------------+`;
 
-const PAGE_SCAFFOLDER_ASCII = `  +--[ Page Templates ]---------+
+const PAGE_SCAFFOLDER_ASCII = `  +--[ Page Projects ]---------+
   |                              |
   |  > Design Spec              |
   |    ## Overview               |

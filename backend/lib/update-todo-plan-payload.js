@@ -526,7 +526,7 @@ function extractUpdateTodoPlanPayloadFromObservations(observations, options = {}
 			continue;
 		}
 
-		if (observation.phase !== "result") {
+		if (observation.phase !== "result" && observation.phase !== "error") {
 			continue;
 		}
 

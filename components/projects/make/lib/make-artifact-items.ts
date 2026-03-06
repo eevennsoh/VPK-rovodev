@@ -8,7 +8,7 @@ import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
 	sanitizePlanDescription,
-} from "@/components/templates/shared/lib/plan-identity";
+} from "@/components/projects/shared/lib/plan-identity";
 
 export interface MakeSidebarAppItem {
 	runId: string;

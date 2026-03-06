@@ -2,10 +2,10 @@
 
 import { useCallback, useMemo, useState } from "react";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
-import { parsePlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
-import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
-import type { ParsedQuestionCardPayload } from "@/components/templates/shared/lib/question-card-widget";
-import { getPlanApprovalKeyFromPlanWidget } from "@/components/templates/shared/lib/plan-approval";
+import { parsePlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
+import type { ParsedPlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
+import type { ParsedQuestionCardPayload } from "@/components/projects/shared/lib/question-card-widget";
+import { getPlanApprovalKeyFromPlanWidget } from "@/components/projects/shared/lib/plan-approval";
 
 interface UseDismissibleCardsOptions {
 	activeQuestionCard: ParsedQuestionCardPayload | null;

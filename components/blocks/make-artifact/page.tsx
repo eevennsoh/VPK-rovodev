@@ -34,16 +34,16 @@ import {
 	FileTreeFile,
 	FileTreeFolder,
 } from "@/components/ui-ai/file-tree";
-import { MessageResponse } from "@/components/ui-ai/message";
 import { GUI } from "@/components/utils/gui";
+import { MessageResponse } from "@/components/ui-ai/message";
 import {
 	getLatestPlanWidgetPayload,
 	type ParsedPlanWidgetPayload,
-} from "@/components/templates/shared/lib/plan-widget";
+} from "@/components/projects/shared/lib/plan-widget";
 import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
-} from "@/components/templates/shared/lib/plan-identity";
+} from "@/components/projects/shared/lib/plan-identity";
 
 type ArtifactRightPanelMode = "design" | "chat" | "files";
 type ArtifactLeftPanelMode = "preview" | "plan";
@@ -423,11 +423,14 @@ function PlanPanel({
 				</div>
 				<TabsContent value="summary" className="min-h-0 flex-1 overflow-auto px-4 py-4">
 					{normalizedSummaryContent.length > 0 ? (
-						<MessageResponse className="text-sm leading-6 text-text">
+						<MessageResponse
+							isAnimating={false}
+							className="size-full text-sm leading-6 text-text [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_h1]:mt-3 [&_h1]:mb-2 [&_h1]:text-2xl [&_h1]:leading-7 [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-xl [&_h2]:leading-6 [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:mb-2 [&_h3]:text-base [&_h3]:leading-5 [&_h3]:font-semibold [&_p]:my-0"
+						>
 							{normalizedSummaryContent}
 						</MessageResponse>
 					) : (
-						<p className="text-sm text-text-subtle">No markdown output yet.</p>
+						<p className="text-sm text-text-subtle">No summary yet.</p>
 					)}
 				</TabsContent>
 				<TabsContent value="tasks" className="min-h-0 flex-1 overflow-auto px-4 py-4">
@@ -801,6 +804,7 @@ export default function MakeArtifactBlock() {
 						onExpandSidebar={handlePinSidebar}
 						onHoverEnter={handleHoverEnter}
 						onHoverLeave={handleHoverLeave}
+						runId={activeRunId ?? undefined}
 					/>
 					<main className="flex min-h-0 flex-1 flex-col gap-4 bg-surface p-4">
 						<ContentTabBar

@@ -8,8 +8,8 @@ import {
 	ReasoningSection,
 	ReasoningText,
 } from "@/components/ui-ai/reasoning";
-import { getReasoningPropsForPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
-import { getReasoningSectionTitle } from "@/components/templates/shared/lib/reasoning-labels";
+import { getReasoningPropsForPhase } from "@/components/projects/shared/hooks/use-reasoning-phase";
+import { getReasoningSectionTitle } from "@/components/projects/shared/lib/reasoning-labels";
 import { ThreadMessageContext } from "./thread-message-context";
 import { AssistantThinkingToolsSection } from "../components/assistant-thinking-tools-section";
 import { AssistantToolsSection } from "../components/assistant-tools-section";

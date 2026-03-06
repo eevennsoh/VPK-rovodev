@@ -11,7 +11,7 @@ import FullscreenEnterIcon from "@atlaskit/icon/core/fullscreen-enter";
 
 interface DocPreviewProps {
 	slug: string;
-	category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual";
+	category: "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual";
 	demoLayout?: DemoLayout;
 }
 
@@ -53,7 +53,7 @@ export function DocPreview({ slug, category, demoLayout }: Readonly<DocPreviewPr
 		</Button>
 	);
 
-	const isFullPage = (category === "templates" || category === "blocks") && demoLayout?.previewHeight !== "default";
+	const isFullPage = (category === "projects" || category === "blocks") && demoLayout?.previewHeight !== "default";
 	const fitContent = demoLayout?.previewHeight === "fit";
 
 	return (

@@ -6,7 +6,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/utils/theme-wrapper";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
-import { REASONING_LABELS } from "@/components/templates/shared/lib/reasoning-labels";
+import { REASONING_LABELS } from "@/components/projects/shared/lib/reasoning-labels";
 import {
 	PromptInput,
 	PromptInputBody,

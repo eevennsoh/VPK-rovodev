@@ -7,7 +7,7 @@ import { Footer } from "@/components/ui/footer";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import { useTheme } from "@/components/utils/theme-wrapper";
-import { getPlanModeCopy } from "@/components/templates/plan/lib/plan-copy";
+import { getPlanModeCopy } from "@/components/projects/plan/lib/plan-copy";
 import {
 	usePlanState,
 	usePlanActions,

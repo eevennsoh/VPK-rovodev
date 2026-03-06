@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getPreviewPageTitle } from "@/lib/template-page-title";
+import { getPreviewPageTitle } from "@/lib/project-page-title";
 import type { PreviewCategory } from "./preview-types";
 
 export interface PreviewLayoutProps {

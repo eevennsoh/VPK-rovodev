@@ -31,6 +31,7 @@ function MakeLayout() {
 		sidebarHovered,
 		chatHistory,
 		activeChatId,
+		chatTabIsStreaming,
 		sidebarRunHistory,
 		runId,
 		isGeneratingTitle,
@@ -94,6 +95,7 @@ function MakeLayout() {
 				onPinSidebar={handlePinSidebar}
 				chatHistory={chatHistory}
 				activeChatId={activeChatId}
+				thinkingChatId={chatTabIsStreaming ? activeChatId : null}
 				runHistory={sidebarRunHistory}
 				activeRunId={runId}
 				isGeneratingTitle={isGeneratingTitle}

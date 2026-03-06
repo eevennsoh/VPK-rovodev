@@ -95,14 +95,15 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 <Badge>8</Badge>
 <Badge variant="information">12</Badge>
 <Badge variant="success">+100</Badge>
+<Badge variant="important">150</Badge>
 <Badge variant="danger">-50</Badge>
 <Badge variant="inverse">12</Badge>`,
 		props: [
 			{
 				name: "variant",
-				type: '"default" | "neutral" | "secondary" | "destructive" | "danger" | "success" | "added" | "warning" | "info" | "information" | "primary" | "discovery" | "inverse" | "primaryInverted" | "removed" | "outline" | "ghost" | "link"',
+				type: '"default" | "neutral" | "secondary" | "important" | "destructive" | "danger" | "success" | "added" | "warning" | "info" | "information" | "primary" | "discovery" | "inverse" | "primaryInverted" | "removed" | "outline" | "ghost" | "link"',
 				default: '"default"',
-				description: "Visual style variant of the badge. Includes ADS semantic appearances and legacy aliases.",
+				description: "Visual style variant of the badge. Includes ADS semantic appearances (neutral, primary, important, added, removed) and legacy aliases.",
 			},
 			{
 				name: "max",
@@ -117,7 +118,14 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 			},
 		],
 		examples: [
-			{ title: "Default", demoSlug: "badge-demo-default" },
+			// ADS-mirroring examples (mirror atlassian.design/components/badge/examples)
+			{ title: "Default", description: "ADS 'neutral' appearance — gray pill for numeric counts.", demoSlug: "badge-demo-default" },
+			{ title: "Primary", description: "ADS 'primary' appearance — blue informational count.", demoSlug: "badge-demo-primary" },
+			{ title: "Important", description: "ADS 'important' appearance — bold dark badge for high-urgency counts.", demoSlug: "badge-demo-important" },
+			{ title: "Added", description: "ADS 'added' appearance — green success count.", demoSlug: "badge-demo-added" },
+			{ title: "Removed", description: "ADS 'removed' appearance — red danger count.", demoSlug: "badge-demo-removed" },
+			{ title: "Max value", description: "Values exceeding max display as 'max+'. Defaults to 99.", demoSlug: "badge-demo-max-value" },
+			// Additional VPK variant demos
 			{ title: "Secondary", demoSlug: "badge-demo-secondary" },
 			{ title: "Destructive", demoSlug: "badge-demo-destructive" },
 			{ title: "Success", demoSlug: "badge-demo-success" },
@@ -127,11 +135,10 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 			{ title: "Outline", demoSlug: "badge-demo-outline" },
 			{ title: "Ghost", demoSlug: "badge-demo-ghost" },
 			{ title: "Link", demoSlug: "badge-demo-link" },
-			{ title: "ADS appearances", description: "Latest semantic badge appearances from ADS.", demoSlug: "badge-demo-ads-appearances" },
+			{ title: "ADS appearances", description: "All semantic badge appearances from @atlaskit/badge.", demoSlug: "badge-demo-ads-appearances" },
 			{ title: "ADS legacy aliases", description: "Legacy appearance aliases supported for parity.", demoSlug: "badge-demo-ads-legacy-aliases" },
 			{ title: "All variants", description: "All badge variants side by side.", demoSlug: "badge-demo-variants" },
-			{ title: "With icon", description: "Badge with inline icon.", demoSlug: "badge-demo-with-icon" },
-			{ title: "Max value", description: "Badge with max prop capping numeric values.", demoSlug: "badge-demo-max-value" },
+			{ title: "With icon", description: "Badge with inline icon using VPK Icon wrapper.", demoSlug: "badge-demo-with-icon" },
 			{ title: "With spinner", description: "Badge with inline spinner for loading states.", demoSlug: "badge-demo-with-spinner" },
 			{ title: "Disabled", description: "Disabled badge states.", demoSlug: "badge-demo-disabled" },
 		],

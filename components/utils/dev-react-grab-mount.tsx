@@ -7,6 +7,26 @@ const REACT_GRAB_SCRIPT_ID = "vpk-dev-react-grab-script";
 const REACT_GRAB_MCP_SCRIPT_ID = "vpk-dev-react-grab-mcp-script";
 const REACT_GRAB_SCRIPT_SRC = "//unpkg.com/react-grab/dist/index.global.js";
 const REACT_GRAB_MCP_SCRIPT_SRC = "//unpkg.com/@react-grab/mcp/dist/client.global.js";
+type ReactGrabWindow = Window & {
+	__REACT_GRAB__?: {
+		activate?: () => void;
+		deactivate?: () => void;
+		setEnabled?: (enabled: boolean) => void;
+	};
+};
+
+function isReactGrabDisabledPath(pathname: string | null): boolean {
+	if (!pathname) {
+		return false;
+	}
+
+	return (
+		pathname === "/make"
+		|| pathname.startsWith("/make/")
+		|| pathname === "/preview/projects/make"
+		|| pathname.startsWith("/preview/projects/make/")
+	);
+}
 
 function ensureScript({
 	id,
@@ -46,6 +66,13 @@ export function DevReactGrabMount() {
 			return;
 		}
 
+		if (isReactGrabDisabledPath(pathname)) {
+			const reactGrab = (window as ReactGrabWindow).__REACT_GRAB__;
+			reactGrab?.deactivate?.();
+			reactGrab?.setEnabled?.(false);
+			return;
+		}
+
 		let cancelled = false;
 
 		const loadScripts = async () => {
@@ -64,6 +91,13 @@ export function DevReactGrabMount() {
 					id: REACT_GRAB_MCP_SCRIPT_ID,
 					src: REACT_GRAB_MCP_SCRIPT_SRC,
 				});
+
+				if (cancelled) {
+					return;
+				}
+
+				const reactGrab = (window as ReactGrabWindow).__REACT_GRAB__;
+				reactGrab?.setEnabled?.(true);
 			} catch {
 				// Ignore script loading errors in local dev helper tooling.
 			}

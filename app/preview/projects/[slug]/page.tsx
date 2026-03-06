@@ -7,5 +7,5 @@ interface PreviewTemplatePageProps {
 }
 
 export default function PreviewTemplatePage({ params }: PreviewTemplatePageProps) {
-	return <RenderPreviewCategoryPage params={params} category="templates" />;
+	return <RenderPreviewCategoryPage params={params} category="projects" />;
 }

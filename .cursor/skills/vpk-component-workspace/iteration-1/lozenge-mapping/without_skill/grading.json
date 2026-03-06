@@ -1,0 +1,52 @@
+{
+  "expectations": [
+    {
+      "text": "Output includes a structured ADS variant → VPK variant mapping table",
+      "passed": true,
+      "evidence": "Summary contains multiple mapping tables: Section 1 'ADS Variant → VPK Variant Mapping' covers prop names, semantic appearance values (10 rows), accent color values (10 rows). Section 2 covers visual state tokens per variant."
+    },
+    {
+      "text": "Variant names stay as shadcn convention — not renamed to ADS names",
+      "passed": true,
+      "evidence": "Section 6 'Prop Names and Variant Values' explicitly confirms: appearance→variant (VPK/CVA convention), isBold preserved, maxWidth preserved. All variant values listed as 'Preserved' with rationale."
+    },
+    {
+      "text": "Uses ADS token triplets (rest/hovered/pressed) rather than generic opacity/color patterns",
+      "passed": true,
+      "evidence": "Section 3 'LozengeDropdownTrigger — Interactive States' documents hover tokens per variant (e.g. hover:bg-bg-neutral-hovered). Section 'Active/Pressed state' identifies the gap: pressed tokens exist but aren't applied. References specific ADS token names like color.background.neutral.pressed."
+    },
+    {
+      "text": "Mentions or uses computed style extraction from live ADS page rather than guessing from token names",
+      "passed": false,
+      "evidence": "No mention of browser_evaluate, Playwright, or computed style extraction. Analysis relies entirely on reading VPK source code, ADS documentation via ads_plan MCP tool, and token catalog files. Token values are documented by name (e.g. '#0515240F') but these come from reading theme CSS files, not live page extraction."
+    },
+    {
+      "text": "Produces a structured audit of current component state vs needed ADS styling",
+      "passed": false,
+      "evidence": "The output is comprehensive documentation but organized as a reference mapping document (variant tables, state tokens, gap analysis), not a structured audit template with 'Current (preserve) | Visual Styling Applied' columns. The gap analysis section (Section 4) is narrative, not tabular."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 2,
+    "total": 5,
+    "pass_rate": 0.6
+  },
+  "timing": {
+    "total_tokens": 74981,
+    "total_duration_seconds": 240.6
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "references-computed-styles",
+        "reason": "This assertion strongly discriminates between with-skill and without-skill — the skill explicitly teaches Playwright computed style extraction while the baseline relies on documentation. Good assertion."
+      },
+      {
+        "assertion": "fills-audit-template",
+        "reason": "The baseline produced thorough documentation that covers the same content as an audit template, just in a different format. Consider whether format (tabular template) or content (comprehensive coverage) is what matters."
+      }
+    ],
+    "overall": "The baseline produced high-quality documentation but missed the skill's distinctive techniques: live computed style extraction and structured audit template format."
+  }
+}

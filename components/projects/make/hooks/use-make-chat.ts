@@ -16,18 +16,18 @@ import {
 	buildClarificationSummaryRows,
 	type ClarificationSubmission,
 	type ParsedQuestionCardPayload,
-} from "@/components/templates/shared/lib/question-card-widget";
+} from "@/components/projects/shared/lib/question-card-widget";
 import {
 	buildPlanApprovalPrompt,
 	getPlanApprovalKeyFromSubmission,
 	type PlanApprovalDecision,
 	type PlanApprovalSubmission,
-} from "@/components/templates/shared/lib/plan-approval";
+} from "@/components/projects/shared/lib/plan-approval";
 import {
 	buildGenerativeWidgetSubmitPrompt,
 	type GenerativeWidgetPrimaryActionPayload,
-} from "@/components/templates/shared/lib/generative-widget";
-import { getLatestPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
+} from "@/components/projects/shared/lib/generative-widget";
+import { getLatestPlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
 import {
 	MAKE_INTERVIEW_CONTEXT_DESCRIPTION,
 	MAKE_INTERVIEW_FOLLOW_UP_CONTEXT_DESCRIPTION,

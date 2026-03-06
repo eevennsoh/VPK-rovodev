@@ -10,8 +10,8 @@ import {
 	Reasoning,
 } from "@/components/ui-ai/reasoning";
 import { cn } from "@/lib/utils";
-import { MessageTurns } from "@/components/templates/shared/message-turns";
-import { ThreadMessage } from "@/components/templates/shared/thread-message";
+import { MessageTurns } from "@/components/projects/shared/message-turns";
+import { ThreadMessage } from "@/components/projects/shared/thread-message";
 import {
 	isRenderableRovoUIMessage,
 	type RovoUIMessage,
@@ -19,11 +19,11 @@ import {
 } from "@/lib/rovo-ui-messages";
 import { PreloadThinkingIndicator } from "./preload-thinking-indicator";
 import { StreamingThinkingIndicator } from "./streaming-thinking-indicator";
-import { useStreamingIndicatorState } from "@/components/templates/shared/hooks/use-streaming-indicator";
+import { useStreamingIndicatorState } from "@/components/projects/shared/hooks/use-streaming-indicator";
 import {
 	getAwaitingUserResponseLabel,
 	getDefaultThinkingLabel,
-} from "@/components/templates/shared/lib/reasoning-labels";
+} from "@/components/projects/shared/lib/reasoning-labels";
 import styles from "./chat-messages.module.css";
 
 export interface ChatMessagesProps {

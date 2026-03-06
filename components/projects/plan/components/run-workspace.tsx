@@ -33,28 +33,28 @@ import type {
 } from "@/lib/plan-run-types";
 import { isAgentRunStreamEvent } from "@/lib/plan-run-types";
 import type { AgentExecutionUpdate } from "@/lib/rovo-ui-messages";
-import { deriveTaskExecutionsFromRun } from "@/components/templates/plan/lib/execution-data";
+import { deriveTaskExecutionsFromRun } from "@/components/projects/plan/lib/execution-data";
 import {
 	applyExecutionUpdate,
 	mergeStreamedExecutions,
 	type TaskExecutionByTaskId,
-} from "@/components/templates/plan/lib/task-execution-stream";
-import { ExecutionGridView } from "@/components/templates/plan/components/execution-grid-view";
-import { RunFilesTab } from "@/components/templates/plan/components/run-files-tab";
+} from "@/components/projects/plan/lib/task-execution-stream";
+import { ExecutionGridView } from "@/components/projects/plan/components/execution-grid-view";
+import { RunFilesTab } from "@/components/projects/plan/components/run-files-tab";
 import { RunSummarySection } from "@/app/plan/runs/[runId]/run-summary-section";
-import { AppSidebar } from "@/components/templates/plan/components/app-sidebar";
-import ChatTitleRow from "@/components/templates/plan/components/chat-title-row";
-import { usePlanConfig } from "@/components/templates/plan/hooks/use-plan-config";
-import { useConfigDialogs } from "@/components/templates/plan/hooks/use-config-dialogs";
-import { ConfigDialogs } from "@/components/templates/plan/components/config-dialogs";
+import { AppSidebar } from "@/components/projects/plan/components/app-sidebar";
+import ChatTitleRow from "@/components/projects/plan/components/chat-title-row";
+import { usePlanConfig } from "@/components/projects/plan/hooks/use-plan-config";
+import { useConfigDialogs } from "@/components/projects/plan/hooks/use-config-dialogs";
+import { ConfigDialogs } from "@/components/projects/plan/components/config-dialogs";
 import {
 	selectRetryTasks,
 	type RetryTaskGroupKey,
-} from "@/components/templates/plan/lib/retry-task-groups";
+} from "@/components/projects/plan/lib/retry-task-groups";
 import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
-} from "@/components/templates/shared/lib/plan-identity";
+} from "@/components/projects/shared/lib/plan-identity";
 
 interface RunWorkspaceProps {
 	runId: string;

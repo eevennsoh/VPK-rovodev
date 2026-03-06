@@ -22,7 +22,7 @@ export default function Sidebar({ product }: Readonly<SidebarProps>) {
 
 	// Update route when pathname changes
 	useEffect(() => {
-		if (pathname.startsWith("/jira")) {
+		if (pathname.startsWith("/jira") || pathname.startsWith("/sprint-board")) {
 			setCurrentRoute("jira");
 		} else if (pathname.startsWith("/confluence")) {
 			setCurrentRoute("confluence");

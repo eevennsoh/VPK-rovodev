@@ -10,18 +10,20 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import { AnimatedDots } from "@/components/ui-ai/animated-dots";
+import { MessageResponse } from "@/components/ui-ai/message";
 import { useTheme } from "@/components/utils/theme-wrapper";
 import Image from "next/image";
 import type { AgentRun } from "@/lib/make-run-types";
 import { DEFAULT_DESIGN_CONFIG, type DesignConfig } from "@/lib/design-config-bridge";
 import { DesignConfigInjector } from "@/components/utils/design-config-injector";
-import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
+import type { ParsedPlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
 import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
-} from "@/components/templates/shared/lib/plan-identity";
+} from "@/components/projects/shared/lib/plan-identity";
 import EyeOpenIcon from "@atlaskit/icon/core/eye-open";
 import ClipboardIcon from "@atlaskit/icon/core/clipboard";
+import AiGenerativeTextSummaryIcon from "@atlaskit/icon/core/ai-generative-text-summary";
 import PaintPaletteIcon from "@atlaskit/icon/core/paint-palette";
 import AiChatIcon from "@atlaskit/icon/core/ai-chat";
 import FolderClosedIcon from "@atlaskit/icon/core/folder-closed";
@@ -29,7 +31,6 @@ import LinkExternalIcon from "@atlaskit/icon/core/link-external";
 import RefreshIcon from "@atlaskit/icon/core/refresh";
 import UndoIcon from "@atlaskit/icon/core/undo";
 import TerminalSwitchPanel from "@/components/blocks/terminal-switch/page";
-import { MessageResponse } from "@/components/ui-ai/message";
 import {
 	FileTree,
 	FileTreeFile,
@@ -41,7 +42,7 @@ import { MakePreviewReactGrabMount } from "@/components/utils/make-preview-react
 import type { Spec } from "@json-render/react";
 
 type ArtifactRightPanelMode = "design" | "chat" | "files";
-type ArtifactLeftPanelMode = "preview" | "plan";
+type ArtifactLeftPanelMode = "preview" | "plan" | "summary";
 
 type VisibilityControl = {
 	kind: "visibility";
@@ -168,6 +169,8 @@ type RunFileTreeModel = {
 	firstFilePath: string | null;
 };
 
+const MAKE_PREVIEW_REACT_GRAB_ENABLED = false;
+
 function isMakeArtifactTemplateRoute(pathname: string | null): boolean {
 	if (!pathname) {
 		return false;
@@ -176,8 +179,8 @@ function isMakeArtifactTemplateRoute(pathname: string | null): boolean {
 	return (
 		pathname === "/make"
 		|| pathname.startsWith("/make/")
-		|| pathname === "/preview/templates/make"
-		|| pathname.startsWith("/preview/templates/make/")
+		|| pathname === "/preview/projects/make"
+		|| pathname.startsWith("/preview/projects/make/")
 	);
 }
 
@@ -1198,7 +1201,19 @@ function resolveAppPreviewRoutes(run: AgentRun | null): string[] {
 		};
 	});
 
+	const hasConcreteAppRoute = scoredRoutes.some(
+		(scoredRoute) => !scoredRoute.routePath.startsWith("/apps/"),
+	);
+
 	scoredRoutes.sort((leftRoute, rightRoute) => {
+		if (hasConcreteAppRoute) {
+			const leftIsGeneratedRoute = leftRoute.routePath.startsWith("/apps/");
+			const rightIsGeneratedRoute = rightRoute.routePath.startsWith("/apps/");
+			if (leftIsGeneratedRoute !== rightIsGeneratedRoute) {
+				return leftIsGeneratedRoute ? 1 : -1;
+			}
+		}
+
 		if (rightRoute.score !== leftRoute.score) {
 			return rightRoute.score - leftRoute.score;
 		}
@@ -1401,6 +1416,13 @@ function collectRunFilePaths(run: AgentRun | null): string[] {
 	}
 
 	const normalizedPathSet = new Set<string>();
+	for (const createdFilePath of run.createdFiles ?? []) {
+		const normalizedPath = normalizeRunFilePath(createdFilePath);
+		if (normalizedPath) {
+			normalizedPathSet.add(normalizedPath);
+		}
+	}
+
 	for (const textCandidate of extractTextCandidatesFromRun(run)) {
 		for (const rawPath of extractRunFilePathCandidates(textCandidate)) {
 			const normalizedPath = normalizeRunFilePath(rawPath);
@@ -1537,6 +1559,10 @@ function ContentTabBar({
 				<ToggleGroupItem value="plan">
 					<Icon render={<ClipboardIcon label="" />} label="Plan" />
 					Plan
+				</ToggleGroupItem>
+				<ToggleGroupItem value="summary">
+					<Icon render={<AiGenerativeTextSummaryIcon label="" />} label="Summary" />
+					Summary
 				</ToggleGroupItem>
 			</ToggleGroup>
 
@@ -2136,6 +2162,7 @@ function PreviewOutputPanel({
 	isResolvingPreviewRoute,
 	enableReactGrabInPreview,
 	hasDraftPlan,
+	forceRenderableOutput = false,
 	renderableOutput,
 	previewState,
 	specOverrides,
@@ -2149,6 +2176,7 @@ function PreviewOutputPanel({
 	isResolvingPreviewRoute: boolean;
 	enableReactGrabInPreview: boolean;
 	hasDraftPlan: boolean;
+	forceRenderableOutput?: boolean;
 	renderableOutput: RenderableOutput | null;
 	previewState: Record<string, unknown>;
 	specOverrides: SpecOverrides;
@@ -2173,12 +2201,14 @@ function PreviewOutputPanel({
 		return <LoadingPanel title="Loading output..." />;
 	}
 
-	const previewTitle = (renderableOutput?.title
-		?? resolvePlanDisplayTitle(run?.plan.title ?? "", run?.plan.tasks ?? []))
-		|| "Preview";
+	const previewTitle = forceRenderableOutput
+		? renderableOutput?.title || "Summary"
+		: (renderableOutput?.title
+			?? resolvePlanDisplayTitle(run?.plan.title ?? "", run?.plan.tasks ?? []))
+			|| "Preview";
 
 	if (run) {
-		if (appPreviewRoute) {
+		if (!forceRenderableOutput && appPreviewRoute) {
 			return (
 				<div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-surface">
 					<PreviewHeader
@@ -2220,14 +2250,18 @@ function PreviewOutputPanel({
 			);
 		}
 
-		if (run.status === "running" || isResolvingPreviewRoute) {
+		if (run.status === "running" || (!forceRenderableOutput && isResolvingPreviewRoute)) {
 			return <GeneratingPanel />;
 		}
 
 		return (
 			<EmptyPanel
-				title="No output yet"
-				description="This run does not have a renderable output yet."
+				title={forceRenderableOutput ? "No summary yet" : "No output yet"}
+				description={
+					forceRenderableOutput
+						? "This run does not have a renderable summary yet."
+						: "This run does not have a renderable output yet."
+				}
 			/>
 		);
 	}
@@ -2243,8 +2277,12 @@ function PreviewOutputPanel({
 
 	return (
 		<EmptyPanel
-			title="No saved output"
-			description="Start a make run to persist one plan and one output."
+			title={forceRenderableOutput ? "No saved summary" : "No saved output"}
+			description={
+				forceRenderableOutput
+					? "Start a make run to persist a summary view."
+					: "Start a make run to persist one plan and one output."
+			}
 		/>
 	);
 }
@@ -2283,11 +2321,14 @@ function PlanPanel({
 				</div>
 				<TabsContent value="summary" className="min-h-0 flex-1 overflow-auto px-4 py-4">
 					{normalizedSummaryContent.length > 0 ? (
-						<MessageResponse className="text-sm leading-6 text-text">
+						<MessageResponse
+							isAnimating={false}
+							className="size-full text-sm leading-6 text-text [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_h1]:mt-3 [&_h1]:mb-2 [&_h1]:text-2xl [&_h1]:leading-7 [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:mb-2 [&_h2]:text-xl [&_h2]:leading-6 [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:mb-2 [&_h3]:text-base [&_h3]:leading-5 [&_h3]:font-semibold [&_p]:my-0"
+						>
 							{normalizedSummaryContent}
 						</MessageResponse>
 					) : (
-						<p className="text-sm text-text-subtle">No markdown output yet.</p>
+						<p className="text-sm text-text-subtle">No summary yet.</p>
 					)}
 				</TabsContent>
 				<TabsContent value="tasks" className="min-h-0 flex-1 overflow-auto px-4 py-4">
@@ -2371,7 +2412,7 @@ function TwoPanelLayout({
 		theme: actualTheme,
 	}));
 
-	const isLiveAppPreview = appPreviewRoute !== null;
+	const isLiveAppPreview = leftMode === "preview" && appPreviewRoute !== null;
 
 	const effectiveDesignConfig = useMemo(() => ({
 		...designConfig,
@@ -2445,13 +2486,14 @@ function TwoPanelLayout({
 						isResolvingPreviewRoute={isResolvingPreviewRoute}
 						enableReactGrabInPreview={enableReactGrabInPreview}
 						hasDraftPlan={hasDraftPlan}
-							renderableOutput={renderableOutput}
-							previewState={previewState}
-							specOverrides={specOverrides}
-							designConfig={effectiveDesignConfig}
-							iframeRef={iframeRef}
-							onPreviewStateChange={onPreviewStateChange}
-						/>
+						forceRenderableOutput={leftMode === "summary"}
+						renderableOutput={renderableOutput}
+						previewState={previewState}
+						specOverrides={specOverrides}
+						designConfig={effectiveDesignConfig}
+						iframeRef={iframeRef}
+						onPreviewStateChange={onPreviewStateChange}
+					/>
 				)}
 			</div>
 			<div className="min-h-0 w-[400px] max-w-full shrink-0">
@@ -2472,7 +2514,8 @@ export function MakeArtifactSurface({
 	const [leftMode, setLeftMode] = useState<ArtifactLeftPanelMode>("preview");
 	const [previewState, setPreviewState] = useState<Record<string, unknown>>({});
 	const [specOverrides, setSpecOverrides] = useState<SpecOverrides>({ elements: {} });
-	const enableReactGrabInPreview = isMakeArtifactTemplateRoute(pathname);
+	const enableReactGrabInPreview = MAKE_PREVIEW_REACT_GRAB_ENABLED
+		&& isMakeArtifactTemplateRoute(pathname);
 
 	const previewSummaryContent = useMemo(() => {
 		const runSummaryContent = run?.summary?.content;
@@ -2599,10 +2642,10 @@ export function MakeArtifactSurface({
 
 	const autoControls = useMemo(
 		() =>
-			renderableOutput && appPreviewRoute === null
+			renderableOutput && (appPreviewRoute === null || leftMode === "summary")
 				? extractAutoControls(renderableOutput.spec, specOverrides)
 				: [],
-		[appPreviewRoute, renderableOutput, specOverrides]
+		[appPreviewRoute, leftMode, renderableOutput, specOverrides]
 	);
 	const hasOverrides = Object.keys(specOverrides.elements).length > 0;
 

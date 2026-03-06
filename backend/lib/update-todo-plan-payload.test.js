@@ -89,6 +89,31 @@ test("returns null when update_todo has fewer than minimum tasks", () => {
 	assert.equal(payload, null);
 });
 
+test("extracts tasks from update_todo error observations when todo output is present", () => {
+	const payload = extractUpdateTodoPlanPayloadFromObservations([
+		{
+			phase: "error",
+			toolName: "update_todo",
+			text: [
+				"Successfully replaced existing todos. Total: 3 tasks (1 in_progress, 2 pending).",
+				"",
+				"<todo>",
+				'{"id":1,"content":"Create types","status":"in_progress"}',
+				'{"id":2,"content":"[needs 1] Build context","status":"pending"}',
+				'{"id":3,"content":"[needs 2] Wire renderer","status":"pending"}',
+				"</todo>",
+			].join("\n"),
+		},
+	]);
+
+	assert.ok(payload);
+	assert.equal(payload.type, "plan");
+	assert.equal(payload.tasks.length, 3);
+	assert.deepEqual(payload.tasks[0].blockedBy, []);
+	assert.deepEqual(payload.tasks[1].blockedBy, ["task-1"]);
+	assert.deepEqual(payload.tasks[2].blockedBy, ["task-2"]);
+});
+
 test("parses strict [needs ...] tags and maps dependencies to canonical task ids", () => {
 	const payload = extractUpdateTodoPlanPayloadFromObservations([
 		{
@@ -134,7 +159,7 @@ test("merges explicit blockedBy values and [needs] tags from mixed id formats", 
 	assert.deepEqual(payload.tasks[2].blockedBy, ["task-2"]);
 });
 
-test("falls back to dependency inference when explicit dependencies are absent", () => {
+test("infers task dependencies when explicit dependencies are absent", () => {
 	const payload = extractUpdateTodoPlanPayloadFromObservations([
 		{
 			phase: "result",
@@ -150,6 +175,7 @@ test("falls back to dependency inference when explicit dependencies are absent",
 	]);
 
 	assert.ok(payload);
+	// inferTaskDependencies should sequence these tasks based on label analysis
 	assert.deepEqual(payload.tasks[0].blockedBy, []);
 	assert.deepEqual(payload.tasks[1].blockedBy, ["task-1"]);
 	assert.deepEqual(payload.tasks[2].blockedBy, ["task-2"]);

@@ -1,1 +1,1 @@
-export { useDismissibleCards } from "@/components/templates/shared/hooks/use-dismissible-cards";
+export { useDismissibleCards } from "@/components/projects/shared/hooks/use-dismissible-cards";

@@ -11,6 +11,8 @@ const {
 	detectEndpointType,
 	resolveGatewayUrl,
 } = require("../lib/ai-gateway-helpers");
+const { getGenuiSummarySystemPrompt } = require("../lib/genui-system-prompt");
+const { analyzeGeneratedText, pickBestSpec } = require("../lib/genui-spec-utils");
 const { inferTaskDependencies, isLinearChain } = require("../lib/dag-inference");
 const {
 	normalizeTeamAgentCount,
@@ -41,6 +43,14 @@ const STREAMING_UPDATE_CHUNK_SIZE = 120;
 const STREAMING_UPDATE_MAX_CONTENT_CHARS = 8000;
 const STREAMING_UPDATE_FLUSH_MS = 1000;
 const GENUI_WIDGET_COUNT = 1;
+const GENUI_WIDGET_BLUEPRINTS = [
+	{
+		id: "primary-overview-widget",
+		title: "Primary overview widget",
+		focus:
+			"Combine run KPIs with at least one chart (PieChart for task status distribution or BarChart for tasks per agent), plus recommended next actions in one interactive overview.",
+	},
+];
 
 function getNonEmptyString(value) {
 	if (typeof value !== "string") {
@@ -776,6 +786,57 @@ function createFallbackSummary(run, tasksForSummary, isFailedStatus) {
 	return lines.filter(Boolean).join("\n\n");
 }
 
+function createGenuiSummaryPrompt(
+	run,
+	summaryContent,
+	tasksForSummary,
+	isFailedStatus,
+	widgetBlueprint
+) {
+	const taskSections = tasksForSummary
+		.map((task) => {
+			return [
+				`Task ${task.id} (${task.agentName})`,
+				`Label: ${task.label}`,
+				`Status: ${task.status}`,
+				"Output:",
+				task.output?.trim() || task.error || "No output generated.",
+			].join("\n");
+		})
+		.join("\n\n---\n\n");
+
+	return [
+		`Create one focused interactive summary widget for the plan \"${run.plan.title}\".`,
+		run.plan.description ? `Plan description: ${run.plan.description}` : null,
+		isFailedStatus
+			? "This run has partial completion due to failed or blocked tasks."
+			: "This run completed successfully.",
+		"",
+		`Widget focus: ${widgetBlueprint.focus}`,
+		"Design this as one primary interactive widget card that can stand alone in the preview.",
+		"Produce exactly one interactive widget experience (not a full-page dashboard).",
+		"The generated spec should be compact, focused, and directly useful for interaction.",
+		"Do not use generic labels such as 'Interactive widget 1' in headings or labels.",
+		"Author the spec so design controls can edit visual presentation only, never underlying data values.",
+		"Use stable semantic element keys (for example: metricsGrid, statusChart, actionsTabs) instead of random IDs.",
+		"For layout containers, include explicit visual props that can be tuned later (Grid columns/gap, Stack direction/gap, Tabs defaultValue).",
+		"For chart elements, include explicit presentational props (chart type compatibility, color, height) separate from the data array.",
+		"Keep data payloads intact and avoid requiring data mutation to adjust layout, appearance, or copy.",
+		"Use the task outcomes and markdown summary below as source material.",
+		"Output exactly one ```spec block with valid RFC 6902 JSON patch lines.",
+		"",
+		`Widget ID: ${widgetBlueprint.id}`,
+		"",
+		"Markdown summary:",
+		summaryContent,
+		"",
+		"Task outputs:",
+		taskSections,
+	]
+		.filter(Boolean)
+		.join("\n");
+}
+
 function createAppendTasksPrompt(run, prompt, contextPrompt) {
 	const taskContext = run.tasks
 		.map((task) => `${task.id} | ${task.label} | status=${task.status}`)
@@ -1465,14 +1526,124 @@ function createRunManager(options) {
 		}
 	};
 
+	const synthesizeGenuiWidget = async (
+		run,
+		summaryContent,
+		tasksForSummary,
+		isFailedStatus,
+		widgetBlueprint,
+		genuiSystemPrompt
+	) => {
+		const prompt = createGenuiSummaryPrompt(
+			run,
+			summaryContent,
+			tasksForSummary,
+			isFailedStatus,
+			widgetBlueprint
+		);
+		const createdAt = toIsoDate();
+
+		try {
+			const rawText = await callModelForMarkdown({
+				provider: "rovodev",
+				prompt,
+				conversationHistory: [],
+				contextDescription: `Interactive summary widget ${widgetBlueprint.id} for run ${run.id}`,
+				customSystemPrompt: genuiSystemPrompt,
+				userName: "GenUI Presenter",
+				conflictPolicy: "wait-for-turn",
+			});
+
+			const analysis = analyzeGeneratedText(rawText);
+			const bestSpec = pickBestSpec(analysis);
+			if (!bestSpec) {
+				logger.warn?.(
+					"[AGENTS-RUN] GenUI widget spec was not renderable; using fallback.",
+					{
+						runId: run.id,
+						widgetId: widgetBlueprint.id,
+					}
+				);
+				return {
+					id: widgetBlueprint.id,
+					title: widgetBlueprint.title,
+					spec: createEmptyGenuiSpec(),
+					status: "failed",
+					createdAt,
+					error: "Generated spec was not renderable.",
+				};
+			}
+
+			return {
+				id: widgetBlueprint.id,
+				title: widgetBlueprint.title,
+				spec: bestSpec,
+				status: "ready",
+				createdAt,
+			};
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Failed to generate interactive widget.";
+			logger.warn?.("[AGENTS-RUN] GenUI widget synthesis failed", error);
+			return {
+				id: widgetBlueprint.id,
+				title: widgetBlueprint.title,
+				spec: createEmptyGenuiSpec(),
+				status: "failed",
+				createdAt,
+				error: errorMessage,
+			};
+		}
+	};
+
+	const synthesizeGenuiSummary = async (run, summaryContent, tasksForSummary, isFailedStatus) => {
+		const genuiSystemPrompt = getGenuiSummarySystemPrompt();
+		const primaryWidgetBlueprint = GENUI_WIDGET_BLUEPRINTS[0];
+		const primaryWidget = await synthesizeGenuiWidget(
+			run,
+			summaryContent,
+			tasksForSummary,
+			isFailedStatus,
+			primaryWidgetBlueprint,
+			genuiSystemPrompt
+		);
+		const widgets = [primaryWidget];
+		const readyWidgets = widgets.filter(
+			(widget) => widget.status === "ready" && hasRenderableGenuiSpec(widget.spec)
+		);
+		const status = readyWidgets.length > 0 ? "ready" : "failed";
+		const summaryError =
+			status === "failed"
+				? widgets
+						.map((widget) => widget.error)
+						.filter((error) => typeof error === "string" && error.trim())
+						.join(" | ") || "Failed to generate interactive summary widgets."
+				: undefined;
+
+		return {
+			widgets,
+			spec:
+				readyWidgets[0]?.spec ||
+				(hasRenderableGenuiSpec(widgets[0]?.spec)
+					? widgets[0].spec
+					: createEmptyGenuiSpec()),
+			partial: isFailedStatus,
+			createdAt: toIsoDate(),
+			status,
+			error: summaryError,
+		};
+	};
+
 	const writeIterationSummaryFiles = async ({
 		run,
 		iteration,
 		summary,
+		genuiSummary,
 	}) => {
 		const paths = await ensureRunDirectories(run.id);
 		const summaryMarkdownFileName = `summary.iteration-${iteration}.md`;
 		const summaryJsonFileName = `summary.iteration-${iteration}.json`;
+		const genuiJsonFileName = `genui-summary.iteration-${iteration}.json`;
 
 		const summaryMarkdownPath = path.join(paths.runDir, summaryMarkdownFileName);
 		const summaryJsonPath = path.join(paths.runDir, summaryJsonFileName);
@@ -1480,6 +1651,10 @@ function createRunManager(options) {
 		await writeJsonFile(summaryJsonPath, { ...summary, iteration });
 		await writeTextFile(paths.summaryMarkdownPath, summary.content);
 		await writeJsonFile(paths.summaryJsonPath, summary);
+
+		const genuiJsonPath = path.join(paths.runDir, genuiJsonFileName);
+		await writeJsonFile(genuiJsonPath, { ...genuiSummary, iteration });
+		await writeJsonFile(paths.genuiSummaryJsonPath, genuiSummary);
 	};
 
 	const synthesizeRunSummary = async (run, iteration, isFailedStatus) => {
@@ -1493,9 +1668,15 @@ function createRunManager(options) {
 			partial: isFailedStatus,
 			createdAt: toIsoDate(),
 		};
+		const genuiSummary = await synthesizeGenuiSummary(
+			run,
+			summaryContent,
+			tasksForSummary,
+			isFailedStatus
+		);
 
 		run.summary = summary;
-		run.genuiSummary = null;
+		run.genuiSummary = genuiSummary;
 		updateRunTimestamp(run);
 
 		try {
@@ -1503,6 +1684,7 @@ function createRunManager(options) {
 				run,
 				iteration,
 				summary,
+				genuiSummary,
 			});
 			await persistRunSnapshot(run);
 		} catch (error) {

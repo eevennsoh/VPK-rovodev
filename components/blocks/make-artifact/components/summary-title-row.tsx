@@ -9,7 +9,7 @@ import ChevronLeftIcon from "@atlaskit/icon/core/chevron-left";
 import ShowMoreHorizontalIcon from "@atlaskit/icon/core/show-more-horizontal";
 import ShareIcon from "@atlaskit/icon/core/share";
 import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
-import { Globe } from "lucide-react";
+import { PublishPopover } from "./publish-popover";
 
 interface SummaryTitleRowProps {
 	title: string;
@@ -22,6 +22,7 @@ interface SummaryTitleRowProps {
 	onHoverEnter: () => void;
 	onHoverLeave: () => void;
 	className?: string;
+	runId?: string;
 }
 
 export default function SummaryTitleRow({
@@ -35,6 +36,7 @@ export default function SummaryTitleRow({
 	onHoverEnter,
 	onHoverLeave,
 	className,
+	runId,
 }: Readonly<SummaryTitleRowProps>) {
 	return (
 		<div className={cn("flex h-14 items-center justify-between border-b border-border px-4", className)}>
@@ -91,10 +93,12 @@ export default function SummaryTitleRow({
 								<ShareIcon label="" />
 								Share
 							</Button>
-							<Button>
-								<Globe />
-								Publish
-							</Button>
+							{runId ? (
+								<PublishPopover
+									runId={runId}
+									defaultAppName={title}
+								/>
+							) : null}
 						</div>
 					) : null}
 					{showActions && rightSlot ? (

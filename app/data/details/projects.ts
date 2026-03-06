@@ -1,6 +1,6 @@
 import type { ComponentDetail } from "@/app/data/component-detail-types";
 
-export const TEMPLATE_DETAILS: Record<string, ComponentDetail> = {
+export const PROJECT_DETAILS: Record<string, ComponentDetail> = {
 	"layout": {
 		description: "Application shell layout that composes ADS navigation, sidebar, and floating Rovo chat surfaces around page content.",
 	},

@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import type { RovoRenderableUIMessage } from "@/lib/rovo-ui-messages";
-import { ThreadMessage } from "@/components/templates/shared/thread-message";
-import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
-import type { GenerativeCardAnimationProps } from "@/components/templates/shared/components/generative-widget-card";
-import type { GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
+import { ThreadMessage } from "@/components/projects/shared/thread-message";
+import { GenerativeWidgetCard } from "@/components/projects/shared/components/generative-widget-card";
+import type { GenerativeCardAnimationProps } from "@/components/projects/shared/components/generative-widget-card";
+import type { GenerativeWidgetPrimaryActionPayload } from "@/components/projects/shared/lib/generative-widget";
 
 interface MessageBubbleProps {
 	message: RovoRenderableUIMessage;

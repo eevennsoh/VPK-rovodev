@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { InlineEdit } from "@/components/ui/inline-edit";
 import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import AddIcon from "@atlaskit/icon/core/add";
 import { SprintMetrics } from "./components/sprint-metrics";
@@ -12,6 +13,7 @@ import { MOCK_TASKS } from "./data/mock-tasks";
 export function SprintKanbanBoard() {
 	const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
 	const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+	const [boardTitle, setBoardTitle] = useState("YOLO BOARD");
 
 	const statuses: StatusType[] = ["backlog", "todo", "in-progress", "review", "done"];
 
@@ -44,7 +46,12 @@ export function SprintKanbanBoard() {
 			<div className="border-b border-border-neutral bg-surface px-6 py-4">
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-2xl font-bold text-text">Sprint Planning Board</h1>
+						<InlineEdit
+							value={boardTitle}
+							onChange={setBoardTitle}
+							asHeading="h1"
+							className="text-2xl font-bold text-text"
+						/>
 						<p className="text-sm text-text-subtle">Sprint 24 • Feb 19 - Mar 4</p>
 					</div>
 					<div className="flex gap-3">

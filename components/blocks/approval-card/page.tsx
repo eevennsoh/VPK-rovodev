@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import CloseIcon from "@atlaskit/icon/core/close";
-import type { PlanApprovalDecision, PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
+import type { PlanApprovalDecision, PlanApprovalSelection } from "@/components/projects/shared/lib/plan-approval";
 import { APPROVAL_OPTIONS } from "./data/options";
 
 const MAX_GENERATED_OPTIONS = APPROVAL_OPTIONS.length;

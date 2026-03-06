@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import type { AgentRun } from "@/lib/make-run-types";
-import { RunWorkspace } from "@/components/templates/make/components/run-workspace";
+import { RunWorkspace } from "@/components/projects/make/components/run-workspace";
 
 interface RunResponse {
 	run?: AgentRun;

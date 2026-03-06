@@ -20,6 +20,7 @@ const { createThreadManager } = require("./lib/chat");
 const planFs = require("./lib/plan-filesystem");
 const makeFs = require("./make/make-filesystem");
 const { createAppRegistry } = require("./make/make-app-registry");
+const { createForgePublishManager } = require("./make/make-forge-publish");
 const { genuiChatHandler, generateGenuiFromRovodevResponse } = require("./lib/genui-chat-handler");
 const {
 	streamViaRovoDev,
@@ -58,7 +59,6 @@ const {
 	buildToolFirstTextFallback,
 	shouldSuppressToolFirstIntentStatus,
 	stripToolFirstFailureNarrative,
-	getPostClarificationDirective,
 } = require("./lib/tool-first-genui-policy");
 const {
 	resolveToolFirstWidgetContentType,
@@ -164,7 +164,6 @@ const {
 } = require("./lib/question-card-payload");
 const {
 	shouldGateToolFirstQuestionCard,
-	buildToolFirstQuestionCardPayload,
 	buildToolFirstClarificationInstruction,
 } = require("./lib/tool-first-question-gate");
 const {
@@ -1214,6 +1213,12 @@ const makeRunManager = createMakeRunManager({
 	logger: console,
 	isRovoDevAvailable,
 	isAIGatewayFallbackEnabled: () => false,
+});
+
+const forgePublishManager = createForgePublishManager({
+	appRegistry,
+	baseDir: path.join(__dirname, "data", "make"),
+	logger: console,
 });
 
 const orchestratorLog = createOrchestratorLog({
@@ -3673,24 +3678,6 @@ Once ready, call POST /api/plan/${creationMode}s to persist it.
 				gateSkipSources: TOOL_FIRST_GATE_SKIP_SOURCES,
 			});
 			if (shouldGate) {
-				const toolFirstQuestionCardPayload = buildToolFirstQuestionCardPayload({
-					unsatisfiedHints,
-					domainLabels: toolFirstPolicy.domainLabels,
-					sessionId: createClarificationSessionId(),
-					directive: getPostClarificationDirective(toolFirstPolicy.domains),
-				});
-				if (toolFirstQuestionCardPayload) {
-					const domainLabel = Array.isArray(toolFirstPolicy.domainLabels)
-						? toolFirstPolicy.domainLabels.join(", ")
-						: "this task";
-					streamQuestionCardWidget({
-						res,
-						payload: toolFirstQuestionCardPayload,
-						introText: `I need a couple details before I can help with ${domainLabel}.`,
-					});
-					return;
-				}
-
 				toolFirstClarificationInstruction =
 					buildToolFirstClarificationInstruction({
 						unsatisfiedHints,
@@ -9321,6 +9308,81 @@ app.get("/api/make/runs/:runId/summary", async (req, res) => {
 	}
 });
 
+
+// --- Forge Publish ---
+
+app.get("/api/make/forge/sites", async (_req, res) => {
+	try {
+		const sites = await forgePublishManager.discoverSites();
+		return res.status(200).json({ sites });
+	} catch (error) {
+		console.error("[FORGE-PUBLISH] Failed to discover sites:", error);
+		return res.status(500).json({ error: "Failed to discover Atlassian sites" });
+	}
+});
+
+app.get("/api/make/forge/dev-spaces", async (_req, res) => {
+	try {
+		const devSpaces = await forgePublishManager.discoverDevSpaces();
+		return res.status(200).json({ devSpaces });
+	} catch (error) {
+		console.error("[FORGE-PUBLISH] Failed to discover dev spaces:", error);
+		return res.status(500).json({ error: "Failed to discover developer spaces" });
+	}
+});
+
+app.get("/api/make/runs/:runId/publish", async (req, res) => {
+	try {
+		const { runId } = req.params;
+		const status = await forgePublishManager.getPublishStatus(runId);
+		return res.status(200).json(status);
+	} catch (error) {
+		console.error("[FORGE-PUBLISH] Failed to get publish status:", error);
+		return res.status(500).json({ error: "Failed to get publish status" });
+	}
+});
+
+app.post("/api/make/runs/:runId/publish", async (req, res) => {
+	try {
+		const { runId } = req.params;
+		const { appName, siteUrl, product } = req.body;
+
+		if (!appName || !siteUrl) {
+			return res.status(400).json({ error: "appName and siteUrl are required" });
+		}
+
+		// Resolve the app slug for this run
+		const existingApp = await appRegistry.getAppByRunId(runId);
+		if (!existingApp) {
+			return res.status(404).json({ error: "No generated app found for this run. Build the app first." });
+		}
+
+		const appSlug = existingApp.slug;
+
+		// Start the publish process (runs async, but we await it)
+		const progressSteps = [];
+		const result = await forgePublishManager.publish(
+			{
+				runId,
+				appSlug,
+				appName,
+				siteUrl,
+				product: product || "jira",
+			},
+			(progress) => {
+				progressSteps.push(progress);
+			},
+		);
+
+		return res.status(result.success ? 200 : 500).json({
+			...result,
+			steps: progressSteps,
+		});
+	} catch (error) {
+		console.error("[FORGE-PUBLISH] Publish failed:", error);
+		return res.status(500).json({ error: "Publish failed" });
+	}
+});
 
 // --- Tools list ---
 

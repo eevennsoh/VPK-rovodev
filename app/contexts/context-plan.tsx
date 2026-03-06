@@ -17,28 +17,28 @@ import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 import { isMessageVisibleInTranscript } from "@/lib/rovo-ui-messages";
 import type { QueuedPromptItem } from "@/app/contexts";
 import type { PlanSkill, PlanAgent } from "@/lib/plan-config-types";
-import type { ParsedQuestionCardPayload, ClarificationAnswers } from "@/components/templates/shared/lib/question-card-widget";
-import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
-import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
-import type { GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
-import type { TaskExecution } from "@/components/templates/plan/lib/execution-data";
-import type { ExecutionState } from "@/components/templates/plan/hooks/use-execution-mode";
-import type { ChatHistoryItem } from "@/components/templates/plan/components/sidebar-chat-history";
-import type { SkillDialogProps, AgentDialogProps, SidebarConfigHandlers, ImportDialogState, DeleteAlertState } from "@/components/templates/plan/hooks/use-config-dialogs";
-import type { RetryTaskGroupKey } from "@/components/templates/plan/lib/retry-task-groups";
+import type { ParsedQuestionCardPayload, ClarificationAnswers } from "@/components/projects/shared/lib/question-card-widget";
+import type { ParsedPlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
+import type { PlanApprovalSelection } from "@/components/projects/shared/lib/plan-approval";
+import type { GenerativeWidgetPrimaryActionPayload } from "@/components/projects/shared/lib/generative-widget";
+import type { TaskExecution } from "@/components/projects/plan/lib/execution-data";
+import type { ExecutionState } from "@/components/projects/plan/hooks/use-execution-mode";
+import type { ChatHistoryItem } from "@/components/projects/plan/components/sidebar-chat-history";
+import type { SkillDialogProps, AgentDialogProps, SidebarConfigHandlers, ImportDialogState, DeleteAlertState } from "@/components/projects/plan/hooks/use-config-dialogs";
+import type { RetryTaskGroupKey } from "@/components/projects/plan/lib/retry-task-groups";
 import {
 	buildClarificationSummaryPrompt,
 	createClarificationSubmission,
 	getLatestQuestionCardPayload,
-} from "@/components/templates/shared/lib/question-card-widget";
+} from "@/components/projects/shared/lib/question-card-widget";
 import {
 	createPlanApprovalSubmission,
 	getPlanApprovalKeyFromPlanWidget,
-} from "@/components/templates/shared/lib/plan-approval";
-import { getLatestPlanWidgetPayload, fetchEnrichedPlanTitle } from "@/components/templates/shared/lib/plan-widget";
+} from "@/components/projects/shared/lib/plan-approval";
+import { getLatestPlanWidgetPayload, fetchEnrichedPlanTitle } from "@/components/projects/shared/lib/plan-widget";
 import {
 	selectRetryTasks,
-} from "@/components/templates/plan/lib/retry-task-groups";
+} from "@/components/projects/plan/lib/retry-task-groups";
 import {
 	normalizePlanMessages,
 	isAnyWidgetCurrentlyLoading,
@@ -46,11 +46,11 @@ import {
 	isPlanResponseComplete,
 	toConversationItems,
 	getLatestVisibleUserPrompt,
-} from "@/components/templates/plan/lib/message-utils";
-import { usePlanChat } from "@/components/templates/plan/hooks/use-plan-chat";
-import { useExecutionMode } from "@/components/templates/plan/hooks/use-execution-mode";
-import { usePlanConfig } from "@/components/templates/plan/hooks/use-plan-config";
-import { useConfigDialogs } from "@/components/templates/plan/hooks/use-config-dialogs";
+} from "@/components/projects/plan/lib/message-utils";
+import { usePlanChat } from "@/components/projects/plan/hooks/use-plan-chat";
+import { useExecutionMode } from "@/components/projects/plan/hooks/use-execution-mode";
+import { usePlanConfig } from "@/components/projects/plan/hooks/use-plan-config";
+import { useConfigDialogs } from "@/components/projects/plan/hooks/use-config-dialogs";
 
 // ---------------------------------------------------------------------------
 // State

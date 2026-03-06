@@ -1,6 +1,6 @@
 "use client";
 
-import FullscreenChatView from "@/components/templates/fullscreen-chat/page";
+import FullscreenChatView from "@/components/projects/fullscreen-chat/page";
 import { RovoChatProvider } from "@/app/contexts";
 
 export default function FullscreenChatDemo() {

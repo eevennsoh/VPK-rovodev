@@ -22,7 +22,7 @@ import GenerativeIndicatorIcon from "@atlaskit/icon-lab/core/generative-indicato
 import { Tile } from "@/components/ui/tile";
 import { token } from "@/lib/tokens";
 import { defaultSuggestions, type RovoSuggestion } from "@/lib/rovo-suggestions";
-import type { GenerativeContentType } from "@/components/templates/shared/lib/generative-widget";
+import type { GenerativeContentType } from "@/components/projects/shared/lib/generative-widget";
 
 const SUGGESTION_BY_ID: ReadonlyMap<string, RovoSuggestion> = new Map(
 	defaultSuggestions.map((suggestion) => [suggestion.id, suggestion])

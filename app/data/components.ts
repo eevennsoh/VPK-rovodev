@@ -1,7 +1,7 @@
 import type { ComponentDetail } from "./component-detail-types";
 import { UI_AI_DETAILS } from "./details/ui-ai";
 import { BLOCK_DETAILS } from "./details/blocks";
-import { TEMPLATE_DETAILS } from "./details/templates";
+import { PROJECT_DETAILS } from "./details/projects";
 import { UI_DETAILS } from "./details/ui";
 import { UTILITY_DETAILS } from "./details/utility";
 import { VISUAL_DETAILS } from "./details/visual";
@@ -10,7 +10,7 @@ export interface ComponentEntry {
 	name: string;
 	slug: string;
 	importPath: string;
-	category: "ui-ai" | "ui" | "blocks" | "templates" | "utility" | "visual";
+	category: "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual";
 	detail?: ComponentDetail;
 }
 
@@ -51,13 +51,13 @@ function blockComponent(slug: string, name?: string): ComponentEntry {
 	};
 }
 
-function templateComponent(slug: string, name?: string): ComponentEntry {
+function projectComponent(slug: string, name?: string): ComponentEntry {
 	return {
 		name: name ?? toTitleCase(slug),
 		slug,
-		importPath: `@/components/templates/${slug}`,
-		category: "templates",
-		detail: TEMPLATE_DETAILS[slug],
+		importPath: `@/components/projects/${slug}`,
+		category: "projects",
+		detail: PROJECT_DETAILS[slug],
 	};
 }
 
@@ -282,14 +282,14 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 	blockComponent("workflow", "Workflow"),
 ] as const;
 
-export const TEMPLATE_COMPONENTS: ComponentEntry[] = [
-	{ ...templateComponent("plan", "Plan"), importPath: "@/components/templates/plan" },
-	{ ...templateComponent("make", "Make"), importPath: "@/components/templates/make" },
-	templateComponent("sidebar-chat", "Sidebar Chat"),
-	templateComponent("confluence", "Confluence Editor"),
-	templateComponent("jira", "Jira Board"),
-	templateComponent("fullscreen-chat", "Fullscreen Chat"),
-	templateComponent("search", "Search Results"),
+export const PROJECT_COMPONENTS: ComponentEntry[] = [
+	{ ...projectComponent("plan", "Plan"), importPath: "@/components/projects/plan" },
+	{ ...projectComponent("make", "Make"), importPath: "@/components/projects/make" },
+	projectComponent("sidebar-chat", "Sidebar Chat"),
+	projectComponent("confluence", "Confluence Editor"),
+	projectComponent("jira", "Jira Board"),
+	projectComponent("fullscreen-chat", "Fullscreen Chat"),
+	projectComponent("search", "Search Results"),
 ] as const;
 
 export const UTILITY_COMPONENTS: ComponentEntry[] = [
@@ -309,7 +309,7 @@ export const VISUAL_COMPONENTS: ComponentEntry[] = [
 	visualComponent("shadow", "Shadow", "@/lib/tokens"),
 ] as const;
 
-const ALL_COMPONENTS = [...AI_COMPONENTS, ...UI_COMPONENTS, ...BLOCK_COMPONENTS, ...TEMPLATE_COMPONENTS, ...UTILITY_COMPONENTS, ...VISUAL_COMPONENTS];
+const ALL_COMPONENTS = [...AI_COMPONENTS, ...UI_COMPONENTS, ...BLOCK_COMPONENTS, ...PROJECT_COMPONENTS, ...UTILITY_COMPONENTS, ...VISUAL_COMPONENTS];
 
 export function findComponent(category: string, slug: string): ComponentEntry | undefined {
 	return ALL_COMPONENTS.find((c) => c.category === category && c.slug === slug);

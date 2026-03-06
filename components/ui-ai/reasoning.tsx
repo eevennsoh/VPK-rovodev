@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import {
 	getDefaultThinkingLabel,
 	getReasoningCompletedLabel,
-} from "@/components/templates/shared/lib/reasoning-labels";
+} from "@/components/projects/shared/lib/reasoning-labels";
 import RovoIconGlyph from "@atlaskit/icon-lab/core/rovo";
 import { ChevronDownIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";

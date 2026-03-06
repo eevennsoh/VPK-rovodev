@@ -70,6 +70,12 @@ export const MOCK_MAKE_ITEMS: MakeItem[] = [
 			{ name: "James" },
 			{ name: "Lee" },
 		],
+		runMeta: {
+			runId: "run-demo-1",
+			status: "running",
+			taskCount: 3,
+			agentCount: 2,
+		},
 	},
 	{
 		id: GALLERY_ITEMS[12].id, // auto-assign

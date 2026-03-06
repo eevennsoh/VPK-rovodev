@@ -137,12 +137,50 @@ function createAppRegistry({ baseDir, logger = console }) {
 		return `${base}-${counter}`;
 	};
 
+	/**
+	 * Update or set forge publish metadata on an app entry.
+	 *
+	 * @param {string} slug
+	 * @param {object} forgeData - Partial forge metadata to merge
+	 */
+	const updateForgeMetadata = async (slug, forgeData) => {
+		const apps = await readRegistry();
+		const app = apps.find((a) => a.slug === slug);
+		if (!app) {
+			throw new Error(`App not found: ${slug}`);
+		}
+		app.forge = { ...(app.forge || {}), ...forgeData };
+		app.updatedAt = new Date().toISOString();
+		await writeRegistry(apps);
+		logger.info(`[app-registry] Updated forge metadata for: ${slug}`);
+		return app;
+	};
+
+	/**
+	 * Get forge publish metadata for an app by slug.
+	 */
+	const getForgeMetadata = async (slug) => {
+		const app = await getApp(slug);
+		return app?.forge ?? null;
+	};
+
+	/**
+	 * Find the app entry associated with a given run ID.
+	 */
+	const getAppByRunId = async (runId) => {
+		const apps = await readRegistry();
+		return apps.find((app) => app.runId === runId) ?? null;
+	};
+
 	return {
 		listApps,
 		getApp,
+		getAppByRunId,
 		registerApp,
 		unregisterApp,
 		unregisterByRunId,
+		updateForgeMetadata,
+		getForgeMetadata,
 		deriveSlug,
 	};
 }

@@ -3,7 +3,7 @@
 import { token } from "@/lib/tokens";
 import { WebsiteSidebarNav } from "@/components/website/website-sidebar-nav";
 import { WebsiteHeader } from "@/components/website/website-header";
-import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, TEMPLATE_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS } from "@/app/data/components";
+import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, PROJECT_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS } from "@/app/data/components";
 import { buildNavItems, UI_GROUPS, BLOCK_GROUPS } from "@/app/data/nav-utils";
 import { resolveAiAdsPackage, resolveBlockAdsPackage, resolveUiAdsPackage, resolveUiAdsTagVariant } from "@/app/data/nav-ads";
 
@@ -30,11 +30,11 @@ const sections = [
 		items: buildNavItems(BLOCK_COMPONENTS, "/components/blocks/", BLOCK_GROUPS, resolveBlockAdsPackage),
 	},
 	{
-		title: "Templates",
+		title: "Projects",
 		defaultOpen: false,
-		items: TEMPLATE_COMPONENTS.map((c) => ({
+		items: PROJECT_COMPONENTS.map((c) => ({
 			name: c.name,
-			href: `/components/templates/${c.slug}`,
+			href: `/components/projects/${c.slug}`,
 			adsPackage: "Atlassian Design System",
 		})),
 	},

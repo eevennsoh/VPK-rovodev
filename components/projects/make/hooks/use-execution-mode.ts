@@ -19,7 +19,7 @@ import {
 	mergeStreamedExecutions,
 	type TaskExecutionByTaskId,
 } from "../lib/task-execution-stream";
-import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
+import type { ParsedPlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
 
 export type ExecutionState = "idle" | "executing" | "completed" | "failed";
 

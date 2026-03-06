@@ -3,7 +3,7 @@ import type {
 	AgentDialogProps,
 	ImportDialogState,
 	DeleteAlertState,
-} from "@/components/templates/plan/hooks/use-config-dialogs";
+} from "@/components/projects/plan/hooks/use-config-dialogs";
 import SkillDialog from "./skill-dialog";
 import AgentDialog from "./agent-dialog";
 import ImportDialog from "./import-dialog";

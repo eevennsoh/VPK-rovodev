@@ -13,11 +13,11 @@ import {
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
 	type ParsedQuestionCardPayload,
-} from "@/components/templates/shared/lib/question-card-widget";
+} from "@/components/projects/shared/lib/question-card-widget";
 import {
 	buildGenerativeWidgetSubmitPrompt,
 	type GenerativeWidgetPrimaryActionPayload,
-} from "@/components/templates/shared/lib/generative-widget";
+} from "@/components/projects/shared/lib/generative-widget";
 
 export function useRovoViewChat() {
 	const [prompt, setPrompt] = useState("");

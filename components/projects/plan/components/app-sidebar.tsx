@@ -28,8 +28,8 @@ import {
 } from "@/components/ui/empty";
 import type { PlanSkill, PlanAgent } from "@/lib/plan-config-types";
 import type { AgentRunListItem } from "@/lib/plan-run-types";
-import type { RetryTaskGroupKey } from "@/components/templates/plan/lib/retry-task-groups";
-import { filterItemsBySidebarSearch } from "@/components/templates/plan/lib/sidebar-search";
+import type { RetryTaskGroupKey } from "@/components/projects/plan/lib/retry-task-groups";
+import { filterItemsBySidebarSearch } from "@/components/projects/plan/lib/sidebar-search";
 import SidebarChatHistory, {
 	type ChatHistoryItem,
 } from "./sidebar-chat-history";

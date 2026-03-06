@@ -16,9 +16,9 @@ import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
 	sanitizePlanDescription,
-} from "@/components/templates/shared/lib/plan-identity";
-import { PlanTabContent } from "@/components/templates/shared/lib/plan-card-utils";
-import { computeEstimate, parseAgentMultiplier } from "@/components/templates/shared/lib/agent-multiplier";
+} from "@/components/projects/shared/lib/plan-identity";
+import { PlanTabContent } from "@/components/projects/shared/lib/plan-card-utils";
+import { computeEstimate, parseAgentMultiplier } from "@/components/projects/shared/lib/agent-multiplier";
 import { usePlanState, usePlanActions } from "@/app/contexts/context-plan";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

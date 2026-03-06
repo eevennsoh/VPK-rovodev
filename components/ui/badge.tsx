@@ -4,45 +4,96 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// Disabled class groups:
+//   boldDisabled   — for opaque-background variants (use bg-bg-disabled swatch)
+//   subtleDisabled — for transparent/outline/ghost variants (use opacity pattern)
+const boldDisabled =
+	"disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled"
+const subtleDisabled =
+	"disabled:pointer-events-none disabled:opacity-(--opacity-disabled)"
+
 const badgeVariants = cva(
 	"inline-flex h-4 min-w-6 w-fit shrink-0 items-center justify-center gap-1 whitespace-nowrap overflow-hidden rounded-xs px-1 text-xs leading-4 font-normal has-data-[icon=inline-end]:pr-0.5 has-data-[icon=inline-start]:pl-0.5 [&>svg]:size-3! [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3 group/badge",
 	{
 		variants: {
 			variant: {
+				// ---------------------------------------------------------------
+				// ADS semantic appearances — surface-pressed neutral base
+				// ADS: "default" — neutral grey pill (color.surface.pressed)
+				// ---------------------------------------------------------------
 				default:
-					"bg-surface-pressed text-foreground disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
+					`bg-surface-pressed text-foreground hover:bg-surface-overlay-hovered active:bg-surface-overlay-pressed ${boldDisabled}`,
+
+				// ADS: "neutral" — same visual as default; canonical ADS semantic name
 				neutral:
-					"bg-surface-pressed text-foreground disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
+					`bg-surface-pressed text-foreground hover:bg-surface-overlay-hovered active:bg-surface-overlay-pressed ${boldDisabled}`,
+
+				// VPK-only subtle grey (color.background.neutral / bg-bg-neutral)
 				secondary:
-					"bg-bg-neutral text-text-subtle disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
+					`bg-bg-neutral text-text-subtle hover:bg-bg-neutral-hovered active:bg-bg-neutral-pressed ${boldDisabled}`,
+
+				// ---------------------------------------------------------------
+				// ADS: "important" — bold neutral (opaque dark badge)
+				// Used in ADS for high-urgency numeric counts (e.g. notification dot)
+				// color.background.neutral.bold
+				// ---------------------------------------------------------------
+				important:
+					`bg-bg-neutral-bold text-text-inverse hover:bg-bg-neutral-bold-hovered active:bg-bg-neutral-bold-pressed ${boldDisabled}`,
+
+				// ---------------------------------------------------------------
+				// ADS semantic status — subtler palette
+				// "destructive" / "danger" / "removed"
+				// color.background.danger.subtler
+				// ---------------------------------------------------------------
 				destructive:
-					"bg-bg-danger-subtler text-text-danger-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
+					`bg-bg-danger-subtler text-text-danger-bolder hover:bg-bg-danger-subtler-hovered active:bg-bg-danger-subtler-pressed ${boldDisabled}`,
 				danger:
-					"bg-bg-danger-subtler text-text-danger-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
-				success:
-					"bg-bg-success-subtler text-text-success-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
-				added:
-					"bg-bg-success-subtler text-text-success-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
-				warning:
-					"bg-bg-warning-subtler text-text-warning-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
-				info: "bg-bg-information-subtler text-text-information-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
-				information:
-					"bg-bg-information-subtler text-text-information-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
-				primary:
-					"bg-bg-information-subtler text-text-information-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
-				discovery:
-					"bg-bg-discovery-subtler text-text-discovery-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
-				inverse:
-					"bg-text-inverse text-foreground disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
-				primaryInverted:
-					"bg-text-inverse text-foreground disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
+					`bg-bg-danger-subtler text-text-danger-bolder hover:bg-bg-danger-subtler-hovered active:bg-bg-danger-subtler-pressed ${boldDisabled}`,
 				removed:
-					"bg-bg-danger-subtler text-text-danger-bolder disabled:pointer-events-none disabled:bg-bg-disabled disabled:text-text-disabled",
+					`bg-bg-danger-subtler text-text-danger-bolder hover:bg-bg-danger-subtler-hovered active:bg-bg-danger-subtler-pressed ${boldDisabled}`,
+
+				// "success" / "added" — color.background.success.subtler
+				success:
+					`bg-bg-success-subtler text-text-success-bolder hover:bg-bg-success-subtler-hovered active:bg-bg-success-subtler-pressed ${boldDisabled}`,
+				added:
+					`bg-bg-success-subtler text-text-success-bolder hover:bg-bg-success-subtler-hovered active:bg-bg-success-subtler-pressed ${boldDisabled}`,
+
+				// "warning" — color.background.warning.subtler
+				warning:
+					`bg-bg-warning-subtler text-text-warning-bolder hover:bg-bg-warning-subtler-hovered active:bg-bg-warning-subtler-pressed ${boldDisabled}`,
+
+				// "information" / "info" / "primary" — color.background.information.subtler
+				info:
+					`bg-bg-information-subtler text-text-information-bolder hover:bg-bg-information-subtler-hovered active:bg-bg-information-subtler-pressed ${boldDisabled}`,
+				information:
+					`bg-bg-information-subtler text-text-information-bolder hover:bg-bg-information-subtler-hovered active:bg-bg-information-subtler-pressed ${boldDisabled}`,
+				primary:
+					`bg-bg-information-subtler text-text-information-bolder hover:bg-bg-information-subtler-hovered active:bg-bg-information-subtler-pressed ${boldDisabled}`,
+
+				// "discovery" — color.background.discovery.subtler
+				discovery:
+					`bg-bg-discovery-subtler text-text-discovery-bolder hover:bg-bg-discovery-subtler-hovered active:bg-bg-discovery-subtler-pressed ${boldDisabled}`,
+
+				// ---------------------------------------------------------------
+				// ADS: "inverse" / "primaryInverted"
+				// Inverted surface: white/light background with dark foreground.
+				// Used on dark surfaces where a contrasting badge is needed.
+				// ---------------------------------------------------------------
+				inverse:
+					`bg-text-inverse text-foreground hover:bg-surface-overlay-hovered active:bg-surface-overlay-pressed ${boldDisabled}`,
+				primaryInverted:
+					`bg-text-inverse text-foreground hover:bg-surface-overlay-hovered active:bg-surface-overlay-pressed ${boldDisabled}`,
+
+				// ---------------------------------------------------------------
+				// VPK-only structural variants — not part of ADS Badge API
+				// These use opacity-based disabled since they have no fill.
+				// ---------------------------------------------------------------
 				outline:
-					"border border-border text-foreground disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
+					`border border-border text-foreground hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed ${subtleDisabled}`,
 				ghost:
-					"text-foreground disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
-				link: "text-link underline-offset-4 hover:underline active:text-link-pressed disabled:pointer-events-none disabled:opacity-(--opacity-disabled)",
+					`text-foreground hover:bg-bg-neutral-subtle-hovered active:bg-bg-neutral-subtle-pressed ${subtleDisabled}`,
+				link:
+					`text-link underline-offset-4 hover:underline active:text-link-pressed ${subtleDisabled}`,
 			},
 		},
 		defaultVariants: {

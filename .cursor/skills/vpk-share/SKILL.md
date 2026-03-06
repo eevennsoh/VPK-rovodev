@@ -232,33 +232,6 @@ After reset, the script checks `service-descriptor.yml` for placeholder values a
 
 ---
 
-## Script Reference
-
-```bash
-# Create with VPK sync (default)
-bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --create my-project
-
-# Create standalone (no VPK connection)
-bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --create my-project --no-upstream
-
-# Create public repo
-bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --create my-project --public
-
-# Export boilerplate
-bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --export
-
-# Export to custom destination
-bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --export --dest ../my-boilerplate
-
-# Reset current project
-bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --reset
-
-# Preview any operation
-bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --reset --dry-run
-```
-
----
-
 ## Files Excluded from Copy
 
 When using `--create` or `--export`, these are excluded:
@@ -293,45 +266,14 @@ See `/vpk-sync` skill for full sync documentation.
 
 ## Examples
 
-### Create a new project interactively
-
-```
-/vpk-share
-→ Select "Create new project with GitHub repo"
-→ Enter project name: "my-awesome-app"
-→ Select "Yes" for VPK sync
-→ Select "Private"
-→ Clones VPK with preserved commit history
-→ Creates ../my-awesome-app/ with GitHub repo
-→ Configures upstream for clean VPK sync
-```
-
-### Create standalone project
-
-```
-/vpk-share --create my-standalone-app --no-upstream
-→ Creates ../my-standalone-app/
-→ Fresh git history (no VPK commits)
-→ Pushes to new GitHub repo
-→ No VPK connection (fully standalone)
-```
-
-### Export for distribution
-
-```
-/vpk-share --export --dest ../vpk-for-team
-→ Creates sanitized copy at ../vpk-for-team/
-→ Fresh git repo, NO remote
-→ Ready for manual distribution
-```
-
-### Clean up before committing
-
-```
-/vpk-share --reset
-→ Removes .env files, node_modules, .next, etc.
-→ Project is clean
-→ Run `pnpm install` to restore
+```bash
+/vpk-share --create my-project              # New repo with VPK sync (default)
+/vpk-share --create my-app --no-upstream    # Standalone repo, no VPK connection
+/vpk-share --create my-app --public         # Public repo
+/vpk-share --export                         # Sanitized copy, no GitHub repo
+/vpk-share --export --dest ../vpk-for-team  # Export to custom path
+/vpk-share --reset                          # Clean credentials, deps, build artifacts
+/vpk-share --reset --dry-run                # Preview what reset would remove
 ```
 
 ---

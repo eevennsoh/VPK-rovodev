@@ -2,7 +2,7 @@
 
 import { createElement, use } from "react";
 import { getDemoComponent } from "@/components/website/registry";
-import { getCategoryDisplayName } from "@/lib/template-page-title";
+import { getCategoryDisplayName } from "@/lib/project-page-title";
 import type { PreviewCategory } from "./preview-types";
 
 interface PreviewCategoryPageProps {

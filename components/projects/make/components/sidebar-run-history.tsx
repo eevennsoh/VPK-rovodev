@@ -7,12 +7,12 @@ import {
 	computeTaskStatusGroupsFromRun,
 	toProgressDisplayStatusGroups,
 } from "../lib/execution-data";
-import { resolveRunCompletedAtForDisplay } from "../lib/run-timing";
+import { resolveSidebarRunDisplayState } from "../lib/run-display-state";
 import type { RetryTaskGroupKey } from "../lib/retry-task-groups";
 import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
-} from "@/components/templates/shared/lib/plan-identity";
+} from "@/components/projects/shared/lib/plan-identity";
 
 interface SidebarRunHistoryProps {
 	items: AgentRunListItem[];
@@ -86,14 +86,14 @@ export default function SidebarRunHistory({
 		<div className="flex w-full flex-col px-2 pt-3 pb-2">
 			<div className="px-2.5 pb-2">
 				<span style={{ font: token("font.heading.xxsmall") }} className="text-text-subtlest">
-					Make
+					Artifacts
 				</span>
 			</div>
 			<div className="flex flex-col gap-3 px-0.5">
 				{items.map((run) => {
-					const taskStatusGroups = toProgressDisplayStatusGroups(
-						computeTaskStatusGroupsFromRun(run.tasks)
-					);
+					const runTaskStatusGroups = computeTaskStatusGroupsFromRun(run.tasks);
+					const displayState = resolveSidebarRunDisplayState(run, runTaskStatusGroups);
+					const taskStatusGroups = toProgressDisplayStatusGroups(runTaskStatusGroups);
 					const displayPlanTitle = resolvePlanDisplayTitle(
 						run.plan.title,
 						run.plan.tasks
@@ -107,9 +107,9 @@ export default function SidebarRunHistory({
 							planTitle={displayPlanTitle}
 							planEmoji={displayPlanEmoji}
 							taskStatusGroups={taskStatusGroups}
-							runStatus={run.status}
+							runStatus={displayState.status}
 							runCreatedAt={run.createdAt}
-							runCompletedAt={resolveRunCompletedAtForDisplay(run)}
+							runCompletedAt={displayState.completedAt}
 							initialNowMs={initialNowMs}
 							showSummaryRainbow={showSummaryRainbow}
 							runCount={getTaskCount(run)}

@@ -1,6 +1,6 @@
 "use client";
 
-import MakeView from "@/components/templates/make/page";
+import MakeView from "@/components/projects/make/page";
 
 export default function MakeDemo() {
 	return <MakeView />;

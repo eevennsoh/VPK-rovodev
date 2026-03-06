@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { HomeContent, type HomeCategory } from "../home-content";
-import { getCategoryDisplayName } from "@/lib/template-page-title";
+import { getCategoryDisplayName } from "@/lib/project-page-title";
 
 interface PageProps {
 	params: Promise<{ category: string }>;
 }
 
-const VALID_CATEGORIES = ["ui", "ui-ai", "blocks", "templates", "utility", "visual"] as const;
+const VALID_CATEGORIES = ["ui", "ui-ai", "blocks", "projects", "utility", "visual"] as const;
 type ValidCategory = (typeof VALID_CATEGORIES)[number];
 
 function isValidCategory(value: string): value is ValidCategory {

@@ -1,7 +1,7 @@
 "use client";
 
 import { token } from "@/lib/tokens";
-import ChatPanel from "@/components/templates/sidebar-chat/page";
+import ChatPanel from "@/components/projects/sidebar-chat/page";
 
 export default function SidebarChatPage() {
 	return (

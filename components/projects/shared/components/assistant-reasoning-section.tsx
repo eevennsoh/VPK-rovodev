@@ -1,5 +1,5 @@
-import type { ReasoningPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
-import { getReasoningPropsForPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
+import type { ReasoningPhase } from "@/components/projects/shared/hooks/use-reasoning-phase";
+import { getReasoningPropsForPhase } from "@/components/projects/shared/hooks/use-reasoning-phase";
 import {
 	Reasoning,
 	AdsReasoningTrigger,

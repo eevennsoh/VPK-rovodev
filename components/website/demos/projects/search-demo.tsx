@@ -1,6 +1,6 @@
 "use client";
 
-import SearchResultsView from "@/components/templates/search/page";
+import SearchResultsView from "@/components/projects/search/page";
 
 export default function SearchDemo() {
 	return <SearchResultsView />;

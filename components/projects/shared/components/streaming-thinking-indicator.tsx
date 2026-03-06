@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { getThinkingToolCallSummaries } from "@/lib/rovo-ui-messages";
-import type { ReasoningPhaseProps } from "@/components/templates/shared/hooks/use-reasoning-phase";
+import type { ReasoningPhaseProps } from "@/components/projects/shared/hooks/use-reasoning-phase";
 import { Message } from "@/components/ui-ai/message";
 import {
 	AdsReasoningTrigger,
@@ -11,8 +11,8 @@ import {
 	ReasoningSection,
 	ReasoningText,
 } from "@/components/ui-ai/reasoning";
-import { AssistantThinkingToolsSection } from "@/components/templates/shared/components/assistant-thinking-tools-section";
-import { getReasoningSectionTitle } from "@/components/templates/shared/lib/reasoning-labels";
+import { AssistantThinkingToolsSection } from "@/components/projects/shared/components/assistant-thinking-tools-section";
+import { getReasoningSectionTitle } from "@/components/projects/shared/lib/reasoning-labels";
 import { cn } from "@/lib/utils";
 
 interface StreamingThinkingIndicatorProps {

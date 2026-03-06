@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { RovoChatProvider } from "@/app/contexts";
-import ChatPanel from "@/components/templates/sidebar-chat/page";
-import type { GenerativeCardAnimationProps } from "@/components/templates/shared/components/generative-widget-card";
+import ChatPanel from "@/components/projects/sidebar-chat/page";
+import type { GenerativeCardAnimationProps } from "@/components/projects/shared/components/generative-widget-card";
 
 const PORT_COUNT = 3;
 

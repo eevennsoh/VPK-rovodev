@@ -10,7 +10,7 @@ const CATEGORY_DISPLAY_NAMES: Record<string, string> = {
 	ui: "UI",
 	"ui-ai": "UI-AI",
 	blocks: "Blocks",
-	templates: "Templates",
+	projects: "Projects",
 	utility: "Utility",
 	visual: "Visual",
 };
@@ -19,8 +19,8 @@ export function getCategoryDisplayName(category: string): string {
 	return CATEGORY_DISPLAY_NAMES[category] ?? toTitleCase(category);
 }
 
-export function getTemplatePageTitle(templateSlug: string): string {
-	return `${toTitleCase(templateSlug)} — Templates`;
+export function getProjectPageTitle(templateSlug: string): string {
+	return `${toTitleCase(templateSlug)} — Projects`;
 }
 
 export function getComponentPageTitle(name: string, category: string): string {

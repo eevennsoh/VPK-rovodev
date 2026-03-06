@@ -5,7 +5,7 @@ import {
 } from "@/components/ui-ai/reasoning";
 import {
 	REASONING_LABELS,
-} from "@/components/templates/shared/lib/reasoning-labels";
+} from "@/components/projects/shared/lib/reasoning-labels";
 
 const SAMPLE_TIMELINE_REASONING =
 	"Invoking mcp_invoke_tool\nInvoking search\nTool call failed: mcp_atlassian_mcp__invoke_tool";

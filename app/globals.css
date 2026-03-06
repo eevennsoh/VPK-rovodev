@@ -222,6 +222,22 @@
 		animation: stagger-fade-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 	}
 
+	/* Blur-in — streaming text entrance animation */
+	@keyframes blur-in {
+		from {
+			opacity: 0;
+			filter: blur(4px);
+		}
+		to {
+			opacity: 1;
+			filter: blur(0);
+		}
+	}
+
+	.animate-blur-in {
+		animation: blur-in 220ms ease-out both;
+	}
+
 	/* Parallax — apply transform via JS scroll handler */
 	.parallax-slow {
 		will-change: transform;

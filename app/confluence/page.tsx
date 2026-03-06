@@ -1,7 +1,7 @@
 "use client";
 
-import AppLayout from "@/components/templates/page";
-import ConfluenceView from "@/components/templates/confluence/page";
+import AppLayout from "@/components/projects/page";
+import ConfluenceView from "@/components/projects/confluence/page";
 
 export default function ConfluencePage() {
 	return (

@@ -7,7 +7,7 @@ import type {
 	AgentRunVisualSummary,
 	AgentRunGenuiSummary,
 } from "@/lib/plan-run-types";
-import { RunWorkspace } from "@/components/templates/plan/components/run-workspace";
+import { RunWorkspace } from "@/components/projects/plan/components/run-workspace";
 
 interface RunResponse {
 	run?: AgentRun;

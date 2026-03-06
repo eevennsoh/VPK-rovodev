@@ -1,6 +1,6 @@
 "use client";
 
-import InputAddMenu from "@/components/templates/fullscreen-chat/components/input-add-menu";
+import InputAddMenu from "@/components/projects/fullscreen-chat/components/input-add-menu";
 
 interface AddMenuProps {
 	onClose: () => void;

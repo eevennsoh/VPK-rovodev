@@ -7,7 +7,7 @@ interface WebsitePreviewProps {
 	slug: string;
 	name: string;
 	importPath: string;
-	category: "ui-ai" | "ui" | "blocks" | "templates" | "visual";
+	category: "ui-ai" | "ui" | "blocks" | "projects" | "visual";
 }
 
 function WebsitePreviewSkeleton() {

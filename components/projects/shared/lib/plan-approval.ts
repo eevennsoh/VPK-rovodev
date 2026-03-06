@@ -1,4 +1,4 @@
-import type { ParsedPlanTask, ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
+import type { ParsedPlanTask, ParsedPlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
 
 export type PlanApprovalDecision =
 	| "auto-accept"

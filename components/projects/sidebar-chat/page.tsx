@@ -5,7 +5,7 @@ import { useRovoChat } from "@/app/contexts";
 import { token } from "@/lib/tokens";
 import type { SendPromptOptions } from "@/app/contexts";
 import { Conversation, ConversationContent } from "@/components/ui-ai/conversation";
-import { MessageTurns } from "@/components/templates/shared/message-turns";
+import { MessageTurns } from "@/components/projects/shared/message-turns";
 import { isRenderableRovoUIMessage } from "@/lib/rovo-ui-messages";
 import {
 	buildClarificationSummaryDisplayLabel,
@@ -16,19 +16,19 @@ import {
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
 	type ParsedQuestionCardPayload,
-} from "@/components/templates/shared/lib/question-card-widget";
-import { buildGenerativeWidgetSubmitPrompt, type GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
-import type { GenerativeCardAnimationProps } from "@/components/templates/shared/components/generative-widget-card";
-import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
-import { QuestionCardShortcutsFooter } from "@/components/templates/shared/components/question-card-shortcuts-footer";
-import { useDismissibleCards } from "@/components/templates/shared/hooks/use-dismissible-cards";
+} from "@/components/projects/shared/lib/question-card-widget";
+import { buildGenerativeWidgetSubmitPrompt, type GenerativeWidgetPrimaryActionPayload } from "@/components/projects/shared/lib/generative-widget";
+import type { GenerativeCardAnimationProps } from "@/components/projects/shared/components/generative-widget-card";
+import { ClarificationQuestionCard } from "@/components/projects/shared/components/clarification-question-card";
+import { QuestionCardShortcutsFooter } from "@/components/projects/shared/components/question-card-shortcuts-footer";
+import { useDismissibleCards } from "@/components/projects/shared/hooks/use-dismissible-cards";
 import type { RovoSuggestion } from "@/lib/rovo-suggestions";
 import ChatHeader from "./components/chat-header";
 import ChatGreeting from "./components/chat-greeting";
 import ChatComposer from "./components/chat-composer";
 import MessageBubble from "./components/message-bubble";
 import { StreamingThinkingIndicator } from "./components/streaming-thinking-indicator";
-import { PreloadThinkingIndicator } from "@/components/templates/shared/components/preload-thinking-indicator";
+import { PreloadThinkingIndicator } from "@/components/projects/shared/components/preload-thinking-indicator";
 import { chatStyles } from "./data/styles";
 import { useChatSubmit } from "./hooks/use-chat-submit";
 import { useScrollAnchor } from "./hooks/use-scroll-anchor";
@@ -201,16 +201,31 @@ export default function ChatPanel({
 			const clarificationSummary = buildClarificationSummaryRows(activeQuestionCard, answers);
 			const displayLabel = buildClarificationSummaryDisplayLabel(activeQuestionCard, answers);
 
-			void sendPrompt(clarificationPrompt, {
-				...resolvedSendPromptOptions,
-				messageMetadata: {
-					...(resolvedSendPromptOptions?.messageMetadata ?? {}),
-					source: "clarification-submit",
-					displayLabel,
-					clarificationSummary,
-				},
-				clarification: clarificationSubmission,
-			});
+			const clarificationMetadata = {
+				...(resolvedSendPromptOptions?.messageMetadata ?? {}),
+				source: "clarification-submit" as const,
+				displayLabel,
+				clarificationSummary,
+			};
+
+			const deferredToolCallId = activeQuestionCard.deferredToolCallId;
+
+			if (deferredToolCallId) {
+				void sendPrompt(clarificationPrompt, {
+					...resolvedSendPromptOptions,
+					deferredToolResponse: {
+						tool_call_id: deferredToolCallId,
+						result: clarificationSubmission.answers,
+					},
+					messageMetadata: clarificationMetadata,
+				});
+			} else {
+				void sendPrompt(clarificationPrompt, {
+					...resolvedSendPromptOptions,
+					messageMetadata: clarificationMetadata,
+					clarification: clarificationSubmission,
+				});
+			}
 		},
 		[activeQuestionCard, resolvedSendPromptOptions, sendPrompt],
 	);

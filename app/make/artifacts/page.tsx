@@ -25,14 +25,14 @@ import DiscoveryGallery from "@/components/blocks/discovery-gallery/page";
 import { MakeArtifactSurface } from "@/components/blocks/make-artifact/components/make-artifact-surface";
 import { MakeGridSurface } from "@/components/blocks/make-grid/components/make-grid-surface";
 import MakeGalleryContent from "@/components/blocks/make-page/components/make-gallery-content";
-import { AppSidebar } from "@/components/templates/make/components/app-sidebar";
-import ChatTitleRow from "@/components/templates/make/components/chat-title-row";
-import { ConfigDialogs } from "@/components/templates/make/components/config-dialogs";
-import { AnimatedCodeAscii } from "@/components/templates/make/components/animated-code-ascii";
+import { AppSidebar } from "@/components/projects/make/components/app-sidebar";
+import ChatTitleRow from "@/components/projects/make/components/chat-title-row";
+import { ConfigDialogs } from "@/components/projects/make/components/config-dialogs";
+import { AnimatedCodeAscii } from "@/components/projects/make/components/animated-code-ascii";
 import type { MakeItem } from "@/components/blocks/make-item/lib/types";
-import { mapRunsToMakeGalleryItems } from "@/components/templates/make/lib/make-artifact-items";
-import { isRunExecutionPhase } from "@/components/templates/make/lib/execution-data";
-import { createMakeEntryHref } from "@/components/templates/make/lib/navigation-intent";
+import { mapRunsToMakeGalleryItems } from "@/components/projects/make/lib/make-artifact-items";
+import { isRunExecutionPhase } from "@/components/projects/make/lib/execution-data";
+import { createMakeEntryHref } from "@/components/projects/make/lib/navigation-intent";
 
 
 export default function MakeArtifactsPage() {

@@ -275,7 +275,7 @@ function QuestionCard({
 					<div className="min-w-0">
 						<h2 className="text-sm leading-5 font-bold text-text">{currentQuestion.label}</h2>
 						{currentQuestion.description ? (
-							<p className="mt-0.5 text-xs leading-4 font-normal text-text-subtle">{currentQuestion.description}</p>
+							<p className="mt-0.5 text-sm font-normal text-text-subtle">{currentQuestion.description}</p>
 						) : null}
 					</div>
 					{onDismiss ? (

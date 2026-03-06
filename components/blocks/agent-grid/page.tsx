@@ -11,10 +11,10 @@ import type {
 	AgentRunListItem,
 	AgentRunTask,
 } from "@/lib/plan-run-types";
-import { type TaskExecution } from "@/components/templates/plan/lib/execution-data";
-import { ExecutionGridView } from "@/components/templates/plan/components/execution-grid-view";
-import { AppSidebar } from "@/components/templates/plan/components/app-sidebar";
-import ChatTitleRow from "@/components/templates/plan/components/chat-title-row";
+import { type TaskExecution } from "@/components/projects/plan/lib/execution-data";
+import { ExecutionGridView } from "@/components/projects/plan/components/execution-grid-view";
+import { AppSidebar } from "@/components/projects/plan/components/app-sidebar";
+import ChatTitleRow from "@/components/projects/plan/components/chat-title-row";
 
 const MOCK_EXECUTIONS: TaskExecution[] = [
 	{

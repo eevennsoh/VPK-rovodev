@@ -1,4 +1,4 @@
-import type { PlanApprovalDecision } from "@/components/templates/shared/lib/plan-approval";
+import type { PlanApprovalDecision } from "@/components/projects/shared/lib/plan-approval";
 
 export interface ApprovalOption {
 	id: PlanApprovalDecision;

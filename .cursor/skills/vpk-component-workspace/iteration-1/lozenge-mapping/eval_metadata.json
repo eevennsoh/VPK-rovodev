@@ -1,0 +1,32 @@
+{
+  "eval_id": 1,
+  "eval_name": "lozenge-mapping",
+  "prompt": "How does ADS Lozenge map to VPK? I see there's a lozenge.tsx in components/ui — what ADS visual states does it need and what's the mapping?",
+  "assertions": [
+    {
+      "name": "produces-mapping-table",
+      "description": "Output includes a structured ADS variant → VPK variant mapping table",
+      "type": "qualitative"
+    },
+    {
+      "name": "preserves-shadcn-naming",
+      "description": "Variant names stay as shadcn convention (default, secondary, etc.) — not renamed to ADS names (bold, subtle, etc.)",
+      "type": "qualitative"
+    },
+    {
+      "name": "identifies-state-tokens",
+      "description": "Uses ADS token triplets (rest/hovered/pressed) rather than generic opacity/color patterns",
+      "type": "qualitative"
+    },
+    {
+      "name": "references-computed-styles",
+      "description": "Mentions or uses computed style extraction from live ADS page rather than guessing from token names",
+      "type": "qualitative"
+    },
+    {
+      "name": "fills-audit-template",
+      "description": "Produces a structured audit of current component state vs needed ADS styling",
+      "type": "qualitative"
+    }
+  ]
+}

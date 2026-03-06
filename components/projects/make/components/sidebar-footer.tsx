@@ -16,7 +16,7 @@ import AddIcon from "@atlaskit/icon/core/add";
 import DownloadIcon from "@atlaskit/icon/core/download";
 import { Spinner } from "@/components/ui/spinner";
 import type { MakeSkill, MakeAgent } from "@/lib/make-config-types";
-import type { MakeSidebarAppItem } from "@/components/templates/make/lib/make-artifact-items";
+import type { MakeSidebarAppItem } from "@/components/projects/make/lib/make-artifact-items";
 
 interface SidebarFooterProps {
 	apps: MakeSidebarAppItem[];

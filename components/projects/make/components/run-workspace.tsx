@@ -18,29 +18,29 @@ import type { AgentExecutionUpdate } from "@/lib/rovo-ui-messages";
 import {
 	deriveTaskExecutionsFromRun,
 	isRunExecutionPhase,
-} from "@/components/templates/make/lib/execution-data";
+} from "@/components/projects/make/lib/execution-data";
 import {
 	applyExecutionUpdate,
 	mergeStreamedExecutions,
 	type TaskExecutionByTaskId,
-} from "@/components/templates/make/lib/task-execution-stream";
+} from "@/components/projects/make/lib/task-execution-stream";
 import { MakeArtifactSurface } from "@/components/blocks/make-artifact/components/make-artifact-surface";
 import SummaryTitleRow from "@/components/blocks/make-artifact/components/summary-title-row";
 import { MakeGridSurface } from "@/components/blocks/make-grid/components/make-grid-surface";
-import { AppSidebar } from "@/components/templates/make/components/app-sidebar";
-import type { ChatHistoryItem } from "@/components/templates/make/components/sidebar-chat-history";
+import { AppSidebar } from "@/components/projects/make/components/app-sidebar";
+import type { ChatHistoryItem } from "@/components/projects/make/components/sidebar-chat-history";
 import {
 	resolvePlanDisplayTitle,
 	derivePlanEmojiFromTitle,
-} from "@/components/templates/shared/lib/plan-identity";
-import { useMakeConfig } from "@/components/templates/make/hooks/use-make-config";
-import { useConfigDialogs } from "@/components/templates/make/hooks/use-config-dialogs";
-import { ConfigDialogs } from "@/components/templates/make/components/config-dialogs";
+} from "@/components/projects/shared/lib/plan-identity";
+import { useMakeConfig } from "@/components/projects/make/hooks/use-make-config";
+import { useConfigDialogs } from "@/components/projects/make/hooks/use-config-dialogs";
+import { ConfigDialogs } from "@/components/projects/make/components/config-dialogs";
 import {
 	selectRetryTasks,
 	type RetryTaskGroupKey,
-} from "@/components/templates/make/lib/retry-task-groups";
-import { createMakeEntryHref } from "@/components/templates/make/lib/navigation-intent";
+} from "@/components/projects/make/lib/retry-task-groups";
+import { createMakeEntryHref } from "@/components/projects/make/lib/navigation-intent";
 import NotificationIcon from "@atlaskit/icon/core/notification";
 
 interface RunWorkspaceProps {
@@ -611,6 +611,7 @@ export function RunWorkspace({
 						onExpandSidebar={handlePinSidebar}
 						onHoverEnter={handleHoverEnter}
 						onHoverLeave={handleHoverLeave}
+						runId={runId}
 						rightSlot={(
 							<div className="flex items-center gap-0.5 text-icon-subtle">
 								<ThemeToggle />

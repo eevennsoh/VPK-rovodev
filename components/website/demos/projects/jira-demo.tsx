@@ -1,6 +1,6 @@
 "use client";
 
-import JiraView from "@/components/templates/jira/page";
+import JiraView from "@/components/projects/jira/page";
 
 export default function JiraDemo() {
 	return <JiraView />;

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { getTemplatePageTitle } from "@/lib/template-page-title";
+import { getProjectPageTitle } from "@/lib/project-page-title";
 
 export const metadata: Metadata = {
-	title: getTemplatePageTitle("sidebar-chat"),
+	title: getProjectPageTitle("sidebar-chat"),
 	openGraph: {
-		title: `${getTemplatePageTitle("sidebar-chat")} — VPK`,
+		title: `${getProjectPageTitle("sidebar-chat")} — VPK`,
 	},
 };
 

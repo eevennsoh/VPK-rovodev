@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { token } from "@/lib/tokens";
 import {
@@ -8,10 +8,32 @@ import {
 	ConversationContent,
 	ConversationScrollButton,
 } from "@/components/ui-ai/conversation";
+import { useStickToBottomContext } from "use-stick-to-bottom";
 import { Message, MessageContent } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
-import { REASONING_LABELS } from "@/components/templates/shared/lib/reasoning-labels";
+import { REASONING_LABELS } from "@/components/projects/shared/lib/reasoning-labels";
 import type { TaskExecution } from "../lib/execution-data";
+
+/**
+ * Watches StickToBottom's internal scroll container and reports scrollTop > 0.
+ * Must be rendered inside a <Conversation> (StickToBottom provider).
+ */
+function ScrollWatcher({ onChange }: { onChange: (scrolled: boolean) => void }) {
+	const { scrollRef } = useStickToBottomContext();
+	// Alias keeps compatibility with stale/hot-reload code paths that referenced scrollAreaRef.
+	const scrollAreaRef = scrollRef;
+
+	useEffect(() => {
+		const el = scrollAreaRef.current;
+		if (!el) return;
+
+		const onScroll = () => onChange(el.scrollTop > 0);
+		el.addEventListener("scroll", onScroll, { passive: true });
+		return () => el.removeEventListener("scroll", onScroll);
+	}, [scrollAreaRef, onChange]);
+
+	return null;
+}
 
 interface AgentScreenProps {
 	execution: TaskExecution;
@@ -46,6 +68,11 @@ export const AgentScreen = memo(function AgentScreen({
 		? `Blocked by: ${execution.blockedBy.map((id) => `#${id.replace(/^#?task-/, "")}`).join(", ")}`
 		: null;
 
+	const [hasScrolled, setHasScrolled] = useState(false);
+	const handleScrollChange = useCallback((scrolled: boolean) => {
+		setHasScrolled(scrolled);
+	}, [setHasScrolled]);
+
 	const conversation = useMemo(() => {
 		const result: { id: string; role: "assistant"; content: string }[] = [];
 
@@ -65,8 +92,8 @@ export const AgentScreen = memo(function AgentScreen({
 			)}
 		>
 			<div className="relative z-10 flex items-center px-3 py-2" role="banner">
-				{/* Progressive blur — fades content scrolling underneath */}
-				<div className="pointer-events-none absolute inset-x-0 -bottom-6 h-6" aria-hidden>
+				{/* Progressive blur — fades content scrolling underneath (only when scrolled) */}
+				<div className={cn("pointer-events-none absolute inset-x-0 -bottom-6 h-6 transition-opacity duration-200", hasScrolled ? "opacity-100" : "opacity-0")} aria-hidden>
 					<div className="absolute inset-0 backdrop-blur-[2px] [mask-image:linear-gradient(to_bottom,black_20%,transparent)]" />
 					<div className="absolute inset-0 bg-gradient-to-b from-surface to-transparent" />
 				</div>
@@ -103,25 +130,24 @@ export const AgentScreen = memo(function AgentScreen({
 			</div>
 
 			<Conversation className="min-h-0 flex-1">
+				<ScrollWatcher onChange={handleScrollChange} />
 				<ConversationContent className="gap-4 p-3">
 					{conversation.length > 0 ? (
 						conversation.map((msg) => (
 							<Message key={msg.id} from="assistant" className="max-w-full">
 								<MessageContent>
-									<div className="whitespace-pre-wrap break-words text-sm leading-6 text-text">
-										{msg.content}
-									</div>
+									<div className="whitespace-pre-wrap text-sm leading-6 text-text">{msg.content}</div>
 								</MessageContent>
 							</Message>
 						))
 					) : isWorking ? (
 						<Message from="assistant" className="max-w-full">
-						<MessageContent className="px-3">
-							<Reasoning className="mb-0" isStreaming>
-								<AdsReasoningTrigger label={REASONING_LABELS.trigger.working} showChevron={false} />
-							</Reasoning>
-						</MessageContent>
-					</Message>
+							<MessageContent className="px-3">
+								<Reasoning className="mb-0" isStreaming>
+									<AdsReasoningTrigger label={REASONING_LABELS.trigger.working} showChevron={false} />
+								</Reasoning>
+							</MessageContent>
+						</Message>
 					) : null}
 				</ConversationContent>
 				<ConversationScrollButton />

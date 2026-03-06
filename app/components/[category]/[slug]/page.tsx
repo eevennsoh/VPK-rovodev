@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, TEMPLATE_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS, findComponent } from "@/app/data/components";
+import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, PROJECT_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS, findComponent } from "@/app/data/components";
 import { ComponentDoc } from "@/components/website/component-doc/page";
-import { getComponentPageTitle } from "@/lib/template-page-title";
+import { getComponentPageTitle } from "@/lib/project-page-title";
 
 interface PageProps {
 	params: Promise<{
@@ -33,8 +33,8 @@ export function generateStaticParams() {
 		params.push({ category: "blocks", slug: comp.slug });
 	}
 
-	for (const comp of TEMPLATE_COMPONENTS) {
-		params.push({ category: "templates", slug: comp.slug });
+	for (const comp of PROJECT_COMPONENTS) {
+		params.push({ category: "projects", slug: comp.slug });
 	}
 
 	for (const comp of UTILITY_COMPONENTS) {
@@ -51,7 +51,7 @@ export function generateStaticParams() {
 export default async function ComponentDetailPage({ params }: PageProps) {
 	const { category, slug } = await params;
 
-	if (category !== "ui-ai" && category !== "ui" && category !== "blocks" && category !== "templates" && category !== "utility" && category !== "visual") {
+	if (category !== "ui-ai" && category !== "ui" && category !== "blocks" && category !== "projects" && category !== "utility" && category !== "visual") {
 		notFound();
 	}
 

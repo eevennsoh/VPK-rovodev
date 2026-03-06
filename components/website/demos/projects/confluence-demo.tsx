@@ -1,6 +1,6 @@
 "use client";
 
-import ConfluenceView from "@/components/templates/confluence/page";
+import ConfluenceView from "@/components/projects/confluence/page";
 
 export default function ConfluenceDemo() {
 	return <ConfluenceView />;

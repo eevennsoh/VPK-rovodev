@@ -1,11 +1,11 @@
 import { Metadata } from "next";
-import { getTemplatePageTitle } from "@/lib/template-page-title";
+import { getProjectPageTitle } from "@/lib/project-page-title";
 
 export const metadata: Metadata = {
-	title: getTemplatePageTitle("fullscreen-chat"),
+	title: getProjectPageTitle("fullscreen-chat"),
 	description: "Fullscreen AI chat interface",
 	openGraph: {
-		title: `${getTemplatePageTitle("fullscreen-chat")} — VPK`,
+		title: `${getProjectPageTitle("fullscreen-chat")} — VPK`,
 		description: "Fullscreen AI chat interface",
 	},
 	icons: {

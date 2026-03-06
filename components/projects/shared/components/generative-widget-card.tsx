@@ -47,8 +47,8 @@ import {
 	createBodyOnlySpec,
 	type ParsedGenerativeWidget,
 	type GenerativeWidgetMetadata,
-} from "@/components/templates/shared/lib/generative-widget";
-import { formatContentTypeLabel } from "@/components/templates/shared/lib/generative-widget-branding";
+} from "@/components/projects/shared/lib/generative-widget";
+import { formatContentTypeLabel } from "@/components/projects/shared/lib/generative-widget-branding";
 import { ContentTypeTile } from "./content-type-tile";
 
 /* -------------------------------------------------------------------------- */

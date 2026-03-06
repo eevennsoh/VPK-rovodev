@@ -25,7 +25,7 @@ import type {
 import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
-} from "@/components/templates/shared/lib/plan-identity";
+} from "@/components/projects/shared/lib/plan-identity";
 import { JsonRenderView } from "@/lib/json-render/renderer";
 
 const POLL_INTERVAL_MS = 2000;

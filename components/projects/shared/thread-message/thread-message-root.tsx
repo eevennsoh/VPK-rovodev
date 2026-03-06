@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, type ReactNode } from "react";
-import { useDynamicThinkingLabel } from "@/components/templates/shared/hooks/use-dynamic-thinking-label";
+import { useDynamicThinkingLabel } from "@/components/projects/shared/hooks/use-dynamic-thinking-label";
 import {
 	getAllDataParts,
 	hasCreatePlanSkillSignal,
@@ -20,7 +20,7 @@ import {
 import {
 	useReasoningPhase,
 	type ReasoningPhase,
-} from "@/components/templates/shared/hooks/use-reasoning-phase";
+} from "@/components/projects/shared/hooks/use-reasoning-phase";
 import {
 	Message as UiMessage,
 } from "@/components/ui-ai/message";

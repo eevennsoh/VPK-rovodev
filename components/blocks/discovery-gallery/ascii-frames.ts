@@ -478,7 +478,7 @@ export const getFramesForId = (id: string): string[] | null => {
 
 		case "page-scaffolder":
 			return [
-				`  +--[ Page Templates ]---------+
+				`  +--[ Page Projects ]---------+
   |                              |
   |  Loading templates...        |
   |  [oooo      ]                |
@@ -490,7 +490,7 @@ export const getFramesForId = (id: string): string[] | null => {
   |                              |
   |  [ Preview ] [ Create >>> ] |
   +------------------------------+`,
-				`  +--[ Page Templates ]---------+
+				`  +--[ Page Projects ]---------+
   |                              |
   |  > Design Spec               |
   |    ## Overview               |
@@ -503,7 +503,7 @@ export const getFramesForId = (id: string): string[] | null => {
   |                              |
   |  [ Preview ] [ Create >>> ] |
   +------------------------------+`,
-				`  +--[ Page Templates ]---------+
+				`  +--[ Page Projects ]---------+
   |                              |
   |  > Design Spec               |
   |    ## Overview               |
@@ -516,7 +516,7 @@ export const getFramesForId = (id: string): string[] | null => {
   |                              |
   |  [ Preview ] [ Create >>> ] |
   +------------------------------+`,
-				`  +--[ Page Templates ]---------+
+				`  +--[ Page Projects ]---------+
   |                              |
   |  > Design Spec  (Selected)   |
   |    ## Overview               |

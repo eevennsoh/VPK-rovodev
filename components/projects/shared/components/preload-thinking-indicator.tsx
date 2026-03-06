@@ -3,8 +3,8 @@
 import type { ReactNode } from "react";
 import { Message } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
-import { getReasoningPropsForPhase } from "@/components/templates/shared/hooks/use-reasoning-phase";
-import { getPreloadShimmerLabel } from "@/components/templates/shared/lib/reasoning-labels";
+import { getReasoningPropsForPhase } from "@/components/projects/shared/hooks/use-reasoning-phase";
+import { getPreloadShimmerLabel } from "@/components/projects/shared/lib/reasoning-labels";
 
 interface PreloadThinkingIndicatorProps {
 	label?: string;

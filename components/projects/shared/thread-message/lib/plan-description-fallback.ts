@@ -1,8 +1,8 @@
 import {
 	type ParsedPlanWidgetPayload,
 	generateMermaidFromPlanTasks,
-} from "@/components/templates/shared/lib/plan-widget";
-import { extractPlanRenderableText } from "@/components/templates/shared/lib/message-text-utils";
+} from "@/components/projects/shared/lib/plan-widget";
+import { extractPlanRenderableText } from "@/components/projects/shared/lib/message-text-utils";
 
 interface BuildPlanDescriptionFallbackOptions {
 	messageText: string;

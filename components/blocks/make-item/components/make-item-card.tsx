@@ -1,4 +1,3 @@
-import React from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, CardAction } from "@/components/ui/card";
 import { Lozenge } from "@/components/ui/lozenge";
@@ -8,6 +7,7 @@ import EditIcon from "@atlaskit/icon/core/edit";
 import ShareIcon from "@atlaskit/icon/core/share";
 import { AvatarGroup, Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
+import { Spinner } from "@/components/ui/spinner";
 import { AnimatedAscii } from "@/components/blocks/discovery-gallery/animated-ascii";
 import StarStarredIcon from "@atlaskit/icon/core/star-starred";
 import type { MakeItem } from "../lib/types";
@@ -100,7 +100,7 @@ export function MakeItemCard({ item, className, onRecurringToggle, onSelect }: R
 				</CardHeader>
 
 				<CardContent className="flex-1 pt-2 pb-3">
-					<CardTitle className="text-base leading-5 font-semibold mb-1">{item.title}</CardTitle>
+					<CardTitle className="text-sm leading-5 font-semibold mb-1">{item.title}</CardTitle>
 					{item.recurring ? (
 						<p className={cn(
 							"mb-1 flex items-center gap-1.5 text-xs leading-4",
@@ -137,13 +137,19 @@ export function MakeItemCard({ item, className, onRecurringToggle, onSelect }: R
 							</div>
 
 							<div className="flex min-w-0 flex-col items-end gap-0.5">
-								<span className="text-xs leading-4 text-text-subtlest">Created by</span>
-								<Avatar size="xs">
-									{item.maintainers[0]?.src ? (
-										<AvatarImage src={item.maintainers[0].src} alt={item.maintainers[0].name} />
-									) : null}
-									<AvatarFallback>{item.maintainers[0]?.name.charAt(0).toUpperCase()}</AvatarFallback>
-								</Avatar>
+								{item.runMeta?.status === "running" ? (
+									<Spinner size="sm" className="text-icon-subtle" label="Generating plan" />
+								) : (
+									<>
+										<span className="text-xs leading-4 text-text-subtlest">Created by</span>
+										<Avatar size="xs">
+											{item.maintainers[0]?.src ? (
+												<AvatarImage src={item.maintainers[0].src} alt={item.maintainers[0].name} />
+											) : null}
+											<AvatarFallback>{item.maintainers[0]?.name.charAt(0).toUpperCase()}</AvatarFallback>
+										</Avatar>
+									</>
+								)}
 							</div>
 						</>
 					) : (

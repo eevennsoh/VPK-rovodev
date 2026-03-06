@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { isDevToolsExcludedRoute } from "@/components/utils/dev-template-route";
+import { isDevToolsExcludedRoute } from "@/components/utils/dev-project-route";
 
 const AGENTATION_STYLE_IDS = [
 	"feedback-tool-styles-annotation-popup-css-styles",

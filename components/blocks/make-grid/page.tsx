@@ -11,9 +11,9 @@ import type {
 	AgentRunListItem,
 	AgentRunTask,
 } from "@/lib/make-run-types";
-import { type TaskExecution } from "@/components/templates/make/lib/execution-data";
+import { type TaskExecution } from "@/components/projects/make/lib/execution-data";
 import { MakeGridSurface } from "./components/make-grid-surface";
-import { AppSidebar } from "@/components/templates/make/components/app-sidebar";
+import { AppSidebar } from "@/components/projects/make/components/app-sidebar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";

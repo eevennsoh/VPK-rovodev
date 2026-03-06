@@ -2,7 +2,7 @@
 
 import { QuestionCard } from "@/components/blocks/question-card/components/question-card";
 import type { QuestionCardAnswers } from "@/components/blocks/question-card/components/question-card";
-import type { ClarificationAnswers, ParsedQuestionCardPayload } from "@/components/templates/shared/lib/question-card-widget";
+import type { ClarificationAnswers, ParsedQuestionCardPayload } from "@/components/projects/shared/lib/question-card-widget";
 
 interface ClarificationQuestionCardProps {
 	questionCard: ParsedQuestionCardPayload;

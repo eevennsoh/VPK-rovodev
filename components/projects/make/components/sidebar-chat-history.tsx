@@ -2,6 +2,7 @@
 
 import DeleteIcon from "@atlaskit/icon/core/delete";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Shimmer } from "@/components/ui-ai/shimmer";
 import { token } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,7 @@ export interface ChatHistoryItem {
 interface SidebarChatHistoryProps {
 	items: ChatHistoryItem[];
 	activeChatId: string | null;
+	thinkingChatId?: string | null;
 	isGeneratingTitle?: boolean;
 	pendingChatId?: string | null;
 	sectionLabel?: string;
@@ -24,6 +26,7 @@ interface SidebarChatHistoryProps {
 export default function SidebarChatHistory({
 	items,
 	activeChatId,
+	thinkingChatId = null,
 	isGeneratingTitle = false,
 	pendingChatId = null,
 	sectionLabel,
@@ -63,6 +66,7 @@ export default function SidebarChatHistory({
 							key={item.id}
 							item={item}
 							isActive={activeChatId === item.id}
+							isThinking={thinkingChatId === item.id}
 							isPendingTitle={isGeneratingTitle && pendingChatId === item.id}
 							onSelectChat={onSelectChat}
 							onDeleteChat={onDeleteChat}
@@ -77,6 +81,7 @@ export default function SidebarChatHistory({
 interface ChatHistoryRowProps {
 	item: ChatHistoryItem;
 	isActive: boolean;
+	isThinking: boolean;
 	isPendingTitle: boolean;
 	onSelectChat: (id: string) => void;
 	onDeleteChat: (id: string) => void;
@@ -85,6 +90,7 @@ interface ChatHistoryRowProps {
 function ChatHistoryRow({
 	item,
 	isActive,
+	isThinking,
 	isPendingTitle,
 	onSelectChat,
 	onDeleteChat,
@@ -105,24 +111,27 @@ function ChatHistoryRow({
 				isActive ? "bg-bg-neutral" : "hover:bg-bg-neutral-subtle-hovered",
 			)}
 		>
-			<div style={{ fontWeight: token("font.weight.semibold") }} className="min-w-0 flex flex-1 items-center text-sm">
+			<div style={{ fontWeight: token("font.weight.semibold") }} className="min-w-0 flex flex-1 items-center gap-2 text-sm">
 				{isPendingTitle ? (
 					<Shimmer
 						key={`${item.id}:${item.title}`}
 						as="span"
 						duration={1}
-						className="block max-w-full truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+						className="block min-w-0 flex-1 truncate motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
 					>
 						{item.title}
 					</Shimmer>
 				) : (
 					<span
 						key={`${item.id}:${item.title}`}
-						className="block truncate text-text motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
+						className="block min-w-0 flex-1 truncate text-text motion-safe:animate-[sd-blurIn_160ms_ease-out_both] motion-reduce:animate-none"
 					>
 						{item.title}
 					</span>
 				)}
+				{isThinking ? (
+					<Spinner size="xs" label="Thinking" className="shrink-0 text-icon-subtle" />
+				) : null}
 			</div>
 			<span className="absolute right-2 hidden group-hover/chat:block" onClick={(e) => e.stopPropagation()} role="presentation">
 				<Button

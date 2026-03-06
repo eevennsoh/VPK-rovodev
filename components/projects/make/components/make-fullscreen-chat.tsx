@@ -11,14 +11,14 @@ import { Button } from "@/components/ui/button";
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
 import PromptGallery from "@/components/blocks/prompt-gallery";
 import DiscoveryGallery from "@/components/blocks/discovery-gallery/page";
-import { ChatMessages } from "@/components/templates/shared/components/chat-messages";
-import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scroll-anchoring";
-import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
+import { ChatMessages } from "@/components/projects/shared/components/chat-messages";
+import { useScrollAnchoring } from "@/components/projects/shared/hooks/use-scroll-anchoring";
+import { ClarificationQuestionCard } from "@/components/projects/shared/components/clarification-question-card";
 import { ApprovalCard } from "@/components/blocks/approval-card/page";
-import { GenerativeWidgetCard } from "@/components/templates/shared/components/generative-widget-card";
-import { getLatestPlanWidgetPayload, parsePlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
-import type { ClarificationAnswers } from "@/components/templates/shared/lib/question-card-widget";
-import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
+import { GenerativeWidgetCard } from "@/components/projects/shared/components/generative-widget-card";
+import { getLatestPlanWidgetPayload, parsePlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
+import type { ClarificationAnswers } from "@/components/projects/shared/lib/question-card-widget";
+import type { PlanApprovalSelection } from "@/components/projects/shared/lib/plan-approval";
 import {
 	getLatestDataPart,
 	isMessageTextStreaming,

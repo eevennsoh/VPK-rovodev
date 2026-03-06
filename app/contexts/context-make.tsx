@@ -10,7 +10,7 @@ import {
 	useState,
 	type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { API_ENDPOINTS } from "@/lib/api-config";
 import type {
 	AgentRunListItem,
@@ -20,29 +20,29 @@ import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 import { isMessageVisibleInTranscript } from "@/lib/rovo-ui-messages";
 import type { QueuedPromptItem } from "@/app/contexts";
 import type { MakeSkill, MakeAgent } from "@/lib/make-config-types";
-import type { ParsedQuestionCardPayload, ClarificationAnswers } from "@/components/templates/shared/lib/question-card-widget";
-import type { ParsedPlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
-import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
-import type { GenerativeWidgetPrimaryActionPayload } from "@/components/templates/shared/lib/generative-widget";
-import type { TaskExecution } from "@/components/templates/make/lib/execution-data";
-import type { ExecutionState } from "@/components/templates/make/hooks/use-execution-mode";
-import type { ChatHistoryItem } from "@/components/templates/make/components/sidebar-chat-history";
-import type { SkillDialogProps, AgentDialogProps, SidebarConfigHandlers, ImportDialogState, DeleteAlertState } from "@/components/templates/make/hooks/use-config-dialogs";
-import type { RetryTaskGroupKey } from "@/components/templates/make/lib/retry-task-groups";
+import type { ParsedQuestionCardPayload, ClarificationAnswers } from "@/components/projects/shared/lib/question-card-widget";
+import type { ParsedPlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
+import type { PlanApprovalSelection } from "@/components/projects/shared/lib/plan-approval";
+import type { GenerativeWidgetPrimaryActionPayload } from "@/components/projects/shared/lib/generative-widget";
+import type { TaskExecution } from "@/components/projects/make/lib/execution-data";
+import type { ExecutionState } from "@/components/projects/make/hooks/use-execution-mode";
+import type { ChatHistoryItem } from "@/components/projects/make/components/sidebar-chat-history";
+import type { SkillDialogProps, AgentDialogProps, SidebarConfigHandlers, ImportDialogState, DeleteAlertState } from "@/components/projects/make/hooks/use-config-dialogs";
+import type { RetryTaskGroupKey } from "@/components/projects/make/lib/retry-task-groups";
 import {
 	buildClarificationSummaryPrompt,
 	createClarificationSubmission,
 	getLatestQuestionCardPayload,
-} from "@/components/templates/shared/lib/question-card-widget";
+} from "@/components/projects/shared/lib/question-card-widget";
 import {
 	createPlanApprovalSubmission,
 	getPlanApprovalKeyFromPlanWidget,
 	serializePlanApprovalKey,
-} from "@/components/templates/shared/lib/plan-approval";
-import { getLatestPlanWidgetPayload, fetchEnrichedPlanTitle } from "@/components/templates/shared/lib/plan-widget";
+} from "@/components/projects/shared/lib/plan-approval";
+import { getLatestPlanWidgetPayload, fetchEnrichedPlanTitle } from "@/components/projects/shared/lib/plan-widget";
 import {
 	selectRetryTasks,
-} from "@/components/templates/make/lib/retry-task-groups";
+} from "@/components/projects/make/lib/retry-task-groups";
 import {
 	normalizePlanMessages,
 	isAnyWidgetCurrentlyLoading,
@@ -50,17 +50,17 @@ import {
 	isPlanResponseComplete,
 	toConversationItems,
 	getLatestVisibleUserPrompt,
-} from "@/components/templates/make/lib/message-utils";
+} from "@/components/projects/make/lib/message-utils";
 import {
 	parseMakeNavigationIntent,
 	parseMakeNavigationPrompt,
 	clearMakeNavigationIntentParams,
-} from "@/components/templates/make/lib/navigation-intent";
-import { useMakeChat } from "@/components/templates/make/hooks/use-make-chat";
-import { useLocalRovoChat } from "@/components/templates/make/hooks/use-local-rovo-chat";
-import { useExecutionMode } from "@/components/templates/make/hooks/use-execution-mode";
-import { useMakeConfig } from "@/components/templates/make/hooks/use-make-config";
-import { useConfigDialogs } from "@/components/templates/make/hooks/use-config-dialogs";
+} from "@/components/projects/make/lib/navigation-intent";
+import { useMakeChat } from "@/components/projects/make/hooks/use-make-chat";
+import { useLocalRovoChat } from "@/components/projects/make/hooks/use-local-rovo-chat";
+import { useExecutionMode } from "@/components/projects/make/hooks/use-execution-mode";
+import { useMakeConfig } from "@/components/projects/make/hooks/use-make-config";
+import { useConfigDialogs } from "@/components/projects/make/hooks/use-config-dialogs";
 
 // ---------------------------------------------------------------------------
 // State
@@ -282,6 +282,7 @@ interface MakeProviderProps {
 
 export function MakeProvider({ children }: MakeProviderProps) {
 	const router = useRouter();
+	const pathname = usePathname();
 	const initialMakeEntryStateRef = useRef<{
 		intent: ReturnType<typeof parseMakeNavigationIntent>;
 		prompt: string | null;
@@ -727,15 +728,26 @@ export function MakeProvider({ children }: MakeProviderProps) {
 					decision: "auto-accept",
 					planApprovalPlanKey,
 				});
-				void startExecution({
-					plan: activePlanWidget,
-					userPrompt: latestUserPrompt,
-					conversation: conversationItems,
-					customInstruction: selection.customInstruction,
-					agentCount,
-				});
+				void (async () => {
+					try {
+						const { runId: nextRunId } = await startExecution({
+							plan: activePlanWidget,
+							userPrompt: latestUserPrompt,
+							conversation: conversationItems,
+							customInstruction: selection.customInstruction,
+							agentCount,
+						});
+						hasNavigatedToSummaryRef.current = true;
+						router.push(`/make/runs/${nextRunId}`);
+					} catch (error) {
+						console.error(
+							"[MAKE] Failed to start run:",
+							toErrorMessage(error),
+						);
+					}
+				})();
 				if (chatTabIsPlanMode) {
-				chatTabTogglePlanMode();
+					chatTabTogglePlanMode();
 				}
 				return;
 			}
@@ -749,6 +761,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			chatTabTogglePlanMode,
 			conversationItems,
 			latestUserPrompt,
+			router,
 			startExecution,
 			submitPlanApproval,
 			appendMakePlanApprovalMarker,
@@ -769,13 +782,24 @@ export function MakeProvider({ children }: MakeProviderProps) {
 					decision: "auto-accept",
 					planApprovalPlanKey,
 				});
-				void startExecution({
-					plan: chatTabActivePlanWidget,
-					userPrompt: latestChatTabUserPrompt,
-					conversation: chatTabConversationItems,
-					customInstruction: selection.customInstruction,
-					agentCount,
-				});
+				void (async () => {
+					try {
+						const { runId: nextRunId } = await startExecution({
+							plan: chatTabActivePlanWidget,
+							userPrompt: latestChatTabUserPrompt,
+							conversation: chatTabConversationItems,
+							customInstruction: selection.customInstruction,
+							agentCount,
+						});
+						hasNavigatedToSummaryRef.current = true;
+						router.push(`/make/runs/${nextRunId}`);
+					} catch (error) {
+						console.error(
+							"[MAKE] Failed to start run:",
+							toErrorMessage(error),
+						);
+					}
+				})();
 				if (chatTabIsPlanMode) {
 					chatTabTogglePlanMode();
 				}
@@ -791,6 +815,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			chatTabIsPlanMode,
 			chatTabTogglePlanMode,
 			latestChatTabUserPrompt,
+			router,
 			startExecution,
 			submitChatTabPlanApproval,
 			appendChatTabPlanApprovalMarker,
@@ -819,12 +844,23 @@ export function MakeProvider({ children }: MakeProviderProps) {
 				});
 			}
 
-			void startExecution({
-				plan: planWidget,
-				userPrompt: runUserPrompt,
-				conversation: runConversation,
-				agentCount,
-			});
+			void (async () => {
+				try {
+					const { runId: nextRunId } = await startExecution({
+						plan: planWidget,
+						userPrompt: runUserPrompt,
+						conversation: runConversation,
+						agentCount,
+					});
+					hasNavigatedToSummaryRef.current = true;
+					router.push(`/make/runs/${nextRunId}`);
+				} catch (error) {
+					console.error(
+						"[MAKE] Failed to start run:",
+						toErrorMessage(error),
+					);
+				}
+			})();
 		},
 		[
 			agentCount,
@@ -832,6 +868,7 @@ export function MakeProvider({ children }: MakeProviderProps) {
 			conversationItems,
 			latestChatTabUserPrompt,
 			latestUserPrompt,
+			router,
 			startExecution,
 			appendChatTabPlanApprovalMarker,
 			appendMakePlanApprovalMarker,
@@ -895,9 +932,14 @@ export function MakeProvider({ children }: MakeProviderProps) {
 
 	const handleSelectChatWithTab = useCallback(
 		(id: string) => {
+			if (pathname !== "/make") {
+				const encodedChatId = encodeURIComponent(id);
+				router.push(`/make?thread=${encodedChatId}`);
+				return;
+			}
 			handleSelectChatTabChat(id);
 		},
-		[handleSelectChatTabChat],
+		[handleSelectChatTabChat, pathname, router],
 	);
 
 	const handleSelectRun = useCallback(

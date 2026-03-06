@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRovoChat } from "@/app/contexts";
 import { useSpeechRecognition } from "./use-speech-recognition";
 import { useUrlParams } from "./use-url-params";
-import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scroll-anchoring";
+import { useScrollAnchoring } from "@/components/projects/shared/hooks/use-scroll-anchoring";
 import type { PanelVariant, Product } from "../types";
 import {
 	buildClarificationSummaryDisplayLabel,
@@ -16,11 +16,11 @@ import {
 	getLatestQuestionCardPayload,
 	type ClarificationAnswers,
 	type ParsedQuestionCardPayload,
-} from "@/components/templates/shared/lib/question-card-widget";
+} from "@/components/projects/shared/lib/question-card-widget";
 import {
 	buildGenerativeWidgetSubmitPrompt,
 	type GenerativeWidgetPrimaryActionPayload,
-} from "@/components/templates/shared/lib/generative-widget";
+} from "@/components/projects/shared/lib/generative-widget";
 
 interface UseRovoChatPanelOptions {
 	product: Product;

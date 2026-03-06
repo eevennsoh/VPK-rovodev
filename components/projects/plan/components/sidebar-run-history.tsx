@@ -12,7 +12,7 @@ import type { RetryTaskGroupKey } from "../lib/retry-task-groups";
 import {
 	derivePlanEmojiFromTitle,
 	resolvePlanDisplayTitle,
-} from "@/components/templates/shared/lib/plan-identity";
+} from "@/components/projects/shared/lib/plan-identity";
 
 interface SidebarRunHistoryProps {
 	items: AgentRunListItem[];

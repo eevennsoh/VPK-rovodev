@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { getTemplatePageTitle } from "@/lib/template-page-title";
+import { getProjectPageTitle } from "@/lib/project-page-title";
 
 export const metadata: Metadata = {
-	title: getTemplatePageTitle("confluence"),
+	title: getProjectPageTitle("confluence"),
 	description: "Confluence page editor",
 	openGraph: {
-		title: `${getTemplatePageTitle("confluence")} — VPK`,
+		title: `${getProjectPageTitle("confluence")} — VPK`,
 		description: "Confluence page editor",
 	},
 	icons: {

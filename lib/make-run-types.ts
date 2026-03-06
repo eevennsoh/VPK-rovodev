@@ -122,6 +122,7 @@ export interface AgentRun {
 	conversationContext: Array<{ type: "user" | "assistant"; content: string }>;
 	iteration: number;
 	activeBatchId: string | null;
+	createdFiles?: string[];
 }
 
 export type AgentRunListItem = Pick<

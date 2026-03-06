@@ -1,6 +1,6 @@
 import { API_ENDPOINTS } from "@/lib/api-config";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
-import { resolvePlanDisplayTitle } from "@/components/templates/shared/lib/plan-identity";
+import { resolvePlanDisplayTitle } from "@/components/projects/shared/lib/plan-identity";
 
 interface StringRecord {
 	[key: string]: unknown;

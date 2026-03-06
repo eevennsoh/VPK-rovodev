@@ -1,6 +1,6 @@
 "use client";
 
-import PlanView from "@/components/templates/plan/page";
+import PlanView from "@/components/projects/plan/page";
 
 export default function PlanDemo() {
 	return <PlanView />;

@@ -3,20 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getLatestDataPart, isMessageTextStreaming } from "@/lib/rovo-ui-messages";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
-import { ChatMessages } from "@/components/templates/shared/components/chat-messages";
-import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scroll-anchoring";
-import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
+import { ChatMessages } from "@/components/projects/shared/components/chat-messages";
+import { useScrollAnchoring } from "@/components/projects/shared/hooks/use-scroll-anchoring";
+import { ClarificationQuestionCard } from "@/components/projects/shared/components/clarification-question-card";
 import { ApprovalCard } from "@/components/blocks/approval-card/page";
-import { parsePlanWidgetPayload } from "@/components/templates/shared/lib/plan-widget";
-import type { ParsedQuestionCardPayload } from "@/components/templates/shared/lib/question-card-widget";
-import type { ClarificationAnswers } from "@/components/templates/shared/lib/question-card-widget";
-import type { PlanApprovalSelection } from "@/components/templates/shared/lib/plan-approval";
+import { parsePlanWidgetPayload } from "@/components/projects/shared/lib/plan-widget";
+import type { ParsedQuestionCardPayload } from "@/components/projects/shared/lib/question-card-widget";
+import type { ClarificationAnswers } from "@/components/projects/shared/lib/question-card-widget";
+import type { PlanApprovalSelection } from "@/components/projects/shared/lib/plan-approval";
 import type { QueuedPromptItem } from "@/app/contexts";
 import { Footer } from "@/components/ui/footer";
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
 import { Button } from "@/components/ui/button";
 import { token } from "@/lib/tokens";
-import { getPlanModeCopy } from "@/components/templates/make/lib/make-copy";
+import { getPlanModeCopy } from "@/components/projects/make/lib/make-copy";
 import {
 	useMakeState,
 	useMakeActions,
@@ -26,7 +26,7 @@ import { MakeCardWidgetInline } from "./make-card-widget-inline";
 import { PlanPreviewModal } from "./plan-preview-modal";
 import { useScrollToBottom } from "../hooks/use-scroll-to-bottom";
 import { useDismissibleCards } from "../hooks/use-dismissible-cards";
-import LoadingWidget from "@/components/templates/shared/components/loading-widget";
+import LoadingWidget from "@/components/projects/shared/components/loading-widget";
 
 // ---------------------------------------------------------------------------
 // Constants

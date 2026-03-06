@@ -1,0 +1,43 @@
+{
+  "expectations": [
+    {
+      "text": "Output includes a structured ADS variant → VPK variant mapping table",
+      "passed": true,
+      "evidence": "Summary contains comprehensive mapping tables: Section 2b 'Variant Styling Map' with ADS appearance → VPK variant for semantic (6 variants), accent (10 variants), bold compound (6 variants), and size map with pixel values."
+    },
+    {
+      "text": "Variant names stay as shadcn convention — not renamed to ADS names",
+      "passed": true,
+      "evidence": "All VPK variant names preserved: neutral, success, danger, information, discovery, warning, accent-*. Section '2c Identity & Metadata Lock' confirms no renames. Prop names section explicitly shows appearance→variant (shadcn convention)."
+    },
+    {
+      "text": "Uses ADS token triplets (rest/hovered/pressed) rather than generic opacity/color patterns",
+      "passed": true,
+      "evidence": "Section '2b LozengeDropdownTrigger Visual State Map' shows complete rest/hover/active triplets: e.g. bg-bg-neutral → hover:bg-bg-neutral-hovered → active:bg-bg-neutral-pressed. Accent variants also mapped: bg-red-100 → hover:bg-red-200 → active:bg-red-300."
+    },
+    {
+      "text": "Mentions or uses computed style extraction from live ADS page rather than guessing from token names",
+      "passed": true,
+      "evidence": "Section 'Computed Styles — ADS Lozenge' explicitly states: 'Extracted via browser_evaluate on https://atlaskit.atlassian.com/examples.html?groupId=design-system&packageId=lozenge&exampleId=basic'. Table includes computed RGB values, border-radius 3px, height 16px, font-size 14px for all 6 subtle variants."
+    },
+    {
+      "text": "Produces a structured audit of current component state vs needed ADS styling",
+      "passed": true,
+      "evidence": "Section '2a VPK Component Audit Template' is a structured table with columns 'Aspect | Current (preserve) | Visual Styling Assessment' covering styling approach, variant names, size names, prop names, hover/active/disabled/focus-visible states, aria attributes, isLoading, props interface, and demos. Pre-enrichment gaps table identifies 4 specific gaps with severity ratings."
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "total_tokens": 115805,
+    "total_duration_seconds": 557.6
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All assertions passed with strong evidence. The computed-styles assertion is particularly discriminating — it distinguishes skill-guided Playwright extraction from documentation-only analysis."
+  }
+}

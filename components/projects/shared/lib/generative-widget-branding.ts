@@ -1,4 +1,4 @@
-import type { GenerativeContentType } from "@/components/templates/shared/lib/generative-widget";
+import type { GenerativeContentType } from "@/components/projects/shared/lib/generative-widget";
 
 export const GENERATIVE_CONTENT_TYPE_SUGGESTIONS: ReadonlyArray<GenerativeContentType> = [
 	"image",

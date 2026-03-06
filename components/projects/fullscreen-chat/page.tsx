@@ -5,11 +5,11 @@ import RovoChatMessages from "./components/rovo-chat-messages";
 import RovoViewHeader from "./components/rovo-view-header";
 import RovoInitialView from "./components/rovo-initial-view";
 import { useRovoViewChat } from "./hooks/use-rovo-view-chat";
-import { useScrollAnchoring } from "@/components/templates/shared/hooks/use-scroll-anchoring";
-import { ClarificationQuestionCard } from "@/components/templates/shared/components/clarification-question-card";
-import { QuestionCardShortcutsFooter } from "@/components/templates/shared/components/question-card-shortcuts-footer";
+import { useScrollAnchoring } from "@/components/projects/shared/hooks/use-scroll-anchoring";
+import { ClarificationQuestionCard } from "@/components/projects/shared/components/clarification-question-card";
+import { QuestionCardShortcutsFooter } from "@/components/projects/shared/components/question-card-shortcuts-footer";
 import { CONTAINER_STYLES } from "./data/container-styles";
-import { useDismissibleCards } from "@/components/templates/shared/hooks/use-dismissible-cards";
+import { useDismissibleCards } from "@/components/projects/shared/hooks/use-dismissible-cards";
 import styles from "./rovo.module.css";
 
 export default function RovoView() {

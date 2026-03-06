@@ -17,6 +17,7 @@ import PlanIcon from "@atlaskit/icon/core/list-checklist";
 import ShowMoreHorizontalIcon from "@atlaskit/icon/core/show-more-horizontal";
 import SpacesIcon from "@atlaskit/icon-lab/core/spaces";
 import StarUnstarredIcon from "@atlaskit/icon/core/star-unstarred";
+import BoardIcon from "@atlaskit/icon/core/board";
 
 interface JiraSidebarProps {
 	selectedItem: string;
@@ -48,6 +49,13 @@ export function JiraSidebar({
 				label="Starred"
 				hasChevron
 				onClick={() => onSelectItem("Starred")}
+			/>
+			<NavigationItem
+				icon={BoardIcon}
+				label="Sprint Board"
+				href="/sprint-board"
+				isSelected={selectedItem === "Sprint Board"}
+				onClick={() => onSelectItem("Sprint Board")}
 			/>
 
 			<NavigationItemWithHoverChevron

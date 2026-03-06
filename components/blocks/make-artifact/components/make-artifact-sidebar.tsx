@@ -9,7 +9,7 @@ import { token } from "@/lib/tokens";
 import SidebarCollapseIcon from "@atlaskit/icon/core/sidebar-collapse";
 import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
 import SearchIcon from "@atlaskit/icon/core/search";
-import SidebarRunHistory from "@/components/templates/make/components/sidebar-run-history";
+import SidebarRunHistory from "@/components/projects/make/components/sidebar-run-history";
 import type { AgentRunListItem } from "@/lib/make-run-types";
 import { MakeSidebarFooter } from "./sidebar-footer";
 

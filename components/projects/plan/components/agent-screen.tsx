@@ -10,7 +10,7 @@ import {
 } from "@/components/ui-ai/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
-import { REASONING_LABELS } from "@/components/templates/shared/lib/reasoning-labels";
+import { REASONING_LABELS } from "@/components/projects/shared/lib/reasoning-labels";
 import type { TaskExecution } from "../lib/execution-data";
 
 interface AgentScreenProps {

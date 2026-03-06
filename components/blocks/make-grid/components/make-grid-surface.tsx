@@ -1,7 +1,7 @@
 "use client";
 
-import type { TaskExecution } from "@/components/templates/make/lib/execution-data";
-import { ExecutionGridView } from "@/components/templates/make/components/execution-grid-view";
+import type { TaskExecution } from "@/components/projects/make/lib/execution-data";
+import { ExecutionGridView } from "@/components/projects/make/components/execution-grid-view";
 
 interface MakeGridSurfaceProps {
 	taskExecutions: TaskExecution[];
