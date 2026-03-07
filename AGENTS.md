@@ -1,7 +1,7 @@
 # VPK (Venn Prototype Kit)
 
 > Provider-neutral project context for AI coding assistants (Cursor, Claude Code, Codex, and others).
-> Canonical source: `.agents/`. Provider dirs (`.cursor/`, `.claude/`, `.codex/`, `.codelassian/`) symlink to it.
+> Canonical source: `.agents/`. Provider dirs (`.cursor/`, `.claude/`, `.codex/`, `.codelassian/`, `.rovodev/`) symlink to it.
 
 Next.js 16 (React 19, Tailwind CSS v4) + Express backend with AI SDK (Vercel) and RovoDev Serve integration.
 
@@ -79,7 +79,7 @@ If instructions overlap, use this precedence:
 ### Rule Sources
 
 - Canonical source: `.agents/rules/`
-- Provider symlinks: `.cursor/rules/`, `.claude/rules/`, `.codex/rules/`, `.codelassian/rules/`
+- Provider symlinks: `.cursor/rules/`, `.claude/rules/`, `.codex/rules/`, `.codelassian/rules/`, `.rovodev/rules/`
 - Cursor-only format: `.agents/rules/*.mdc`
 
 ### Non-negotiable Defaults
@@ -151,11 +151,6 @@ In VPK feature code, use ADS semantic naming (`bg-surface-raised`, `text-text-su
 - Dev API calls traverse Next.js proxy then Express; debug both layers.
 - No directories are excluded from TypeScript type-checking (only `node_modules`). All errors are visible and trackable.
 - Never import transitive pnpm dependencies directly — pnpm's strict isolation only allows imports from `package.json` direct dependencies. Use internal mechanisms (e.g., `globalThis.__PLATFORM_FEATURE_FLAGS__`) or add the package explicitly.
-
-> Additional gotchas load automatically from `.claude/rules/` when editing matching files:
-> - `gotchas-ui.md` — Base UI menus, Popover, Toggle, Sonner (when editing `components/**`)
-> - `gotchas-chat.md` — RovoDev mode, session corruption, AI SDK (when editing chat/backend files)
-> - `gotchas-react.md` — state updates, derived state, CSS gap (when editing `*.tsx`)
 
 ## Architecture
 
