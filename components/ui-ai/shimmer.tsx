@@ -339,6 +339,16 @@ const ShimmerComponent = ({
 		);
 	}
 
+	if (shouldReduceMotion) {
+		return (
+			<MotionComponent
+				className={cn("relative inline-block [color:var(--color-muted-foreground)]", className)}
+			>
+				{children}
+			</MotionComponent>
+		);
+	}
+
 	return (
 		<MotionComponent
 			animate={{ backgroundPosition: "0% center" }}

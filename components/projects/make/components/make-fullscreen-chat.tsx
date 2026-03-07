@@ -507,15 +507,14 @@ export function MakeFullscreenChat() {
 						!galleryExpanded && "justify-center",
 					)}>
 							<AnimatePresence mode="wait">
-								<motion.div
-									key={isMakeToggleActive ? "make" : "chat"}
-									className="flex flex-col items-center gap-6 px-4 py-6"
-									initial={MODE_INITIAL_DOWN}
-									animate={MODE_ENTER}
-									exit={MODE_EXIT_UP}
-									transition={MODE_TRANSITION}
-									style={{ willChange: "opacity, transform" }}
-								>
+							<motion.div
+								key={isMakeToggleActive ? "make" : "chat"}
+								className="flex flex-col items-center gap-6 px-4 py-6"
+								initial={MODE_INITIAL_DOWN}
+								animate={MODE_ENTER}
+								exit={MODE_EXIT_UP}
+								transition={MODE_TRANSITION}
+							>
 									<Image
 										src={illustrationSrc}
 										alt={modeCopy.illustrationAlt}
@@ -548,29 +547,27 @@ export function MakeFullscreenChat() {
 							<div className="mt-4 w-full max-w-[800px] px-1">
 								<AnimatePresence mode="wait">
 									{isMakeToggleActive ? (
-										<motion.div
-											key="discovery"
-											initial={MODE_INITIAL_DOWN}
-											animate={MODE_ENTER}
-											exit={MODE_EXIT_UP}
-											transition={MODE_TRANSITION}
-											style={{ willChange: "opacity, transform" }}
-										>
-											<DiscoveryGallery
-												onSelect={handlePromptGallerySelect}
-												onPreviewStart={handlePreviewStart}
-												onPreviewEnd={handlePreviewEnd}
-											/>
-										</motion.div>
-									) : (
-										<motion.div
-											key="prompt"
-											initial={MODE_INITIAL_DOWN}
-											animate={MODE_ENTER}
-											exit={MODE_EXIT_UP}
-											transition={MODE_TRANSITION}
-											style={{ willChange: "opacity, transform" }}
-										>
+									<motion.div
+										key="discovery"
+										initial={MODE_INITIAL_DOWN}
+										animate={MODE_ENTER}
+										exit={MODE_EXIT_UP}
+										transition={MODE_TRANSITION}
+									>
+										<DiscoveryGallery
+											onSelect={handlePromptGallerySelect}
+											onPreviewStart={handlePreviewStart}
+											onPreviewEnd={handlePreviewEnd}
+										/>
+									</motion.div>
+								) : (
+									<motion.div
+										key="prompt"
+										initial={MODE_INITIAL_DOWN}
+										animate={MODE_ENTER}
+										exit={MODE_EXIT_UP}
+										transition={MODE_TRANSITION}
+									>
 											<PromptGallery
 												onSelect={handlePromptGallerySelect}
 												onPreviewStart={handlePreviewStart}

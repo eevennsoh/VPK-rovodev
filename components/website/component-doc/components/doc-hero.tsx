@@ -6,7 +6,7 @@ import { token } from "@/lib/tokens";
 interface DocHeroProps {
 	name: string;
 	description?: string;
-	category: "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual";
+	category: "ui-audio" | "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual";
 	importPath: string;
 	adsLinks?: Array<{ href: string; label: string }>;
 	adsUrl?: string;
@@ -14,7 +14,7 @@ interface DocHeroProps {
 }
 
 export function DocHero({ name, description, category, importPath, adsLinks, adsUrl, adsPackage }: Readonly<DocHeroProps>) {
-	const categoryLabel = category === "ui-ai" ? "UI — AI" : category === "blocks" ? "Blocks" : category === "projects" ? "Projects" : category === "visual" ? "Visual" : category === "utility" ? "Utils" : "UI";
+	const categoryLabel = category === "ui-audio" ? "UI — Audio" : category === "ui-ai" ? "UI — AI" : category === "blocks" ? "Blocks" : category === "projects" ? "Projects" : category === "visual" ? "Visual" : category === "utility" ? "Utils" : "UI";
 	const resolvedAdsLinks =
 		adsLinks && adsLinks.length > 0
 			? adsLinks

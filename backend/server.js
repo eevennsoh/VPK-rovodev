@@ -9345,7 +9345,7 @@ app.get("/api/make/runs/:runId/publish", async (req, res) => {
 app.post("/api/make/runs/:runId/publish", async (req, res) => {
 	try {
 		const { runId } = req.params;
-		const { appName, siteUrl, product } = req.body;
+		const { appName, siteUrl, product } = req.body ?? {};
 
 		if (!appName || !siteUrl) {
 			return res.status(400).json({ error: "appName and siteUrl are required" });
@@ -9962,9 +9962,9 @@ console.log(`[STARTUP] Serving static files from: ${publicPath}`);
 // Serve all static files (CSS, JS, images, etc.)
 app.use(express.static(publicPath));
 
-// For all other routes, try to serve the corresponding HTML file or fallback to index.html
-// This supports Next.js client-side routing
-app.get("*", (req, res) => {
+// For all other routes, try to serve the corresponding HTML file or fallback to index.html.
+// Express 5 requires a named wildcard instead of the legacy "*" path.
+app.get("/{*splat}", (req, res) => {
 	console.log(`[STATIC] Request for route: ${req.path}`);
 
 	// Never serve HTML for unmatched API routes. Return JSON 404 instead so

@@ -11,7 +11,7 @@ import FullscreenEnterIcon from "@atlaskit/icon/core/fullscreen-enter";
 
 interface DocPreviewProps {
 	slug: string;
-	category: "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual";
+	category: "ui-audio" | "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual";
 	demoLayout?: DemoLayout;
 }
 

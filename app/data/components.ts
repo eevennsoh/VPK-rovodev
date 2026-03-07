@@ -1,4 +1,5 @@
 import type { ComponentDetail } from "./component-detail-types";
+import { UI_AUDIO_DETAILS } from "./details/ui-audio";
 import { UI_AI_DETAILS } from "./details/ui-ai";
 import { BLOCK_DETAILS } from "./details/blocks";
 import { PROJECT_DETAILS } from "./details/projects";
@@ -10,7 +11,7 @@ export interface ComponentEntry {
 	name: string;
 	slug: string;
 	importPath: string;
-	category: "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual";
+	category: "ui-audio" | "ui-ai" | "ui" | "blocks" | "projects" | "utility" | "visual";
 	detail?: ComponentDetail;
 }
 
@@ -28,6 +29,16 @@ function aiComponent(slug: string, name?: string): ComponentEntry {
 		importPath: `@/components/ui-ai/${slug}`,
 		category: "ui-ai",
 		detail: UI_AI_DETAILS[slug],
+	};
+}
+
+function audioComponent(slug: string, name?: string): ComponentEntry {
+	return {
+		name: name ?? toTitleCase(slug),
+		slug,
+		importPath: `@/components/ui-audio/${slug}`,
+		category: "ui-audio",
+		detail: UI_AUDIO_DETAILS[slug],
 	};
 }
 
@@ -133,6 +144,26 @@ export const AI_COMPONENTS: ComponentEntry[] = [
 	aiComponent("transcription"),
 	aiComponent("voice-selector", "Voice Selector"),
 	aiComponent("web-preview", "Web Preview"),
+] as const;
+
+export const AUDIO_COMPONENTS: ComponentEntry[] = [
+	audioComponent("audio-player", "Audio Player"),
+	audioComponent("bar-visualizer", "Bar Visualizer"),
+	audioComponent("conversation"),
+	audioComponent("conversation-bar", "Conversation Bar"),
+	audioComponent("live-waveform", "Live Waveform"),
+	audioComponent("matrix"),
+	audioComponent("message"),
+	audioComponent("mic-selector", "Mic Selector"),
+	audioComponent("orb", "Orb"),
+	audioComponent("response"),
+	audioComponent("scrub-bar", "Scrub Bar"),
+	audioComponent("shimmering-text", "Shimmering Text"),
+	audioComponent("speech-input", "Speech Input"),
+	audioComponent("transcript-viewer", "Transcript Viewer"),
+	audioComponent("voice-button", "Voice Button"),
+	audioComponent("voice-picker", "Voice Picker"),
+	audioComponent("waveform", "Waveform"),
 ] as const;
 
 export const UI_COMPONENTS: ComponentEntry[] = [
@@ -309,7 +340,7 @@ export const VISUAL_COMPONENTS: ComponentEntry[] = [
 	visualComponent("shadow", "Shadow", "@/lib/tokens"),
 ] as const;
 
-const ALL_COMPONENTS = [...AI_COMPONENTS, ...UI_COMPONENTS, ...BLOCK_COMPONENTS, ...PROJECT_COMPONENTS, ...UTILITY_COMPONENTS, ...VISUAL_COMPONENTS];
+const ALL_COMPONENTS = [...AUDIO_COMPONENTS, ...AI_COMPONENTS, ...UI_COMPONENTS, ...BLOCK_COMPONENTS, ...PROJECT_COMPONENTS, ...UTILITY_COMPONENTS, ...VISUAL_COMPONENTS];
 
 export function findComponent(category: string, slug: string): ComponentEntry | undefined {
 	return ALL_COMPONENTS.find((c) => c.category === category && c.slug === slug);

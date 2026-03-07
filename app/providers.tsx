@@ -1,5 +1,6 @@
 "use client";
 
+import { MotionConfig } from "motion/react";
 import { ThemeWrapper } from "@/components/utils/theme-wrapper";
 import { SidebarProvider } from "@/app/contexts/context-sidebar";
 import { RovoChatProvider } from "@/app/contexts/context-rovo-chat";
@@ -28,14 +29,16 @@ platformFeatureFlags.__PLATFORM_FEATURE_FLAGS__ = {
 
 export function Providers({ children }: { children: React.ReactNode }) {
 	return (
-		<ThemeWrapper>
-			<SidebarProvider>
-				<CreationModeProvider>
-					<RovoChatProvider>
-						{children}
-					</RovoChatProvider>
-				</CreationModeProvider>
-			</SidebarProvider>
-		</ThemeWrapper>
+		<MotionConfig reducedMotion="user">
+			<ThemeWrapper>
+				<SidebarProvider>
+					<CreationModeProvider>
+						<RovoChatProvider>
+							{children}
+						</RovoChatProvider>
+					</CreationModeProvider>
+				</SidebarProvider>
+			</ThemeWrapper>
+		</MotionConfig>
 	);
 }

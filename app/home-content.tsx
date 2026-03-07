@@ -8,11 +8,11 @@ import { WebsiteGrid } from "@/components/website/website-grid";
 import { WebsiteCard } from "@/components/website/website-card";
 import { WebsitePreview } from "@/components/website/website-preview";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, PROJECT_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS } from "./data/components";
+import { AUDIO_COMPONENTS, AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, PROJECT_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS } from "./data/components";
 import { buildNavItems, UI_GROUPS, BLOCK_GROUPS } from "./data/nav-utils";
 import { resolveAiAdsPackage, resolveBlockAdsPackage, resolveUiAdsPackage, resolveUiAdsTagVariant } from "./data/nav-ads";
 
-export type HomeCategory = "ui" | "ui-ai" | "blocks" | "projects" | "utility" | "visual";
+export type HomeCategory = "ui" | "ui-audio" | "ui-ai" | "blocks" | "projects" | "utility" | "visual";
 
 const staticPages = [{ name: "Home", href: "/" }];
 
@@ -21,6 +21,14 @@ const sections = [
 		title: "UI",
 		defaultOpen: false,
 		items: buildNavItems(UI_COMPONENTS, "/components/ui/", UI_GROUPS, resolveUiAdsPackage, resolveUiAdsTagVariant),
+	},
+	{
+		title: "UI \u2014 Audio",
+		defaultOpen: false,
+		items: AUDIO_COMPONENTS.map((c) => ({
+			name: c.name,
+			href: `/components/ui-audio/${c.slug}`,
+		})),
 	},
 	{
 		title: "UI — AI",
@@ -55,6 +63,7 @@ const sections = [
 
 const CATEGORY_OPTIONS: ReadonlyArray<{ key: HomeCategory; title: string; count: number }> = [
 	{ key: "ui", title: "UI", count: UI_COMPONENTS.length },
+	{ key: "ui-audio", title: "UI — Audio", count: AUDIO_COMPONENTS.length },
 	{ key: "ui-ai", title: "UI — AI", count: AI_COMPONENTS.length },
 	{ key: "blocks", title: "Blocks", count: BLOCK_COMPONENTS.length },
 	{ key: "projects", title: "Projects", count: PROJECT_COMPONENTS.length },
@@ -136,6 +145,19 @@ export function HomeContent({ category }: Readonly<HomeContentProps>) {
 								{AI_COMPONENTS.map((comp) => (
 									<WebsiteCard key={comp.slug} name={comp.name} href={`/components/ui-ai/${comp.slug}`}>
 										<WebsitePreview slug={comp.slug} name={comp.name} importPath={comp.importPath} category="ui-ai" />
+									</WebsiteCard>
+								))}
+							</WebsiteGrid>
+						</>
+					)}
+
+					{category === "ui-audio" && (
+						<>
+							<SectionHeading id="audio-elements" title="UI — Audio" count={AUDIO_COMPONENTS.length} />
+							<WebsiteGrid>
+								{AUDIO_COMPONENTS.map((comp) => (
+									<WebsiteCard key={comp.slug} name={comp.name} href={`/components/ui-audio/${comp.slug}`}>
+										<WebsitePreview slug={comp.slug} name={comp.name} importPath={comp.importPath} category="ui-audio" />
 									</WebsiteCard>
 								))}
 							</WebsiteGrid>

@@ -587,13 +587,6 @@ export function RunWorkspace({
 		[isAppending, run.runId]
 	);
 
-	const handleAppendTasks = useCallback(
-		async (message: string) => {
-			await appendTasksToRun(runId, message);
-		},
-		[appendTasksToRun, runId]
-	);
-
 	const handleRetryRunGroup = useCallback(
 		async (targetRunId: string, groupKey: RetryTaskGroupKey, taskIds: string[]) => {
 			const targetRun =

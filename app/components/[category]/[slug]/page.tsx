@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, PROJECT_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS, findComponent } from "@/app/data/components";
+import { AUDIO_COMPONENTS, AI_COMPONENTS, UI_COMPONENTS, BLOCK_COMPONENTS, PROJECT_COMPONENTS, UTILITY_COMPONENTS, VISUAL_COMPONENTS, findComponent } from "@/app/data/components";
 import { ComponentDoc } from "@/components/website/component-doc/page";
 import { getComponentPageTitle } from "@/lib/project-page-title";
 
@@ -20,6 +20,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export function generateStaticParams() {
 	const params: { category: string; slug: string }[] = [];
+
+	for (const comp of AUDIO_COMPONENTS) {
+		params.push({ category: "ui-audio", slug: comp.slug });
+	}
 
 	for (const comp of AI_COMPONENTS) {
 		params.push({ category: "ui-ai", slug: comp.slug });
@@ -51,7 +55,7 @@ export function generateStaticParams() {
 export default async function ComponentDetailPage({ params }: PageProps) {
 	const { category, slug } = await params;
 
-	if (category !== "ui-ai" && category !== "ui" && category !== "blocks" && category !== "projects" && category !== "utility" && category !== "visual") {
+	if (category !== "ui-audio" && category !== "ui-ai" && category !== "ui" && category !== "blocks" && category !== "projects" && category !== "utility" && category !== "visual") {
 		notFound();
 	}
 

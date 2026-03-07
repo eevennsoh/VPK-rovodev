@@ -48,8 +48,7 @@ export function SprintKanbanBoard() {
 					<div>
 						<InlineEdit
 							value={boardTitle}
-							onChange={setBoardTitle}
-							asHeading="h1"
+							onConfirm={setBoardTitle}
 							className="text-2xl font-bold text-text"
 						/>
 						<p className="text-sm text-text-subtle">Sprint 24 • Feb 19 - Mar 4</p>

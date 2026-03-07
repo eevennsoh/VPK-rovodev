@@ -71,7 +71,7 @@ function getRunAgentCount(run: AgentRunListItem): number {
 
 const DEFAULT_USER = { name: "User", src: "/avatar-human/austin-lambert.png" };
 
-function getRunMaintainers(_run: AgentRunListItem): Array<{ name: string; src?: string }> {
+function getRunMaintainers(): Array<{ name: string; src?: string }> {
 	return [DEFAULT_USER];
 }
 
@@ -128,7 +128,7 @@ export function mapRunsToMakeGalleryItems(
 			users: runMeta.taskCount,
 			rating: runMeta.status === "completed" ? 5 : 4,
 			ratingCount: `${runMeta.agentCount} agents`,
-			maintainers: getRunMaintainers(run),
+			maintainers: getRunMaintainers(),
 			runMeta,
 		};
 	});

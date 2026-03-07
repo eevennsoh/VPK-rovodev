@@ -32,7 +32,11 @@ export function ComponentDoc({ component }: Readonly<ComponentDocProps>) {
 	const detailSections = (
 		<>
 			{/* 3. Installation — always shown */}
-			<DocInstallation importPath={importPath} name={name} />
+			<DocInstallation
+				importPath={importPath}
+				name={name}
+				importStatement={detail?.importStatement}
+			/>
 
 			{/* 4. Usage — only if data exists */}
 			{detail?.usage && <DocUsage usage={detail.usage} />}

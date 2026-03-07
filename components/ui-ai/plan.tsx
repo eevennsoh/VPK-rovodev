@@ -365,7 +365,6 @@ export const PlanTaskItem = ({ index, label, blockedByLabels, blockedByText, age
 		animate={{ opacity: 1, y: 0 }}
 		transition={{ duration: 0.25, ease: "easeOut" }}
 		className={cn("flex min-h-8 shrink-0 items-center gap-4 rounded-lg bg-surface px-2 py-1.5", className)}
-		style={{ willChange: "transform, opacity" }}
 		data-slot="plan-task-item"
 	>
 		<span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-border bg-surface text-sm leading-5 font-medium text-text">{index}</span>

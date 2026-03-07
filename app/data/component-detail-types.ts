@@ -35,6 +35,7 @@ export interface DemoLayout {
 
 export interface ComponentDetail {
 	description: string;
+	importStatement?: string;
 	usage?: string;
 	props?: PropDefinition[];
 	subComponents?: SubComponentDoc[];

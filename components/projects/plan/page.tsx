@@ -78,7 +78,6 @@ function PlanLayout() {
 		handleDeleteChat,
 		handleCreatePlan,
 		handleNewChat,
-		handleAddTask,
 	} = usePlanActions();
 
 	const {
