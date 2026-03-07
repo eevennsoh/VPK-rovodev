@@ -8,6 +8,11 @@ import { Providers } from "@/app/providers";
 import { DevTurbopackCssChunkGuard } from "@/components/utils/dev-turbopack-css-chunk-guard";
 import { DevReactGrabMount } from "@/components/utils/dev-react-grab-mount";
 import { DevAgentationMount } from "@/components/utils/dev-agentation-mount";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+
 
 // Prevent @atlaskit/tokens from falling back to uninitialized FeatureGates client.
 // Sets the resolver on the same global that @atlaskit/platform-feature-flags uses internally.
@@ -152,7 +157,7 @@ export default async function RootLayout({
 	return (
 		<html
 			lang="en"
-			className={colorMode}
+			className={cn(colorMode, "font-sans", geist.variable)}
 			data-theme={themeData}
 			data-color-mode={colorMode}
 			data-contrast-mode={contrastMode}
