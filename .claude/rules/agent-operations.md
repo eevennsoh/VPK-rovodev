@@ -1,0 +1,1 @@
+../../.cursor/docs/agent-operations.md

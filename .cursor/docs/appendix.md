@@ -1,3 +1,14 @@
+---
+description: Directory structure, env vars, provider reference, skills catalog, team workflow, validation checklists
+globs: backend/**, app/contexts/**, app/providers.tsx, .cursor/skills/**
+alwaysApply: false
+paths:
+  - "backend/**"
+  - "app/contexts/**"
+  - "app/providers.tsx"
+  - ".cursor/skills/**"
+---
+
 # Appendix
 
 ## Detailed Directory Structure
@@ -9,39 +20,43 @@ app/
   contexts/                    # React Context providers
   data/                        # Component/example data files
   hooks/                       # App-level hooks
-  preview/                     # Component preview routes (blocks, templates)
+  preview/                     # Component preview routes (blocks, projects)
   providers.tsx                # Client-side provider composition
-  [category]/page.tsx          # Category landing routes (ui, ui-ai, blocks, templates)
+  [category]/page.tsx          # Category landing routes (ui, ui-ai, blocks, projects)
   [page routes]/               # plan/, make/, confluence/, fullscreen-chat/, jira/, search/, sidebar-chat/
   layout.tsx                   # Root layout (server component)
 
 backend/
   server.js                    # Express server (production runtime)
   lib/                         # Backend utilities
-    plan-runs.js         # Agent team run manager (task tracking, SSE streaming)
-    rovodev-gateway.js          # RovoDev Serve streaming/text bridge
-    rovodev-client.js           # Low-level V3 REST + SSE client for rovodev serve
-    rovodev-pool.js             # Port pool manager for concurrent RovoDev sessions
-    rovodev-port-assignment.js  # Deterministic panel-to-port mapping
-    rovodev-port-recovery.js    # Graceful restart for stuck RovoDev instances
-    orchestrator-log.js         # Cross-panel activity log (JSONL persistence)
-    question-card-extractor.js  # Extracts clarification cards from assistant responses
-    smart-audio-routing.js      # Audio generation intent routing
+    plan-runs.js               # Agent team run manager (task tracking, SSE streaming)
+    rovodev-gateway.js         # RovoDev Serve streaming/text bridge
+    rovodev-client.js          # Low-level V3 REST + SSE client for rovodev serve
+    rovodev-pool.js            # Port pool manager for concurrent RovoDev sessions
+    rovodev-port-assignment.js # Deterministic panel-to-port mapping
+    rovodev-port-recovery.js   # Graceful restart for stuck RovoDev instances
+    orchestrator-log.js        # Cross-panel activity log (JSONL persistence)
+    question-card-extractor.js # Extracts clarification cards from assistant responses
+    smart-audio-routing.js     # Audio generation intent routing
+    dag-inference.js           # DAG inference for task dependencies
+    genui-chat-handler.js      # Generative UI chat handler
+    planning-intent.js         # Planning intent detection
+    team-run-lanes.js          # Team run lane management
+    ticket-classifier.js       # Ticket classification
+    smart-image-routing.js     # Image generation intent routing
 
 components/
-  templates/                   # ADS-themed feature surfaces
-    asset-requests/            # Asset request management
+  projects/                    # ADS-themed feature surfaces
     confluence/                # Document editing
     dashboard/                 # Dashboard view
     fullscreen-chat/           # Full-screen AI chat
-    inventory/                 # Inventory management
     jira/                      # Kanban board
     make/                      # Make/creation interface
     plan/                      # Agent team interface
     search/                    # Search results
     sidebar-chat/              # Chat with sidebar
     work-items/                # Work items management
-    shared/                    # Shared template utilities (ThreadMessage compound component, message processing)
+    shared/                    # Shared project utilities (ThreadMessage compound component, message processing)
   ui-ai/                       # AI element components (TS excluded)
   blocks/                      # Block features
     chat/                      # ADS-themed chat block
@@ -53,7 +68,7 @@ components/
   website/                     # Component docs/demo site
 
 hooks/                         # Root-level shared hooks
-lib/                           # Shared utilities (tokens, api-config, utils, rovo-suggestions, rovo-ui-messages)
+lib/                           # Shared utilities (tokens, api-config, utils, rovo-suggestions, rovo-ui-messages, plan-run-types, make-run-types, plan-config-types, make-config-types, sprint-board-types)
 rovo/                          # AI config
 scripts/                       # Dev scripts
 types/                         # TS declarations
@@ -113,7 +128,7 @@ Optional environment variables:
 | Share        | `/vpk-share`        | Utility  | Create/sync/reset GitHub repos from VPK               |
 | Sync         | `/vpk-sync`         | Utility  | Pull upstream updates and push contributions          |
 | Component    | `/vpk-component`    | Utility  | Map ADS components to VPK equivalents                 |
-| Component AI | `/vpk-component-ai` | Utility  | Migrate custom AI components to ui-ai                 |
+| Component Ext | `/vpk-component-ext` | Utility  | Migrate custom AI components to ui-ai                 |
 | Lesson       | `/vpk-lesson`       | Utility  | Log corrections to `AGENTS-LESSONS.md`                |
 
 Figma pipeline agents:

@@ -7,13 +7,13 @@ Next.js 16 (React 19, Tailwind CSS v4) + Express backend with AI SDK (Vercel) an
 
 ## Start Here
 
-- Read this file top-to-bottom once. For details, use the Appendix sections.
+- Read this file top-to-bottom once. For details, use the Documentation Index.
 - Quick start:
   - `pnpm install`
   - `pnpm run dev`
 - Local runtime uses three processes: RovoDev Serve + Express backend + Next.js frontend proxy.
 - Production runtime uses one Express process serving static export plus `/api/*`.
-- Primary frontend edits are in `components/templates/`, `components/blocks/`, and `app/` route files.
+- Primary frontend edits are in `components/projects/`, `components/blocks/`, and `app/` route files.
 - Backend API edits are in `backend/server.js` and `app/api/*/route.ts` (dev proxy).
 - Validate every change with `pnpm run lint` and `pnpm tsc --noEmit`.
 - For UI changes, also run visual + accessibility checks (see `## Workflows (Extended) -> Validation`).
@@ -129,23 +129,7 @@ Selection priority:
 In `components/ui/*`, use shadcn naming (`bg-card`, `text-foreground`).
 In VPK feature code, use ADS semantic naming (`bg-surface-raised`, `text-text-subtle`).
 
-Common mapping examples:
-
-- `--color-text-subtle` -> `text-text-subtle`
-- `--color-icon-danger` -> `text-icon-danger` (icons use text utility)
-- `--color-bg-danger` -> `bg-bg-danger`
-- `--color-surface-raised` -> `bg-surface-raised`
-- `--color-border-bold` -> `border-border-bold`
-
-Common mistakes:
-
-| Wrong                               | Correct                             |
-| ----------------------------------- | ----------------------------------- |
-| `bg-[var(--ds-background-neutral)]` | `bg-bg-neutral`                     |
-| `text-[var(--ds-text-danger)]`      | `text-text-danger`                  |
-| `bg-[var(--ds-surface-raised)]`     | `bg-surface-raised`                 |
-| `border-[var(--ds-border-bold)]`    | `border-border-bold`                |
-| `bg-white` / `bg-black`             | `bg-surface` / `bg-bg-neutral-bold` |
+> Full token mappings, motion tokens, and common mistakes are in the `token-priority` rule (always loaded for component/CSS files).
 
 ## Workflows
 
@@ -158,6 +142,7 @@ Common mistakes:
 - Start frontend only: `pnpm run dev:frontend`
 - Start backend only: `pnpm run dev:backend`
 - Start with tmux (8 panes): `pnpm run rovodev:tmux`
+- Run backend tests: `node --test backend/lib/*.test.js`
 
 ## Gotchas
 
@@ -187,17 +172,23 @@ Build, deployment, and validation workflows.
 
 @.cursor/docs/workflows-extended.md
 
-## Agent Operations
+## Behavioral Rules
 
-Skills, parallel work model, agent teams, behavioral rules, and lessons tracking.
+- Verify exact file location before UI edits by searching for distinctive text/classes.
+- Use macOS/BSD-safe shell patterns (for example `sed -i ''`).
+- For Figma work, front-load key specs: spacing, radius, width constraints, shadow token.
+- When editing icons, check consistency across all icons in the component.
+- Prefer the simplest viable implementation before introducing abstractions.
+- If implementation gets unstable, stop and re-plan instead of patching repeatedly.
+- Before completion, perform a staff-level quality gate: root-cause fixes, clean architecture, no band-aids.
+- When fixing a bug, add a regression test that reproduces the original failure.
+- Maintain `AGENTS-LESSONS.md`: append after every user correction, record the prevention rule.
 
-@.cursor/docs/agent-operations.md
+> Skills, parallel work model, and agent teams reference loads automatically from `.claude/rules/` when editing skill/agent files.
 
 ## Appendix
 
-Directory structure, environment variables, provider reference, skills catalog, team workflow reference, and validation checklists.
-
-@.cursor/docs/appendix.md
+> Directory structure, env vars, provider reference, skills catalog, and validation checklists load automatically from `.claude/rules/` when editing backend, context, or skill files.
 
 ## Contextual Rules
 
@@ -214,3 +205,5 @@ The following `.cursor/rules/` files load automatically when editing matching fi
 | `gotchas-react.md` | `**/*.tsx` | State updates, derived state, CSS gap |
 | `motion-base-ui.md` | `*.tsx`, `*.jsx` | Animating Base UI with Motion |
 | `motion-react.md` | `*.tsx`, `*.jsx` | Motion for React patterns |
+| `agent-operations.md` | `.cursor/skills/**`, `.cursor/agents/**`, `AGENTS-LESSONS.md` | Skills, parallel work, agent teams |
+| `appendix-reference.md` | `backend/**`, `app/contexts/**`, `app/providers.tsx`, `.cursor/skills/**` | Dir structure, env vars, providers, skills catalog |

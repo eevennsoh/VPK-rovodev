@@ -1,3 +1,14 @@
+---
+description: Skills, parallel work model, agent teams, behavioral rules, lessons tracking
+globs: .cursor/skills/**, .cursor/agents/**, .claude/agents/**, AGENTS-LESSONS.md
+alwaysApply: false
+paths:
+  - ".cursor/skills/**"
+  - ".cursor/agents/**"
+  - ".claude/agents/**"
+  - "AGENTS-LESSONS.md"
+---
+
 # Agent Operations
 
 ## Skills and Agents
@@ -25,7 +36,7 @@ Current VPK skills (see Appendix for details):
 - `/vpk-share`
 - `/vpk-sync`
 - `/vpk-component`
-- `/vpk-component-ai`
+- `/vpk-component-ext`
 - `/vpk-lesson`
 
 > **Note:** Slash commands (e.g., `/vpk-deploy`) are Cursor IDE features. In other environments, reference the skill definitions in `.cursor/skills/` directly.
