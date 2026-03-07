@@ -1,1 +1,0 @@
-../../.cursor/rules/gotchas-ui.md

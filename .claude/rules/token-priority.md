@@ -1,1 +1,0 @@
-../../.cursor/rules/token-priority.md

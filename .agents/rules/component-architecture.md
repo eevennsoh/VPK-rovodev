@@ -9,7 +9,7 @@ paths:
 
 # Component Architecture
 
-Reference details: `.cursor/skills/vpk-tidy/SKILL.md`
+Reference details: `.agents/skills/vpk-tidy/SKILL.md`
 
 Quick rules:
 

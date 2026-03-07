@@ -1,11 +1,10 @@
 ---
 description: Skills, parallel work model, agent teams, behavioral rules, lessons tracking
-globs: .cursor/skills/**, .cursor/agents/**, .claude/agents/**, AGENTS-LESSONS.md
+globs: .agents/skills/**, .agents/agents/**, AGENTS-LESSONS.md
 alwaysApply: false
 paths:
-  - ".cursor/skills/**"
-  - ".cursor/agents/**"
-  - ".claude/agents/**"
+  - ".agents/skills/**"
+  - ".agents/agents/**"
   - "AGENTS-LESSONS.md"
 ---
 
@@ -15,12 +14,12 @@ paths:
 
 Primary locations:
 
-- Skills: `.cursor/skills/*/SKILL.md`
-- Agents: `.cursor/agents/*`
+- Skills: `.agents/skills/*/SKILL.md`
+- Agents: `.agents/agents/*`
 
 Provider mirrors:
 
-- `.claude/agents` and `.codex/agents` mirror `.cursor/agents`
+- `.cursor/`, `.claude/`, `.codex/`, `.codelassian/` all symlink to `.agents/`
 
 Skill types:
 
@@ -39,7 +38,7 @@ Current VPK skills (see Appendix for details):
 - `/vpk-component-ext`
 - `/vpk-lesson`
 
-> **Note:** Slash commands (e.g., `/vpk-deploy`) are Cursor IDE features. In other environments, reference the skill definitions in `.cursor/skills/` directly.
+> **Note:** Slash commands (e.g., `/vpk-deploy`) are Cursor IDE features. In other environments, reference the skill definitions in `.agents/skills/` directly.
 
 ## Parallel Work Model
 
@@ -98,7 +97,7 @@ Maintain `AGENTS-LESSONS.md`:
 You can add gitignored local overrides:
 
 ```text
-.cursor/skills/vpk-deploy/SKILL.local.md
+.agents/skills/vpk-deploy/SKILL.local.md
 .claude.local.md
 ```
 

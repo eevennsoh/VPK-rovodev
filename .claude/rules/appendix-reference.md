@@ -1,1 +1,0 @@
-../../.cursor/docs/appendix.md

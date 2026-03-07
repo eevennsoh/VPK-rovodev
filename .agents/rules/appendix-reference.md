@@ -1,12 +1,12 @@
 ---
 description: Directory structure, env vars, provider reference, skills catalog, team workflow, validation checklists
-globs: backend/**, app/contexts/**, app/providers.tsx, .cursor/skills/**
+globs: backend/**, app/contexts/**, app/providers.tsx, .agents/skills/**
 alwaysApply: false
 paths:
   - "backend/**"
   - "app/contexts/**"
   - "app/providers.tsx"
-  - ".cursor/skills/**"
+  - ".agents/skills/**"
 ---
 
 # Appendix
@@ -84,9 +84,11 @@ public/
   illustration-ai/             # AI-themed illustrations with light/dark variants
   illustration-spot/           # Spot illustrations
 
-.cursor/                       # Cursor config
-.claude/                       # Claude config
-.codex/                        # Codex config
+.agents/                       # Canonical source (rules, skills, agents, docs, hooks)
+.cursor/                       # Cursor config (symlinks to .agents/)
+.claude/                       # Claude config (symlinks to .agents/)
+.codex/                        # Codex config (symlinks to .agents/)
+.codelassian/                  # Codelassian config (symlinks to .agents/)
 ```
 
 ## Environment Variables

@@ -1,7 +1,7 @@
 # VPK (Venn Prototype Kit)
 
 > Provider-neutral project context for AI coding assistants (Cursor, Claude Code, Codex, and others).
-> Skills are defined in `.cursor/skills/`. Agents are defined in `.cursor/agents/`.
+> Canonical source: `.agents/`. Provider dirs (`.cursor/`, `.claude/`, `.codex/`, `.codelassian/`) symlink to it.
 
 Next.js 16 (React 19, Tailwind CSS v4) + Express backend with AI SDK (Vercel) and RovoDev Serve integration.
 
@@ -26,15 +26,15 @@ Prefer reading these references over relying on pre-trained knowledge.
 
 | When you need...                       | Read                                                        |
 | -------------------------------------- | ----------------------------------------------------------- |
-| Component architecture rules           | `.cursor/skills/vpk-tidy/SKILL.md`                          |
-| React patterns reference (1000+ lines) | `.cursor/skills/vpk-tidy/references/patterns.md`            |
-| Design token catalog (200+ tokens)     | `.cursor/skills/vpk-design/references/tokens.md`            |
-| Token selection priority               | `.cursor/rules/token-priority.md`                           |
-| Figma-to-code pipeline                 | `.cursor/skills/vpk-design/SKILL.md`                        |
-| Deployment guide                       | `.cursor/skills/vpk-deploy/references/guide-deployment.md`  |
-| Setup walkthrough                      | `.cursor/skills/vpk-setup/references/guide-setup.md`        |
-| Motion + Base UI animation             | `.cursor/rules/motion-base-ui.md`                           |
-| Motion for React rules                 | `.cursor/rules/motion-react.md`                             |
+| Component architecture rules           | `.agents/skills/vpk-tidy/SKILL.md`                          |
+| React patterns reference (1000+ lines) | `.agents/skills/vpk-tidy/references/patterns.md`            |
+| Design token catalog (200+ tokens)     | `.agents/skills/vpk-design/references/tokens.md`            |
+| Token selection priority               | `.agents/rules/token-priority.md`                           |
+| Figma-to-code pipeline                 | `.agents/skills/vpk-design/SKILL.md`                        |
+| Deployment guide                       | `.agents/skills/vpk-deploy/references/guide-deployment.md`  |
+| Setup walkthrough                      | `.agents/skills/vpk-setup/references/guide-setup.md`        |
+| Motion + Base UI animation             | `.agents/rules/motion-base-ui.md`                           |
+| Motion for React rules                 | `.agents/rules/motion-react.md`                             |
 | Session corrections log                | `AGENTS-LESSONS.md`                                         |
 | AI SDK chat integration                | `rovo/config.js`, `app/contexts/context-rovo-chat.tsx`      |
 | AI Gateway helpers                     | `backend/lib/ai-gateway-helpers.js`                         |
@@ -42,10 +42,10 @@ Prefer reading these references over relying on pre-trained knowledge.
 | Agent team run types                   | `lib/plan-run-types.ts`                              |
 | Agent team run manager                 | `backend/lib/plan-runs.js`                           |
 | UI message types and data parts        | `lib/rovo-ui-messages.ts`                                   |
-| Architecture overview                  | `.cursor/docs/architecture-overview.md`                     |
-| Extended workflows                     | `.cursor/docs/workflows-extended.md`                        |
-| Agent operations                       | `.cursor/docs/agent-operations.md`                          |
-| Appendix (dir structure, env vars)     | `.cursor/docs/appendix.md`                                  |
+| Architecture overview                  | `.agents/docs/architecture-overview.md`                     |
+| Extended workflows                     | `.agents/docs/workflows-extended.md`                        |
+| Agent operations                       | `.agents/rules/agent-operations.md`                         |
+| Appendix (dir structure, env vars)     | `.agents/rules/appendix-reference.md`                       |
 
 **Global Skills** — installed agent skills (outside repo):
 
@@ -78,9 +78,9 @@ If instructions overlap, use this precedence:
 
 ### Rule Sources
 
-- Cursor rules: `.cursor/rules/*.mdc`
-- Claude rules: `.claude/rules/*.md` (symlinks to `.cursor/rules/`)
-- Codex rules: `.codex/rules/*.rules`
+- Canonical source: `.agents/rules/`
+- Provider symlinks: `.cursor/rules/`, `.claude/rules/`, `.codex/rules/`, `.codelassian/rules/`
+- Cursor-only format: `.agents/rules/*.mdc`
 
 ### Non-negotiable Defaults
 
@@ -161,16 +161,16 @@ In VPK feature code, use ADS semantic naming (`bg-surface-raised`, `text-text-su
 
 Architecture overview including runtime modes, key directories, component topology, provider composition, and route overview.
 
-@.cursor/docs/architecture-overview.md
+@.agents/docs/architecture-overview.md
 
 > API endpoints and chat architecture load as contextual rules when editing backend or chat files.
-> See `.cursor/rules/api-surfaces.md` and `.cursor/rules/chat-architecture.md`.
+> See `.agents/rules/api-surfaces.md` and `.agents/rules/chat-architecture.md`.
 
 ## Workflows (Extended)
 
 Build, deployment, and validation workflows.
 
-@.cursor/docs/workflows-extended.md
+@.agents/docs/workflows-extended.md
 
 ## Behavioral Rules
 
@@ -192,7 +192,7 @@ Build, deployment, and validation workflows.
 
 ## Contextual Rules
 
-The following `.cursor/rules/` files load automatically when editing matching file patterns (Claude Code reads them via `.claude/rules/` symlinks):
+The following `.agents/rules/` files load automatically when editing matching file patterns. All provider dirs (`.cursor/rules/`, `.claude/rules/`, etc.) symlink to `.agents/rules/`.
 
 | Rule file | Loads when editing | Content |
 | --- | --- | --- |
@@ -205,5 +205,5 @@ The following `.cursor/rules/` files load automatically when editing matching fi
 | `gotchas-react.md` | `**/*.tsx` | State updates, derived state, CSS gap |
 | `motion-base-ui.md` | `*.tsx`, `*.jsx` | Animating Base UI with Motion |
 | `motion-react.md` | `*.tsx`, `*.jsx` | Motion for React patterns |
-| `agent-operations.md` | `.cursor/skills/**`, `.cursor/agents/**`, `AGENTS-LESSONS.md` | Skills, parallel work, agent teams |
-| `appendix-reference.md` | `backend/**`, `app/contexts/**`, `app/providers.tsx`, `.cursor/skills/**` | Dir structure, env vars, providers, skills catalog |
+| `agent-operations.md` | `.agents/skills/**`, `.agents/agents/**`, `AGENTS-LESSONS.md` | Skills, parallel work, agent teams |
+| `appendix-reference.md` | `backend/**`, `app/contexts/**`, `app/providers.tsx`, `.agents/skills/**` | Dir structure, env vars, providers, skills catalog |

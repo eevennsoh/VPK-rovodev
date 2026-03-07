@@ -30,7 +30,8 @@ The `rovodev` script starts all three processes concurrently (single-instance by
 - `lib/` - shared utilities and token helpers
 - `backend/lib/` - backend utilities (plan run manager, RovoDev gateway/client/pool, generative UI, planning intent, DAG inference, team run lanes, smart routing)
 - `public/` - static assets (illustrations, product logos, third-party logos, avatars)
-- `.cursor/`, `.claude/`, `.codex/` - assistant config, skills, agents, and rules
+- `.agents/` - canonical source for rules, skills, agents, docs, and hooks
+- `.cursor/`, `.claude/`, `.codex/`, `.codelassian/` - provider symlinks to `.agents/`
 
 See `## Appendix -> Detailed Directory Structure` for expanded layout.
 

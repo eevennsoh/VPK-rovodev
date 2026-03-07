@@ -1,1 +1,0 @@
-../../.cursor/rules/motion-base-ui.md

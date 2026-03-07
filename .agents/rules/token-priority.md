@@ -169,4 +169,4 @@ Exports:
 
 ## Full Token Reference
 
-See `.cursor/skills/vpk-design/references/tokens.md` for the complete mapping of all 200+ semantic tokens.
+See `.agents/skills/vpk-design/references/tokens.md` for the complete mapping of all 200+ semantic tokens.
