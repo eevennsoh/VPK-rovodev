@@ -117,7 +117,7 @@
 }
 
 .website-main-content {
-	transition: margin-left 300ms ease-in-out;
+	transition: margin-left var(--duration-slow) var(--ease-in-out);
 }
 
 /* ADS Logo dark-mode fix — some @atlaskit/logo SVGs ship with hardcoded

@@ -34,7 +34,7 @@ const unselectedVariantMap = {
 	default: "bg-bg-neutral",
 	primary: "bg-bg-neutral",
 	discovery: "bg-bg-neutral",
-	inverted: "bg-text-inverse/40",
+	inverted: "bg-text-inverse opacity-(--opacity-disabled)",
 } as const;
 
 export interface ProgressIndicatorProps extends React.ComponentProps<"ol">, VariantProps<typeof progressIndicatorVariants> {

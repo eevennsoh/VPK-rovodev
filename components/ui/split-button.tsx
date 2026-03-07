@@ -63,13 +63,13 @@ function SplitButton({
 					// ADS primary padding: 6px 12px
 					"px-3 py-1.5",
 					// Separator: 1px border-right
-					// Outline variant: remove all borders (container has outline), add gray separator
-					// Solid variants: add white separator at 64% opacity
-					isOutlineVariant
-						? "border-0 border-r border-r-border"
-						: "border-r border-r-white/65"
-				)}
-			>
+						// Outline variant: remove all borders (container has outline), add gray separator
+						// Solid variants: add white separator at 64% opacity
+						isOutlineVariant
+							? "border-0 border-r border-r-border"
+							: "border-r border-r-border-inverse/65"
+					)}
+				>
 				{label}
 			</Button>
 			<DropdownMenu>

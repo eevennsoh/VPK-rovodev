@@ -248,11 +248,13 @@ export function WebsiteSidebarNav({
 			{/* Panel - Slides in/out (256px) */}
 			<aside
 				aria-label="Component browser"
-				className="fixed inset-y-0 z-40 flex flex-col border-r border-border bg-surface transition-transform duration-300 ease-in-out will-change-transform"
+				className="fixed inset-y-0 z-40 flex flex-col border-r border-border bg-surface transition-transform will-change-transform"
 				style={{
 					left: RAIL_WIDTH,
 					width: PANEL_WIDTH,
 					transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+					transitionDuration: "var(--duration-slow)",
+					transitionTimingFunction: "var(--ease-in-out)",
 				}}
 			>
 				{/* Header */}

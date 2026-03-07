@@ -127,6 +127,13 @@ export interface ToolFirstWarningData {
 }
 
 export type RovoDataParts = {
+	id: string;
+	title: string;
+	kind: "text" | "code" | "image" | "sheet";
+	clear: null;
+	finish: null;
+	textDelta: string;
+	codeDelta: string;
 	"widget-loading": {
 		type?: string;
 		loading: boolean;

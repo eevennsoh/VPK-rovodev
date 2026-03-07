@@ -256,9 +256,7 @@ export const UI_COMPONENTS: ComponentEntry[] = [
 ] as const;
 
 export const BLOCK_COMPONENTS: ComponentEntry[] = [
-	blockComponent("agent-grid", "Agent Grid"),
 	blockComponent("agent-progress", "Agent Progress"),
-	blockComponent("agent-summary", "Agent Summary"),
 	blockComponent("answer-card", "Answer Card"),
 	blockComponent("approval-card", "Approval Card"),
 	blockComponent("chatbot", "Chatbot"),
@@ -314,16 +312,17 @@ export const BLOCK_COMPONENTS: ComponentEntry[] = [
 ] as const;
 
 export const PROJECT_COMPONENTS: ComponentEntry[] = [
-	{ ...projectComponent("plan", "Plan"), importPath: "@/components/projects/plan" },
 	{ ...projectComponent("make", "Make"), importPath: "@/components/projects/make" },
 	projectComponent("sidebar-chat", "Sidebar Chat"),
 	projectComponent("confluence", "Confluence Editor"),
 	projectComponent("jira", "Jira Board"),
 	projectComponent("fullscreen-chat", "Fullscreen Chat"),
+	projectComponent("future-chat", "Future Chat"),
 	projectComponent("search", "Search Results"),
 ] as const;
 
 export const UTILITY_COMPONENTS: ComponentEntry[] = [
+	utilityComponent("agent-browser", "Agent Browser"),
 	utilityComponent("gui", "GUI"),
 	utilityComponent("image-generation", "Image Generation"),
 	utilityComponent("multiports", "Multiports"),

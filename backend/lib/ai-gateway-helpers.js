@@ -190,6 +190,29 @@ function resolveBaseURL(gatewayUrl) {
 	return resolved.replace(/\/chat\/completions$/, "");
 }
 
+function getModelId(gatewayUrl) {
+	if (!gatewayUrl || typeof gatewayUrl !== "string") {
+		return "";
+	}
+
+	const bedrockMatch = gatewayUrl.match(/\/model\/([^/]+)\/invoke(?:-with-response-stream)?$/);
+	if (bedrockMatch?.[1]) {
+		return decodeURIComponent(bedrockMatch[1]);
+	}
+
+	const googleMatch = gatewayUrl.match(/\/models\/([^/:]+)(?::[A-Za-z]+)?$/);
+	if (googleMatch?.[1]) {
+		return decodeURIComponent(googleMatch[1]);
+	}
+
+	const publisherMatch = gatewayUrl.match(/\/publishers\/[^/]+\/models\/([^/:]+)(?::[A-Za-z]+)?$/);
+	if (publisherMatch?.[1]) {
+		return decodeURIComponent(publisherMatch[1]);
+	}
+
+	return "";
+}
+
 function extractGatewayImageData(parsedChunk) {
 	const delta = parsedChunk?.choices?.[0]?.delta;
 	if (!delta) {
@@ -487,6 +510,7 @@ module.exports = {
 	getAuthToken,
 	detectEndpointType,
 	getGatewayHeaders,
+	getModelId,
 	resolveGatewayUrl,
 	resolveBaseURL,
 	extractGatewayImageData,

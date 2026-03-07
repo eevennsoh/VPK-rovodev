@@ -23,9 +23,7 @@ const ADS_AI_SLUGS = new Set([
 ]);
 
 const ADS_BLOCK_SLUGS = new Set([
-	"agent-grid",
 	"agent-progress",
-	"agent-summary",
 	"answer-card",
 	"top-navigation",
 	"prompt-gallery",

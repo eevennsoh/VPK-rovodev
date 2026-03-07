@@ -1063,8 +1063,6 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"persona-demo-states": dynamic(() => import("./demos/ui-ai/persona-demo").then((mod) => ({ default: mod.PersonaDemoStates })), { ssr: false }),
 	"persona-demo-variants": dynamic(() => import("./demos/ui-ai/persona-demo").then((mod) => ({ default: mod.PersonaDemoVariants })), { ssr: false }),
 	"persona-demo-custom-styling": dynamic(() => import("./demos/ui-ai/persona-demo").then((mod) => ({ default: mod.PersonaDemoCustomStyling })), { ssr: false }),
-	"plan-demo-tasks-only": dynamic(() => import("./demos/ui-ai/plan-demo").then((mod) => ({ default: mod.PlanDemoTasksOnly })), { ssr: false }),
-	"plan-demo-summary-and-tasks": dynamic(() => import("./demos/ui-ai/plan-demo").then((mod) => ({ default: mod.PlanDemoSummaryAndTasks })), { ssr: false }),
 	"schema-display-demo-with-params": dynamic(() => import("./demos/ui-ai/schema-display-demo").then((mod) => ({ default: mod.SchemaDisplayDemoWithParams })), { ssr: false }),
 	"schema-display-demo-with-body": dynamic(() => import("./demos/ui-ai/schema-display-demo").then((mod) => ({ default: mod.SchemaDisplayDemoWithBody })), { ssr: false }),
 	"schema-display-demo-nested": dynamic(() => import("./demos/ui-ai/schema-display-demo").then((mod) => ({ default: mod.SchemaDisplayDemoNested })), { ssr: false }),
@@ -1115,11 +1113,9 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 };
 
 const BLOCK_DEMOS: Record<string, ComponentType> = {
-	"agent-grid": dynamic(() => import("./demos/blocks/agent-grid-demo"), { ssr: false }),
 	"agent-progress": dynamic(() => import("./demos/blocks/agent-progress-demo"), { ssr: false }),
 	"answer-card": dynamic(() => import("./demos/blocks/answer-card-demo"), { ssr: false }),
 	"app-sidebar": dynamic(() => import("./demos/blocks/app-sidebar-demo"), { ssr: false }),
-	"agent-summary": dynamic(() => import("./demos/blocks/agent-summary-demo"), { ssr: false }),
 	"make-artifact": dynamic(() => import("./demos/blocks/make-artifact-demo"), { ssr: false }),
 	dashboard: dynamic(() => import("./demos/blocks/dashboard-demo"), { ssr: false }),
 	"sidebar-01": dynamic(() => import("./demos/blocks/sidebar-01-demo"), { ssr: false }),
@@ -1196,12 +1192,12 @@ const BLOCK_VARIANT_DEMOS: Record<string, ComponentType> = {
 
 const PROJECT_DEMOS: Record<string, ComponentType> = {
 	layout: dynamic(() => import("./demos/projects/layout-demo"), { ssr: false }),
-	plan: dynamic(() => import("./demos/projects/plan-demo"), { ssr: false }),
 	make: dynamic(() => import("./demos/projects/make-demo"), { ssr: false }),
 	"sidebar-chat": dynamic(() => import("./demos/projects/sidebar-chat-demo"), { ssr: false }),
 	confluence: dynamic(() => import("./demos/projects/confluence-demo"), { ssr: false }),
 	jira: dynamic(() => import("./demos/projects/jira-demo"), { ssr: false }),
 	"fullscreen-chat": dynamic(() => import("./demos/projects/fullscreen-chat-demo"), { ssr: false }),
+	"future-chat": dynamic(() => import("./demos/projects/future-chat-demo"), { ssr: false }),
 	search: dynamic(() => import("./demos/projects/search-demo"), { ssr: false }),
 };
 
@@ -1288,6 +1284,7 @@ export function getChartDemoComponent(slug: string): ComponentType | null {
 }
 
 const UTILITY_DEMOS: Record<string, ComponentType> = {
+	"agent-browser": dynamic(() => import("./demos/utils/agent-browser-demo"), { ssr: false }),
 	gui: dynamic(() => import("./demos/utils/gui-demo"), { ssr: false }),
 	"image-generation": dynamic(() => import("./demos/utils/image-generation-demo"), { ssr: false }),
 	multiports: dynamic(() => import("./demos/utils/multiports-demo"), { ssr: false }),

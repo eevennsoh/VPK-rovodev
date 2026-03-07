@@ -1,12 +1,6 @@
 import type { ComponentDetail } from "@/app/data/component-detail-types";
 
 export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
-	"agent-grid": {
-		description: "Agent execution grid with live task tiles and minimal prompt input.",
-		demoLayout: {
-			previewContentWidth: "full",
-		},
-	},
 	"agent-progress": {
 		description: "ADS-style agent progress tracker with expandable task status groups, live elapsed timer, and agent attribution.",
 		usage: `import AgentsProgress from "@/components/blocks/agent-progress/page";
@@ -81,9 +75,6 @@ export const BLOCK_DETAILS: Record<string, ComponentDetail> = {
 	},
 	"app-sidebar": {
 		description: "Application sidebar with main navigation, documents, secondary nav, and user menu.",
-	},
-	"agent-summary": {
-		description: "Agent summary block with plan chrome, final synthesis, interactive dashboard, visual iframe preview, and grouped agent outputs.",
 	},
 	"answer-card": {
 		description: "Displays captured question/answer pairs as a compact summary card. Typically rendered after a user submits answers to a QuestionCard.",

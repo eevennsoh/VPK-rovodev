@@ -39,6 +39,11 @@ export const API_ENDPOINTS = {
 	PLAN_TOOLS: `${API_BASE_URL}/api/plan/tools`,
 	PLAN_CONFIG_SUMMARY: `${API_BASE_URL}/api/plan/config-summary`,
 	CHAT_THREADS: `${API_BASE_URL}/api/chat/threads`,
+	FUTURE_CHAT_CHAT: `${API_BASE_URL}/api/future-chat/chat`,
+	FUTURE_CHAT_THREADS: `${API_BASE_URL}/api/future-chat/threads`,
+	FUTURE_CHAT_VOTES: `${API_BASE_URL}/api/future-chat/votes`,
+	FUTURE_CHAT_DOCUMENTS: `${API_BASE_URL}/api/future-chat/documents`,
+	FUTURE_CHAT_FILE_UPLOAD: `${API_BASE_URL}/api/future-chat/files/upload`,
 	planRuns: (limit?: number) =>
 		`${API_BASE_URL}/api/plan/runs${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
@@ -73,6 +78,14 @@ export const API_ENDPOINTS = {
 		}`,
 	chatThread: (threadId: string) =>
 		`${API_BASE_URL}/api/chat/threads/${encodeURIComponent(threadId)}`,
+	futureChatThreads: (limit?: number) =>
+		`${API_BASE_URL}/api/future-chat/threads${
+			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
+		}`,
+	futureChatThread: (threadId: string) =>
+		`${API_BASE_URL}/api/future-chat/threads/${encodeURIComponent(threadId)}`,
+	futureChatFile: (fileId: string) =>
+		`${API_BASE_URL}/api/future-chat/files/${encodeURIComponent(fileId)}`,
 	MAKE_RUNS: `${API_BASE_URL}/api/make/runs`,
 	MAKE_SKILLS: `${API_BASE_URL}/api/make/skills`,
 	MAKE_AGENTS: `${API_BASE_URL}/api/make/agents`,

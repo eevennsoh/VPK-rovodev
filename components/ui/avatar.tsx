@@ -166,10 +166,10 @@ function AvatarBadge({ className, ...props }: Readonly<AvatarBadgeProps>) {
 
 type AvatarStatus = "approved" | "declined" | "locked"
 
-const statusConfig: Record<AvatarStatus, { icon: typeof StatusVerifiedIcon; color: string; label: string }> = {
-	approved: { icon: StatusVerifiedIcon, color: "bg-success", label: "Approved" },
-	declined: { icon: CrossCircleIcon, color: "bg-destructive", label: "Declined" },
-	locked: { icon: LockLockedIcon, color: "bg-warning", label: "Locked" },
+const statusConfig: Record<AvatarStatus, { icon: typeof StatusVerifiedIcon; className: string; label: string }> = {
+	approved: { icon: StatusVerifiedIcon, className: "bg-success text-success-foreground", label: "Approved" },
+	declined: { icon: CrossCircleIcon, className: "bg-destructive text-destructive-foreground", label: "Declined" },
+	locked: { icon: LockLockedIcon, className: "bg-warning text-warning-foreground", label: "Locked" },
 }
 
 interface AvatarStatusIndicatorProps extends React.ComponentProps<"span"> {
@@ -190,8 +190,8 @@ function AvatarStatusIndicator({
 			role="img"
 			aria-label={config.label}
 			className={cn(
-				"ring-background absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full text-white ring-2",
-				config.color,
+				"ring-background absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full ring-2",
+				config.className,
 				"group-data-[size=xs]/avatar:size-1.5 group-data-[size=xs]/avatar:[&>svg]:hidden",
 				"group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden",
 				"group-data-[size=default]/avatar:size-2.5 group-data-[size=default]/avatar:[&>svg]:size-2",

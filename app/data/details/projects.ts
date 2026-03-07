@@ -4,9 +4,6 @@ export const PROJECT_DETAILS: Record<string, ComponentDetail> = {
 	"layout": {
 		description: "Application shell layout that composes ADS navigation, sidebar, and floating Rovo chat surfaces around page content.",
 	},
-	"plan": {
-		description: "A planning workspace with chat sidebar, team controls, and prompt-driven collaboration flow.",
-	},
 	"make": {
 		description: "The Make workspace with chat sidebar, team controls, and prompt-driven collaboration flow.",
 	},
@@ -21,6 +18,12 @@ export const PROJECT_DETAILS: Record<string, ComponentDetail> = {
 	},
 	"fullscreen-chat": {
 		description: "A full AI chat interface with streaming responses, suggested questions, speech input, and customizable agents.",
+	},
+	"future-chat": {
+		description: "A Vercel-style AI chat workspace with persistent thread history, local attachments, artifact editing, and RovoDev-backed streaming.",
+		demoLayout: {
+			previewHeight: "fixed",
+		},
 	},
 	"search": {
 		description: "A search results page with AI-powered summary panel, source cards carousel, and filterable result cards.",

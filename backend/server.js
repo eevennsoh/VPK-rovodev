@@ -13,10 +13,21 @@ try {
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const { Readable } = require("node:stream");
 const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
 const { createRunManager } = require("./lib/plan-runs");
 const { createRunManager: createMakeRunManager } = require("./make/make-runs");
 const { createThreadManager } = require("./lib/chat");
+const { createFutureChatThreadManager } = require("./lib/future-chat-threads");
+const { createFutureChatVoteManager } = require("./lib/future-chat-votes");
+const { createFutureChatDocumentManager } = require("./lib/future-chat-documents");
+const { createFutureChatUploadManager } = require("./lib/future-chat-uploads");
+const {
+	buildFutureChatArtifactIntentPrompt,
+	fallbackFutureChatArtifactIntent,
+	normalizeArtifactKind,
+	parseFutureChatArtifactIntent,
+} = require("./lib/future-chat-artifact-intent");
 const planFs = require("./lib/plan-filesystem");
 const makeFs = require("./make/make-filesystem");
 const { createAppRegistry } = require("./make/make-app-registry");
@@ -1198,6 +1209,19 @@ const chatThreadManager = createThreadManager({
 	baseDir: path.join(__dirname, "data"),
 	logger: console,
 });
+const futureChatThreadManager = createFutureChatThreadManager({
+	baseDir: path.join(__dirname, "data"),
+	logger: console,
+});
+const futureChatVoteManager = createFutureChatVoteManager({
+	baseDir: path.join(__dirname, "data"),
+});
+const futureChatDocumentManager = createFutureChatDocumentManager({
+	baseDir: path.join(__dirname, "data"),
+});
+const futureChatUploadManager = createFutureChatUploadManager({
+	baseDir: path.join(__dirname, "data"),
+});
 
 const makeConfigManager = makeFs.createConfigManagerCompat();
 const appRegistry = createAppRegistry({
@@ -1214,6 +1238,713 @@ const makeRunManager = createMakeRunManager({
 	isRovoDevAvailable,
 	isAIGatewayFallbackEnabled: () => false,
 });
+
+function buildFutureChatFileUrl(uploadId) {
+	return `/api/future-chat/files/${encodeURIComponent(uploadId)}`;
+}
+
+function extractFutureChatUploadIdFromUrl(rawUrl) {
+	if (typeof rawUrl !== "string" || rawUrl.length === 0) {
+		return null;
+	}
+
+	const match = rawUrl.match(/\/api\/future-chat\/files\/([^/?#]+)/u);
+	if (!match?.[1]) {
+		return null;
+	}
+
+	try {
+		return decodeURIComponent(match[1]);
+	} catch {
+		return match[1];
+	}
+}
+
+function collectFutureChatUploadIdsFromMessages(messages) {
+	if (!Array.isArray(messages)) {
+		return [];
+	}
+
+	const uploadIds = new Set();
+	for (const message of messages) {
+		if (!message || typeof message !== "object" || !Array.isArray(message.parts)) {
+			continue;
+		}
+
+		for (const part of message.parts) {
+			if (!part || part.type !== "file") {
+				continue;
+			}
+
+			const uploadId = extractFutureChatUploadIdFromUrl(part.url);
+			if (uploadId) {
+				uploadIds.add(uploadId);
+			}
+		}
+	}
+
+	return [...uploadIds];
+}
+
+async function persistFutureChatMessageFiles(messages) {
+	if (!Array.isArray(messages)) {
+		return [];
+	}
+
+	const nextMessages = [];
+	for (const message of messages) {
+		if (!message || typeof message !== "object") {
+			continue;
+		}
+
+		const messageParts = Array.isArray(message.parts) ? message.parts : [];
+		const nextParts = [];
+		for (const part of messageParts) {
+			if (!part || typeof part !== "object" || part.type !== "file") {
+				nextParts.push(part);
+				continue;
+			}
+
+			if (typeof part.url === "string" && part.url.startsWith("data:")) {
+				const upload = await futureChatUploadManager.createUploadFromDataUrl({
+					filename:
+						typeof part.filename === "string" && part.filename.trim()
+							? part.filename
+							: typeof part.name === "string" && part.name.trim()
+								? part.name
+								: "attachment.bin",
+					mediaType:
+						typeof part.mediaType === "string" && part.mediaType.trim()
+							? part.mediaType
+							: "application/octet-stream",
+					dataUrl: part.url,
+				});
+				nextParts.push({
+					...part,
+					filename: upload.filename,
+					url: buildFutureChatFileUrl(upload.id),
+				});
+				continue;
+			}
+
+			nextParts.push(part);
+		}
+
+		nextMessages.push({
+			...message,
+			parts: nextParts,
+		});
+	}
+
+	return nextMessages;
+}
+
+function buildFutureChatArtifactContext(rawArtifactContext) {
+	if (!rawArtifactContext || typeof rawArtifactContext !== "object") {
+		return null;
+	}
+
+	const title = getNonEmptyString(rawArtifactContext.title);
+	const kind = getNonEmptyString(rawArtifactContext.kind);
+	const content = getNonEmptyString(rawArtifactContext.content);
+	if (!content) {
+		return null;
+	}
+
+	return [
+		"[FUTURE CHAT ARTIFACT CONTEXT]",
+		title ? `Active artifact title: ${title}` : null,
+		kind ? `Active artifact kind: ${kind}` : null,
+		"Treat the following artifact content as editable working context for the user's next request.",
+		"",
+		content,
+		"[END FUTURE CHAT ARTIFACT CONTEXT]",
+	]
+		.filter((entry) => typeof entry === "string" && entry.length > 0)
+		.join("\n");
+}
+
+function buildFutureChatInternalUrl(req, pathname) {
+	const host = req.get("host");
+	if (!host) {
+		throw new Error("Cannot resolve backend host for Future Chat proxy.");
+	}
+
+	const protocol = req.protocol || "http";
+	return `${protocol}://${host}${pathname}`;
+}
+
+function chunkFutureChatArtifactText(value, maxChunkLength = 140) {
+	if (typeof value !== "string" || value.length === 0) {
+		return [];
+	}
+
+	const chunks = [];
+	let remaining = value;
+	while (remaining.length > maxChunkLength) {
+		let splitIndex = remaining.lastIndexOf("\n\n", maxChunkLength);
+		if (splitIndex < 0) {
+			splitIndex = remaining.lastIndexOf(" ", maxChunkLength);
+		}
+		if (splitIndex < maxChunkLength * 0.4) {
+			splitIndex = maxChunkLength;
+		}
+
+		chunks.push(remaining.slice(0, splitIndex));
+		remaining = remaining.slice(splitIndex);
+	}
+
+	if (remaining.length > 0) {
+		chunks.push(remaining);
+	}
+
+	return chunks;
+}
+
+function buildFutureChatArtifactSystemPrompt({
+	mode,
+	title,
+	kind,
+}) {
+	const normalizedKind = getNonEmptyString(kind) || "text";
+	const header = mode === "update"
+		? `You are updating an existing ${normalizedKind} artifact titled "${title}".`
+		: `You are generating a new ${normalizedKind} artifact titled "${title}".`;
+
+	const contentRule = normalizedKind === "code"
+		? "Return only the completed code artifact. Do not explain the code before or after it."
+		: normalizedKind === "sheet"
+			? "Return only the table or structured sheet content in markdown. Do not add commentary."
+			: "Return only the finished artifact content. Do not add prefatory commentary, assistant framing, or analysis.";
+
+	return [
+		header,
+		contentRule,
+		"If essential details are missing, make the most reasonable default assumptions and continue instead of asking follow-up questions.",
+		"Be concise when the request is narrow, and fully detailed when the request explicitly asks for a complete draft.",
+	].join("\n");
+}
+
+function buildFutureChatArtifactProviderCandidates(provider) {
+	return [...new Set([
+		getNonEmptyString(provider),
+		"openai",
+		"google",
+	].filter((value) => typeof value === "string" && value.length > 0))];
+}
+
+async function generateFutureChatArtifactText({
+	mode,
+	title,
+	kind,
+	latestUserMessage,
+	conversationHistory,
+	contextDescription,
+	provider,
+	signal,
+}) {
+	const system = buildFutureChatArtifactSystemPrompt({
+		mode,
+		title,
+		kind,
+	});
+	const prompt = [
+		getNonEmptyString(contextDescription),
+		latestUserMessage ? `User request:\n${latestUserMessage}` : null,
+	].filter((value) => typeof value === "string" && value.length > 0).join("\n\n");
+	const normalizedMessages = Array.isArray(conversationHistory)
+		? conversationHistory.map((message) => ({
+			role: message.type === "assistant" ? "assistant" : "user",
+			content: message.content,
+		}))
+		: [];
+	const maxOutputTokens = kind === "code" ? 3200 : kind === "sheet" ? 2200 : 1800;
+	let lastError = null;
+	for (const candidateProvider of buildFutureChatArtifactProviderCandidates(provider)) {
+		try {
+			if (candidateProvider === getNonEmptyString(provider)) {
+				try {
+					return await generateTextViaGateway({
+						system,
+						prompt,
+						messages: normalizedMessages,
+						maxOutputTokens,
+						temperature: 0.35,
+						provider: candidateProvider,
+						signal,
+						allowFallback: true,
+					});
+				} catch (error) {
+					const errorMessage =
+						error instanceof Error ? error.message : String(error);
+					if (!/pending deferred tool request/i.test(errorMessage)) {
+						throw error;
+					}
+
+					console.warn("[FUTURE-CHAT] Artifact generation hit pending deferred tool request; clearing RovoDev chat state and retrying once.");
+					try {
+						await rovoDevCancelChat();
+					} catch (cancelError) {
+						console.warn(
+							"[FUTURE-CHAT] Failed to cancel stale RovoDev chat state before retry:",
+							cancelError instanceof Error ? cancelError.message : cancelError,
+						);
+					}
+
+					try {
+						return await generateTextViaGateway({
+							system,
+							prompt,
+							messages: normalizedMessages,
+							maxOutputTokens,
+							temperature: 0.35,
+							provider: candidateProvider,
+							signal,
+							allowFallback: false,
+						});
+					} catch (retryError) {
+						console.warn(
+							"[FUTURE-CHAT] Retry after clearing stale RovoDev state failed; falling back to AI Gateway direct text.",
+							retryError instanceof Error ? retryError.message : retryError,
+						);
+					}
+				}
+			}
+
+			return await aiGatewayProvider.generateText({
+				system,
+				prompt,
+				messages: normalizedMessages,
+				maxOutputTokens,
+				temperature: 0.35,
+				provider: candidateProvider,
+				signal,
+			});
+		} catch (error) {
+			lastError = error;
+			console.warn(
+				`[FUTURE-CHAT] Artifact generation failed for provider "${candidateProvider}", trying fallback provider if available:`,
+				error instanceof Error ? error.message : error,
+			);
+		}
+	}
+
+	throw lastError instanceof Error ? lastError : new Error("Future Chat artifact generation failed.");
+}
+
+function deriveFutureChatArtifactDeltaType(kind) {
+	return normalizeArtifactKind(kind) === "code" ? "data-codeDelta" : "data-textDelta";
+}
+
+function deriveFutureChatArtifactTitle({
+	activeArtifact,
+	conversationHistory,
+	decisionTitle,
+	latestUserMessage,
+}) {
+	const normalizedDecisionTitle = getNonEmptyString(decisionTitle);
+	if (
+		normalizedDecisionTitle &&
+		!/^(?:an?\s+)?artifact(?:\s+(?:about|from|for|of|based on)\s+(?:it|this|that|them))?$/i.test(
+			normalizedDecisionTitle,
+		)
+	) {
+		return normalizedDecisionTitle;
+	}
+
+	const candidateMessages = [];
+	if (Array.isArray(conversationHistory)) {
+		for (let index = conversationHistory.length - 1; index >= 0; index--) {
+			const message = conversationHistory[index];
+			if (message?.type === "user" && typeof message.content === "string") {
+				candidateMessages.push(message.content);
+			}
+		}
+	}
+	candidateMessages.push(latestUserMessage);
+
+	for (const candidate of candidateMessages) {
+		const normalizedCandidate = getNonEmptyString(candidate);
+		if (!normalizedCandidate) {
+			continue;
+		}
+
+		const cleanedCandidate = normalizedCandidate
+			.replace(
+				/^(write|draft|create|build|generate|make|compose|outline|summari[sz]e|plan|design|implement|refactor|turn|convert)\s+/i,
+				"",
+			)
+			.trim();
+		if (!cleanedCandidate) {
+			continue;
+		}
+
+		if (
+			/^(?:an?\s+)?artifact(?:\s+(?:about|from|for|of|based on)\s+(?:it|this|that|them))?$/i.test(
+				cleanedCandidate,
+			)
+		) {
+			continue;
+		}
+
+		return cleanedCandidate.slice(0, 80);
+	}
+
+	return getNonEmptyString(activeArtifact?.title) || "Artifact draft";
+}
+
+async function resolveFutureChatArtifactDecision({
+	activeArtifact,
+	conversationHistory,
+	latestUserMessage,
+	provider,
+	signal,
+}) {
+	const prompt = buildFutureChatArtifactIntentPrompt({
+		activeArtifact,
+		conversationHistory,
+		latestUserMessage,
+	});
+	const fallbackDecision = fallbackFutureChatArtifactIntent({
+		activeArtifact,
+		latestUserMessage,
+	});
+
+	try {
+		const rawDecision = await generateTextViaGateway({
+			system: "You classify whether a request should stay in chat or become a document tool action. Return strict JSON only.",
+			prompt,
+			maxOutputTokens: 220,
+			temperature: 0.1,
+			provider,
+			signal,
+			allowFallback: true,
+		});
+		const parsedDecision = parseFutureChatArtifactIntent(rawDecision, {
+			activeArtifact,
+		});
+		if (!parsedDecision) {
+			return fallbackDecision;
+		}
+
+		if (
+			parsedDecision.action === "chat" &&
+			fallbackDecision.action !== "chat" &&
+			/\bartifact\b/i.test(latestUserMessage)
+		) {
+			return fallbackDecision;
+		}
+
+		return parsedDecision;
+	} catch (error) {
+		console.warn(
+			"[FUTURE-CHAT] Artifact intent classification failed, using fallback:",
+			error instanceof Error ? error.message : error,
+		);
+		return fallbackDecision;
+	}
+}
+
+function streamFutureChatArtifactToolResponse({
+	artifactAction,
+	artifactDocument,
+	assistantText,
+	res,
+	suggestedQuestions,
+}) {
+	const stream = createUIMessageStream({
+		execute: async ({ writer }) => {
+			writer.write({
+				type: "data-thinking-status",
+				data: {
+					label: artifactAction === "updateDocument" ? "Updating artifact" : "Generating artifact",
+					activity: "results",
+					source: "backend",
+				},
+				transient: true,
+			});
+
+			writer.write({
+				type: "data-kind",
+				data: artifactDocument.kind,
+				transient: true,
+			});
+			writer.write({
+				type: "data-id",
+				data: artifactDocument.id,
+				transient: true,
+			});
+			writer.write({
+				type: "data-title",
+				data: artifactDocument.title,
+				transient: true,
+			});
+			writer.write({
+				type: "data-clear",
+				data: null,
+				transient: true,
+			});
+
+			const deltaType = deriveFutureChatArtifactDeltaType(artifactDocument.kind);
+			for (const chunk of chunkFutureChatArtifactText(assistantText)) {
+				writer.write({
+					type: deltaType,
+					data: chunk,
+					transient: true,
+				});
+			}
+
+			writer.write({
+				type: "data-finish",
+				data: null,
+				transient: true,
+			});
+
+			const textId = `future-chat-artifact-summary-${Date.now()}`;
+			const summaryText =
+				artifactAction === "updateDocument"
+					? `Updated artifact "${artifactDocument.title}".`
+					: `Created artifact "${artifactDocument.title}".`;
+			writer.write({ type: "text-start", id: textId });
+			writer.write({
+				type: "text-delta",
+				id: textId,
+				delta: summaryText,
+			});
+			writer.write({ type: "text-end", id: textId });
+
+			if (Array.isArray(suggestedQuestions) && suggestedQuestions.length > 0) {
+				writer.write({
+					type: "data-suggested-questions",
+					data: {
+						questions: suggestedQuestions,
+					},
+				});
+			}
+
+			writer.write({
+				type: "data-route-decision",
+				data: {
+					reason: "intent_task_toolable",
+					experience: "text",
+					timestamp: new Date().toISOString(),
+					toolsDetected: true,
+					classifierIntent:
+						artifactAction === "updateDocument"
+							? `artifact_update_${artifactDocument.kind}`
+							: `artifact_create_${artifactDocument.kind}`,
+				},
+				transient: true,
+			});
+			writer.write({
+				type: "data-turn-complete",
+				data: { timestamp: new Date().toISOString() },
+				transient: true,
+			});
+		},
+		onError: (error) =>
+			error instanceof Error ? error.message : "Failed to stream Future Chat artifact",
+	});
+
+	pipeUIMessageStreamToResponse({ response: res, stream });
+}
+
+async function handleFutureChatArtifactToolRequest({
+	activeArtifact,
+	contextDescription,
+	req,
+	requestBody,
+	res,
+	threadId,
+}) {
+	const { message: latestUserMessage, conversationHistory } =
+		mapUiMessagesToConversation(requestBody.messages);
+	if (!latestUserMessage) {
+		return false;
+	}
+
+	const legacyArtifactMode = getNonEmptyString(requestBody.futureArtifactMode);
+	const legacyArtifactTitle = getNonEmptyString(requestBody.futureArtifactTitle);
+	const legacyArtifactKind = getNonEmptyString(requestBody.futureArtifactKind);
+	const decision =
+		legacyArtifactMode && legacyArtifactTitle
+			? {
+					action: legacyArtifactMode === "update" ? "updateDocument" : "createDocument",
+					title: legacyArtifactTitle,
+					kind: normalizeArtifactKind(legacyArtifactKind),
+				}
+			: await resolveFutureChatArtifactDecision({
+					activeArtifact,
+					conversationHistory,
+					latestUserMessage,
+					provider: getNonEmptyString(requestBody.provider),
+					signal: req.signal,
+				});
+
+	if (decision.action === "chat") {
+		return false;
+	}
+
+	const artifactTitle = deriveFutureChatArtifactTitle({
+		activeArtifact,
+		conversationHistory,
+		decisionTitle: decision.title,
+		latestUserMessage,
+	});
+	const artifactKind =
+		decision.action === "updateDocument"
+			? normalizeArtifactKind(decision.kind || activeArtifact?.kind)
+			: normalizeArtifactKind(decision.kind);
+
+	let artifactDocument;
+	if (decision.action === "updateDocument") {
+		if (!activeArtifact?.id) {
+			return false;
+		}
+
+		const existingDocument = await futureChatDocumentManager.getDocument(activeArtifact.id);
+		if (!existingDocument) {
+			return false;
+		}
+
+		artifactDocument = {
+			id: existingDocument.id,
+			title: artifactTitle || existingDocument.title,
+			kind: artifactKind || existingDocument.kind,
+		};
+	} else {
+		if (!threadId) {
+			return false;
+		}
+
+		const documentShell = await futureChatDocumentManager.createDocumentShell({
+			threadId,
+			title: artifactTitle,
+			kind: artifactKind,
+		});
+		artifactDocument = {
+			id: documentShell.id,
+			title: documentShell.title,
+			kind: documentShell.kind,
+		};
+	}
+
+	const assistantText = await generateFutureChatArtifactText({
+		mode: decision.action === "updateDocument" ? "update" : "create",
+		title: artifactTitle,
+		kind: artifactKind,
+		latestUserMessage,
+		conversationHistory,
+		contextDescription,
+		provider: getNonEmptyString(requestBody.provider),
+		signal: req.signal,
+	});
+	const suggestedQuestions = parseSuggestedQuestions(
+		await generateTextViaGateway({
+			system: "You generate exactly three short follow-up questions as a JSON array.",
+			prompt: createSuggestedQuestionsPrompt(
+				latestUserMessage,
+				conversationHistory,
+				assistantText
+			),
+			maxOutputTokens: 120,
+			temperature: 0.5,
+			allowFallback: true,
+		}).catch(() => "[]")
+	);
+
+	if (decision.action === "updateDocument") {
+		await futureChatDocumentManager.appendDocumentVersion(artifactDocument.id, {
+			content: assistantText,
+			title: artifactTitle,
+			kind: artifactKind,
+		});
+	} else {
+		await futureChatDocumentManager.finalizeDocumentShell(artifactDocument.id, {
+			content: assistantText,
+			title: artifactTitle,
+			kind: artifactKind,
+		});
+	}
+
+	streamFutureChatArtifactToolResponse({
+		artifactAction: decision.action,
+		artifactDocument,
+		res,
+		assistantText,
+		suggestedQuestions,
+	});
+	return true;
+}
+
+async function proxyFutureChatChatRequest(req, res) {
+	const requestBody =
+		req.body && typeof req.body === "object" ? { ...req.body } : {};
+	const activeArtifact = requestBody.artifactContext;
+	const artifactContextBlock = buildFutureChatArtifactContext(activeArtifact);
+	delete requestBody.artifactContext;
+	if (artifactContextBlock) {
+		const existingContextDescription = getNonEmptyString(
+			requestBody.contextDescription
+		);
+		requestBody.contextDescription = existingContextDescription
+			? `${artifactContextBlock}\n\n${existingContextDescription}`
+			: artifactContextBlock;
+	}
+
+	if (
+		await handleFutureChatArtifactToolRequest({
+			activeArtifact,
+			contextDescription: getNonEmptyString(requestBody.contextDescription),
+			req,
+			requestBody,
+			res,
+			threadId: getNonEmptyString(requestBody.id),
+		})
+	) {
+		return;
+	}
+
+	const response = await fetch(buildFutureChatInternalUrl(req, "/api/chat-sdk"), {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(requestBody),
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		res.status(response.status);
+		res.setHeader(
+			"Content-Type",
+			response.headers.get("content-type") || "application/json; charset=utf-8"
+		);
+		res.send(errorText);
+		return;
+	}
+
+	const contentType = response.headers.get("content-type") || "";
+	if (contentType.includes("text/event-stream")) {
+		res.status(response.status);
+		res.setHeader("Content-Type", "text/event-stream");
+		res.setHeader("Cache-Control", "no-cache");
+		res.setHeader("Connection", "keep-alive");
+		if (!response.body) {
+			res.end();
+			return;
+		}
+		Readable.fromWeb(response.body).pipe(res);
+		return;
+	}
+
+	const responseBuffer = Buffer.from(await response.arrayBuffer());
+	res.status(response.status);
+	if (contentType) {
+		res.setHeader("Content-Type", contentType);
+	}
+	res.send(responseBuffer);
+}
 
 const forgePublishManager = createForgePublishManager({
 	appRegistry,
@@ -8439,6 +9170,307 @@ app.delete("/api/plan/runs/:runId", async (req, res) => {
 	} catch (error) {
 		console.error("[AGENTS-RUN] Failed to delete run:", error);
 		return res.status(500).json({ error: "Failed to delete run" });
+	}
+});
+
+app.post("/api/future-chat/chat", async (req, res) => {
+	try {
+		await proxyFutureChatChatRequest(req, res);
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Chat proxy failed:", error);
+		return sendGatewayErrorResponse(
+			res,
+			error,
+			"Failed to stream Future Chat response"
+		);
+	}
+});
+
+app.get("/api/future-chat/threads", async (req, res) => {
+	try {
+		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+		const limit = rawLimit ? Number(rawLimit) : undefined;
+		const threads = await futureChatThreadManager.listThreads({ limit });
+		return res.status(200).json({ threads });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to list threads:", error);
+		return res.status(500).json({ error: "Failed to list Future Chat threads" });
+	}
+});
+
+app.post("/api/future-chat/threads", async (req, res) => {
+	try {
+		const {
+			id,
+			title,
+			messages,
+			visibility,
+			modelId,
+			provider,
+			activeDocumentId,
+			createdAt,
+			updatedAt,
+		} = req.body || {};
+		const persistedMessages = await persistFutureChatMessageFiles(messages);
+		const thread = await futureChatThreadManager.createThread({
+			id,
+			title,
+			messages: persistedMessages,
+			visibility,
+			modelId,
+			provider,
+			activeDocumentId,
+			createdAt,
+			updatedAt,
+		});
+		return res.status(201).json({ thread });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to create thread:", error);
+		const message = error instanceof Error ? error.message : "Failed to create thread";
+		return res.status(400).json({ error: message });
+	}
+});
+
+app.delete("/api/future-chat/threads", async (req, res) => {
+	try {
+		const rawAll = Array.isArray(req.query.all) ? req.query.all[0] : req.query.all;
+		if (rawAll !== "true" && rawAll !== "1") {
+			return res.status(400).json({ error: "Use ?all=true to delete all threads." });
+		}
+
+		await futureChatThreadManager.deleteAllThreads();
+		await futureChatVoteManager.deleteAllVotes();
+		await futureChatDocumentManager.deleteAllDocuments();
+		await futureChatUploadManager.deleteAllUploads();
+		return res.status(200).json({ deleted: true });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to delete all threads:", error);
+		return res.status(500).json({ error: "Failed to delete all Future Chat threads" });
+	}
+});
+
+app.get("/api/future-chat/threads/:threadId", async (req, res) => {
+	try {
+		const thread = await futureChatThreadManager.getThread(req.params.threadId);
+		if (!thread) {
+			return res.status(404).json({ error: "Thread not found" });
+		}
+
+		return res.status(200).json({ thread });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to load thread:", error);
+		return res.status(500).json({ error: "Failed to load Future Chat thread" });
+	}
+});
+
+app.put("/api/future-chat/threads/:threadId", async (req, res) => {
+	try {
+		const { title, messages, visibility, modelId, provider, activeDocumentId, updatedAt } = req.body || {};
+		const persistedMessages =
+			messages !== undefined
+				? await persistFutureChatMessageFiles(messages)
+				: undefined;
+		const thread = await futureChatThreadManager.updateThread(req.params.threadId, {
+			title,
+			messages: persistedMessages,
+			visibility,
+			modelId,
+			provider,
+			activeDocumentId,
+			updatedAt,
+		});
+		if (!thread) {
+			return res.status(404).json({ error: "Thread not found" });
+		}
+
+		return res.status(200).json({ thread });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to update thread:", error);
+		return res.status(500).json({ error: "Failed to update Future Chat thread" });
+	}
+});
+
+app.delete("/api/future-chat/threads/:threadId", async (req, res) => {
+	try {
+		const threadId = req.params.threadId;
+		const thread = await futureChatThreadManager.getThread(threadId);
+		const uploadIds = collectFutureChatUploadIdsFromMessages(thread?.messages);
+		await Promise.all(
+			uploadIds.map((uploadId) =>
+				futureChatUploadManager.deleteUpload(uploadId).catch(() => {})
+			)
+		);
+		await futureChatVoteManager.deleteVotesForThread(threadId);
+		await futureChatDocumentManager.deleteDocumentsByThread(threadId);
+		await futureChatThreadManager.deleteThread(threadId);
+		return res.status(200).json({ deleted: true });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to delete thread:", error);
+		return res.status(500).json({ error: "Failed to delete Future Chat thread" });
+	}
+});
+
+app.get("/api/future-chat/votes", async (req, res) => {
+	try {
+		const rawThreadId = Array.isArray(req.query.threadId) ? req.query.threadId[0] : req.query.threadId;
+		const threadId = getNonEmptyString(rawThreadId);
+		if (!threadId) {
+			return res.status(400).json({ error: "threadId is required" });
+		}
+
+		const votes = await futureChatVoteManager.listVotes(threadId);
+		return res.status(200).json({ votes });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to list votes:", error);
+		return res.status(500).json({ error: "Failed to list Future Chat votes" });
+	}
+});
+
+app.patch("/api/future-chat/votes", async (req, res) => {
+	try {
+		const { threadId: rawThreadId, messageId: rawMessageId, value } = req.body || {};
+		const threadId = getNonEmptyString(rawThreadId);
+		const messageId = getNonEmptyString(rawMessageId);
+		if (!threadId || !messageId) {
+			return res.status(400).json({ error: "threadId and messageId are required" });
+		}
+
+		const vote = await futureChatVoteManager.setVote({
+			threadId,
+			messageId,
+			value: value === "up" || value === "down" ? value : null,
+		});
+		return res.status(200).json({ vote });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to update vote:", error);
+		return res.status(500).json({ error: "Failed to update Future Chat vote" });
+	}
+});
+
+app.get("/api/future-chat/documents", async (req, res) => {
+	try {
+		const rawThreadId = Array.isArray(req.query.threadId) ? req.query.threadId[0] : req.query.threadId;
+		const rawDocumentId = Array.isArray(req.query.documentId) ? req.query.documentId[0] : req.query.documentId;
+		const threadId = getNonEmptyString(rawThreadId);
+		const documentId = getNonEmptyString(rawDocumentId);
+
+		if (documentId) {
+			const document = await futureChatDocumentManager.getDocument(documentId);
+			if (!document) {
+				return res.status(404).json({ error: "Document not found" });
+			}
+			return res.status(200).json({ document });
+		}
+
+		const documents = await futureChatDocumentManager.listDocuments({ threadId: threadId || undefined });
+		return res.status(200).json({ documents });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to list documents:", error);
+		return res.status(500).json({ error: "Failed to load Future Chat documents" });
+	}
+});
+
+app.post("/api/future-chat/documents", async (req, res) => {
+	try {
+		const {
+			documentId,
+			threadId,
+			title,
+			kind,
+			content,
+			sourceMessageId,
+		} = req.body || {};
+		if (typeof documentId === "string" && documentId.trim()) {
+			const document = await futureChatDocumentManager.appendDocumentVersion(documentId, {
+				title,
+				kind,
+				content,
+			});
+			if (!document) {
+				return res.status(404).json({ error: "Document not found" });
+			}
+			return res.status(200).json({ document });
+		}
+
+		if (typeof threadId !== "string" || !threadId.trim()) {
+			return res.status(400).json({ error: "threadId is required" });
+		}
+
+		const document = await futureChatDocumentManager.createDocument({
+			threadId,
+			title,
+			kind,
+			content,
+			sourceMessageId,
+		});
+		return res.status(201).json({ document });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to save document:", error);
+		return res.status(500).json({ error: "Failed to save Future Chat document" });
+	}
+});
+
+app.delete("/api/future-chat/documents", async (req, res) => {
+	try {
+		const rawDocumentId = Array.isArray(req.query.documentId) ? req.query.documentId[0] : req.query.documentId;
+		const documentId = getNonEmptyString(rawDocumentId);
+		if (!documentId) {
+			return res.status(400).json({ error: "documentId is required" });
+		}
+
+		await futureChatDocumentManager.deleteDocument(documentId);
+		return res.status(200).json({ deleted: true });
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to delete document:", error);
+		return res.status(500).json({ error: "Failed to delete Future Chat document" });
+	}
+});
+
+app.post("/api/future-chat/files/upload", async (req, res) => {
+	try {
+		const { name, mediaType, dataUrl } = req.body || {};
+		if (typeof dataUrl !== "string" || !dataUrl.trim()) {
+			return res.status(400).json({ error: "dataUrl is required" });
+		}
+
+		const upload = await futureChatUploadManager.createUploadFromDataUrl({
+			filename: typeof name === "string" && name.trim() ? name : "attachment.bin",
+			mediaType: typeof mediaType === "string" && mediaType.trim() ? mediaType : undefined,
+			dataUrl,
+		});
+		return res.status(201).json({
+			file: {
+				id: upload.id,
+				filename: upload.filename,
+				mediaType: upload.mediaType,
+				sizeBytes: upload.sizeBytes,
+				url: buildFutureChatFileUrl(upload.id),
+			},
+		});
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to upload file:", error);
+		const message = error instanceof Error ? error.message : "Failed to upload file";
+		return res.status(400).json({ error: message });
+	}
+});
+
+app.get("/api/future-chat/files/:fileId", async (req, res) => {
+	try {
+		const upload = await futureChatUploadManager.getUpload(req.params.fileId);
+		if (!upload) {
+			return res.status(404).json({ error: "File not found" });
+		}
+
+		res.setHeader("Content-Type", upload.mediaType || "application/octet-stream");
+		res.setHeader("Content-Length", String(upload.sizeBytes || upload.buffer.length));
+		res.setHeader(
+			"Content-Disposition",
+			`inline; filename="${upload.filename || "attachment.bin"}"`
+		);
+		return res.status(200).send(upload.buffer);
+	} catch (error) {
+		console.error("[FUTURE-CHAT] Failed to serve file:", error);
+		return res.status(500).json({ error: "Failed to serve Future Chat file" });
 	}
 });
 

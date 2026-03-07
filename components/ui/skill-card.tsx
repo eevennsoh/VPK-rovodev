@@ -125,14 +125,14 @@ function SkillCardContent({
 						) : (
 							<>
 								{source.logoSrc ? (
-									<Image
-										src={source.logoSrc}
-										alt={`${source.name} logo`}
-										width={16}
-										height={16}
-										className="size-4 rounded-[2px] object-cover"
-										unoptimized
-									/>
+										<Image
+											src={source.logoSrc}
+											alt={`${source.name} logo`}
+											width={16}
+											height={16}
+											className="size-4 rounded-xs object-cover"
+											unoptimized
+										/>
 								) : (
 									<span
 										aria-hidden

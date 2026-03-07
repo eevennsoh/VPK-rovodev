@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToBackend } from "@/app/api/plan/_utils/proxy";
+import { proxyToBackend } from "@/app/api/_utils/proxy";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 export async function GET(request: NextRequest) {

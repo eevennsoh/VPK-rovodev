@@ -37,16 +37,16 @@ const ICON_TILE_VARIANTS: Record<IconTileVariant, string> = {
 	magenta: "bg-pink-50 text-pink-600",
 	purple: "bg-purple-50 text-purple-600",
 	// Bold
-	grayBold: "bg-neutral-600 text-white",
-	blueBold: "bg-blue-600 text-white",
-	tealBold: "bg-teal-600 text-white",
-	greenBold: "bg-green-600 text-white",
-	limeBold: "bg-lime-600 text-white",
-	yellowBold: "bg-yellow-600 text-white",
-	orangeBold: "bg-orange-600 text-white",
-	redBold: "bg-red-600 text-white",
-	magentaBold: "bg-pink-600 text-white",
-	purpleBold: "bg-purple-600 text-white",
+	grayBold: "bg-neutral-600 text-text-inverse",
+	blueBold: "bg-blue-600 text-text-inverse",
+	tealBold: "bg-teal-600 text-text-inverse",
+	greenBold: "bg-green-600 text-text-inverse",
+	limeBold: "bg-lime-600 text-text-inverse",
+	yellowBold: "bg-yellow-600 text-text-inverse",
+	orangeBold: "bg-orange-600 text-text-inverse",
+	redBold: "bg-red-600 text-text-inverse",
+	magentaBold: "bg-pink-600 text-text-inverse",
+	purpleBold: "bg-purple-600 text-text-inverse",
 }
 
 const iconTileVariants = cva(

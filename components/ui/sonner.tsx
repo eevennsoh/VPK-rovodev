@@ -45,46 +45,26 @@ const SONNER_TOAST_ICON_LABELS: Record<SonnerToastAppearance, string> = {
 	error: "Error",
 };
 
+const SONNER_TOAST_ICON_STYLES: Record<SonnerToastAppearance, string> = {
+	neutral: "text-icon-information",
+	success: "text-icon-success",
+	info: "text-icon-information",
+	warning: "text-icon-warning",
+	error: "text-icon-danger",
+};
+
 function getSonnerIcon(appearance: SonnerToastAppearance) {
 	switch (appearance) {
 		case "success":
-			return (
-				<StatusSuccessIcon
-					label=""
-					size="small"
-					spacing="none"
-					color="var(--ds-icon-success)"
-				/>
-			);
+			return <StatusSuccessIcon label="" size="small" spacing="none" color="currentColor" />;
 		case "warning":
-			return (
-				<StatusWarningIcon
-					label=""
-					size="small"
-					spacing="none"
-					color="var(--ds-icon-warning)"
-				/>
-			);
+			return <StatusWarningIcon label="" size="small" spacing="none" color="currentColor" />;
 		case "error":
-			return (
-				<StatusErrorIcon
-					label=""
-					size="small"
-					spacing="none"
-					color="var(--ds-icon-danger)"
-				/>
-			);
+			return <StatusErrorIcon label="" size="small" spacing="none" color="currentColor" />;
 		case "neutral":
 		case "info":
 		default:
-			return (
-				<StatusInformationIcon
-					label=""
-					size="small"
-					spacing="none"
-					color="var(--ds-icon-information)"
-				/>
-			);
+			return <StatusInformationIcon label="" size="small" spacing="none" color="currentColor" />;
 	}
 }
 
@@ -112,16 +92,16 @@ function SonnerToast({
 			)}
 			style={style}
 			{...props}
-		>
-			<div className="flex items-start gap-3">
-				<div className="mt-0.5 shrink-0 text-icon">
-					{icon ?? (
-						<Icon
-							label={iconLabel ?? SONNER_TOAST_ICON_LABELS[appearance]}
-							render={getSonnerIcon(appearance)}
-						/>
-					)}
-				</div>
+			>
+				<div className="flex items-start gap-3">
+					<div className={cn("mt-0.5 shrink-0", SONNER_TOAST_ICON_STYLES[appearance])}>
+						{icon ?? (
+							<Icon
+								label={iconLabel ?? SONNER_TOAST_ICON_LABELS[appearance]}
+								render={getSonnerIcon(appearance)}
+							/>
+						)}
+					</div>
 				<div className="min-w-0 flex-1">
 					<div className="text-sm/5 font-semibold text-text">{title}</div>
 					{description ? (
