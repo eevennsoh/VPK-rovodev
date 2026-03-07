@@ -20,3 +20,8 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **What happened:** Features (time-tracking, inventory, it-assets, asset-requests) were removed from `app/` and `components/templates/` but their supporting files in `lib/` (types, seed data), `hooks/` (storage hooks), `components/blocks/`, and `components/ui-ai/` were left behind as dead code.
 - **Why:** Deletion only targeted the route and template entry points without tracing the full dependency chain downward.
 - **Rule:** When removing a feature/template, trace and remove the full dependency chain: route files → template components → block components → hooks → lib types → lib seed data → ui-ai cards. Run `pnpm tsc --noEmit` after to catch any remaining broken imports.
+
+### 2026-03-07 - Use local avatar-user assets for demo avatar swaps
+- **What happened:** A demo avatar replacement initially updated only the primary `shadcn` face and introduced a new path under `public/avatar-human`, while other demo avatars still pointed at remote GitHub images.
+- **Why:** The implementation did not first inspect the existing local avatar catalog or follow the user's intent to keep demo avatars sourced from `public/avatar-user`.
+- **Rule:** When replacing demo avatar faces, inspect `public/avatar-user` first and convert the full demo set off remote avatar URLs in the same pass. Do not introduce a new avatar location unless the existing avatar catalog is actually insufficient.

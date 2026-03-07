@@ -88,22 +88,23 @@
 	}
 }
 
-/* Responsive margin for main content based on sidebar state (design system layout) */
+/* Responsive margin for main content based on sidebar state (design system layout).
+   Kept outside @layer so Turbopack chunk ordering cannot drop specificity below resets. */
+@media (min-width: 768px) {
+	body:has(aside[data-sidebar-open="true"]) .website-main-content {
+		margin-left: 304px; /* 48px rail + 256px panel */
+	}
+
+	body:has(aside[data-sidebar-open="false"]) .website-main-content {
+		margin-left: 48px; /* rail only */
+	}
+}
+
+.website-main-content {
+	transition: margin-left 300ms ease-in-out;
+}
+
 @layer components {
-	@media (min-width: 768px) {
-		body:has(aside[data-sidebar-open="true"]) .website-main-content {
-			margin-left: 304px; /* 48px rail + 256px panel */
-		}
-
-		body:has(aside[data-sidebar-open="false"]) .website-main-content {
-			margin-left: 48px; /* rail only */
-		}
-	}
-
-	.website-main-content {
-		transition: margin-left 300ms ease-in-out;
-	}
-
 	/* Sonner headless mode still applies an outer focus-visible shadow on the wrapper <li>. */
 	/* Keep toast visuals controlled by the custom toast surface itself. */
 	[data-sonner-toast][data-styled="false"]:focus-visible {

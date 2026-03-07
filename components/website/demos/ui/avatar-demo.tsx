@@ -5,11 +5,17 @@ import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, Ava
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
+const PRIMARY_AVATAR_SRC = "/avatar-user/venn/venn.png";
+const BADGE_ICON_AVATAR_SRC = "/avatar-user/ali/color/asow-teamwork-blue.png";
+const BADGE_AVATAR_SRC = "/avatar-user/olivia-yang/color/asow-service-yellow.png";
+const GROUP_AVATAR_TWO_SRC = "/avatar-user/nova/color/asow-service-yellow.png";
+const GROUP_AVATAR_THREE_SRC = "/avatar-user/maia-ma/color/asow-service-yellow.png";
+
 export default function AvatarDemo() {
 	return (
 		<div className="flex items-center gap-2">
 			<Avatar>
-				<AvatarImage src="https://github.com/shadcn.png" alt="User" />
+				<AvatarImage src={PRIMARY_AVATAR_SRC} alt="User" />
 				<AvatarFallback>SC</AvatarFallback>
 			</Avatar>
 			<Avatar>
@@ -28,8 +34,8 @@ export function AvatarDemoBadgeWithIcon() {
 			<div className="flex flex-wrap items-center gap-2">
 				<Avatar size="sm">
 					<AvatarImage
-						src="https://github.com/pranathip.png"
-						alt="@pranathip"
+						src={BADGE_ICON_AVATAR_SRC}
+						alt="Ali"
 					/>
 					<AvatarFallback>PP</AvatarFallback>
 					<AvatarBadge>
@@ -38,8 +44,8 @@ export function AvatarDemoBadgeWithIcon() {
 				</Avatar>
 				<Avatar>
 					<AvatarImage
-						src="https://github.com/pranathip.png"
-						alt="@pranathip"
+						src={BADGE_ICON_AVATAR_SRC}
+						alt="Ali"
 					/>
 					<AvatarFallback>PP</AvatarFallback>
 					<AvatarBadge>
@@ -48,8 +54,8 @@ export function AvatarDemoBadgeWithIcon() {
 				</Avatar>
 				<Avatar size="lg">
 					<AvatarImage
-						src="https://github.com/pranathip.png"
-						alt="@pranathip"
+						src={BADGE_ICON_AVATAR_SRC}
+						alt="Ali"
 					/>
 					<AvatarFallback>PP</AvatarFallback>
 					<AvatarBadge>
@@ -87,24 +93,24 @@ export function AvatarDemoBadge() {
 			<div className="flex flex-wrap items-center gap-2">
 				<Avatar size="sm">
 					<AvatarImage
-						src="https://github.com/jorgezreik.png"
-						alt="@jorgezreik"
+						src={BADGE_AVATAR_SRC}
+						alt="Olivia Yang"
 					/>
 					<AvatarFallback>JZ</AvatarFallback>
 					<AvatarBadge />
 				</Avatar>
 				<Avatar>
 					<AvatarImage
-						src="https://github.com/jorgezreik.png"
-						alt="@jorgezreik"
+						src={BADGE_AVATAR_SRC}
+						alt="Olivia Yang"
 					/>
 					<AvatarFallback>JZ</AvatarFallback>
 					<AvatarBadge />
 				</Avatar>
 				<Avatar size="lg">
 					<AvatarImage
-						src="https://github.com/jorgezreik.png"
-						alt="@jorgezreik"
+						src={BADGE_AVATAR_SRC}
+						alt="Olivia Yang"
 					/>
 					<AvatarFallback>JZ</AvatarFallback>
 					<AvatarBadge />
@@ -131,7 +137,7 @@ export function AvatarDemoBadge() {
 export function AvatarDemoDefault() {
 	return (
 		<Avatar>
-			<AvatarImage src="https://github.com/shadcn.png" alt="User avatar" />
+			<AvatarImage src={PRIMARY_AVATAR_SRC} alt="User avatar" />
 			<AvatarFallback>CN</AvatarFallback>
 		</Avatar>
 	);
@@ -142,20 +148,20 @@ export function AvatarDemoGroupWithCount() {
 		<>
 			<AvatarGroup>
 				<Avatar size="sm">
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Team member" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar size="sm">
 					<AvatarImage
-						src="https://github.com/maxleiter.png"
-						alt="@maxleiter"
+						src={GROUP_AVATAR_TWO_SRC}
+						alt="Nova"
 					/>
 					<AvatarFallback>LR</AvatarFallback>
 				</Avatar>
 				<Avatar size="sm">
 					<AvatarImage
-						src="https://github.com/evilrabbit.png"
-						alt="@evilrabbit"
+						src={GROUP_AVATAR_THREE_SRC}
+						alt="Maia Ma"
 					/>
 					<AvatarFallback>ER</AvatarFallback>
 				</Avatar>
@@ -163,20 +169,20 @@ export function AvatarDemoGroupWithCount() {
 			</AvatarGroup>
 			<AvatarGroup>
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Team member" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar>
 					<AvatarImage
-						src="https://github.com/maxleiter.png"
-						alt="@maxleiter"
+						src={GROUP_AVATAR_TWO_SRC}
+						alt="Nova"
 					/>
 					<AvatarFallback>LR</AvatarFallback>
 				</Avatar>
 				<Avatar>
 					<AvatarImage
-						src="https://github.com/evilrabbit.png"
-						alt="@evilrabbit"
+						src={GROUP_AVATAR_THREE_SRC}
+						alt="Maia Ma"
 					/>
 					<AvatarFallback>ER</AvatarFallback>
 				</Avatar>
@@ -184,20 +190,20 @@ export function AvatarDemoGroupWithCount() {
 			</AvatarGroup>
 			<AvatarGroup>
 				<Avatar size="lg">
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Team member" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar size="lg">
 					<AvatarImage
-						src="https://github.com/maxleiter.png"
-						alt="@maxleiter"
+						src={GROUP_AVATAR_TWO_SRC}
+						alt="Nova"
 					/>
 					<AvatarFallback>LR</AvatarFallback>
 				</Avatar>
 				<Avatar size="lg">
 					<AvatarImage
-						src="https://github.com/evilrabbit.png"
-						alt="@evilrabbit"
+						src={GROUP_AVATAR_THREE_SRC}
+						alt="Maia Ma"
 					/>
 					<AvatarFallback>ER</AvatarFallback>
 				</Avatar>
@@ -212,20 +218,20 @@ export function AvatarDemoGroupWithIconCount() {
 		<>
 			<AvatarGroup>
 				<Avatar size="sm">
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Team member" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar size="sm">
 					<AvatarImage
-						src="https://github.com/maxleiter.png"
-						alt="@maxleiter"
+						src={GROUP_AVATAR_TWO_SRC}
+						alt="Nova"
 					/>
 					<AvatarFallback>LR</AvatarFallback>
 				</Avatar>
 				<Avatar size="sm">
 					<AvatarImage
-						src="https://github.com/evilrabbit.png"
-						alt="@evilrabbit"
+						src={GROUP_AVATAR_THREE_SRC}
+						alt="Maia Ma"
 					/>
 					<AvatarFallback>ER</AvatarFallback>
 				</Avatar>
@@ -235,20 +241,20 @@ export function AvatarDemoGroupWithIconCount() {
 			</AvatarGroup>
 			<AvatarGroup>
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Team member" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar>
 					<AvatarImage
-						src="https://github.com/maxleiter.png"
-						alt="@maxleiter"
+						src={GROUP_AVATAR_TWO_SRC}
+						alt="Nova"
 					/>
 					<AvatarFallback>LR</AvatarFallback>
 				</Avatar>
 				<Avatar>
 					<AvatarImage
-						src="https://github.com/evilrabbit.png"
-						alt="@evilrabbit"
+						src={GROUP_AVATAR_THREE_SRC}
+						alt="Maia Ma"
 					/>
 					<AvatarFallback>ER</AvatarFallback>
 				</Avatar>
@@ -259,24 +265,24 @@ export function AvatarDemoGroupWithIconCount() {
 			<AvatarGroup>
 				<Avatar size="lg">
 					<AvatarImage
-						src="https://github.com/shadcn.png"
-						alt="@shadcn"
+						src={PRIMARY_AVATAR_SRC}
+						alt="Team member"
 						className="grayscale"
 					/>
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar size="lg">
 					<AvatarImage
-						src="https://github.com/maxleiter.png"
-						alt="@maxleiter"
+						src={GROUP_AVATAR_TWO_SRC}
+						alt="Nova"
 						className="grayscale"
 					/>
 					<AvatarFallback>LR</AvatarFallback>
 				</Avatar>
 				<Avatar size="lg">
 					<AvatarImage
-						src="https://github.com/evilrabbit.png"
-						alt="@evilrabbit"
+						src={GROUP_AVATAR_THREE_SRC}
+						alt="Maia Ma"
 						className="grayscale"
 					/>
 					<AvatarFallback>ER</AvatarFallback>
@@ -294,60 +300,60 @@ export function AvatarDemoGroup() {
 		<>
 			<AvatarGroup>
 				<Avatar size="sm">
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Team member" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar size="sm">
 					<AvatarImage
-						src="https://github.com/maxleiter.png"
-						alt="@maxleiter"
+						src={GROUP_AVATAR_TWO_SRC}
+						alt="Nova"
 					/>
 					<AvatarFallback>LR</AvatarFallback>
 				</Avatar>
 				<Avatar size="sm">
 					<AvatarImage
-						src="https://github.com/evilrabbit.png"
-						alt="@evilrabbit"
+						src={GROUP_AVATAR_THREE_SRC}
+						alt="Maia Ma"
 					/>
 					<AvatarFallback>ER</AvatarFallback>
 				</Avatar>
 			</AvatarGroup>
 			<AvatarGroup>
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Team member" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar>
 					<AvatarImage
-						src="https://github.com/maxleiter.png"
-						alt="@maxleiter"
+						src={GROUP_AVATAR_TWO_SRC}
+						alt="Nova"
 					/>
 					<AvatarFallback>LR</AvatarFallback>
 				</Avatar>
 				<Avatar>
 					<AvatarImage
-						src="https://github.com/evilrabbit.png"
-						alt="@evilrabbit"
+						src={GROUP_AVATAR_THREE_SRC}
+						alt="Maia Ma"
 					/>
 					<AvatarFallback>ER</AvatarFallback>
 				</Avatar>
 			</AvatarGroup>
 			<AvatarGroup>
 				<Avatar size="lg">
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Team member" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar size="lg">
 					<AvatarImage
-						src="https://github.com/maxleiter.png"
-						alt="@maxleiter"
+						src={GROUP_AVATAR_TWO_SRC}
+						alt="Nova"
 					/>
 					<AvatarFallback>LR</AvatarFallback>
 				</Avatar>
 				<Avatar size="lg">
 					<AvatarImage
-						src="https://github.com/evilrabbit.png"
-						alt="@evilrabbit"
+						src={GROUP_AVATAR_THREE_SRC}
+						alt="Maia Ma"
 					/>
 					<AvatarFallback>ER</AvatarFallback>
 				</Avatar>
@@ -364,24 +370,24 @@ export function AvatarDemoInEmpty() {
 					<AvatarGroup>
 						<Avatar size="lg">
 							<AvatarImage
-								src="https://github.com/shadcn.png"
-								alt="@shadcn"
+								src={PRIMARY_AVATAR_SRC}
+								alt="Team member"
 								className="grayscale"
 							/>
 							<AvatarFallback>CN</AvatarFallback>
 						</Avatar>
 						<Avatar size="lg">
 							<AvatarImage
-								src="https://github.com/maxleiter.png"
-								alt="@maxleiter"
+								src={GROUP_AVATAR_TWO_SRC}
+								alt="Nova"
 								className="grayscale"
 							/>
 							<AvatarFallback>LR</AvatarFallback>
 						</Avatar>
 						<Avatar size="lg">
 							<AvatarImage
-								src="https://github.com/evilrabbit.png"
-								alt="@evilrabbit"
+								src={GROUP_AVATAR_THREE_SRC}
+								alt="Maia Ma"
 								className="grayscale"
 							/>
 							<AvatarFallback>ER</AvatarFallback>
@@ -411,15 +417,15 @@ export function AvatarDemoSizes() {
 		<>
 			<div className="flex flex-wrap items-center gap-2">
 				<Avatar size="sm">
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="User avatar" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="User avatar" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<Avatar size="lg">
-					<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="User avatar" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 			</div>
@@ -443,7 +449,7 @@ export function AvatarDemoShapes() {
 		<div className="flex flex-wrap items-center gap-4">
 			<div className="flex flex-col items-center gap-1">
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="Circle" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Circle" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<span className="text-xs text-text-subtle">Circle</span>
@@ -471,42 +477,42 @@ export function AvatarDemoAllSizes() {
 		<div className="flex flex-wrap items-end gap-3">
 			<div className="flex flex-col items-center gap-1">
 				<Avatar size="xs">
-					<AvatarImage src="https://github.com/shadcn.png" alt="xs" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="xs" />
 					<AvatarFallback>XS</AvatarFallback>
 				</Avatar>
 				<span className="text-xs text-text-subtle">xs</span>
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar size="sm">
-					<AvatarImage src="https://github.com/shadcn.png" alt="sm" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="sm" />
 					<AvatarFallback>SM</AvatarFallback>
 				</Avatar>
 				<span className="text-xs text-text-subtle">sm</span>
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar size="default">
-					<AvatarImage src="https://github.com/shadcn.png" alt="default" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="default" />
 					<AvatarFallback>DF</AvatarFallback>
 				</Avatar>
 				<span className="text-xs text-text-subtle">default</span>
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar size="lg">
-					<AvatarImage src="https://github.com/shadcn.png" alt="lg" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="lg" />
 					<AvatarFallback>LG</AvatarFallback>
 				</Avatar>
 				<span className="text-xs text-text-subtle">lg</span>
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar size="xl">
-					<AvatarImage src="https://github.com/shadcn.png" alt="xl" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="xl" />
 					<AvatarFallback>XL</AvatarFallback>
 				</Avatar>
 				<span className="text-xs text-text-subtle">xl</span>
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar size="2xl">
-					<AvatarImage src="https://github.com/shadcn.png" alt="2xl" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="2xl" />
 					<AvatarFallback>2X</AvatarFallback>
 				</Avatar>
 				<span className="text-xs text-text-subtle">2xl</span>
@@ -520,7 +526,7 @@ export function AvatarDemoPresence() {
 		<div className="flex flex-wrap items-center gap-4">
 			<div className="flex flex-col items-center gap-1">
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="Online" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Online" />
 					<AvatarFallback>CN</AvatarFallback>
 					<AvatarPresenceIndicator presence="online" />
 				</Avatar>
@@ -528,7 +534,7 @@ export function AvatarDemoPresence() {
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="Busy" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Busy" />
 					<AvatarFallback>CN</AvatarFallback>
 					<AvatarPresenceIndicator presence="busy" />
 				</Avatar>
@@ -536,7 +542,7 @@ export function AvatarDemoPresence() {
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="Focus" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Focus" />
 					<AvatarFallback>CN</AvatarFallback>
 					<AvatarPresenceIndicator presence="focus" />
 				</Avatar>
@@ -544,7 +550,7 @@ export function AvatarDemoPresence() {
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="Offline" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Offline" />
 					<AvatarFallback>CN</AvatarFallback>
 					<AvatarPresenceIndicator presence="offline" />
 				</Avatar>
@@ -559,7 +565,7 @@ export function AvatarDemoStatus() {
 		<div className="flex flex-wrap items-center gap-4">
 			<div className="flex flex-col items-center gap-1">
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="Approved" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Approved" />
 					<AvatarFallback>CN</AvatarFallback>
 					<AvatarStatusIndicator status="approved" />
 				</Avatar>
@@ -567,7 +573,7 @@ export function AvatarDemoStatus() {
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="Declined" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Declined" />
 					<AvatarFallback>CN</AvatarFallback>
 					<AvatarStatusIndicator status="declined" />
 				</Avatar>
@@ -575,7 +581,7 @@ export function AvatarDemoStatus() {
 			</div>
 			<div className="flex flex-col items-center gap-1">
 				<Avatar>
-					<AvatarImage src="https://github.com/shadcn.png" alt="Locked" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Locked" />
 					<AvatarFallback>CN</AvatarFallback>
 					<AvatarStatusIndicator status="locked" />
 				</Avatar>
@@ -590,7 +596,7 @@ export function AvatarDemoDisabled() {
 		<div className="flex flex-wrap items-center gap-4">
 			<div className="flex flex-col items-center gap-1">
 				<Avatar disabled>
-					<AvatarImage src="https://github.com/shadcn.png" alt="Disabled circle" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Disabled circle" />
 					<AvatarFallback>CN</AvatarFallback>
 				</Avatar>
 				<span className="text-xs text-text-subtle">Circle</span>

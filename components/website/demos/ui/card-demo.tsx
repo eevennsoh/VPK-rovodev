@@ -8,6 +8,10 @@ import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
+const PRIMARY_AVATAR_SRC = "/avatar-user/venn/venn.png";
+const GROUP_AVATAR_TWO_SRC = "/avatar-user/nova/color/asow-service-yellow.png";
+const GROUP_AVATAR_THREE_SRC = "/avatar-user/maia-ma/color/asow-service-yellow.png";
+
 export default function CardDemo() {
 	return (
 		<Card size="sm" className="w-56">
@@ -186,15 +190,15 @@ export function CardDemoMeetingNotes() {
 			<CardFooter>
 				<AvatarGroup>
 					<Avatar>
-						<AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+						<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Venn" />
 						<AvatarFallback>CN</AvatarFallback>
 					</Avatar>
 					<Avatar>
-						<AvatarImage src="https://github.com/maxleiter.png" alt="@maxleiter" />
+						<AvatarImage src={GROUP_AVATAR_TWO_SRC} alt="Nova" />
 						<AvatarFallback>LR</AvatarFallback>
 					</Avatar>
 					<Avatar>
-						<AvatarImage src="https://github.com/evilrabbit.png" alt="@evilrabbit" />
+						<AvatarImage src={GROUP_AVATAR_THREE_SRC} alt="Maia Ma" />
 						<AvatarFallback>ER</AvatarFallback>
 					</Avatar>
 					<AvatarGroupCount>+8</AvatarGroupCount>

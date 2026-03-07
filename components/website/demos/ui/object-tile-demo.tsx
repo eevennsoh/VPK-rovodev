@@ -8,6 +8,8 @@ import { ObjectTile } from "@/components/ui/object-tile";
 import { Lozenge } from "@/components/ui/lozenge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
+const PRIMARY_AVATAR_SRC = "/avatar-user/venn/venn.png";
+
 export default function ObjectTileDemo() {
 	return (
 		<div className="max-w-md space-y-2">
@@ -96,7 +98,7 @@ export function ObjectTileDemoWithAvatar() {
 		<ObjectTile
 			icon={
 				<Avatar size="sm">
-					<AvatarImage src="https://github.com/shadcn.png" alt="User" />
+					<AvatarImage src={PRIMARY_AVATAR_SRC} alt="Venn" />
 					<AvatarFallback>SC</AvatarFallback>
 				</Avatar>
 			}
