@@ -15,11 +15,22 @@ type DrawerTriggerProps = React.ComponentProps<typeof DrawerPrimitive.Trigger> &
   render?: React.ReactElement
 }
 
+function withRenderChildren(
+  render: React.ReactElement,
+  children: React.ReactNode
+) {
+  if (children == null) {
+    return render
+  }
+
+  return React.cloneElement(render, undefined, children)
+}
+
 function DrawerTrigger({ render, children, ...props }: DrawerTriggerProps) {
   if (render) {
     return (
       <DrawerPrimitive.Trigger data-slot="drawer-trigger" asChild {...props}>
-        {render}
+        {withRenderChildren(render, children)}
       </DrawerPrimitive.Trigger>
     )
   }
@@ -44,7 +55,7 @@ function DrawerClose({ render, children, ...props }: DrawerCloseProps) {
   if (render) {
     return (
       <DrawerPrimitive.Close data-slot="drawer-close" asChild {...props}>
-        {render}
+        {withRenderChildren(render, children)}
       </DrawerPrimitive.Close>
     )
   }

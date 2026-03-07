@@ -35,6 +35,7 @@ export function DocHero({ name, description, category, importPath, adsLinks, ads
 		>
 			{/* Breadcrumb */}
 			<nav
+				aria-label="Breadcrumb"
 				style={{
 					display: "flex",
 					alignItems: "center",

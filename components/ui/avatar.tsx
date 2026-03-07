@@ -97,7 +97,7 @@ function AvatarFallback({
 		<AvatarPrimitive.Fallback
 			data-slot="avatar-fallback"
 			className={cn(
-				"bg-muted text-muted-foreground rounded-full flex size-full items-center justify-center text-sm group-data-[size=xs]/avatar:text-[8px] group-data-[size=sm]/avatar:text-xs group-data-[size=xl]/avatar:text-lg group-data-[size=2xl]/avatar:text-3xl group-data-[shape=square]/avatar:rounded-lg",
+				"bg-muted text-foreground rounded-full flex size-full items-center justify-center text-sm group-data-[size=xs]/avatar:text-[8px] group-data-[size=sm]/avatar:text-xs group-data-[size=xl]/avatar:text-lg group-data-[size=2xl]/avatar:text-3xl group-data-[shape=square]/avatar:rounded-lg",
 				`group-data-[shape=hexagon]/avatar:rounded-none group-data-[shape=hexagon]/avatar:${HEXAGON_CLIP}`,
 				className
 			)}

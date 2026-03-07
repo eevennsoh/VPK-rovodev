@@ -220,6 +220,7 @@ export function WebsiteSidebarNav({
 		<>
 			{/* Rail - Always visible (48px) */}
 			<aside
+				aria-label="Sidebar actions"
 				data-sidebar-open={sidebarOpen}
 				className="fixed inset-y-0 left-0 z-50 flex flex-col items-center border-r border-border bg-surface py-4"
 				style={{ width: RAIL_WIDTH }}
@@ -245,7 +246,8 @@ export function WebsiteSidebarNav({
 			</aside>
 
 			{/* Panel - Slides in/out (256px) */}
-			<div
+			<aside
+				aria-label="Component browser"
 				className="fixed inset-y-0 z-40 flex flex-col border-r border-border bg-surface transition-transform duration-300 ease-in-out will-change-transform"
 				style={{
 					left: RAIL_WIDTH,
@@ -254,7 +256,7 @@ export function WebsiteSidebarNav({
 				}}
 			>
 				{/* Header */}
-				<div
+				<header
 					className="flex h-14 items-center border-b border-border px-4"
 				>
 					<span
@@ -262,7 +264,7 @@ export function WebsiteSidebarNav({
 					>
 						{logoText}
 					</span>
-				</div>
+				</header>
 
 				{/* Search */}
 				<div className="px-4 pt-4 pb-3">
@@ -304,6 +306,7 @@ export function WebsiteSidebarNav({
 
 				{/* Navigation */}
 				<nav
+					aria-label="Component navigation"
 					ref={navRef}
 					className="flex-1 overflow-y-auto px-4 pb-4"
 				>
@@ -384,14 +387,14 @@ export function WebsiteSidebarNav({
 				</nav>
 
 				{/* Footer */}
-				<div
+				<footer
 					className="border-t border-border p-4"
 				>
 					<span className="text-xs text-text-subtlest">
 						Maintained by Ee Venn Soh
 					</span>
-				</div>
-			</div>
+				</footer>
+			</aside>
 		</>
 	);
 }

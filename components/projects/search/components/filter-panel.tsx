@@ -38,7 +38,8 @@ export default function FilterPanel({ selectedFilter, onFilterChange }: Readonly
 	return (
 		<div
 			style={{
-				width: "264px",
+				width: "100%",
+				maxWidth: "264px",
 				paddingTop: token("space.100"),
 				paddingBottom: token("space.100"),
 			}}

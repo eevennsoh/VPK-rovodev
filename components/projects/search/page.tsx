@@ -34,7 +34,7 @@ export default function SearchResultsView() {
 					borderBottom: `1px solid ${token("color.border")}`,
 				}}
 			>
-				<div style={{ width: "1104px", display: "flex", gap: token("space.100"), paddingLeft: "8px", paddingRight: "8px" }}>
+				<div className="flex w-full max-w-[1104px] flex-wrap gap-2 px-2">
 					{/* Filter icon button */}
 					<Button aria-label="Filter" size="icon" variant="ghost">
 						<FilterIcon label="" />
@@ -73,19 +73,13 @@ export default function SearchResultsView() {
 				}}
 			>
 				<div
-					style={{
-						width: "1104px",
-						paddingLeft: "8px",
-						paddingRight: "8px",
-						display: "flex",
-						gap: "64px",
-						paddingTop: token("space.200"),
-					}}
+					className="flex w-full max-w-[1104px] flex-col gap-6 px-2 xl:flex-row xl:gap-12"
+					style={{ paddingTop: token("space.200") }}
 				>
 					{/* Left Column - Results */}
 					<div
+						className="min-w-0 flex-1"
 						style={{
-							width: "768px",
 							paddingTop: token("space.100"),
 							paddingBottom: "20px",
 						}}
@@ -112,7 +106,9 @@ export default function SearchResultsView() {
 					</div>
 
 					{/* Right Column - Filters */}
-					<FilterPanel selectedFilter={selectedFilter} onFilterChange={setSelectedFilter} />
+					<div className="w-full shrink-0 xl:w-[264px]">
+						<FilterPanel selectedFilter={selectedFilter} onFilterChange={setSelectedFilter} />
+					</div>
 				</div>
 			</div>
 		</div>
