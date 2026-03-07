@@ -88,8 +88,24 @@
 	}
 }
 
-/* Responsive margin for main content based on sidebar state (design system layout).
-   Kept outside @layer so Turbopack chunk ordering cannot drop specificity below resets. */
+@layer components {
+	/* Sonner headless mode still applies an outer focus-visible shadow on the wrapper <li>. */
+	/* Keep toast visuals controlled by the custom toast surface itself. */
+	[data-sonner-toast][data-styled="false"]:focus-visible {
+		box-shadow: none;
+	}
+}
+
+/* -----------------------------------------------------------------
+   Unlayered Overrides
+
+   Rules below are intentionally outside @layer. Turbopack may
+   reorder CSS chunks, which can cause @layer rules to lose
+   specificity against Tailwind's base resets. Keeping these
+   unlayered guarantees they always win regardless of chunk order.
+   ----------------------------------------------------------------- */
+
+/* Website sidebar layout — push main content to clear the fixed sidebar */
 @media (min-width: 768px) {
 	body:has(aside[data-sidebar-open="true"]) .website-main-content {
 		margin-left: 304px; /* 48px rail + 256px panel */
@@ -104,28 +120,11 @@
 	transition: margin-left 300ms ease-in-out;
 }
 
-@layer components {
-	/* Sonner headless mode still applies an outer focus-visible shadow on the wrapper <li>. */
-	/* Keep toast visuals controlled by the custom toast surface itself. */
-	[data-sonner-toast][data-styled="false"]:focus-visible {
-		box-shadow: none;
-	}
-}
-
-/*
- * ADS Logo dark-mode fix
- *
- * Some @atlaskit/logo SVGs ship with hardcoded fill="#101214" on <path> elements.
- * In dark mode the ADS wrapper sets `color` to a light value (e.g. #e2e3e4),
- * but the path-level fill attribute overrides inheritance.
- *
- * The `.ads-logo-inverse` class is only applied by the AtlassianLogo component
- * when actualTheme is "dark", so this rule never fires in light mode.
- *
- * Tile-style logos (Home, Goals, etc.) use CSS-variable fills like
- * var(--icon-color) and are unaffected — the `:not([fill^="var"])` selector
- * excludes them.
- */
+/* ADS Logo dark-mode fix — some @atlaskit/logo SVGs ship with hardcoded
+   fill="#101214" on <path> elements. In dark mode the wrapper sets `color`
+   to a light value, but the path-level fill overrides inheritance.
+   Only applied via `.ads-logo-inverse` when actualTheme is "dark".
+   Tile-style logos use CSS-variable fills and are excluded. */
 .ads-logo-inverse > [role="img"] > svg path:not([fill^="var"]) {
 	fill: currentColor;
 }
