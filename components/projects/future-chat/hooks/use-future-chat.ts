@@ -19,8 +19,10 @@ import {
 	deleteAllFutureChatThreads,
 	deleteFutureChatDocument,
 	deleteFutureChatThread,
+	getFutureChatBackendUnavailableUserMessage,
 	getFutureChatDocument,
 	getFutureChatThread,
+	isFutureChatBackendUnavailableError,
 	listFutureChatDocuments,
 	listFutureChatThreads,
 	listFutureChatVotes,
@@ -37,9 +39,11 @@ import {
 	type FutureChatVote,
 	createFutureChatId,
 } from "@/lib/future-chat-types";
+import { markLastFutureChatAssistantMessageInterrupted } from "@/lib/future-chat-interruptions";
 import {
 	getLatestDataPart,
 	getMessageText,
+	type RovoMessageInterruptionSource,
 	type RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
 import { API_ENDPOINTS } from "@/lib/api-config";
@@ -167,6 +171,24 @@ function buildArtifactContentFromMessage(message: RovoUIMessage): string {
 	}
 }
 
+const VOICE_MODE_CONTEXT = [
+	"The user is in voice mode — they are speaking to you and hearing your response read aloud.",
+	"Keep responses concise and conversational, suitable for text-to-speech.",
+	"Avoid heavy markdown formatting, bullet lists, and code blocks unless the user explicitly asks for them.",
+	"You have access to browser automation tools. When the user asks you to browse a website, use the available browser tools to navigate, take snapshots, interact with elements, and describe what you see.",
+].join(" ");
+
+function toFutureChatUserErrorMessage(error: unknown): string {
+	if (isFutureChatBackendUnavailableError(error)) {
+		return getFutureChatBackendUnavailableUserMessage();
+	}
+
+	return error instanceof Error ? error.message : String(error);
+}
+
+const EXPLICIT_CANCEL_DEBOUNCE_MS = 750;
+const ACTIVE_TURN_STOP_TIMEOUT_MS = 1_200;
+
 export interface FutureChatHookOptions {
 	embedded?: boolean;
 	initialThreadId?: string | null;
@@ -185,10 +207,15 @@ export interface FutureChatHookResult {
 	editMessage: (messageId: string, nextText: string) => Promise<void>;
 	editingMessageId: string | null;
 	inputError: string | null;
+	interruptActiveTurn: (options?: {
+		source: RovoMessageInterruptionSource;
+	}) => Promise<void>;
 	isArtifactOpen: boolean;
 	isStreaming: boolean;
+	isVoiceMode: boolean;
 	loadThread: (threadId: string) => Promise<void>;
 	messages: RovoUIMessage[];
+	openDocument: (documentId: string) => Promise<void>;
 	openArtifactFromMessage: (message: RovoUIMessage) => Promise<void>;
 	openNewChat: () => Promise<void>;
 	regenerateLatest: () => void;
@@ -209,6 +236,7 @@ export interface FutureChatHookResult {
 	stop: () => Promise<void>;
 	submitPrompt: (payload: { text: string; files: FileUIPart[] }) => Promise<void>;
 	suggestedPrompt: (text: string) => Promise<void>;
+	toggleVoiceMode: () => void;
 	streamingArtifact: FutureChatStreamingArtifact | null;
 	threads: FutureChatThread[];
 	threadVisibility: FutureChatVisibility;
@@ -229,7 +257,7 @@ export function useFutureChat({
 	const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
 	const [selectedModelId, setSelectedModelId] = useState(DEFAULT_FUTURE_CHAT_MODEL.id);
 	const [threadVisibility, setThreadVisibility] = useState<FutureChatVisibility>("private");
-	const [sidebarOpen, setSidebarOpen] = useState(false);
+	const [sidebarOpen, setSidebarOpen] = useState(() => !embedded);
 	const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 	const [artifactMode, setArtifactMode] = useState<"preview" | "edit">("preview");
 	const [artifactDraftContent, setArtifactDraftContent] = useState("");
@@ -237,6 +265,8 @@ export function useFutureChat({
 	const [votes, setVotes] = useState<Record<string, "up" | "down">>({});
 	const [inputError, setInputError] = useState<string | null>(null);
 	const [isLoadingThread, setIsLoadingThread] = useState(false);
+	const [isVoiceMode, setIsVoiceMode] = useState(false);
+	const toggleVoiceMode = useCallback(() => setIsVoiceMode((prev) => !prev), []);
 	const selectedModel = useMemo(() => {
 		return FUTURE_CHAT_MODELS.find((model) => model.id === selectedModelId) ?? DEFAULT_FUTURE_CHAT_MODEL;
 	}, [selectedModelId]);
@@ -251,6 +281,10 @@ export function useFutureChat({
 	const isHydratingThreadRef = useRef(false);
 	const activeDocumentRef = useRef<FutureChatDocument | null>(null);
 	const streamingArtifactRef = useRef<FutureChatStreamingArtifact | null>(null);
+	const isVoiceModeRef = useRef(isVoiceMode);
+	const statusRef = useRef<ChatStatus>("ready");
+	const interruptPromiseRef = useRef<Promise<void> | null>(null);
+	const lastExplicitCancelAtRef = useRef(0);
 
 	useEffect(() => {
 		activeDocumentRef.current = activeDocument;
@@ -259,6 +293,10 @@ export function useFutureChat({
 	useEffect(() => {
 		streamingArtifactRef.current = streamingArtifact;
 	}, [streamingArtifact]);
+
+	useEffect(() => {
+		isVoiceModeRef.current = isVoiceMode;
+	}, [isVoiceMode]);
 
 	const transport = useMemo(
 		() =>
@@ -271,12 +309,15 @@ export function useFutureChat({
 							? body.contextDescription.trim()
 							: null;
 
+					const resolvedContextDescription =
+						existingContextDescription ?? (isVoiceModeRef.current ? VOICE_MODE_CONTEXT : undefined);
+
 					return {
 						body: {
 							...(body ?? {}),
 							id: runtimeThreadId,
 							messages,
-							contextDescription: existingContextDescription ?? undefined,
+							contextDescription: resolvedContextDescription,
 							provider: selectedModel.provider,
 							model: selectedModel.id,
 							visibility: threadVisibility,
@@ -322,6 +363,11 @@ export function useFutureChat({
 			setArtifactDraftContent(getLatestDocumentContent(document));
 			setArtifactMode("preview");
 		} catch (error) {
+			if (isFutureChatBackendUnavailableError(error)) {
+				setInputError(getFutureChatBackendUnavailableUserMessage());
+				return;
+			}
+
 			console.error("[FutureChat] Failed to hydrate streamed artifact:", error);
 		}
 	}, []);
@@ -452,7 +498,7 @@ export function useFutureChat({
 				setArtifactDraftContent("");
 				setArtifactMode("preview");
 			}
-			setInputError(error.message);
+			setInputError(toFutureChatUserErrorMessage(error));
 		},
 		onFinish: ({ isAbort, isError }) => {
 			if (isAbort || isError) {
@@ -463,11 +509,26 @@ export function useFutureChat({
 
 	const isStreaming = status === "submitted" || status === "streaming";
 
+	useEffect(() => {
+		statusRef.current = status;
+	}, [status]);
+
 	const refreshThreads = useCallback(async () => {
 		try {
 			const nextThreads = await listFutureChatThreads();
 			setThreads(nextThreads);
+			setInputError((previousError) =>
+				previousError === getFutureChatBackendUnavailableUserMessage()
+					? null
+					: previousError,
+			);
 		} catch (error) {
+			if (isFutureChatBackendUnavailableError(error)) {
+				setThreads([]);
+				setInputError(getFutureChatBackendUnavailableUserMessage());
+				return;
+			}
+
 			console.error("[FutureChat] Failed to refresh threads:", error);
 		}
 	}, []);
@@ -521,7 +582,7 @@ export function useFutureChat({
 				hydrateThreadState(thread, nextDocuments, nextVotes);
 				setThreads((previousThreads) => upsertThreadRecord(previousThreads, thread));
 			} catch (error) {
-				setInputError(error instanceof Error ? error.message : String(error));
+				setInputError(toFutureChatUserErrorMessage(error));
 			} finally {
 				setIsLoadingThread(false);
 			}
@@ -640,39 +701,152 @@ export function useFutureChat({
 				return;
 			}
 
-			await ensureThread(trimmedText || files[0]?.filename || "New chat");
-			await sendMessage({
-				text: trimmedText,
-				files,
-			});
+			try {
+				await ensureThread(trimmedText || files[0]?.filename || "New chat");
+				await sendMessage({
+					text: trimmedText,
+					files,
+				});
+			} catch (error) {
+				setInputError(toFutureChatUserErrorMessage(error));
+				throw error;
+			}
 		},
 		[ensureThread, sendMessage],
 	);
 
 	const suggestedPrompt = useCallback(
 		async (text: string) => {
-			await submitPrompt({ text, files: [] });
+			try {
+				await submitPrompt({ text, files: [] });
+			} catch {
+				// submitPrompt already sets a user-visible error state.
+			}
 		},
 		[submitPrompt],
 	);
 
+	const requestExplicitCancel = useCallback(async () => {
+		const now = Date.now();
+		if (now - lastExplicitCancelAtRef.current < EXPLICIT_CANCEL_DEBOUNCE_MS) {
+			return;
+		}
+
+		lastExplicitCancelAtRef.current = now;
+
+		try {
+			await fetch(API_ENDPOINTS.CHAT_CANCEL, {
+				method: "POST",
+			});
+		} catch (error) {
+			console.warn("[FutureChat] Explicit cancel request failed:", error);
+		}
+	}, []);
+
+	const waitForActiveTurnToStop = useCallback(async () => {
+		const startedAt = Date.now();
+		while (
+			statusRef.current === "submitted" ||
+			statusRef.current === "streaming"
+		) {
+			if (Date.now() - startedAt > ACTIVE_TURN_STOP_TIMEOUT_MS) {
+				return false;
+			}
+			await new Promise<void>((resolve) => {
+				window.setTimeout(resolve, 25);
+			});
+		}
+		return true;
+	}, []);
+
+	const interruptActiveTurn = useCallback(
+		async ({
+			source = "user-stop",
+		}: {
+			source?: RovoMessageInterruptionSource;
+		} = {}) => {
+			if (interruptPromiseRef.current) {
+				return interruptPromiseRef.current;
+			}
+
+			const interruptPromise = (async () => {
+				const hadActiveTurn =
+					statusRef.current === "submitted" ||
+					statusRef.current === "streaming";
+
+				try {
+					if (hadActiveTurn) {
+						await Promise.allSettled([
+							stop(),
+							requestExplicitCancel(),
+						]);
+
+						const stoppedInTime = await waitForActiveTurnToStop();
+						if (!stoppedInTime) {
+							console.warn(
+								"[FutureChat] Proceeding after cancel timeout while interrupting active turn.",
+							);
+						}
+					}
+
+					const interruptedAt = new Date().toISOString();
+					let didMarkInterruptedReply = false;
+					setMessages((previousMessages) => {
+						const result = markLastFutureChatAssistantMessageInterrupted(
+							previousMessages,
+							{
+								interruptedAt,
+								source,
+							},
+						);
+						didMarkInterruptedReply = result.messageId !== null;
+						return didMarkInterruptedReply ? result.messages : previousMessages;
+					});
+
+					if (didMarkInterruptedReply) {
+						await new Promise<void>((resolve) => {
+							window.setTimeout(resolve, 0);
+						});
+					}
+				} catch (error) {
+					setInputError(toFutureChatUserErrorMessage(error));
+					throw error;
+				}
+			})().finally(() => {
+				interruptPromiseRef.current = null;
+			});
+
+			interruptPromiseRef.current = interruptPromise;
+			return interruptPromise;
+		},
+		[requestExplicitCancel, setMessages, stop, waitForActiveTurnToStop],
+	);
+
 	const deleteThread = useCallback(
 		async (threadId: string) => {
-			await deleteFutureChatThread(threadId);
-			setThreads((previousThreads) =>
-				previousThreads.filter((thread) => thread.id !== threadId),
-			);
-			if (activeThreadId === threadId) {
-				await openNewChat();
+			try {
+				await deleteFutureChatThread(threadId);
+				setThreads((previousThreads) =>
+					previousThreads.filter((thread) => thread.id !== threadId),
+				);
+				if (activeThreadId === threadId) {
+					await openNewChat();
+				}
+			} catch (error) {
+				setInputError(toFutureChatUserErrorMessage(error));
 			}
 		},
 		[activeThreadId, openNewChat],
 	);
 
 	const deleteAllThreads = useCallback(async () => {
-		await deleteAllFutureChatThreads();
-		setThreads([]);
-		await openNewChat();
+		try {
+			await deleteAllFutureChatThreads();
+			setThreads([]);
+			await openNewChat();
+		} catch (error) {
+			setInputError(toFutureChatUserErrorMessage(error));
+		}
 	}, [openNewChat]);
 
 	const voteOnMessage = useCallback(
@@ -681,20 +855,24 @@ export function useFutureChat({
 				return;
 			}
 
-			const vote = await setFutureChatVote({
-				threadId: activeThreadId,
-				messageId,
-				value,
-			});
-			setVotes((previousVotes) => {
-				const nextVotes = { ...previousVotes };
-				if (vote.value === "up" || vote.value === "down") {
-					nextVotes[messageId] = vote.value;
-				} else {
-					delete nextVotes[messageId];
-				}
-				return nextVotes;
-			});
+			try {
+				const vote = await setFutureChatVote({
+					threadId: activeThreadId,
+					messageId,
+					value,
+				});
+				setVotes((previousVotes) => {
+					const nextVotes = { ...previousVotes };
+					if (vote.value === "up" || vote.value === "down") {
+						nextVotes[messageId] = vote.value;
+					} else {
+						delete nextVotes[messageId];
+					}
+					return nextVotes;
+				});
+			} catch (error) {
+				setInputError(toFutureChatUserErrorMessage(error));
+			}
 		},
 		[activeThreadId],
 	);
@@ -706,28 +884,48 @@ export function useFutureChat({
 				return;
 			}
 
-			const threadId = await ensureThread("Artifact context");
-			const existingDocument = documents.find((document) => document.sourceMessageId === message.id);
+			try {
+				const threadId = await ensureThread("Artifact context");
+				const existingDocument = documents.find((document) => document.sourceMessageId === message.id);
+				if (existingDocument) {
+					setActiveDocumentId(existingDocument.id);
+					setArtifactMode("preview");
+					return;
+				}
+
+				const document = await saveFutureChatDocument({
+					threadId,
+					title: deriveThreadTitle(getMessageText(message) || "Artifact"),
+					kind: inferArtifactKind(message, content),
+					content,
+					sourceMessageId: message.id,
+				});
+				setDocuments((previousDocuments) => [document, ...previousDocuments]);
+				setActiveDocumentId(document.id);
+				setArtifactMode("preview");
+				setSelectedVersionId(document.versions.at(-1)?.id ?? null);
+				setArtifactDraftContent(getLatestDocumentContent(document));
+			} catch (error) {
+				setInputError(toFutureChatUserErrorMessage(error));
+			}
+		},
+		[documents, ensureThread],
+	);
+
+	const openDocument = useCallback(
+		async (documentId: string) => {
+			const existingDocument = documents.find((document) => document.id === documentId) ?? null;
 			if (existingDocument) {
 				setActiveDocumentId(existingDocument.id);
+				setSelectedVersionId(existingDocument.versions.at(-1)?.id ?? null);
+				setArtifactDraftContent(getLatestDocumentContent(existingDocument));
 				setArtifactMode("preview");
 				return;
 			}
 
-			const document = await saveFutureChatDocument({
-				threadId,
-				title: deriveThreadTitle(getMessageText(message) || "Artifact"),
-				kind: inferArtifactKind(message, content),
-				content,
-				sourceMessageId: message.id,
-			});
-			setDocuments((previousDocuments) => [document, ...previousDocuments]);
-			setActiveDocumentId(document.id);
-			setArtifactMode("preview");
-			setSelectedVersionId(document.versions.at(-1)?.id ?? null);
-			setArtifactDraftContent(getLatestDocumentContent(document));
+			await hydratePersistedArtifact(documentId);
 		},
-		[documents, ensureThread],
+		[documents, hydratePersistedArtifact],
 	);
 
 	const saveArtifactDraft = useCallback(async () => {
@@ -735,30 +933,38 @@ export function useFutureChat({
 			return;
 		}
 
-		const document = await saveFutureChatDocument({
-			documentId: activeDocumentId,
-			title: activeDocument?.title ?? "Artifact",
-			kind: activeDocument?.kind ?? "text",
-			content: artifactDraftContent,
-		});
-		setDocuments((previousDocuments) => {
-			const withoutPrevious = previousDocuments.filter((item) => item.id !== document.id);
-			return [document, ...withoutPrevious];
-		});
-		setSelectedVersionId(document.versions.at(-1)?.id ?? null);
-		setArtifactMode("preview");
+		try {
+			const document = await saveFutureChatDocument({
+				documentId: activeDocumentId,
+				title: activeDocument?.title ?? "Artifact",
+				kind: activeDocument?.kind ?? "text",
+				content: artifactDraftContent,
+			});
+			setDocuments((previousDocuments) => {
+				const withoutPrevious = previousDocuments.filter((item) => item.id !== document.id);
+				return [document, ...withoutPrevious];
+			});
+			setSelectedVersionId(document.versions.at(-1)?.id ?? null);
+			setArtifactMode("preview");
+		} catch (error) {
+			setInputError(toFutureChatUserErrorMessage(error));
+		}
 	}, [activeDocument, activeDocumentId, artifactDraftContent]);
 
 	const deleteDocument = useCallback(
 		async (documentId: string) => {
-			await deleteFutureChatDocument(documentId);
-			setDocuments((previousDocuments) =>
-				previousDocuments.filter((document) => document.id !== documentId),
-			);
-			if (activeDocumentId === documentId) {
-				setActiveDocumentId(null);
-				setSelectedVersionId(null);
-				setArtifactDraftContent("");
+			try {
+				await deleteFutureChatDocument(documentId);
+				setDocuments((previousDocuments) =>
+					previousDocuments.filter((document) => document.id !== documentId),
+				);
+				if (activeDocumentId === documentId) {
+					setActiveDocumentId(null);
+					setSelectedVersionId(null);
+					setArtifactDraftContent("");
+				}
+			} catch (error) {
+				setInputError(toFutureChatUserErrorMessage(error));
 			}
 		},
 		[activeDocumentId],
@@ -860,7 +1066,7 @@ export function useFutureChat({
 			})
 			.catch((error) => {
 				if (!cancelled) {
-					setInputError(error instanceof Error ? error.message : String(error));
+					setInputError(toFutureChatUserErrorMessage(error));
 				}
 			});
 
@@ -893,10 +1099,13 @@ export function useFutureChat({
 		editMessage,
 		editingMessageId,
 		inputError,
+		interruptActiveTurn,
 		isArtifactOpen: activeDocumentId !== null || streamingArtifact !== null,
 		isStreaming,
+		isVoiceMode,
 		loadThread,
 		messages,
+		openDocument,
 		openArtifactFromMessage,
 		openNewChat,
 		regenerateLatest,
@@ -917,6 +1126,7 @@ export function useFutureChat({
 		stop,
 		submitPrompt,
 		suggestedPrompt,
+		toggleVoiceMode,
 		streamingArtifact,
 		threads,
 		threadVisibility,

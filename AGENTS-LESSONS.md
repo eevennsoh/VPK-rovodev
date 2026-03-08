@@ -25,3 +25,8 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **What happened:** A demo avatar replacement initially updated only the primary `shadcn` face and introduced a new path under `public/avatar-human`, while other demo avatars still pointed at remote GitHub images.
 - **Why:** The implementation did not first inspect the existing local avatar catalog or follow the user's intent to keep demo avatars sourced from `public/avatar-user`.
 - **Rule:** When replacing demo avatar faces, inspect `public/avatar-user` first and convert the full demo set off remote avatar URLs in the same pass. Do not introduce a new avatar location unless the existing avatar catalog is actually insufficient.
+
+### 2026-03-08 - Respect env.local as the source of truth for configured models
+- **What happened:** The speech transcription helper hardcoded a default STT model in code even though `GOOGLE_STT_MODEL` was already defined in `.env.local`.
+- **Why:** The implementation mixed runtime fallback policy into a config-driven codepath instead of treating local env as authoritative.
+- **Rule:** When a model/provider is already configured in `.env.local`, do not hardcode a replacement default in code. Read the configured env value directly and fail loudly if the required env var is missing.

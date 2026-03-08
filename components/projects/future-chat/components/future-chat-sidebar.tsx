@@ -1,6 +1,7 @@
 "use client";
 
-import { isToday, isYesterday, subMonths, subWeeks } from "date-fns";
+import { formatDistanceToNowStrict, isToday, isYesterday, subMonths, subWeeks } from "date-fns";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -16,6 +17,7 @@ import {
 	SidebarGroupContent,
 	SidebarGroupLabel,
 	SidebarHeader,
+	SidebarSeparator,
 	SidebarMenu,
 	SidebarMenuAction,
 	SidebarMenuButton,
@@ -23,7 +25,12 @@ import {
 	useSidebar,
 } from "@/components/ui/sidebar";
 import type { FutureChatThread } from "@/lib/future-chat-types";
-import { MoreHorizontalIcon, MessageSquarePlusIcon, Trash2Icon } from "lucide-react";
+import {
+	ChevronRightIcon,
+	MoreHorizontalIcon,
+	MessageSquarePlusIcon,
+	Trash2Icon,
+} from "lucide-react";
 
 interface FutureChatSidebarProps {
 	activeThreadId: string | null;
@@ -89,14 +96,27 @@ function FutureChatSidebarItem({
 	return (
 		<SidebarMenuItem>
 			<SidebarMenuButton
+				className="h-auto min-h-12 items-start rounded-lg px-2.5 py-2.5"
 				isActive={isActive}
 				onClick={() => {
 					setOpenMobile(false);
 					void onSelectThread(thread.id);
 				}}
+				size="lg"
 				type="button"
 			>
-				<span>{thread.title}</span>
+				<div className="min-w-0 flex-1">
+					<div className="truncate text-sm leading-5">{thread.title}</div>
+					<div className="mt-1 flex items-center gap-1 text-[11px] text-sidebar-foreground/60">
+						<span>{formatDistanceToNowStrict(new Date(thread.updatedAt), { addSuffix: true })}</span>
+						{isActive ? (
+							<>
+								<span aria-hidden="true">•</span>
+								<span>Open</span>
+							</>
+						) : null}
+					</div>
+				</div>
 			</SidebarMenuButton>
 
 			<DropdownMenu modal={true}>
@@ -138,58 +158,57 @@ export function FutureChatSidebar({
 	const groups: Array<{ label: string; threads: FutureChatThread[] }> = [
 		{ label: "Today", threads: groupedThreads.today },
 		{ label: "Yesterday", threads: groupedThreads.yesterday },
-		{ label: "Last week", threads: groupedThreads.lastWeek },
-		{ label: "Last month", threads: groupedThreads.lastMonth },
+		{ label: "Last 7 days", threads: groupedThreads.lastWeek },
+		{ label: "Last 30 days", threads: groupedThreads.lastMonth },
 		{ label: "Older", threads: groupedThreads.older },
 	];
 
 	return (
-		<Sidebar className="group-data-[side=left]:border-r-0">
-			<SidebarHeader>
-				<SidebarMenu>
-					<div className="flex items-center justify-between">
-						<button
-							className="cursor-pointer rounded-md px-2 font-semibold text-lg transition-colors hover:bg-muted"
-							onClick={() => {
-								setOpenMobile(false);
-								void onNewChat();
-							}}
-							type="button"
-						>
-							Future Chat
-						</button>
-						<div className="flex flex-row gap-1">
-							<Button
-								aria-label="Delete all chats"
-								className="h-8 p-1 md:h-fit md:p-2"
-								onClick={() => void onDeleteAll()}
-								type="button"
-								variant="ghost"
-							>
-								<Trash2Icon className="size-4" />
-							</Button>
-							<Button
-								aria-label="New chat"
-								className="h-8 p-1 md:h-fit md:p-2"
-								onClick={() => {
-									setOpenMobile(false);
-									void onNewChat();
-								}}
-								type="button"
-								variant="ghost"
-							>
-								<MessageSquarePlusIcon className="size-4" />
-							</Button>
-						</div>
+		<Sidebar
+			aria-label="Future Chat threads"
+			className="group-data-[side=left]:border-r-0"
+			role="complementary"
+			variant="inset"
+		>
+			<SidebarHeader className="gap-3 border-border/70 border-b bg-sidebar/95 backdrop-blur">
+				<div className="flex items-center justify-between gap-3">
+					<div className="min-w-0">
+						<p className="font-medium text-sm">Future Chat</p>
+						<p className="truncate text-sidebar-foreground/60 text-xs">
+							Vercel-style shell on the existing VPK runtime
+						</p>
 					</div>
-				</SidebarMenu>
+					<Button
+						aria-label="Delete all chats"
+						className="size-8"
+						onClick={() => void onDeleteAll()}
+						size="icon-sm"
+						type="button"
+						variant="ghost"
+					>
+						<Trash2Icon className="size-4" />
+					</Button>
+				</div>
+
+				<Button
+					className="w-full justify-start"
+					onClick={() => {
+						setOpenMobile(false);
+						void onNewChat();
+					}}
+					type="button"
+					variant="outline"
+				>
+					<MessageSquarePlusIcon className="size-4" />
+					New chat
+				</Button>
 			</SidebarHeader>
 
-			<SidebarContent>
+			<SidebarContent className="bg-sidebar/60">
 				{threads.length === 0 ? (
 					<SidebarGroup>
 						<SidebarGroupContent>
-							<div className="flex w-full items-center justify-center px-2 text-center text-sidebar-foreground/60 text-sm">
+							<div className="rounded-lg border border-dashed border-sidebar-border/80 bg-sidebar-accent/20 px-3 py-4 text-center text-sidebar-foreground/60 text-sm">
 								Your conversations will appear here once you start chatting.
 							</div>
 						</SidebarGroupContent>
@@ -223,9 +242,26 @@ export function FutureChatSidebar({
 			</SidebarContent>
 
 			<SidebarFooter>
-				<div className="px-2 text-sidebar-foreground/50 text-xs">
-					Local prototype history
+				<SidebarSeparator />
+				<div className="rounded-lg bg-sidebar-accent/30 px-2.5 py-2 text-sidebar-foreground/70 text-xs">
+					File-backed local history with thread, vote, and artifact persistence.
 				</div>
+				<Button
+					className="justify-between"
+					nativeButton={false}
+					render={(
+						<Link
+							href="https://github.com/vercel/chatbot"
+							rel="noreferrer"
+							target="_blank"
+						/>
+					)}
+					type="button"
+					variant="ghost"
+				>
+					View source inspiration
+					<ChevronRightIcon className="size-4" />
+				</Button>
 			</SidebarFooter>
 		</Sidebar>
 	);

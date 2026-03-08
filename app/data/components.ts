@@ -322,7 +322,7 @@ export const PROJECT_COMPONENTS: ComponentEntry[] = [
 ] as const;
 
 export const UTILITY_COMPONENTS: ComponentEntry[] = [
-	utilityComponent("agent-browser", "Agent Browser"),
+	{ name: "Agent Browser", slug: "agent-browser", importPath: "@/components/website/demos/utils/agent-browser", category: "utility", detail: UTILITY_DETAILS["agent-browser"] },
 	utilityComponent("gui", "GUI"),
 	utilityComponent("image-generation", "Image Generation"),
 	utilityComponent("multiports", "Multiports"),

@@ -1110,6 +1110,7 @@ const UI_AI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"web-preview-demo-with-console": dynamic(() => import("./demos/ui-ai/web-preview-demo").then((mod) => ({ default: mod.WebPreviewDemoWithConsole })), { ssr: false }),
 	"web-preview-demo-fullscreen": dynamic(() => import("./demos/ui-ai/web-preview-demo").then((mod) => ({ default: mod.WebPreviewDemoFullscreen })), { ssr: false }),
 	"web-preview-demo-url-change": dynamic(() => import("./demos/ui-ai/web-preview-demo").then((mod) => ({ default: mod.WebPreviewDemoUrlChange })), { ssr: false }),
+	"web-preview-demo-proxy": dynamic(() => import("./demos/ui-ai/web-preview-demo").then((mod) => ({ default: mod.WebPreviewDemoProxy })), { ssr: false }),
 };
 
 const BLOCK_DEMOS: Record<string, ComponentType> = {
@@ -1284,7 +1285,7 @@ export function getChartDemoComponent(slug: string): ComponentType | null {
 }
 
 const UTILITY_DEMOS: Record<string, ComponentType> = {
-	"agent-browser": dynamic(() => import("./demos/utils/agent-browser-demo"), { ssr: false }),
+	"agent-browser": dynamic(() => import("./demos/utils/agent-browser"), { ssr: false }),
 	gui: dynamic(() => import("./demos/utils/gui-demo"), { ssr: false }),
 	"image-generation": dynamic(() => import("./demos/utils/image-generation-demo"), { ssr: false }),
 	multiports: dynamic(() => import("./demos/utils/multiports-demo"), { ssr: false }),

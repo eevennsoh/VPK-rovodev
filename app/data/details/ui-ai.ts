@@ -3454,6 +3454,12 @@ import { Button } from "@/components/ui/button";
 				description: "Initial URL loaded in the preview iframe.",
 			},
 			{
+				name: "proxy",
+				type: "boolean",
+				default: "false",
+				description: "When true, external URLs are fetched through a server-side proxy that strips frame-blocking headers, allowing sites like theverge.com to load in the iframe.",
+			},
+			{
 				name: "onUrlChange",
 				type: "(url: string) => void",
 				description: "Callback fired when the URL changes via the URL bar (Enter key).",
@@ -3489,8 +3495,9 @@ import { Button } from "@/components/ui/button";
 		],
 		examples: [
 			{ title: "With console", description: "Preview with collapsible console showing log, warn, and error entries.", demoSlug: "web-preview-demo-with-console" },
-			{ title: "With extra actions", description: "Navigation bar with an additional fullscreen button.", demoSlug: "web-preview-demo-fullscreen" },
+			{ title: "With extra actions", description: "Navigation bar with select, open in new tab, and maximize buttons.", demoSlug: "web-preview-demo-fullscreen" },
 			{ title: "URL change callback", description: "Tracks URL changes via onUrlChange callback.", demoSlug: "web-preview-demo-url-change" },
+			{ title: "With proxy", description: "Server-side proxy to load external websites that block iframe embedding.", demoSlug: "web-preview-demo-proxy" },
 		],
 	},
 };

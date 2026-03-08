@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { GenerativeWidgetCard } from "@/components/projects/shared/components/generative-widget-card";
 import LoadingWidget from "@/components/projects/shared/components/loading-widget";
 import {
+	getMessageInterruption,
 	getLatestDataPart,
 	getMessageReasoning,
 	getMessageSources,
@@ -52,6 +53,41 @@ interface FutureChatMessagesProps {
 	onSetEditingMessageId: (messageId: string | null) => void;
 	onVote: (messageId: string, value: "up" | "down" | null) => Promise<void>;
 	votes: Record<string, "up" | "down">;
+}
+
+const FUTURE_CHAT_ARTIFACT_INTENT_LEAK_FALLBACK =
+	"I had an internal routing issue while generating that response. Please try again.";
+
+function sanitizeFutureChatAssistantText(rawText: string): string {
+	const trimmedText = rawText.trim();
+	if (!trimmedText.startsWith("{") || !trimmedText.endsWith("}")) {
+		return rawText;
+	}
+
+	try {
+		const parsed = JSON.parse(trimmedText) as {
+			action?: unknown;
+			title?: unknown;
+			kind?: unknown;
+		};
+		const allowedActions = new Set(["chat", "createDocument", "updateDocument"]);
+		const isArtifactIntentPayload =
+			typeof parsed === "object" &&
+			parsed !== null &&
+			allowedActions.has(String(parsed.action)) &&
+			(parsed.title === null || typeof parsed.title === "string") &&
+			(parsed.kind === null ||
+				parsed.kind === "text" ||
+				parsed.kind === "code" ||
+				parsed.kind === "image" ||
+				parsed.kind === "sheet");
+
+		return isArtifactIntentPayload
+			? FUTURE_CHAT_ARTIFACT_INTENT_LEAK_FALLBACK
+			: rawText;
+	} catch {
+		return rawText;
+	}
 }
 
 function UserMessage({
@@ -86,12 +122,12 @@ function UserMessage({
 				>
 					{attachments.length > 0 ? (
 						<Attachments className="justify-end" variant="grid">
-							{attachments.map((attachment, index) => (
+							{attachments.map((attachment) => (
 								<Attachment
-									key={`${message.id}-attachment-${index}`}
+									key={`${message.id}-${attachment.url}-${attachment.filename ?? "attachment"}`}
 									data={{
 										...attachment,
-										id: `${message.id}-attachment-${index}`,
+										id: `${message.id}-${attachment.url}-${attachment.filename ?? "attachment"}`,
 									}}
 								>
 									<AttachmentPreview />
@@ -128,15 +164,14 @@ function UserMessage({
 					) : (
 						<>
 							<div
-								className="w-fit rounded-2xl px-3 py-2 text-white shadow-sm"
-								style={{ backgroundColor: "#006cff" }}
+								className="ml-auto min-w-20 w-fit rounded-[22px] border border-primary bg-primary px-4 py-3 text-primary-foreground shadow-sm"
 							>
-								<MessageResponse className="text-inherit [&_*]:text-inherit">
+								<MessageResponse className="font-medium text-inherit [&_*]:text-inherit">
 									{getMessageText(message)}
 								</MessageResponse>
 							</div>
 
-							<div className="flex justify-end gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover/message:opacity-100">
+							<div className="flex justify-end gap-1 text-text-subtle opacity-100 transition-opacity md:opacity-0 md:group-hover/message:opacity-100">
 								<Button
 									aria-label="Copy message"
 									onClick={() => void navigator.clipboard.writeText(getMessageText(message))}
@@ -183,7 +218,8 @@ function AssistantMessage({
 	onVote: (messageId: string, value: "up" | "down" | null) => Promise<void>;
 	voteValue?: "up" | "down";
 }>) {
-	const text = getMessageText(message);
+	const interruption = getMessageInterruption(message);
+	const text = sanitizeFutureChatAssistantText(getMessageText(message));
 	const reasoning = getMessageReasoning(message);
 	const widget = getLatestDataPart(message, "data-widget-data");
 	const widgetLoading = getLatestDataPart(message, "data-widget-loading");
@@ -199,7 +235,7 @@ function AssistantMessage({
 			data-testid="message-assistant"
 		>
 			<div className="flex w-full items-start gap-2 md:gap-3">
-				<div className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-border">
+				<div className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface-raised text-text-subtle">
 					<SparklesIcon className="size-4" />
 				</div>
 
@@ -221,7 +257,7 @@ function AssistantMessage({
 					) : null}
 
 					{widget ? (
-						<div className="max-w-[min(100%,520px)]">
+						<div className="max-w-[min(100%,560px)]">
 							<GenerativeWidgetCard
 								widgetData={widget.data.payload}
 								widgetType={widget.data.type ?? "message"}
@@ -230,25 +266,31 @@ function AssistantMessage({
 					) : null}
 
 					{widgetError ? (
-						<div className="rounded-lg border border-danger bg-danger/5 px-3 py-2 text-danger text-sm">
+						<div className="rounded-xl border border-danger bg-danger/5 px-3 py-2 text-danger text-sm">
 							{widgetError.data.message}
 						</div>
 					) : null}
 
 					{text ? (
-						<div className="min-w-0">
+						<div className="min-w-0 max-w-3xl">
 							<MessageResponse isAnimating={isStreaming && isLastAssistant}>
 								{text}
 							</MessageResponse>
 						</div>
 					) : null}
 
+					{interruption ? (
+						<div className="inline-flex w-fit items-center rounded-full border border-border-warning/40 bg-bg-warning-subtler px-2.5 py-1 text-text-warning-bolder text-xs">
+							Interrupted
+						</div>
+					) : null}
+
 					{sources.length > 0 ? (
 						<div className="flex flex-wrap gap-2">
-							{sources.map((source, index) => (
+							{sources.map((source) => (
 								source.type === "source-url" && source.url ? (
 									<Button
-										key={`${message.id}-source-${index}`}
+										key={`${message.id}-${source.url}`}
 										nativeButton={false}
 										render={(
 											<a
@@ -265,7 +307,7 @@ function AssistantMessage({
 									</Button>
 								) : (
 									<Button
-										key={`${message.id}-source-${index}`}
+										key={`${message.id}-${source.title ?? "source"}`}
 										size="sm"
 										type="button"
 										variant="outline"
@@ -281,7 +323,7 @@ function AssistantMessage({
 						<div className="grid w-full gap-2 sm:grid-cols-2">
 							{suggestions.map((suggestion) => (
 								<Button
-									className="h-auto justify-start whitespace-normal px-3 py-2 text-left"
+									className="h-auto justify-start whitespace-normal rounded-2xl border-border bg-surface px-3 py-2 text-left text-text shadow-none hover:bg-surface-hovered"
 									key={`${message.id}-${suggestion}`}
 									onClick={() => void onSelectSuggestion(suggestion)}
 									type="button"
@@ -293,7 +335,7 @@ function AssistantMessage({
 						</div>
 					) : null}
 
-					<div className="flex flex-wrap items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover/message:opacity-100">
+					<div className="flex flex-wrap items-center gap-1 text-text-subtle opacity-100 transition-opacity md:opacity-0 md:group-hover/message:opacity-100">
 						<Button
 							aria-label="Copy response"
 							onClick={() => void navigator.clipboard.writeText(text)}
@@ -359,10 +401,10 @@ function ThinkingMessage() {
 	return (
 		<div className="w-full">
 			<div className="flex items-start gap-2 md:gap-3">
-				<div className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-border">
+				<div className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface-raised text-text-subtle">
 					<SparklesIcon className="size-4" />
 				</div>
-				<div className="flex h-8 items-center gap-1">
+				<div className="flex h-8 items-center gap-1 text-text-subtle">
 					<span className="size-2 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:-200ms]" />
 					<span className="size-2 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:-100ms]" />
 					<span className="size-2 animate-pulse rounded-full bg-muted-foreground/60" />
@@ -415,14 +457,21 @@ export function FutureChatMessages({
 						)}
 						key="overview"
 					>
-						<div className="animate-in slide-in-from-bottom-1 fade-in-0 font-semibold text-xl duration-300 md:text-2xl">
-							Hello there!
+						<div className="animate-in slide-in-from-bottom-1 fade-in-0">
+							<div className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-text-subtle text-xs">
+								Future Chat
+								<span aria-hidden="true">•</span>
+								Vercel-style UI
+							</div>
 						</div>
-						<div className="animate-in slide-in-from-bottom-1 fade-in-0 text-muted-foreground text-xl duration-300 md:text-2xl">
-							How can I help you today?
+						<h1 className="animate-in slide-in-from-bottom-1 fade-in-0 mt-5 max-w-2xl font-semibold text-3xl leading-tight tracking-tight duration-300 md:text-5xl">
+							Ask for an answer, then turn it into a living artifact.
+						</h1>
+						<div className="animate-in slide-in-from-bottom-1 fade-in-0 mt-3 max-w-2xl text-text-subtle text-base duration-300 md:text-lg">
+							This surface keeps the existing VPK backend, streaming, and local persistence, but adopts a tighter Vercel-chatbot interaction model.
 						</div>
 						{activeThreadId ? (
-							<p className="animate-in slide-in-from-bottom-1 fade-in-0 mt-3 max-w-xl text-muted-foreground text-sm duration-300">
+							<p className="animate-in slide-in-from-bottom-1 fade-in-0 mt-4 max-w-xl text-text-subtle text-sm duration-300">
 								{activeThreadTitle
 									? `This conversation is empty so far. Continue "${activeThreadTitle}" below.`
 									: "This conversation is empty so far. Continue it below."}

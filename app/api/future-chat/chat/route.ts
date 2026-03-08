@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
 			path: "/api/future-chat/chat",
 			body,
 			expectEventStream: true,
+			signal: request.signal,
 		});
 	} catch (error) {
 		console.error("Future Chat proxy error:", error);

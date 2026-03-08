@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
 	WebPreview,
 	WebPreviewNavigation,
@@ -9,13 +9,19 @@ import {
 	WebPreviewBody,
 	WebPreviewConsole,
 } from "@/components/ui-ai/web-preview";
-import { ArrowLeft, ArrowRight, RotateCw, Maximize2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, Maximize2, MousePointerClick, RotateCw } from "lucide-react";
 
-const EXAMPLE_URL = "https://example.com";
+const EXAMPLE_URL = "https://www.theverge.com";
+
+const SAMPLE_LOGS = [
+	{ level: "log" as const, message: "Page loaded successfully", timestamp: new Date("2025-01-15T10:30:00") },
+	{ level: "warn" as const, message: "Deprecated API usage detected", timestamp: new Date("2025-01-15T10:30:02") },
+	{ level: "error" as const, message: "Failed to fetch resource: 404 Not Found", timestamp: new Date("2025-01-15T10:30:04") },
+];
 
 export function WebPreviewDemoBasic() {
 	return (
-		<WebPreview defaultUrl={EXAMPLE_URL} className="h-[400px]">
+		<WebPreview proxy defaultUrl={EXAMPLE_URL} className="h-[400px]">
 			<WebPreviewNavigation>
 				<WebPreviewNavigationButton tooltip="Back" disabled>
 					<ArrowLeft className="size-4" />
@@ -33,15 +39,9 @@ export function WebPreviewDemoBasic() {
 	);
 }
 
-const SAMPLE_LOGS = [
-	{ level: "log" as const, message: "Page loaded successfully", timestamp: new Date("2025-01-15T10:30:00") },
-	{ level: "warn" as const, message: "Deprecated API usage detected", timestamp: new Date("2025-01-15T10:30:02") },
-	{ level: "error" as const, message: "Failed to fetch resource: 404 Not Found", timestamp: new Date("2025-01-15T10:30:04") },
-];
-
 export function WebPreviewDemoWithConsole() {
 	return (
-		<WebPreview defaultUrl={EXAMPLE_URL} className="h-[400px]">
+		<WebPreview proxy defaultUrl={EXAMPLE_URL} className="h-[400px]">
 			<WebPreviewNavigation>
 				<WebPreviewNavigationButton tooltip="Back" disabled>
 					<ArrowLeft className="size-4" />
@@ -61,8 +61,15 @@ export function WebPreviewDemoWithConsole() {
 }
 
 export function WebPreviewDemoFullscreen() {
+	const [_fullscreen, setFullscreen] = useState(false);
+
+	const handleToggleFullscreen = useCallback(
+		() => setFullscreen((prev) => !prev),
+		[]
+	);
+
 	return (
-		<WebPreview defaultUrl={EXAMPLE_URL} className="h-[400px]">
+		<WebPreview proxy defaultUrl={EXAMPLE_URL} className="h-[400px]">
 			<WebPreviewNavigation>
 				<WebPreviewNavigationButton tooltip="Back" disabled>
 					<ArrowLeft className="size-4" />
@@ -74,7 +81,13 @@ export function WebPreviewDemoFullscreen() {
 					<RotateCw className="size-4" />
 				</WebPreviewNavigationButton>
 				<WebPreviewUrl />
-				<WebPreviewNavigationButton tooltip="Full screen">
+				<WebPreviewNavigationButton tooltip="Select">
+					<MousePointerClick className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewNavigationButton tooltip="Open in new tab">
+					<ExternalLink className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewNavigationButton tooltip="Maximize" onClick={handleToggleFullscreen}>
 					<Maximize2 className="size-4" />
 				</WebPreviewNavigationButton>
 			</WebPreviewNavigation>
@@ -91,7 +104,7 @@ export function WebPreviewDemoUrlChange() {
 			<div className="text-sm text-muted-foreground">
 				Last navigated URL: <code className="rounded bg-muted px-1 py-0.5">{lastUrl}</code>
 			</div>
-			<WebPreview defaultUrl={EXAMPLE_URL} onUrlChange={setLastUrl} className="h-[400px]">
+			<WebPreview proxy defaultUrl={EXAMPLE_URL} onUrlChange={setLastUrl} className="h-[400px]">
 				<WebPreviewNavigation>
 					<WebPreviewNavigationButton tooltip="Back" disabled>
 						<ArrowLeft className="size-4" />
@@ -110,6 +123,59 @@ export function WebPreviewDemoUrlChange() {
 	);
 }
 
+export function WebPreviewDemoProxy() {
+	return (
+		<WebPreview proxy defaultUrl="https://www.theverge.com" className="h-[400px]">
+			<WebPreviewNavigation>
+				<WebPreviewNavigationButton tooltip="Back" disabled>
+					<ArrowLeft className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewNavigationButton tooltip="Forward" disabled>
+					<ArrowRight className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewNavigationButton tooltip="Reload">
+					<RotateCw className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewUrl />
+			</WebPreviewNavigation>
+			<WebPreviewBody />
+		</WebPreview>
+	);
+}
+
 export default function WebPreviewDemo() {
-	return <WebPreviewDemoBasic />;
+	const [_fullscreen, setFullscreen] = useState(false);
+
+	const handleToggleFullscreen = useCallback(
+		() => setFullscreen((prev) => !prev),
+		[]
+	);
+
+	return (
+		<WebPreview proxy defaultUrl="/" onUrlChange={(url) => console.log("URL changed to:", url)} className="h-[400px]">
+			<WebPreviewNavigation>
+				<WebPreviewNavigationButton tooltip="Go back" disabled>
+					<ArrowLeft className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewNavigationButton tooltip="Go forward" disabled>
+					<ArrowRight className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewNavigationButton tooltip="Reload">
+					<RotateCw className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewUrl />
+				<WebPreviewNavigationButton tooltip="Select">
+					<MousePointerClick className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewNavigationButton tooltip="Open in new tab">
+					<ExternalLink className="size-4" />
+				</WebPreviewNavigationButton>
+				<WebPreviewNavigationButton tooltip="Maximize" onClick={handleToggleFullscreen}>
+					<Maximize2 className="size-4" />
+				</WebPreviewNavigationButton>
+			</WebPreviewNavigation>
+			<WebPreviewBody />
+			<WebPreviewConsole logs={SAMPLE_LOGS} />
+		</WebPreview>
+	);
 }

@@ -15,20 +15,19 @@ const cors = require("cors");
 const path = require("path");
 const { Readable } = require("node:stream");
 const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
-const { createRunManager } = require("./lib/plan-runs");
 const { createRunManager: createMakeRunManager } = require("./make/make-runs");
 const { createThreadManager } = require("./lib/chat");
 const { createFutureChatThreadManager } = require("./lib/future-chat-threads");
 const { createFutureChatVoteManager } = require("./lib/future-chat-votes");
 const { createFutureChatDocumentManager } = require("./lib/future-chat-documents");
 const { createFutureChatUploadManager } = require("./lib/future-chat-uploads");
+const { createAbortControllerFromRequest } = require("./lib/http-request-abort");
 const {
 	buildFutureChatArtifactIntentPrompt,
 	fallbackFutureChatArtifactIntent,
 	normalizeArtifactKind,
 	parseFutureChatArtifactIntent,
 } = require("./lib/future-chat-artifact-intent");
-const planFs = require("./lib/plan-filesystem");
 const makeFs = require("./make/make-filesystem");
 const { createAppRegistry } = require("./make/make-app-registry");
 const { createForgePublishManager } = require("./make/make-forge-publish");
@@ -107,6 +106,7 @@ const {
 	streamGoogleGatewayManualSse,
 } = require("./lib/ai-gateway-helpers");
 const { synthesizeSound } = require("./lib/sound-generation");
+const { transcribeAudio } = require("./lib/speech-transcription");
 const { generateStandupSummary } = require("./lib/standup-summary");
 const { classifyTickets } = require("./lib/ticket-classifier");
 const {
@@ -794,6 +794,96 @@ async function generateTextViaGateway({
 	}
 }
 
+function buildRovoDevTextGenerationMessage({ system, prompt }) {
+	let fullMessage = "";
+	if (system) {
+		fullMessage += `[System Instructions]\n${system}\n[End System Instructions]\n\n`;
+	}
+	fullMessage += prompt;
+	return fullMessage;
+}
+
+async function streamTextViaGateway({
+	system,
+	prompt,
+	messages,
+	maxOutputTokens = 2000,
+	temperature = 0.4,
+	provider,
+	gatewayUrl,
+	signal,
+	allowFallback = false,
+	portIndex,
+	onTextDelta,
+}) {
+	const backendSelection = await resolvePreferredBackend({ allowFallback });
+	let bufferedText = "";
+	const handleTextDelta = (delta) => {
+		if (typeof delta !== "string" || delta.length === 0) {
+			return;
+		}
+
+		bufferedText += delta;
+		if (typeof onTextDelta === "function") {
+			onTextDelta(delta);
+		}
+	};
+
+	if (backendSelection.backend === "rovodev") {
+		debugLog("STREAM_GENERATE", "Routing through RovoDev Serve");
+		try {
+			await streamViaRovoDev({
+				message: buildRovoDevTextGenerationMessage({ system, prompt }),
+				onTextDelta: handleTextDelta,
+				conflictPolicy: "wait-for-turn",
+				timeoutMs: WAIT_FOR_TURN_TIMEOUT_MS,
+				signal,
+				portIndex,
+			});
+			return bufferedText.trim();
+		} catch (rovoDevError) {
+			const is409Timeout =
+				rovoDevError?.code === "ROVODEV_CHAT_IN_PROGRESS_TIMEOUT" ||
+				isChatInProgressError(rovoDevError);
+			const canFallback =
+				is409Timeout &&
+				allowFallback &&
+				isAIGatewayFallbackEnabled() &&
+				hasGatewayUrlConfigured();
+			if (!canFallback) {
+				throw rovoDevError;
+			}
+			console.warn(
+				"[streamTextViaGateway] RovoDev 409 timeout — falling back to AI Gateway"
+			);
+		}
+	}
+
+	if (backendSelection.backend !== "ai-gateway" && backendSelection.backend !== "rovodev") {
+		throw createRovoDevUnavailableError();
+	}
+	if (!allowFallback) {
+		throw createRovoDevUnavailableError();
+	}
+
+	debugLog("STREAM_GENERATE", "Routing through AI Gateway fallback");
+	try {
+		return await aiGatewayProvider.streamText({
+			system,
+			prompt,
+			messages,
+			maxOutputTokens,
+			temperature,
+			provider,
+			gatewayUrl,
+			signal,
+			onTextDelta: handleTextDelta,
+		});
+	} catch (error) {
+		throw normalizeAIGatewayError(error);
+	}
+}
+
 function extractTextFromUiParts(parts) {
 	if (!Array.isArray(parts)) {
 		return "";
@@ -1194,16 +1284,6 @@ function buildSmartClarificationSessionId({ planRequestId, surface }) {
 	return `smart-${safeSurface}-${createClarificationSessionId()}`;
 }
 
-const planConfigManager = planFs.createConfigManagerCompat();
-
-const planRunManager = createRunManager({
-	baseDir: path.join(__dirname, "data"),
-	buildSystemPrompt: null, // Not used in RovoDev-only mode
-	configManager: planConfigManager,
-	logger: console,
-	isRovoDevAvailable,
-	isAIGatewayFallbackEnabled: () => false,
-});
 
 const chatThreadManager = createThreadManager({
 	baseDir: path.join(__dirname, "data"),
@@ -1374,33 +1454,6 @@ function buildFutureChatInternalUrl(req, pathname) {
 	return `${protocol}://${host}${pathname}`;
 }
 
-function chunkFutureChatArtifactText(value, maxChunkLength = 140) {
-	if (typeof value !== "string" || value.length === 0) {
-		return [];
-	}
-
-	const chunks = [];
-	let remaining = value;
-	while (remaining.length > maxChunkLength) {
-		let splitIndex = remaining.lastIndexOf("\n\n", maxChunkLength);
-		if (splitIndex < 0) {
-			splitIndex = remaining.lastIndexOf(" ", maxChunkLength);
-		}
-		if (splitIndex < maxChunkLength * 0.4) {
-			splitIndex = maxChunkLength;
-		}
-
-		chunks.push(remaining.slice(0, splitIndex));
-		remaining = remaining.slice(splitIndex);
-	}
-
-	if (remaining.length > 0) {
-		chunks.push(remaining);
-	}
-
-	return chunks;
-}
-
 function buildFutureChatArtifactSystemPrompt({
 	mode,
 	title,
@@ -1442,6 +1495,7 @@ async function generateFutureChatArtifactText({
 	contextDescription,
 	provider,
 	signal,
+	onTextDelta,
 }) {
 	const system = buildFutureChatArtifactSystemPrompt({
 		mode,
@@ -1464,7 +1518,7 @@ async function generateFutureChatArtifactText({
 		try {
 			if (candidateProvider === getNonEmptyString(provider)) {
 				try {
-					return await generateTextViaGateway({
+					return await streamTextViaGateway({
 						system,
 						prompt,
 						messages: normalizedMessages,
@@ -1473,6 +1527,7 @@ async function generateFutureChatArtifactText({
 						provider: candidateProvider,
 						signal,
 						allowFallback: true,
+						onTextDelta,
 					});
 				} catch (error) {
 					const errorMessage =
@@ -1492,7 +1547,7 @@ async function generateFutureChatArtifactText({
 					}
 
 					try {
-						return await generateTextViaGateway({
+						return await streamTextViaGateway({
 							system,
 							prompt,
 							messages: normalizedMessages,
@@ -1501,6 +1556,7 @@ async function generateFutureChatArtifactText({
 							provider: candidateProvider,
 							signal,
 							allowFallback: false,
+							onTextDelta,
 						});
 					} catch (retryError) {
 						console.warn(
@@ -1511,7 +1567,7 @@ async function generateFutureChatArtifactText({
 				}
 			}
 
-			return await aiGatewayProvider.generateText({
+			return await aiGatewayProvider.streamText({
 				system,
 				prompt,
 				messages: normalizedMessages,
@@ -1519,6 +1575,7 @@ async function generateFutureChatArtifactText({
 				temperature: 0.35,
 				provider: candidateProvider,
 				signal,
+				onTextDelta,
 			});
 		} catch (error) {
 			lastError = error;
@@ -1593,6 +1650,34 @@ function deriveFutureChatArtifactTitle({
 	return getNonEmptyString(activeArtifact?.title) || "Artifact draft";
 }
 
+function resolveFutureChatArtifactKind({
+	action,
+	activeArtifact,
+	decisionKind,
+	latestUserMessage,
+}) {
+	const normalizedKind =
+		action === "updateDocument"
+			? normalizeArtifactKind(decisionKind || activeArtifact?.kind)
+			: normalizeArtifactKind(decisionKind);
+
+	const normalizedMessage = getNonEmptyString(latestUserMessage)?.toLowerCase() || "";
+	const hasDocumentCue =
+		/\b(plan|brief|proposal|spec|summary|memo|report|essay|article|prd|document)\b/.test(
+			normalizedMessage,
+		);
+	const hasCodeCue =
+		/\b(code|component|tsx|jsx|react|javascript|typescript|python|sql|api|function|script)\b/.test(
+			normalizedMessage,
+		);
+
+	if (normalizedKind === "code" && hasDocumentCue && !hasCodeCue) {
+		return "text";
+	}
+
+	return normalizedKind;
+}
+
 async function resolveFutureChatArtifactDecision({
 	activeArtifact,
 	conversationHistory,
@@ -1609,6 +1694,16 @@ async function resolveFutureChatArtifactDecision({
 		activeArtifact,
 		latestUserMessage,
 	});
+	const normalizedLatestUserMessage = getNonEmptyString(latestUserMessage) || "";
+	const hasExplicitArtifactCommand =
+		fallbackDecision.action !== "chat" &&
+		/\b(write|draft|create|build|generate|make|compose|outline|summari[sz]e|plan|design|implement|refactor|turn|convert|update|edit|revise|rewrite|shorten|expand|polish|refine|change|format|improve|fix)\b/i.test(
+			normalizedLatestUserMessage,
+		);
+
+	if (hasExplicitArtifactCommand) {
+		return fallbackDecision;
+	}
 
 	try {
 		const rawDecision = await generateTextViaGateway({
@@ -1648,8 +1743,12 @@ async function resolveFutureChatArtifactDecision({
 function streamFutureChatArtifactToolResponse({
 	artifactAction,
 	artifactDocument,
-	assistantText,
+	contextDescription,
+	conversationHistory,
+	latestUserMessage,
+	provider,
 	res,
+	signal,
 	suggestedQuestions,
 }) {
 	const stream = createUIMessageStream({
@@ -1686,11 +1785,43 @@ function streamFutureChatArtifactToolResponse({
 			});
 
 			const deltaType = deriveFutureChatArtifactDeltaType(artifactDocument.kind);
-			for (const chunk of chunkFutureChatArtifactText(assistantText)) {
-				writer.write({
-					type: deltaType,
-					data: chunk,
-					transient: true,
+			const streamedChunks = [];
+			const assistantText = await generateFutureChatArtifactText({
+				mode: artifactAction === "updateDocument" ? "update" : "create",
+				title: artifactDocument.title,
+				kind: artifactDocument.kind,
+				latestUserMessage,
+				conversationHistory,
+				contextDescription,
+				provider,
+				signal,
+				onTextDelta: (delta) => {
+					streamedChunks.push(delta);
+					writer.write({
+						type: deltaType,
+						data: delta,
+						transient: true,
+					});
+				},
+			});
+
+			const normalizedAssistantText =
+				typeof assistantText === "string" ? assistantText.trim() : "";
+			if (!normalizedAssistantText && streamedChunks.length === 0) {
+				throw new Error("Future Chat artifact generation returned no content.");
+			}
+
+			if (artifactAction === "updateDocument") {
+				await futureChatDocumentManager.appendDocumentVersion(artifactDocument.id, {
+					content: normalizedAssistantText,
+					title: artifactDocument.title,
+					kind: artifactDocument.kind,
+				});
+			} else {
+				await futureChatDocumentManager.finalizeDocumentShell(artifactDocument.id, {
+					content: normalizedAssistantText,
+					title: artifactDocument.title,
+					kind: artifactDocument.kind,
 				});
 			}
 
@@ -1713,11 +1844,28 @@ function streamFutureChatArtifactToolResponse({
 			});
 			writer.write({ type: "text-end", id: textId });
 
-			if (Array.isArray(suggestedQuestions) && suggestedQuestions.length > 0) {
+			let resolvedSuggestedQuestions = suggestedQuestions;
+			if (!Array.isArray(resolvedSuggestedQuestions)) {
+				resolvedSuggestedQuestions = parseSuggestedQuestions(
+					await generateTextViaGateway({
+						system: "You generate exactly three short follow-up questions as a JSON array.",
+						prompt: createSuggestedQuestionsPrompt(
+							latestUserMessage,
+							conversationHistory,
+							normalizedAssistantText,
+						),
+						maxOutputTokens: 120,
+						temperature: 0.5,
+						allowFallback: true,
+					}).catch(() => "[]")
+				);
+			}
+
+			if (Array.isArray(resolvedSuggestedQuestions) && resolvedSuggestedQuestions.length > 0) {
 				writer.write({
 					type: "data-suggested-questions",
 					data: {
-						questions: suggestedQuestions,
+						questions: resolvedSuggestedQuestions,
 					},
 				});
 			}
@@ -1791,10 +1939,12 @@ async function handleFutureChatArtifactToolRequest({
 		decisionTitle: decision.title,
 		latestUserMessage,
 	});
-	const artifactKind =
-		decision.action === "updateDocument"
-			? normalizeArtifactKind(decision.kind || activeArtifact?.kind)
-			: normalizeArtifactKind(decision.kind);
+	const artifactKind = resolveFutureChatArtifactKind({
+		action: decision.action,
+		activeArtifact,
+		decisionKind: decision.kind,
+		latestUserMessage,
+	});
 
 	let artifactDocument;
 	if (decision.action === "updateDocument") {
@@ -1829,50 +1979,15 @@ async function handleFutureChatArtifactToolRequest({
 		};
 	}
 
-	const assistantText = await generateFutureChatArtifactText({
-		mode: decision.action === "updateDocument" ? "update" : "create",
-		title: artifactTitle,
-		kind: artifactKind,
-		latestUserMessage,
-		conversationHistory,
-		contextDescription,
-		provider: getNonEmptyString(requestBody.provider),
-		signal: req.signal,
-	});
-	const suggestedQuestions = parseSuggestedQuestions(
-		await generateTextViaGateway({
-			system: "You generate exactly three short follow-up questions as a JSON array.",
-			prompt: createSuggestedQuestionsPrompt(
-				latestUserMessage,
-				conversationHistory,
-				assistantText
-			),
-			maxOutputTokens: 120,
-			temperature: 0.5,
-			allowFallback: true,
-		}).catch(() => "[]")
-	);
-
-	if (decision.action === "updateDocument") {
-		await futureChatDocumentManager.appendDocumentVersion(artifactDocument.id, {
-			content: assistantText,
-			title: artifactTitle,
-			kind: artifactKind,
-		});
-	} else {
-		await futureChatDocumentManager.finalizeDocumentShell(artifactDocument.id, {
-			content: assistantText,
-			title: artifactTitle,
-			kind: artifactKind,
-		});
-	}
-
 	streamFutureChatArtifactToolResponse({
 		artifactAction: decision.action,
 		artifactDocument,
+		contextDescription,
+		conversationHistory,
+		latestUserMessage,
+		provider: getNonEmptyString(requestBody.provider),
 		res,
-		assistantText,
-		suggestedQuestions,
+		signal: req.signal,
 	});
 	return true;
 }
@@ -1880,6 +1995,11 @@ async function handleFutureChatArtifactToolRequest({
 async function proxyFutureChatChatRequest(req, res) {
 	const requestBody =
 		req.body && typeof req.body === "object" ? { ...req.body } : {};
+	const { abortController, cleanup } = createAbortControllerFromRequest(req, res, {
+		onAbort: () => {
+			console.log("[FUTURE-CHAT] Client disconnected, aborting chat proxy");
+		},
+	});
 	const activeArtifact = requestBody.artifactContext;
 	const artifactContextBlock = buildFutureChatArtifactContext(activeArtifact);
 	delete requestBody.artifactContext;
@@ -1902,48 +2022,80 @@ async function proxyFutureChatChatRequest(req, res) {
 			threadId: getNonEmptyString(requestBody.id),
 		})
 	) {
+		cleanup();
 		return;
 	}
 
-	const response = await fetch(buildFutureChatInternalUrl(req, "/api/chat-sdk"), {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify(requestBody),
-	});
+	let response;
+	let shouldKeepAbortListeners = false;
 
-	if (!response.ok) {
-		const errorText = await response.text();
-		res.status(response.status);
-		res.setHeader(
-			"Content-Type",
-			response.headers.get("content-type") || "application/json; charset=utf-8"
-		);
-		res.send(errorText);
-		return;
-	}
+	try {
+		response = await fetch(buildFutureChatInternalUrl(req, "/api/chat-sdk"), {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(requestBody),
+			signal: abortController.signal,
+		});
 
-	const contentType = response.headers.get("content-type") || "";
-	if (contentType.includes("text/event-stream")) {
-		res.status(response.status);
-		res.setHeader("Content-Type", "text/event-stream");
-		res.setHeader("Cache-Control", "no-cache");
-		res.setHeader("Connection", "keep-alive");
-		if (!response.body) {
-			res.end();
+		if (!response.ok) {
+			const errorText = await response.text();
+			res.status(response.status);
+			res.setHeader(
+				"Content-Type",
+				response.headers.get("content-type") || "application/json; charset=utf-8"
+			);
+			res.send(errorText);
 			return;
 		}
-		Readable.fromWeb(response.body).pipe(res);
-		return;
-	}
 
-	const responseBuffer = Buffer.from(await response.arrayBuffer());
-	res.status(response.status);
-	if (contentType) {
-		res.setHeader("Content-Type", contentType);
+		const contentType = response.headers.get("content-type") || "";
+		if (contentType.includes("text/event-stream")) {
+			res.status(response.status);
+			res.setHeader("Content-Type", "text/event-stream");
+			res.setHeader("Cache-Control", "no-cache");
+			res.setHeader("Connection", "keep-alive");
+			if (!response.body) {
+				res.end();
+				return;
+			}
+
+			shouldKeepAbortListeners = true;
+			const responseStream = Readable.fromWeb(response.body);
+			const cleanupStream = () => {
+				cleanup();
+			};
+			responseStream.once("close", cleanupStream);
+			responseStream.once("end", cleanupStream);
+			responseStream.once("error", cleanupStream);
+			res.once("close", cleanupStream);
+			responseStream.pipe(res);
+			return;
+		}
+
+		const responseBuffer = Buffer.from(await response.arrayBuffer());
+		res.status(response.status);
+		if (contentType) {
+			res.setHeader("Content-Type", contentType);
+		}
+		res.send(responseBuffer);
+	} catch (error) {
+		const isAbortError =
+			typeof error === "object" &&
+			error !== null &&
+			"name" in error &&
+			error.name === "AbortError";
+		if (isAbortError && (abortController.signal.aborted || req.aborted || res.destroyed)) {
+			return;
+		}
+
+		throw error;
+	} finally {
+		if (!shouldKeepAbortListeners) {
+			cleanup();
+		}
 	}
-	res.send(responseBuffer);
 }
 
 const forgePublishManager = createForgePublishManager({
@@ -2020,6 +2172,7 @@ function getNonEmptyString(value) {
 }
 
 const IMAGE_PROXY_TIMEOUT_MS = 15_000;
+const WEB_PROXY_TIMEOUT_MS = 30_000;
 const FIGMA_MCP_ASSET_PATH_PREFIX = "/api/mcp/asset/";
 const IMAGE_PROXY_ALLOWED_HOSTS = new Set(["figma.com", "www.figma.com"]);
 
@@ -2061,6 +2214,53 @@ function parseImageProxyTarget(value) {
 	}
 
 	return { targetUrl: parsedUrl };
+}
+
+const WEB_PROXY_PRIVATE_IP_PATTERNS = [
+	/^localhost$/i,
+	/^127\./,
+	/^10\./,
+	/^172\.(1[6-9]|2\d|3[01])\./,
+	/^192\.168\./,
+	/^169\.254\./,
+	/\.local$/i,
+	/^\[::1\]$/,
+];
+
+function parseWebProxyTarget(value) {
+	const normalizedValue = getNonEmptyString(value);
+	if (!normalizedValue) {
+		return { error: "Missing required query parameter: url" };
+	}
+
+	let parsedUrl;
+	try {
+		parsedUrl = new URL(normalizedValue);
+	} catch {
+		return { error: "Invalid URL" };
+	}
+
+	const protocol = parsedUrl.protocol.toLowerCase();
+	if (protocol !== "https:" && protocol !== "http:") {
+		return { error: "Only http(s) URLs are supported" };
+	}
+
+	const hostname = parsedUrl.hostname.toLowerCase();
+	if (WEB_PROXY_PRIVATE_IP_PATTERNS.some((pattern) => pattern.test(hostname))) {
+		return { error: "Private/local URLs are not allowed" };
+	}
+
+	return { targetUrl: parsedUrl };
+}
+
+function injectBaseTag(html, baseHref) {
+	const baseTag = `<base href="${baseHref}">`;
+	const headMatch = html.match(/<head(\s[^>]*)?>|<head>/i);
+	if (headMatch) {
+		const insertPos = headMatch.index + headMatch[0].length;
+		return html.slice(0, insertPos) + baseTag + html.slice(insertPos);
+	}
+	return baseTag + html;
 }
 
 function isRequiredGoogleTranslateToolCall({ toolName, toolInput } = {}) {
@@ -8971,6 +9171,56 @@ app.post("/api/sound-generation", async (req, res) => {
 	}
 });
 
+app.post("/api/speech-transcription", async (req, res) => {
+	const { abortController, cleanup } = createAbortControllerFromRequest(req, res, {
+		onAbort: () => {
+			console.log("[SPEECH-TRANSCRIPTION] Client disconnected, aborting transcription");
+		},
+	});
+
+	try {
+		const { audio, mimeType } = req.body || {};
+		if (!audio || typeof audio !== "string") {
+			return res.status(400).json({ error: "Base64 audio data is required" });
+		}
+
+		console.info("[SPEECH-TRANSCRIPTION] Transcribing audio", {
+			mimeType: mimeType || "audio/webm",
+			audioLength: audio.length,
+		});
+
+		const text = await transcribeAudio({
+			audio,
+			mimeType,
+			signal: abortController.signal,
+		});
+		return res.status(200).json({ text });
+	} catch (error) {
+		const isAbortError =
+			typeof error === "object" &&
+			error !== null &&
+			"name" in error &&
+			error.name === "AbortError";
+		if (isAbortError && (abortController.signal.aborted || req.aborted || res.destroyed)) {
+			return;
+		}
+
+		console.error("Speech transcription API error:", error);
+		const statusCode =
+			typeof error?.statusCode === "number" ? error.statusCode : 500;
+		return res.status(statusCode).json({
+			error:
+				statusCode >= 500
+					? "Internal server error"
+					: error instanceof Error
+						? error.message
+						: "Request failed",
+		});
+	} finally {
+		cleanup();
+	}
+});
+
 app.get("/api/image-proxy", async (req, res) => {
 	const rawSrc = Array.isArray(req.query.src) ? req.query.src[0] : req.query.src;
 	const { targetUrl, error } = parseImageProxyTarget(rawSrc);
@@ -9038,138 +9288,72 @@ app.get("/api/image-proxy", async (req, res) => {
 	}
 });
 
-// ─── Orchestrator Log Endpoints ──────────────────────────────────────────────
-
-app.get("/api/orchestrator/log", (req, res) => {
-	try {
-		const portIndex = req.query.portIndex !== undefined
-			? parseInt(req.query.portIndex, 10)
-			: undefined;
-		const limit = req.query.limit !== undefined
-			? parseInt(req.query.limit, 10)
-			: undefined;
-
-		const filter = {};
-		if (typeof portIndex === "number" && !isNaN(portIndex) && portIndex >= 0) {
-			filter.portIndex = portIndex;
-		}
-		if (typeof limit === "number" && !isNaN(limit) && limit > 0) {
-			filter.limit = limit;
-		}
-
-		const entries = orchestratorLog.getEntries(
-			Object.keys(filter).length > 0 ? filter : undefined
-		);
-		const stats = orchestratorLog.getStats();
-
-		return res.json({ entries, stats });
-	} catch (error) {
-		console.error("[ORCHESTRATOR] Failed to get log:", error);
-		return res.status(500).json({ error: "Failed to retrieve orchestrator log" });
+app.get("/api/web-proxy", async (req, res) => {
+	const rawUrl = Array.isArray(req.query.url) ? req.query.url[0] : req.query.url;
+	const { targetUrl, error } = parseWebProxyTarget(rawUrl);
+	if (error) {
+		return res.status(400).json({ error });
 	}
-});
 
-app.get("/api/orchestrator/timeline", (req, res) => {
+	const abortController = new AbortController();
+	const timeoutHandle = setTimeout(() => {
+		abortController.abort();
+	}, WEB_PROXY_TIMEOUT_MS);
+
 	try {
-		const portIndex = req.query.portIndex !== undefined
-			? parseInt(req.query.portIndex, 10)
-			: undefined;
-		const limit = req.query.limit !== undefined
-			? parseInt(req.query.limit, 10)
-			: undefined;
-
-		const filter = {};
-		if (typeof portIndex === "number" && !isNaN(portIndex) && portIndex >= 0) {
-			filter.portIndex = portIndex;
-		}
-		if (typeof limit === "number" && !isNaN(limit) && limit > 0) {
-			filter.limit = limit;
-		}
-
-		const timeline = orchestratorLog.toTimeline(
-			Object.keys(filter).length > 0 ? filter : undefined
-		);
-		const stats = orchestratorLog.getStats();
-
-		return res.json({ timeline, stats });
-	} catch (error) {
-		console.error("[ORCHESTRATOR] Failed to get timeline:", error);
-		return res.status(500).json({ error: "Failed to retrieve orchestrator timeline" });
-	}
-});
-
-app.delete("/api/orchestrator/log", (_req, res) => {
-	try {
-		orchestratorLog.clear();
-		return res.json({ ok: true, message: "Orchestrator log cleared" });
-	} catch (error) {
-		console.error("[ORCHESTRATOR] Failed to clear log:", error);
-		return res.status(500).json({ error: "Failed to clear orchestrator log" });
-	}
-});
-
-// ─── Agents Team Endpoints ──────────────────────────────────────────────────
-
-app.post("/api/plan/runs", async (req, res) => {
-	try {
-		const {
-			plan,
-			userPrompt,
-			conversation,
-			customInstruction,
-			agentCount,
-		} = req.body || {};
-
-		const run = await planRunManager.createRun({
-			plan,
-			userPrompt,
-			conversation,
-			customInstruction,
-			agentCount,
+		const upstreamResponse = await fetch(targetUrl.toString(), {
+			method: "GET",
+			headers: {
+				Accept: "text/html,*/*",
+				"User-Agent": "VPK-WebProxy/1.0",
+			},
+			redirect: "follow",
+			signal: abortController.signal,
 		});
-		return res.status(201).json({ run });
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to create run:", error);
-		const message = error instanceof Error ? error.message : "Failed to create run";
-		return res.status(400).json({ error: message });
-	}
-});
 
-app.get("/api/plan/runs", async (req, res) => {
-	try {
-		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
-		const runs = await planRunManager.listRuns({ limit: rawLimit });
-		return res.status(200).json({ runs });
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to list runs:", error);
-		const message = error instanceof Error ? error.message : "Failed to list runs";
-		return res.status(500).json({ error: message });
-	}
-});
-
-app.get("/api/plan/runs/:runId", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		const run = await planRunManager.getRun(runId);
-		if (!run) {
-			return res.status(404).json({ error: "Run not found" });
+		if (!upstreamResponse.ok) {
+			return res.status(502).json({
+				error: `Web fetch failed (${upstreamResponse.status})`,
+			});
 		}
 
-		return res.status(200).json({ run });
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to get run:", error);
-		return res.status(500).json({ error: "Failed to load run" });
-	}
-});
+		const contentType =
+			getNonEmptyString(upstreamResponse.headers.get("content-type")) ||
+			"text/html";
 
-app.delete("/api/plan/runs/:runId", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		await planRunManager.deleteRun(runId);
-		return res.status(200).json({ deleted: true });
+		const upstreamCacheControl = getNonEmptyString(
+			upstreamResponse.headers.get("cache-control")
+		);
+
+		res.setHeader("Content-Type", contentType);
+		if (upstreamCacheControl) {
+			res.setHeader("Cache-Control", upstreamCacheControl);
+		}
+
+		if (contentType.toLowerCase().includes("text/html")) {
+			const html = await upstreamResponse.text();
+			const baseHref = `${targetUrl.protocol}//${targetUrl.host}/`;
+			const modifiedHtml = injectBaseTag(html, baseHref);
+			res.setHeader("Content-Length", String(Buffer.byteLength(modifiedHtml)));
+			return res.status(200).send(modifiedHtml);
+		}
+
+		const payload = Buffer.from(await upstreamResponse.arrayBuffer());
+		res.setHeader("Content-Length", String(payload.length));
+		return res.status(200).send(payload);
 	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to delete run:", error);
-		return res.status(500).json({ error: "Failed to delete run" });
+		console.error("[WEB-PROXY] Fetch error:", error);
+		const isAbortError =
+			typeof error === "object" &&
+			error !== null &&
+			"name" in error &&
+			error.name === "AbortError";
+
+		return res.status(isAbortError ? 504 : 502).json({
+			error: isAbortError ? "Web fetch timed out" : "Web proxy failed",
+		});
+	} finally {
+		clearTimeout(timeoutHandle);
 	}
 });
 
@@ -9474,665 +9658,76 @@ app.get("/api/future-chat/files/:fileId", async (req, res) => {
 	}
 });
 
-app.get("/api/chat/threads", async (req, res) => {
+// ─── Orchestrator Log Endpoints ──────────────────────────────────────────────
+
+app.get("/api/orchestrator/log", (req, res) => {
 	try {
-		const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
-		const limit = rawLimit ? Number(rawLimit) : undefined;
-		const threads = await chatThreadManager.listThreads({ limit });
-		return res.status(200).json({ threads });
+		const portIndex = req.query.portIndex !== undefined
+			? parseInt(req.query.portIndex, 10)
+			: undefined;
+		const limit = req.query.limit !== undefined
+			? parseInt(req.query.limit, 10)
+			: undefined;
+
+		const filter = {};
+		if (typeof portIndex === "number" && !isNaN(portIndex) && portIndex >= 0) {
+			filter.portIndex = portIndex;
+		}
+		if (typeof limit === "number" && !isNaN(limit) && limit > 0) {
+			filter.limit = limit;
+		}
+
+		const entries = orchestratorLog.getEntries(
+			Object.keys(filter).length > 0 ? filter : undefined
+		);
+		const stats = orchestratorLog.getStats();
+
+		return res.json({ entries, stats });
 	} catch (error) {
-		console.error("[CHAT-THREAD] Failed to list threads:", error);
-		const message = error instanceof Error ? error.message : "Failed to list threads";
-		return res.status(500).json({ error: message });
+		console.error("[ORCHESTRATOR] Failed to get log:", error);
+		return res.status(500).json({ error: "Failed to retrieve orchestrator log" });
 	}
 });
 
-app.get("/api/chat/threads/:threadId", async (req, res) => {
+app.get("/api/orchestrator/timeline", (req, res) => {
 	try {
-		const threadId = req.params.threadId;
-		const thread = await chatThreadManager.getThread(threadId);
-		if (!thread) {
-			return res.status(404).json({ error: "Thread not found" });
+		const portIndex = req.query.portIndex !== undefined
+			? parseInt(req.query.portIndex, 10)
+			: undefined;
+		const limit = req.query.limit !== undefined
+			? parseInt(req.query.limit, 10)
+			: undefined;
+
+		const filter = {};
+		if (typeof portIndex === "number" && !isNaN(portIndex) && portIndex >= 0) {
+			filter.portIndex = portIndex;
+		}
+		if (typeof limit === "number" && !isNaN(limit) && limit > 0) {
+			filter.limit = limit;
 		}
 
-		return res.status(200).json({ thread });
+		const timeline = orchestratorLog.toTimeline(
+			Object.keys(filter).length > 0 ? filter : undefined
+		);
+		const stats = orchestratorLog.getStats();
+
+		return res.json({ timeline, stats });
 	} catch (error) {
-		console.error("[CHAT-THREAD] Failed to get thread:", error);
-		return res.status(500).json({ error: "Failed to load thread" });
+		console.error("[ORCHESTRATOR] Failed to get timeline:", error);
+		return res.status(500).json({ error: "Failed to retrieve orchestrator timeline" });
 	}
 });
 
-app.post("/api/chat/threads", async (req, res) => {
+app.delete("/api/orchestrator/log", (_req, res) => {
 	try {
-		const { id, title, messages, createdAt, updatedAt } = req.body || {};
-		const thread = await chatThreadManager.createThread({
-			id,
-			title,
-			messages,
-			createdAt,
-			updatedAt,
-		});
-		return res.status(201).json({ thread });
+		orchestratorLog.clear();
+		return res.json({ ok: true, message: "Orchestrator log cleared" });
 	} catch (error) {
-		console.error("[CHAT-THREAD] Failed to create thread:", error);
-		const message = error instanceof Error ? error.message : "Failed to create thread";
-		return res.status(400).json({ error: message });
+		console.error("[ORCHESTRATOR] Failed to clear log:", error);
+		return res.status(500).json({ error: "Failed to clear orchestrator log" });
 	}
 });
 
-app.put("/api/chat/threads/:threadId", async (req, res) => {
-	try {
-		const threadId = req.params.threadId;
-		const { title, messages, updatedAt } = req.body || {};
-		const thread = await chatThreadManager.updateThread(threadId, {
-			title,
-			messages,
-			updatedAt,
-		});
-		if (!thread) {
-			return res.status(404).json({ error: "Thread not found" });
-		}
-
-		return res.status(200).json({ thread });
-	} catch (error) {
-		console.error("[CHAT-THREAD] Failed to update thread:", error);
-		return res.status(500).json({ error: "Failed to update thread" });
-	}
-});
-
-app.delete("/api/chat/threads/:threadId", async (req, res) => {
-	try {
-		const threadId = req.params.threadId;
-		await chatThreadManager.deleteThread(threadId);
-		return res.status(200).json({ deleted: true });
-	} catch (error) {
-		console.error("[CHAT-THREAD] Failed to delete thread:", error);
-		return res.status(500).json({ error: "Failed to delete thread" });
-	}
-});
-
-app.post("/api/plan/runs/:runId/tasks", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		const {
-			planDelta,
-			prompt,
-			contextPrompt,
-			conversation,
-			customInstruction,
-			retryTaskIds,
-		} = req.body || {};
-		const result = await planRunManager.appendTasks(runId, {
-			planDelta,
-			prompt,
-			contextPrompt,
-			conversation,
-			customInstruction,
-			retryTaskIds,
-		});
-
-		if (result?.error) {
-			return res.status(400).json({ error: result.error });
-		}
-
-		return res.status(200).json(result);
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to append run tasks:", error);
-		const message = error instanceof Error ? error.message : "Failed to append tasks";
-		return res.status(400).json({ error: message });
-	}
-});
-
-app.get("/api/plan/runs/:runId/files", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		const rawArtifactId = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
-		const artifactId = getNonEmptyString(rawArtifactId);
-		const rawDownload = Array.isArray(req.query.download)
-			? req.query.download[0]
-			: req.query.download;
-		const shouldDownload = rawDownload === "1" || rawDownload === "true";
-
-		if (artifactId) {
-			const artifactFile = await planRunManager.getRunFile(runId, artifactId);
-			if (!artifactFile) {
-				return res.status(404).json({ error: "Artifact not found" });
-			}
-
-			if (artifactFile.type === "redirect") {
-				return res.redirect(artifactFile.url);
-			}
-
-			res.setHeader("Content-Type", artifactFile.mimeType || "application/octet-stream");
-			res.setHeader("Content-Length", String(artifactFile.buffer.length));
-			res.setHeader(
-				"Content-Disposition",
-				`${shouldDownload ? "attachment" : "inline"}; filename="${artifactFile.fileName}"`
-			);
-			return res.status(200).send(artifactFile.buffer);
-		}
-
-		const filesPayload = await planRunManager.getRunFiles(runId);
-		if (!filesPayload) {
-			return res.status(404).json({ error: "Run not found" });
-		}
-
-		return res.status(200).json(filesPayload);
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to load run files:", error);
-		const message = error instanceof Error ? error.message : "Failed to load run files";
-		return res.status(500).json({ error: message });
-	}
-});
-
-app.get("/api/plan/runs/:runId/stream", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		await planRunManager.streamRunEvents(req, res, runId);
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to stream run events:", error);
-		if (!res.headersSent) {
-			res.status(500).json({ error: "Failed to stream run events" });
-		}
-	}
-});
-
-app.post("/api/plan/runs/:runId/directives", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		const { agentName, message } = req.body || {};
-		const result = await planRunManager.addDirective(runId, {
-			agentName,
-			message,
-		});
-
-		if (result.error) {
-			return res.status(400).json({ error: result.error });
-		}
-
-		return res.status(200).json(result);
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to add directive:", error);
-		return res.status(500).json({ error: "Failed to add directive" });
-	}
-});
-
-app.post("/api/plan/runs/:runId/share", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		const requestBody = req.body && typeof req.body === "object" ? req.body : {};
-		const target = getNonEmptyString(requestBody.target)?.toLowerCase();
-		if (target !== "confluence" && target !== "slack") {
-			return res.status(400).json({
-				error: "Invalid share target. Use 'confluence' or 'slack'.",
-			});
-		}
-
-		const runSummary = await planRunManager.getRunSummary(runId);
-		if (!runSummary || !runSummary.run) {
-			return res.status(404).json({ error: "Run not found" });
-		}
-
-		const summaryContent = getNonEmptyString(runSummary.summary?.content);
-		if (!summaryContent) {
-			return res.status(409).json({
-				error: "Final synthesis is not ready yet. Try again after summary generation completes.",
-			});
-		}
-
-		if (target === "confluence") {
-			const confluenceInput =
-				requestBody.confluence && typeof requestBody.confluence === "object"
-					? requestBody.confluence
-					: {};
-			const result = await createConfluenceSummaryPage({
-				run: runSummary.run,
-				summary: runSummary.summary,
-				summaryContent,
-				confluence: confluenceInput,
-			});
-			return res.status(200).json({
-				ok: true,
-				target: "confluence",
-				externalUrl: result.externalUrl,
-			});
-		}
-
-		const slackResult = await sendSlackSummaryDm({
-			run: runSummary.run,
-			summary: runSummary.summary,
-			summaryContent,
-		});
-		return res.status(200).json({
-			ok: true,
-			target: "slack",
-			messageTs: slackResult.messageTs,
-		});
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to share run summary:", error);
-		const status = typeof error?.status === "number" ? error.status : 500;
-		const message =
-			error instanceof Error && error.message.trim()
-				? error.message.trim()
-				: "Failed to share run summary";
-		return res.status(status).json({ error: message });
-	}
-});
-
-app.get("/api/plan/runs/:runId/summary", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		const summary = await planRunManager.getRunSummary(runId);
-		if (!summary) {
-			return res.status(404).json({ error: "Run not found" });
-		}
-
-		return res.status(200).json(summary);
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to load run summary:", error);
-		return res.status(500).json({ error: "Failed to load run summary" });
-	}
-});
-
-app.get("/api/plan/runs/:runId/visual-summary", async (req, res) => {
-	try {
-		const runId = req.params.runId;
-		const summary = await planRunManager.getRunVisualSummary(runId);
-		if (!summary) {
-			return res.status(404).json({ error: "Run not found" });
-		}
-
-		return res.status(200).json(summary);
-	} catch (error) {
-		console.error("[AGENTS-RUN] Failed to load run visual summary:", error);
-		return res.status(500).json({ error: "Failed to load run visual summary" });
-	}
-});
-
-
-// --- Tools list ---
-
-app.get("/api/plan/tools", (req, res) => {
-	// Returns available MCP tools. Stub for now — will be populated from MCP server discovery.
-	return res.status(200).json({ tools: [] });
-});
-
-// --- Skills CRUD (filesystem-backed) ---
-
-app.get("/api/plan/skills", (req, res) => {
-	try {
-		const skills = planFs.listSkills();
-		return res.status(200).json({ skills });
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to list skills:", error);
-		return res.status(500).json({ error: "Failed to list skills" });
-	}
-});
-
-app.post("/api/plan/skills", (req, res) => {
-	try {
-		const contentType = req.headers["content-type"] || "";
-
-		// Handle markdown import (raw SKILL.md content)
-		if (contentType.includes("text/markdown")) {
-			let rawContent = "";
-			if (typeof req.body === "string") {
-				rawContent = req.body;
-			} else if (Buffer.isBuffer(req.body)) {
-				rawContent = req.body.toString("utf8");
-			} else {
-				return res.status(400).json({ error: "Expected markdown content" });
-			}
-
-			const { frontmatter, body } = planFs.parseFrontmatter(rawContent);
-			const name = frontmatter.name;
-			const description = typeof frontmatter.description === "string" ? frontmatter.description : "";
-
-			if (!name || typeof name !== "string") {
-				return res.status(400).json({ error: "SKILL.md must have a 'name' field in frontmatter" });
-			}
-
-			const nameError = planFs.validateSkillName(name);
-			if (nameError) {
-				return res.status(400).json({ error: nameError });
-			}
-
-			if (planFs.skillExists(name)) {
-				return res.status(409).json({ error: `A skill named "${name}" already exists` });
-			}
-
-			const extraFields = {};
-			if (frontmatter.license) extraFields.license = frontmatter.license;
-			if (frontmatter.compatibility) extraFields.compatibility = frontmatter.compatibility;
-			if (frontmatter["allowed-tools"]) extraFields["allowed-tools"] = frontmatter["allowed-tools"];
-
-			const skill = planFs.writeSkill(name, description, body.trim(), extraFields);
-			return res.status(201).json({ skill });
-		}
-
-		const { name, description, content } = req.body || {};
-
-		// Validate name
-		const nameError = planFs.validateSkillName(name);
-		if (nameError) {
-			return res.status(400).json({ error: nameError });
-		}
-		if (!planFs.validatePathComponent(name)) {
-			return res.status(400).json({ error: "Invalid skill name" });
-		}
-
-		// Validate description
-		const descError = planFs.validateSkillDescription(description);
-		if (descError) {
-			return res.status(400).json({ error: descError });
-		}
-
-		// Check for conflicts
-		if (planFs.skillExists(name)) {
-			return res.status(409).json({ error: `A skill named "${name}" already exists` });
-		}
-
-		// Validate content length
-		const resolvedContent = typeof content === "string" ? content.trim() : "";
-		if (resolvedContent.length > planFs.SKILL_CONTENT_MAX) {
-			return res.status(400).json({ error: `Content exceeds maximum length of ${planFs.SKILL_CONTENT_MAX} characters` });
-		}
-
-		const skill = planFs.writeSkill(name, description, resolvedContent);
-		return res.status(201).json({ skill });
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to create skill:", error);
-		const message = error instanceof Error ? error.message : "Failed to create skill";
-		return res.status(500).json({ error: message });
-	}
-});
-
-app.put("/api/plan/skills/:name", (req, res) => {
-	try {
-		const name = req.params.name;
-		if (!planFs.validatePathComponent(name)) {
-			return res.status(400).json({ error: "Invalid skill name" });
-		}
-
-		// Read existing skill
-		const existing = planFs.getSkillByName(name);
-		if (!existing) {
-			return res.status(404).json({ error: `Skill not found: ${name}` });
-		}
-
-		// Merge updates
-		const data = req.body || {};
-		const updatedDescription = data.description !== undefined ? data.description : existing.description;
-		const updatedContent = data.content !== undefined ? (typeof data.content === "string" ? data.content.trim() : "") : existing.content;
-
-		// Validate if description changed
-		if (data.description !== undefined) {
-			const descError = planFs.validateSkillDescription(updatedDescription);
-			if (descError) {
-				return res.status(400).json({ error: descError });
-			}
-		}
-
-		// Validate content length
-		if (updatedContent.length > planFs.SKILL_CONTENT_MAX) {
-			return res.status(400).json({ error: `Content exceeds maximum length of ${planFs.SKILL_CONTENT_MAX} characters` });
-		}
-
-		// Preserve extra fields from existing skill
-		const extraFields = {};
-		if (existing.license) extraFields.license = existing.license;
-		if (existing.compatibility) extraFields.compatibility = existing.compatibility;
-		if (existing.allowedTools) extraFields["allowed-tools"] = existing.allowedTools;
-
-		const skill = planFs.writeSkill(name, updatedDescription, updatedContent, extraFields);
-		return res.status(200).json({ skill });
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to update skill:", error);
-		const message = error instanceof Error ? error.message : "Failed to update skill";
-		return res.status(500).json({ error: message });
-	}
-});
-
-app.delete("/api/plan/skills/:name", (req, res) => {
-	try {
-		const name = req.params.name;
-		if (!planFs.validatePathComponent(name)) {
-			return res.status(400).json({ error: "Invalid skill name" });
-		}
-		planFs.deleteSkill(name);
-		return res.status(200).json({ success: true });
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to delete skill:", error);
-		const message = error instanceof Error ? error.message : "Failed to delete skill";
-		return res.status(error.message?.includes("not found") ? 404 : 500).json({ error: message });
-	}
-});
-
-app.get("/api/plan/skills/:name/raw", (req, res) => {
-	try {
-		const name = req.params.name;
-		if (!planFs.validatePathComponent(name)) {
-			return res.status(400).json({ error: "Invalid skill name" });
-		}
-		const raw = planFs.readSkillRaw(name);
-		if (!raw) {
-			return res.status(404).json({ error: `Skill not found: ${name}` });
-		}
-		res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-		return res.status(200).send(raw);
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to read skill raw:", error);
-		return res.status(500).json({ error: "Failed to read skill" });
-	}
-});
-
-// --- Agents/Subagents CRUD (filesystem-backed) ---
-
-app.get("/api/plan/agents", (req, res) => {
-	try {
-		const agents = planFs.listAgents();
-		return res.status(200).json({ agents });
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to list agents:", error);
-		return res.status(500).json({ error: "Failed to list agents" });
-	}
-});
-
-app.post("/api/plan/agents", (req, res) => {
-	try {
-		const contentType = req.headers["content-type"] || "";
-
-		// Handle markdown import (raw agent .md content)
-		if (contentType.includes("text/markdown")) {
-			let rawContent = "";
-			if (typeof req.body === "string") {
-				rawContent = req.body;
-			} else if (Buffer.isBuffer(req.body)) {
-				rawContent = req.body.toString("utf8");
-			} else {
-				return res.status(400).json({ error: "Expected markdown content" });
-			}
-
-			const { frontmatter, body } = planFs.parseFrontmatter(rawContent);
-			const name = frontmatter.name;
-
-			if (!name || typeof name !== "string") {
-				return res.status(400).json({ error: "Agent .md must have a 'name' field in frontmatter" });
-			}
-
-			const nameError = planFs.validateAgentName(name);
-			if (nameError) {
-				return res.status(400).json({ error: nameError });
-			}
-
-			if (planFs.agentExists(name)) {
-				return res.status(409).json({ error: `An agent named "${name}" already exists` });
-			}
-
-			// Parse tools and skills from frontmatter
-			let tools = [];
-			if (frontmatter.tools) {
-				if (Array.isArray(frontmatter.tools)) {
-					tools = frontmatter.tools.map((t) => String(t).trim()).filter(Boolean);
-				} else if (typeof frontmatter.tools === "string") {
-					tools = frontmatter.tools.split(",").map((t) => t.trim()).filter(Boolean);
-				}
-			}
-
-			let skills = [];
-			if (frontmatter.skills) {
-				if (Array.isArray(frontmatter.skills)) {
-					skills = frontmatter.skills.map((s) => String(s).trim()).filter(Boolean);
-				} else if (typeof frontmatter.skills === "string") {
-					skills = frontmatter.skills.split(",").map((s) => s.trim()).filter(Boolean);
-				}
-			}
-
-			let disallowedTools = [];
-			if (frontmatter.disallowedTools) {
-				if (Array.isArray(frontmatter.disallowedTools)) {
-					disallowedTools = frontmatter.disallowedTools.map((t) => String(t).trim()).filter(Boolean);
-				} else if (typeof frontmatter.disallowedTools === "string") {
-					disallowedTools = frontmatter.disallowedTools.split(",").map((t) => t.trim()).filter(Boolean);
-				}
-			}
-
-			const agent = planFs.writeAgent(name, {
-				description: typeof frontmatter.description === "string" ? frontmatter.description.trim() : "",
-				systemPrompt: body.trim(),
-				model: typeof frontmatter.model === "string" && frontmatter.model.trim() ? frontmatter.model.trim() : "inherit",
-				tools,
-				disallowedTools,
-				skills,
-				maxTurns: frontmatter.maxTurns ? parseInt(String(frontmatter.maxTurns), 10) : undefined,
-				permissionMode: typeof frontmatter.permissionMode === "string" && frontmatter.permissionMode.trim() ? frontmatter.permissionMode.trim() : undefined,
-			});
-			return res.status(201).json({ agent });
-		}
-
-		const { name, description, systemPrompt, model, tools, skills, disallowedTools, maxTurns, permissionMode } = req.body || {};
-
-		// Validate name
-		const nameError = planFs.validateAgentName(name);
-		if (nameError) {
-			return res.status(400).json({ error: nameError });
-		}
-		if (!planFs.validatePathComponent(name)) {
-			return res.status(400).json({ error: "Invalid agent name" });
-		}
-
-		// Validate description
-		if (!description || typeof description !== "string" || !description.trim()) {
-			return res.status(400).json({ error: "Description is required" });
-		}
-
-		// Check for conflicts
-		if (planFs.agentExists(name)) {
-			return res.status(409).json({ error: `An agent named "${name}" already exists` });
-		}
-
-		const agent = planFs.writeAgent(name, {
-			description: description.trim(),
-			systemPrompt: typeof systemPrompt === "string" ? systemPrompt.trim() : "",
-			model: typeof model === "string" && model.trim() ? model.trim() : "inherit",
-			tools: Array.isArray(tools) ? tools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : [],
-			disallowedTools: Array.isArray(disallowedTools) ? disallowedTools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : [],
-			skills: Array.isArray(skills) ? skills.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim()) : [],
-			maxTurns: typeof maxTurns === "number" && Number.isInteger(maxTurns) && maxTurns > 0 ? maxTurns : undefined,
-			permissionMode: typeof permissionMode === "string" && permissionMode.trim() ? permissionMode.trim() : undefined,
-		});
-		return res.status(201).json({ agent });
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to create agent:", error);
-		const message = error instanceof Error ? error.message : "Failed to create agent";
-		return res.status(500).json({ error: message });
-	}
-});
-
-app.put("/api/plan/agents/:name", (req, res) => {
-	try {
-		const name = req.params.name;
-		if (!planFs.validatePathComponent(name)) {
-			return res.status(400).json({ error: "Invalid agent name" });
-		}
-
-		// Read existing agent
-		const existing = planFs.getAgentByName(name);
-		if (!existing) {
-			return res.status(404).json({ error: `Agent not found: ${name}` });
-		}
-
-		// Merge updates
-		const data = req.body || {};
-		const updated = {
-			description: data.description !== undefined ? (typeof data.description === "string" ? data.description.trim() : existing.description) : existing.description,
-			systemPrompt: data.systemPrompt !== undefined ? (typeof data.systemPrompt === "string" ? data.systemPrompt.trim() : "") : existing.systemPrompt,
-			model: data.model !== undefined ? (typeof data.model === "string" && data.model.trim() ? data.model.trim() : existing.model) : existing.model,
-			tools: data.tools !== undefined ? (Array.isArray(data.tools) ? data.tools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : existing.tools) : existing.tools,
-			disallowedTools: data.disallowedTools !== undefined ? (Array.isArray(data.disallowedTools) ? data.disallowedTools.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()) : existing.disallowedTools) : existing.disallowedTools,
-			skills: data.skills !== undefined ? (Array.isArray(data.skills) ? data.skills.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim()) : existing.skills) : existing.skills,
-			maxTurns: data.maxTurns !== undefined ? (typeof data.maxTurns === "number" && Number.isInteger(data.maxTurns) && data.maxTurns > 0 ? data.maxTurns : undefined) : existing.maxTurns,
-			permissionMode: data.permissionMode !== undefined ? (typeof data.permissionMode === "string" && data.permissionMode.trim() ? data.permissionMode.trim() : undefined) : existing.permissionMode,
-		};
-
-		// Validate description if changed
-		if (data.description !== undefined && (!updated.description || !updated.description.trim())) {
-			return res.status(400).json({ error: "Description is required" });
-		}
-
-		const agent = planFs.writeAgent(name, updated);
-		return res.status(200).json({ agent });
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to update agent:", error);
-		const message = error instanceof Error ? error.message : "Failed to update agent";
-		return res.status(500).json({ error: message });
-	}
-});
-
-app.delete("/api/plan/agents/:name", (req, res) => {
-	try {
-		const name = req.params.name;
-		if (!planFs.validatePathComponent(name)) {
-			return res.status(400).json({ error: "Invalid agent name" });
-		}
-		planFs.deleteAgent(name);
-		return res.status(200).json({ success: true });
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to delete agent:", error);
-		const message = error instanceof Error ? error.message : "Failed to delete agent";
-		return res.status(error.message?.includes("not found") ? 404 : 500).json({ error: message });
-	}
-});
-
-app.get("/api/plan/agents/:name/raw", (req, res) => {
-	try {
-		const name = req.params.name;
-		if (!planFs.validatePathComponent(name)) {
-			return res.status(400).json({ error: "Invalid agent name" });
-		}
-		const raw = planFs.readAgentRaw(name);
-		if (!raw) {
-			return res.status(404).json({ error: `Agent not found: ${name}` });
-		}
-		res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-		return res.status(200).send(raw);
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to read agent raw:", error);
-		return res.status(500).json({ error: "Failed to read agent" });
-	}
-});
-
-// --- Config summary (for plan context injection) ---
-
-app.get("/api/plan/config-summary", (req, res) => {
-	try {
-		const summary = planFs.getConfigSummary();
-		return res.status(200).json({ summary });
-	} catch (error) {
-		console.error("[AGENTS-FS] Failed to get config summary:", error);
-		return res.status(500).json({ error: "Failed to get config summary" });
-	}
-});
 
 // ─── Make Endpoints ──────────────────────────────────────────────────
 

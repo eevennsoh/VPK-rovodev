@@ -9,6 +9,21 @@ import type {
 import { API_ENDPOINTS } from "@/lib/api-config";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 
+export const FUTURE_CHAT_BACKEND_UNAVAILABLE_MESSAGE =
+	"Cannot connect to backend server";
+
+export function isFutureChatBackendUnavailableError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		error.message.trim().toLowerCase() ===
+			FUTURE_CHAT_BACKEND_UNAVAILABLE_MESSAGE.toLowerCase()
+	);
+}
+
+export function getFutureChatBackendUnavailableUserMessage(): string {
+	return "Future Chat can't reach the local backend. Start `pnpm run dev:backend` or `pnpm run rovodev`, then refresh.";
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<T> {
 	if (!response.ok) {
 		let message = `Request failed with status ${response.status}`;
@@ -31,11 +46,23 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 	return response.json() as Promise<T>;
 }
 
+function assertFutureChatAvailable<T extends { backendUnavailable?: boolean }>(
+	payload: T,
+): T {
+	if (payload.backendUnavailable) {
+		throw new Error(FUTURE_CHAT_BACKEND_UNAVAILABLE_MESSAGE);
+	}
+
+	return payload;
+}
+
 export async function listFutureChatThreads(): Promise<FutureChatThread[]> {
 	const response = await fetch(API_ENDPOINTS.futureChatThreads(), {
 		method: "GET",
 	});
-	const payload = await parseJsonResponse<{ threads?: FutureChatThread[] }>(response);
+	const payload = assertFutureChatAvailable(
+		await parseJsonResponse<{ backendUnavailable?: boolean; threads?: FutureChatThread[] }>(response),
+	);
 	return Array.isArray(payload.threads) ? payload.threads : [];
 }
 
@@ -46,7 +73,9 @@ export async function getFutureChatThread(threadId: string): Promise<FutureChatT
 	if (response.status === 404) {
 		return null;
 	}
-	const payload = await parseJsonResponse<{ thread?: FutureChatThread }>(response);
+	const payload = assertFutureChatAvailable(
+		await parseJsonResponse<{ backendUnavailable?: boolean; thread?: FutureChatThread | null }>(response),
+	);
 	return payload.thread ?? null;
 }
 
@@ -112,7 +141,9 @@ export async function listFutureChatVotes(threadId: string): Promise<FutureChatV
 	const response = await fetch(`${API_ENDPOINTS.FUTURE_CHAT_VOTES}?threadId=${encodeURIComponent(threadId)}`, {
 		method: "GET",
 	});
-	const payload = await parseJsonResponse<{ votes?: FutureChatVote[] }>(response);
+	const payload = assertFutureChatAvailable(
+		await parseJsonResponse<{ backendUnavailable?: boolean; votes?: FutureChatVote[] }>(response),
+	);
 	return Array.isArray(payload.votes) ? payload.votes : [];
 }
 
@@ -137,7 +168,9 @@ export async function listFutureChatDocuments(threadId: string): Promise<FutureC
 	const response = await fetch(`${API_ENDPOINTS.FUTURE_CHAT_DOCUMENTS}?threadId=${encodeURIComponent(threadId)}`, {
 		method: "GET",
 	});
-	const payload = await parseJsonResponse<{ documents?: FutureChatDocument[] }>(response);
+	const payload = assertFutureChatAvailable(
+		await parseJsonResponse<{ backendUnavailable?: boolean; documents?: FutureChatDocument[] }>(response),
+	);
 	return Array.isArray(payload.documents) ? payload.documents : [];
 }
 
@@ -148,7 +181,9 @@ export async function getFutureChatDocument(documentId: string): Promise<FutureC
 	if (response.status === 404) {
 		return null;
 	}
-	const payload = await parseJsonResponse<{ document?: FutureChatDocument }>(response);
+	const payload = assertFutureChatAvailable(
+		await parseJsonResponse<{ backendUnavailable?: boolean; document?: FutureChatDocument | null }>(response),
+	);
 	return payload.document ?? null;
 }
 

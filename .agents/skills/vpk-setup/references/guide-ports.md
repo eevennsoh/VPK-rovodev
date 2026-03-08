@@ -58,9 +58,9 @@ if (_pool) {
 
 **Problem:** Port recovery (`restartRovoDevPort`) kills the rovodev serve process via `lsof` + SIGTERM/SIGKILL, then polls for a replacement PID. With `pnpm run rovodev` (non-tmux), `dev-rovodev.js` auto-restarts killed children. But with `pnpm run rovodev:tmux`, `remain-on-exit on` keeps dead panes visible without restarting — the port dies permanently.
 
-**Fix:** Added `supervisorMode` param. When `ROVODEV_SUPERVISOR=tmux` (set via env var in `dev-tmux-8.sh`), recovery skips the process kill, sends a cancel request, waits a polling interval, then polls health until the turn clears or times out.
+**Fix:** Added `supervisorMode` param. When `ROVODEV_SUPERVISOR=tmux` (set via env var in `dev-tmux.sh`), recovery skips the process kill, sends a cancel request, waits a polling interval, then polls health until the turn clears or times out.
 
-**Files:** `rovodev-port-recovery.js` (`supervisorMode` param, tmux guard), `dev-tmux-8.sh` (`ROVODEV_SUPERVISOR=tmux` env var on backend pane)
+**Files:** `rovodev-port-recovery.js` (`supervisorMode` param, tmux guard), `dev-tmux.sh` (`ROVODEV_SUPERVISOR=tmux` env var on backend pane)
 
 ### 6. Startup ghost turns
 

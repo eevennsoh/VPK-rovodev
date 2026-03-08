@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { proxyToBackend } from "@/app/api/_utils/proxy";
+import { withFutureChatBackendUnavailableFallback } from "@/app/api/future-chat/_utils/backend-unavailable";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 export async function GET(request: NextRequest) {
@@ -14,9 +15,14 @@ export async function GET(request: NextRequest) {
 			params.set("documentId", documentId);
 		}
 		const query = params.toString();
-		return await proxyToBackend({
+		const response = await proxyToBackend({
 			method: "GET",
 			path: `/api/future-chat/documents${query ? `?${query}` : ""}`,
+		});
+		return await withFutureChatBackendUnavailableFallback(response, documentId ? {
+			document: null,
+		} : {
+			documents: [],
 		});
 	} catch (error) {
 		console.error("Future Chat documents proxy error:", error);

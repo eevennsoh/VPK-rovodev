@@ -19,6 +19,7 @@ function getEnvVars() {
 		OPENAI_MODEL: process.env.OPENAI_MODEL,
 		GOOGLE_IMAGE_MODEL: process.env.GOOGLE_IMAGE_MODEL,
 		GOOGLE_TTS_MODEL: process.env.GOOGLE_TTS_MODEL,
+		GOOGLE_STT_MODEL: process.env.GOOGLE_STT_MODEL,
 	};
 }
 

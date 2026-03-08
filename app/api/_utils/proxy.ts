@@ -8,6 +8,7 @@ interface ProxyRequestOptions {
 	rawBody?: string;
 	contentType?: string;
 	expectEventStream?: boolean;
+	signal?: AbortSignal;
 }
 
 function buildErrorMessage(rawText: string): string {
@@ -66,8 +67,13 @@ export async function proxyToBackend(
 				"Content-Type": resolvedContentType,
 			},
 			body: resolvedBody,
+			signal: options.signal,
 		});
 	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			return new NextResponse(null, { status: 204 });
+		}
+
 		return NextResponse.json(
 			{
 				error: "Cannot connect to backend server",

@@ -29,7 +29,6 @@ app/
 backend/
   server.js                    # Express server (production runtime)
   lib/                         # Backend utilities
-    plan-runs.js               # Agent team run manager (task tracking, SSE streaming)
     rovodev-gateway.js         # RovoDev Serve streaming/text bridge
     rovodev-client.js          # Low-level V3 REST + SSE client for rovodev serve
     rovodev-pool.js            # Port pool manager for concurrent RovoDev sessions
@@ -68,7 +67,7 @@ components/
   website/                     # Component docs/demo site
 
 hooks/                         # Root-level shared hooks
-lib/                           # Shared utilities (tokens, api-config, utils, rovo-suggestions, rovo-ui-messages, plan-run-types, make-run-types, plan-config-types, make-config-types, sprint-board-types)
+lib/                           # Shared utilities (tokens, api-config, utils, rovo-suggestions, rovo-ui-messages, make-run-types, make-config-types, sprint-board-types)
 rovo/                          # AI config
 scripts/                       # Dev scripts
 types/                         # TS declarations

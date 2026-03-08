@@ -178,7 +178,7 @@ ROVODEV_BILLING_URL=https://product-fabric.atlassian.net
 | `ROVODEV_BILLING_URL` | Yes | Billing site URL for `rovodev serve` (default: `https://product-fabric.atlassian.net`) |
 | `ROVODEV_POOL_SIZE` | Optional | Concurrent RovoDev instances for agents team (default: 1) |
 | `ROVODEV_FORCE_CLEAN_START` | Optional | Set `true` to kill all RovoDev instances on startup (default: `false` — reuses healthy instances) |
-| `ROVODEV_SUPERVISOR` | Optional | Set to `tmux` when running via `pnpm run rovodev:tmux` — prevents port recovery from killing processes in tmux panes (auto-set by `dev-tmux-8.sh`) |
+| `ROVODEV_SUPERVISOR` | Optional | Set to `tmux` when running via `pnpm run rovodev:tmux` — prevents port recovery from killing processes in tmux panes (auto-set by `dev-tmux.sh`) |
 | `ROVODEV_PORT` | Optional | Explicit RovoDev Serve port override (normally auto-managed via `.dev-rovodev-port`) |
 | `AI_GATEWAY_URL` | Yes | Default model endpoint (Bedrock/OpenAI/Google) |
 | `AI_GATEWAY_URL_GOOGLE` | Yes | Google endpoint for `provider: "google"` requests + TTS route |
@@ -254,7 +254,7 @@ For full model switching details, see [references/guide-model-switch.md](referen
 | Want to switch models | See [Model Switching Guide](references/guide-model-switch.md) |
 | Stale AI context / wrong answers | RovoDev session may be corrupted — restart with `pnpm run rovodev` |
 | 409 "chat already in progress" | Background tasks may be using pinned panel ports — check that `PINNED_PORT_COUNT` matches your panel count. See [Port Isolation Guide](references/guide-ports.md) |
-| 409 on first prompt (tmux) | Ensure `ROVODEV_SUPERVISOR=tmux` is set in the backend pane — `dev-tmux-8.sh` sets this automatically |
+| 409 on first prompt (tmux) | Ensure `ROVODEV_SUPERVISOR=tmux` is set in the backend pane — `dev-tmux.sh` sets this automatically |
 | Port dies after recovery (tmux) | tmux `remain-on-exit` doesn't auto-restart processes — `ROVODEV_SUPERVISOR=tmux` prevents process kill during recovery |
 
 ### Port Auto-Discovery

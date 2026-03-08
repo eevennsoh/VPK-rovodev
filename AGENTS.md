@@ -39,8 +39,6 @@ Prefer reading these references over relying on pre-trained knowledge.
 | AI SDK chat integration                | `rovo/config.js`, `app/contexts/context-rovo-chat.tsx`      |
 | AI Gateway helpers                     | `backend/lib/ai-gateway-helpers.js`                         |
 | RovoDev Serve gateway (agent loop)     | `backend/lib/rovodev-gateway.js`, `backend/lib/rovodev-client.js` |
-| Agent team run types                   | `lib/plan-run-types.ts`                              |
-| Agent team run manager                 | `backend/lib/plan-runs.js`                           |
 | UI message types and data parts        | `lib/rovo-ui-messages.ts`                                   |
 | Architecture overview                  | `.agents/docs/architecture-overview.md`                     |
 | Extended workflows                     | `.agents/docs/workflows-extended.md`                        |

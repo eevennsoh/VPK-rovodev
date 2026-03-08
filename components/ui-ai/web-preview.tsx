@@ -16,6 +16,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { API_ENDPOINTS } from "@/lib/api-config";
 import { ChevronDownIcon } from "lucide-react";
 import {
 	createContext,
@@ -30,6 +31,7 @@ export interface WebPreviewContextValue {
 	setUrl: (url: string) => void;
 	consoleOpen: boolean;
 	setConsoleOpen: (open: boolean) => void;
+	proxy: boolean;
 }
 
 const WebPreviewContext = createContext<WebPreviewContextValue | null>(null);
@@ -45,6 +47,7 @@ function useWebPreview() {
 export type WebPreviewProps = ComponentProps<"div"> & {
 	defaultUrl?: string;
 	onUrlChange?: (url: string) => void;
+	proxy?: boolean;
 };
 
 export function WebPreview({
@@ -52,6 +55,7 @@ export function WebPreview({
 	children,
 	defaultUrl = "",
 	onUrlChange,
+	proxy = false,
 	...props
 }: Readonly<WebPreviewProps>) {
 	const [url, setUrl] = useState(defaultUrl);
@@ -68,11 +72,12 @@ export function WebPreview({
 	const contextValue = useMemo<WebPreviewContextValue>(
 		() => ({
 			consoleOpen,
+			proxy,
 			setConsoleOpen,
 			setUrl: handleUrlChange,
 			url,
 		}),
-		[consoleOpen, handleUrlChange, url]
+		[consoleOpen, handleUrlChange, proxy, url]
 	);
 
 	return (
@@ -190,15 +195,24 @@ export function WebPreviewBody({
 	src,
 	...props
 }: Readonly<WebPreviewBodyProps>) {
-	const { url } = useWebPreview();
+	const { url, proxy } = useWebPreview();
+
+	const resolvedSrc = useMemo(() => {
+		const raw = src ?? url;
+		if (!raw) return undefined;
+		if (proxy && /^https?:\/\//i.test(raw)) {
+			return API_ENDPOINTS.webProxy(raw);
+		}
+		return raw;
+	}, [src, url, proxy]);
 
 	return (
 		<div className="flex-1">
 			<iframe
 				className={cn("size-full", className)}
 				referrerPolicy="no-referrer"
-				sandbox="allow-scripts allow-forms allow-popups allow-presentation"
-				src={(src ?? url) || undefined}
+				sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"
+				src={resolvedSrc || undefined}
 				title="Preview"
 				{...props}
 			/>

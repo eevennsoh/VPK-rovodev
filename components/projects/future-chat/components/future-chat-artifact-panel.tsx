@@ -60,15 +60,20 @@ export function FutureChatArtifactPanel({
 		: `${document.kind} artifact`;
 
 	return (
-		<div className="fixed inset-0 z-40 flex flex-col bg-background md:relative md:z-0 md:min-w-0 md:flex-1 md:border-l md:bg-muted/30">
-			<div className="flex flex-wrap items-start justify-between gap-3 border-b bg-background/95 p-2 backdrop-blur md:bg-muted/30">
+		<div className="flex h-full min-h-0 w-full min-w-0 flex-col bg-background">
+			<div className="flex flex-wrap items-start justify-between gap-3 border-border/80 border-b bg-background/90 p-3 backdrop-blur">
 				<div className="flex min-w-0 items-start gap-2">
 					<Button onClick={onClose} size="icon-sm" type="button" variant="ghost">
 						<XIcon className="size-4" />
 					</Button>
 					<div className="min-w-0">
-						<p className="truncate font-medium text-sm">{document.title}</p>
-						<p className="truncate text-muted-foreground text-sm">{versionLabel}</p>
+						<div className="flex items-center gap-2">
+							<p className="truncate font-medium text-sm">{document.title}</p>
+							<span className="rounded-full bg-bg-neutral px-2 py-0.5 text-[11px] text-text-subtle uppercase">
+								{document.kind}
+							</span>
+						</div>
+						<p className="truncate text-text-subtle text-sm">{versionLabel}</p>
 					</div>
 				</div>
 
@@ -78,7 +83,7 @@ export function FutureChatArtifactPanel({
 							onValueChange={(value) => onVersionChange(value)}
 							value={selectedVersion?.id ?? undefined}
 						>
-							<SelectTrigger className="h-8 min-w-[140px] bg-background md:bg-white">
+							<SelectTrigger className="h-8 min-w-[140px] bg-background">
 								<SelectValue placeholder="Choose a version" />
 							</SelectTrigger>
 							<SelectContent>
@@ -124,9 +129,9 @@ export function FutureChatArtifactPanel({
 				</div>
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-auto bg-background md:bg-muted/30">
-				<div className="mx-auto flex h-full w-full max-w-[1100px] flex-col p-4 md:p-6">
-					<div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+			<div className="min-h-0 flex-1 overflow-auto bg-surface">
+				<div className="mx-auto flex h-full w-full max-w-[1280px] flex-col p-4 md:p-6">
+					<div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] border border-border bg-background shadow-sm">
 						{mode === "edit" && !isStreamingArtifact ? (
 							<>
 								<Textarea
@@ -134,8 +139,8 @@ export function FutureChatArtifactPanel({
 									onChange={(event) => onDraftChange(event.currentTarget.value)}
 									value={draftContent}
 								/>
-								<div className="flex items-center justify-between border-t bg-muted/40 px-4 py-3">
-									<p className="text-muted-foreground text-xs">
+								<div className="flex items-center justify-between border-border/70 border-t bg-bg-neutral/40 px-4 py-3">
+									<p className="text-text-subtle text-xs">
 										Saving creates a new local version for this artifact.
 									</p>
 									<Button onClick={() => void onSave()} size="sm" type="button">
@@ -149,14 +154,16 @@ export function FutureChatArtifactPanel({
 								{document.kind === "code" ? (
 									<CodeBlock code={previewContent} language="tsx" />
 								) : document.kind === "image" && /^https?:|^data:image\//u.test(previewContent) ? (
-									<Image
-										alt={document.title}
-										className="h-auto max-w-full rounded-md"
-										height={900}
-										src={previewContent}
-										unoptimized
-										width={1200}
-									/>
+									<div className="flex h-full min-h-[320px] items-center justify-center rounded-2xl border border-border bg-surface-raised p-4">
+										<Image
+											alt={document.title}
+											className="h-auto max-w-full rounded-md"
+											height={900}
+											src={previewContent}
+											unoptimized
+											width={1200}
+										/>
+									</div>
 								) : (
 									<MessageResponse>{previewContent}</MessageResponse>
 								)}

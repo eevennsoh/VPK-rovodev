@@ -126,6 +126,16 @@ export interface ToolFirstWarningData {
 	rovoDevFallback: boolean;
 }
 
+export type RovoMessageInterruptionSource =
+	| "voice-barge-in"
+	| "user-stop";
+
+export interface RovoMessageInterruption {
+	status: "interrupted";
+	source: RovoMessageInterruptionSource;
+	interruptedAt: string;
+}
+
 export type RovoDataParts = {
 	id: string;
 	title: string;
@@ -187,6 +197,8 @@ export interface RovoMessageMetadata {
 		question: string;
 		answer: string;
 	}>;
+	/** Assistant turn status used for transcript rendering and persistence */
+	interruption?: RovoMessageInterruption;
 }
 
 export type RovoUIMessage = UIMessage<RovoMessageMetadata, RovoDataParts>;
@@ -302,6 +314,17 @@ export function hasTurnCompleteSignal(
 	}
 
 	return false;
+}
+
+export function getMessageInterruption(
+	message: Pick<RovoUIMessage, "metadata">
+): RovoMessageInterruption | null {
+	const interruption = message.metadata?.interruption;
+	if (interruption?.status !== "interrupted") {
+		return null;
+	}
+
+	return interruption;
 }
 
 export function getMessageText(

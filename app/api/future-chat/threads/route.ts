@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { proxyToBackend } from "@/app/api/_utils/proxy";
+import { withFutureChatBackendUnavailableFallback } from "@/app/api/future-chat/_utils/backend-unavailable";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 export async function GET(request: NextRequest) {
 	try {
 		const limit = request.nextUrl.searchParams.get("limit");
 		const query = limit ? `?limit=${encodeURIComponent(limit)}` : "";
-		return await proxyToBackend({
+		const response = await proxyToBackend({
 			method: "GET",
 			path: `/api/future-chat/threads${query}`,
+		});
+		return await withFutureChatBackendUnavailableFallback(response, {
+			threads: [],
 		});
 	} catch (error) {
 		console.error("Future Chat thread listing proxy error:", error);

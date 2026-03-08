@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { proxyToBackend } from "@/app/api/_utils/proxy";
+import { withFutureChatBackendUnavailableFallback } from "@/app/api/future-chat/_utils/backend-unavailable";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 interface RouteProps {
@@ -9,9 +10,12 @@ interface RouteProps {
 export async function GET(_: NextRequest, { params }: RouteProps) {
 	try {
 		const { threadId } = await params;
-		return await proxyToBackend({
+		const response = await proxyToBackend({
 			method: "GET",
 			path: `/api/future-chat/threads/${encodeURIComponent(threadId)}`,
+		});
+		return await withFutureChatBackendUnavailableFallback(response, {
+			thread: null,
 		});
 	} catch (error) {
 		console.error("Future Chat thread fetch proxy error:", error);

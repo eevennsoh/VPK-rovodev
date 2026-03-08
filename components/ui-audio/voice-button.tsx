@@ -83,6 +83,14 @@ export interface VoiceButtonProps
    * Disable the button
    */
   disabled?: boolean
+
+  /**
+   * Allow presses while the button is in processing state.
+   * Useful for toggle-style voice controls that need the same button
+   * to cancel an active voice session.
+   * @default false
+   */
+  allowPressWhileProcessing?: boolean
 }
 
 export const VoiceButton = React.forwardRef<
@@ -102,6 +110,7 @@ export const VoiceButton = React.forwardRef<
       waveformClassName,
       feedbackDuration = 1500,
       disabled,
+      allowPressWhileProcessing = false,
       onClick,
       ...props
     },
@@ -134,7 +143,7 @@ export const VoiceButton = React.forwardRef<
     const isError = state === "error"
 
     const buttonVariant = variant
-    const isDisabled = disabled || isProcessing
+    const isDisabled = disabled || (isProcessing && !allowPressWhileProcessing)
 
     const displayLabel = label
 

@@ -33,45 +33,12 @@ export const API_ENDPOINTS = {
 	PLAN_TITLE: `${API_BASE_URL}/api/plan-title`,
 	CHAT_CANCEL: `${API_BASE_URL}/api/chat-cancel`,
 	HEALTH: `${API_BASE_URL}/api/health`,
-	PLAN_RUNS: `${API_BASE_URL}/api/plan/runs`,
-	PLAN_SKILLS: `${API_BASE_URL}/api/plan/skills`,
-	PLAN_AGENTS: `${API_BASE_URL}/api/plan/agents`,
-	PLAN_TOOLS: `${API_BASE_URL}/api/plan/tools`,
-	PLAN_CONFIG_SUMMARY: `${API_BASE_URL}/api/plan/config-summary`,
 	CHAT_THREADS: `${API_BASE_URL}/api/chat/threads`,
 	FUTURE_CHAT_CHAT: `${API_BASE_URL}/api/future-chat/chat`,
 	FUTURE_CHAT_THREADS: `${API_BASE_URL}/api/future-chat/threads`,
 	FUTURE_CHAT_VOTES: `${API_BASE_URL}/api/future-chat/votes`,
 	FUTURE_CHAT_DOCUMENTS: `${API_BASE_URL}/api/future-chat/documents`,
 	FUTURE_CHAT_FILE_UPLOAD: `${API_BASE_URL}/api/future-chat/files/upload`,
-	planRuns: (limit?: number) =>
-		`${API_BASE_URL}/api/plan/runs${
-			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
-		}`,
-	planRun: (runId: string) =>
-		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}`,
-	planRunStream: (runId: string) =>
-		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/stream`,
-	planRunDirectives: (runId: string) =>
-		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/directives`,
-	planRunSummary: (runId: string) =>
-		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/summary`,
-	planRunVisualSummary: (runId: string) =>
-		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/visual-summary`,
-	planRunTasks: (runId: string) =>
-		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/tasks`,
-	planRunFiles: (runId: string) =>
-		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/files`,
-	planRunShare: (runId: string) =>
-		`${API_BASE_URL}/api/plan/runs/${encodeURIComponent(runId)}/share`,
-	planSkill: (name: string) =>
-		`${API_BASE_URL}/api/plan/skills/${encodeURIComponent(name)}`,
-	planAgent: (name: string) =>
-		`${API_BASE_URL}/api/plan/agents/${encodeURIComponent(name)}`,
-	planSkillRaw: (name: string) =>
-		`${API_BASE_URL}/api/plan/skills/${encodeURIComponent(name)}/raw`,
-	planAgentRaw: (name: string) =>
-		`${API_BASE_URL}/api/plan/agents/${encodeURIComponent(name)}/raw`,
 	chatThreads: (limit?: number) =>
 		`${API_BASE_URL}/api/chat/threads${
 			typeof limit === "number" ? `?limit=${encodeURIComponent(String(limit))}` : ""
@@ -119,7 +86,11 @@ export const API_ENDPOINTS = {
 		`${API_BASE_URL}/api/make/runs/${encodeURIComponent(runId)}/publish`,
 	MAKE_FORGE_SITES: `${API_BASE_URL}/api/make/forge/sites`,
 	MAKE_FORGE_DEV_SPACES: `${API_BASE_URL}/api/make/forge/dev-spaces`,
+	SPEECH_TRANSCRIPTION: `${API_BASE_URL}/api/speech-transcription`,
 	APPS: `${API_BASE_URL}/api/apps`,
 	app: (slug: string) =>
 		`${API_BASE_URL}/api/apps/${encodeURIComponent(slug)}`,
+	WEB_PROXY: `${API_BASE_URL}/api/web-proxy`,
+	webProxy: (url: string) =>
+		`${API_BASE_URL}/api/web-proxy?url=${encodeURIComponent(url)}`,
 };
