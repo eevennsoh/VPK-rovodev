@@ -218,11 +218,12 @@ Report both outcomes clearly:
 - scoped lint status for modified files
 - typecheck status
 
-### Visual Validation Fallback Order
+### Visual Validation
 
-1. Preferred: browser-driven snapshot/screenshot flow (`/agent-browser` or Playwright tool).
-2. If browser session launch fails (for example, `Opening in existing browser session`), fallback to:
-   - CLI screenshots using Playwright (`npx playwright screenshot ...`) at the target viewport
+Use `/agent-browser` (`npx agent-browser`) for all browser-driven validation — navigation, snapshots, screenshots, and interaction.
+
+1. Standard: `/agent-browser` snapshot/screenshot flow.
+2. If agent-browser launch fails, fallback to:
    - server-render sanity checks for expected text/structure at the route
    - component-level a11y analysis (`ads_analyze_a11y`)
    - targeted localhost a11y (`ads_analyze_localhost_a11y`) with component selector

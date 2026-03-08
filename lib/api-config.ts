@@ -91,6 +91,42 @@ export const API_ENDPOINTS = {
 	app: (slug: string) =>
 		`${API_BASE_URL}/api/apps/${encodeURIComponent(slug)}`,
 	WEB_PROXY: `${API_BASE_URL}/api/web-proxy`,
+	CHROMIUM_PREVIEW: `${API_BASE_URL}/api/chromium-preview`,
 	webProxy: (url: string) =>
 		`${API_BASE_URL}/api/web-proxy?url=${encodeURIComponent(url)}`,
+	chromiumPreviewAction: (
+		action:
+			| "back"
+			| "forward"
+			| "reload"
+			| "viewport"
+			| "click"
+			| "wheel"
+			| "press"
+			| "type"
+	) => `${API_BASE_URL}/api/chromium-preview/${action}`,
+	chromiumPreviewSnapshot: (interactive?: boolean) => {
+		const params = interactive ? "?interactive=true" : "";
+		return `${API_BASE_URL}/api/chromium-preview/snapshot${params}`;
+	},
+	chromiumPreviewScreenshot: (
+		width?: number,
+		height?: number,
+		cacheBuster?: number
+	) => {
+		const params = new URLSearchParams();
+		if (typeof width === "number" && width > 0) {
+			params.set("width", String(width));
+		}
+		if (typeof height === "number" && height > 0) {
+			params.set("height", String(height));
+		}
+		if (typeof cacheBuster === "number") {
+			params.set("v", String(cacheBuster));
+		}
+		const query = params.toString();
+		return `${API_BASE_URL}/api/chromium-preview/screenshot${
+			query ? `?${query}` : ""
+		}`;
+	},
 };

@@ -16,7 +16,6 @@ const path = require("path");
 const { Readable } = require("node:stream");
 const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
 const { createRunManager: createMakeRunManager } = require("./make/make-runs");
-const { createThreadManager } = require("./lib/chat");
 const { createFutureChatThreadManager } = require("./lib/future-chat-threads");
 const { createFutureChatVoteManager } = require("./lib/future-chat-votes");
 const { createFutureChatDocumentManager } = require("./lib/future-chat-documents");
@@ -156,6 +155,7 @@ const {
 	extractUpdateTodoPlanPayloadFromObservations,
 } = require("./lib/update-todo-plan-payload");
 const { detectPlanningIntent } = require("./lib/planning-intent");
+const { chromiumPreviewManager } = require("./lib/chromium-preview");
 const {
 	shouldGatePlanningQuestionCard,
 	isConversationalMessage,
@@ -1285,10 +1285,6 @@ function buildSmartClarificationSessionId({ planRequestId, surface }) {
 }
 
 
-const chatThreadManager = createThreadManager({
-	baseDir: path.join(__dirname, "data"),
-	logger: console,
-});
 const futureChatThreadManager = createFutureChatThreadManager({
 	baseDir: path.join(__dirname, "data"),
 	logger: console,
@@ -9354,6 +9350,226 @@ app.get("/api/web-proxy", async (req, res) => {
 		});
 	} finally {
 		clearTimeout(timeoutHandle);
+	}
+});
+
+app.get("/api/chromium-preview", async (_req, res) => {
+	try {
+		const state = await chromiumPreviewManager.getState();
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] State error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to read Chromium preview state",
+		});
+	}
+});
+
+app.post("/api/chromium-preview", async (req, res) => {
+	try {
+		const url = getNonEmptyString(req.body?.url);
+		if (!url) {
+			return res.status(400).json({
+				error: "A non-empty url field is required.",
+			});
+		}
+
+		const state = await chromiumPreviewManager.navigate(url);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Navigate error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to navigate Chromium preview",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/viewport", async (req, res) => {
+	try {
+		const width = req.body?.width;
+		const height = req.body?.height;
+		const state = await chromiumPreviewManager.setViewport(width, height);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Viewport error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to resize Chromium preview",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/back", async (_req, res) => {
+	try {
+		const state = await chromiumPreviewManager.goBack();
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Back error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to go back in Chromium preview",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/forward", async (_req, res) => {
+	try {
+		const state = await chromiumPreviewManager.goForward();
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Forward error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to go forward in Chromium preview",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/reload", async (_req, res) => {
+	try {
+		const state = await chromiumPreviewManager.reload();
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Reload error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to reload Chromium preview",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/click", async (req, res) => {
+	try {
+		const state = await chromiumPreviewManager.click(req.body?.x, req.body?.y);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Click error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to click inside Chromium preview",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/wheel", async (req, res) => {
+	try {
+		const state = await chromiumPreviewManager.wheel(
+			req.body?.deltaX,
+			req.body?.deltaY
+		);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Wheel error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to scroll Chromium preview",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/press", async (req, res) => {
+	try {
+		const key = getNonEmptyString(req.body?.key);
+		if (!key) {
+			return res.status(400).json({
+				error: "A non-empty key field is required.",
+			});
+		}
+
+		const state = await chromiumPreviewManager.press(key);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Press error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to send a key to Chromium preview",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/type", async (req, res) => {
+	try {
+		const text = getNonEmptyString(req.body?.text);
+		if (!text) {
+			return res.status(400).json({
+				error: "A non-empty text field is required.",
+			});
+		}
+
+		const state = await chromiumPreviewManager.insertText(text);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Type error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to type into Chromium preview",
+		});
+	}
+});
+
+app.get("/api/chromium-preview/snapshot", async (req, res) => {
+	try {
+		const interactive = req.query.interactive === "true";
+		const result = await chromiumPreviewManager.snapshot({ interactive });
+		return res.json(result);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Snapshot error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to capture Chromium preview snapshot",
+		});
+	}
+});
+
+app.get("/api/chromium-preview/screenshot", async (req, res) => {
+	try {
+		const width = Array.isArray(req.query.width)
+			? req.query.width[0]
+			: req.query.width;
+		const height = Array.isArray(req.query.height)
+			? req.query.height[0]
+			: req.query.height;
+
+		if (width || height) {
+			await chromiumPreviewManager.setViewport(width, height);
+		}
+
+		const screenshot = await chromiumPreviewManager.screenshot();
+		res.setHeader("Content-Type", screenshot.contentType);
+		res.setHeader("Cache-Control", "no-store");
+		return res.send(screenshot.buffer);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Screenshot error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to capture Chromium preview screenshot",
+		});
 	}
 });
 

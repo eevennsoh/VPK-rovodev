@@ -17,6 +17,7 @@
 
 # screenshots (Playwright MCP)
 /screenshots
+/public/screenshots/
 
 # root-level screenshots/images (keep nested assets tracked)
 /*.png
@@ -92,9 +93,6 @@ tasks/
 !app/api/plan/runs/*/tasks/
 !app/api/plan/runs/*/tasks/route.ts
 /backend/data/
-
-# Output artifacts (screenshots, videos, playwright captures)
-/output/
 
 # IDE settings
 .idea/

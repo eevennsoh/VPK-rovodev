@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Hook: Provide port context before Playwright/browser tools
+# Hook: Provide port context before browser/agent-browser tools
 #
 # This hook reads the active dev server ports from the worktree's port files
 # and provides them as context to Claude before browser-related tool calls.

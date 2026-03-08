@@ -3420,7 +3420,7 @@ import { Button } from "@/components/ui/button";
 
 	"web-preview": {
 		description:
-			"A composable browser-like preview container with navigation controls, editable URL bar, sandboxed iframe rendering, and collapsible console output with timestamped log levels. Context-driven state management allows sub-components to share URL and console open state.",
+			"A composable browser-like preview container with navigation controls, editable URL bar, auto-switching Chromium mirroring for external URLs, iframe fallback for relative routes, and an optional collapsible console output panel.",
 		usage: `import {
   WebPreview,
   WebPreviewNavigation,
@@ -3432,13 +3432,13 @@ import { Button } from "@/components/ui/button";
 
 <WebPreview defaultUrl="https://example.com">
   <WebPreviewNavigation>
-    <WebPreviewNavigationButton tooltip="Back" disabled>
+    <WebPreviewNavigationButton action="back" tooltip="Back">
       <ArrowLeft className="size-4" />
     </WebPreviewNavigationButton>
-    <WebPreviewNavigationButton tooltip="Forward" disabled>
+    <WebPreviewNavigationButton action="forward" tooltip="Forward">
       <ArrowRight className="size-4" />
     </WebPreviewNavigationButton>
-    <WebPreviewNavigationButton tooltip="Reload">
+    <WebPreviewNavigationButton action="reload" tooltip="Reload">
       <RotateCw className="size-4" />
     </WebPreviewNavigationButton>
     <WebPreviewUrl />
@@ -3451,18 +3451,24 @@ import { Button } from "@/components/ui/button";
 				name: "defaultUrl",
 				type: "string",
 				default: '""',
-				description: "Initial URL loaded in the preview iframe.",
+				description: "Initial URL loaded in the preview. Absolute web URLs use Chromium mirroring by default; relative URLs stay in the iframe renderer.",
+			},
+			{
+				name: "engine",
+				type: '"auto" | "iframe" | "chromium"',
+				default: '"auto"',
+				description: "Choose how the preview body renders. `auto` uses Chromium for external URLs and the iframe body for relative/local routes.",
 			},
 			{
 				name: "proxy",
 				type: "boolean",
 				default: "false",
-				description: "When true, external URLs are fetched through a server-side proxy that strips frame-blocking headers, allowing sites like theverge.com to load in the iframe.",
+				description: "When the iframe renderer is active, external URLs can still be fetched through the legacy server-side proxy that strips frame-blocking headers.",
 			},
 			{
 				name: "onUrlChange",
 				type: "(url: string) => void",
-				description: "Callback fired when the URL changes via the URL bar (Enter key).",
+				description: "Callback fired when the preview URL changes, including Chromium-side redirects after navigation.",
 			},
 			{
 				name: "logs",
@@ -3478,6 +3484,11 @@ import { Button } from "@/components/ui/button";
 				name: "tooltip",
 				type: "string",
 				description: "Hover tooltip text for WebPreviewNavigationButton.",
+			},
+			{
+				name: "action",
+				type: '"back" | "forward" | "reload"',
+				description: "Optional built-in navigation action for WebPreviewNavigationButton when Chromium preview is active.",
 			},
 			{
 				name: "className",

@@ -4,6 +4,11 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
+	type ChromiumPreviewControls,
+	ChromiumPreviewBody,
+	isChromiumPreviewUrl,
+} from "@/components/ui-ai/web-preview-chromium";
+import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
@@ -26,12 +31,27 @@ import {
 	useState,
 } from "react";
 
+export type WebPreviewEngine = "auto" | "iframe" | "chromium";
+export type WebPreviewNavigationAction = "back" | "forward" | "reload";
+
+const DEFAULT_CHROMIUM_CONTROLS: ChromiumPreviewControls = {
+	back: null,
+	forward: null,
+	reload: null,
+	canGoBack: false,
+	canGoForward: false,
+	busy: false,
+};
+
 export interface WebPreviewContextValue {
 	url: string;
 	setUrl: (url: string) => void;
 	consoleOpen: boolean;
 	setConsoleOpen: (open: boolean) => void;
 	proxy: boolean;
+	engine: WebPreviewEngine;
+	chromiumControls: ChromiumPreviewControls;
+	setChromiumControls: (controls: ChromiumPreviewControls | null) => void;
 }
 
 const WebPreviewContext = createContext<WebPreviewContextValue | null>(null);
@@ -48,18 +68,23 @@ export type WebPreviewProps = ComponentProps<"div"> & {
 	defaultUrl?: string;
 	onUrlChange?: (url: string) => void;
 	proxy?: boolean;
+	engine?: WebPreviewEngine;
 };
 
 export function WebPreview({
 	className,
 	children,
 	defaultUrl = "",
+	engine = "auto",
 	onUrlChange,
 	proxy = false,
 	...props
 }: Readonly<WebPreviewProps>) {
 	const [url, setUrl] = useState(defaultUrl);
 	const [consoleOpen, setConsoleOpen] = useState(false);
+	const [chromiumControls, setChromiumControlsState] = useState(
+		DEFAULT_CHROMIUM_CONTROLS
+	);
 
 	const handleUrlChange = useCallback(
 		(newUrl: string) => {
@@ -69,15 +94,33 @@ export function WebPreview({
 		[onUrlChange]
 	);
 
+	const setChromiumControls = useCallback(
+		(nextControls: ChromiumPreviewControls | null) => {
+			setChromiumControlsState(nextControls ?? DEFAULT_CHROMIUM_CONTROLS);
+		},
+		[]
+	);
+
 	const contextValue = useMemo<WebPreviewContextValue>(
 		() => ({
+			chromiumControls,
 			consoleOpen,
+			engine,
 			proxy,
+			setChromiumControls,
 			setConsoleOpen,
 			setUrl: handleUrlChange,
 			url,
 		}),
-		[consoleOpen, handleUrlChange, proxy, url]
+		[
+			chromiumControls,
+			consoleOpen,
+			engine,
+			handleUrlChange,
+			proxy,
+			setChromiumControls,
+			url,
+		]
 	);
 
 	return (
@@ -114,19 +157,52 @@ export function WebPreviewNavigation({
 
 export type WebPreviewNavigationButtonProps = ComponentProps<typeof Button> & {
 	tooltip?: string;
+	action?: WebPreviewNavigationAction;
 };
 
 export function WebPreviewNavigationButton({
+	action,
 	onClick,
 	disabled,
 	tooltip,
 	children,
 	...props
 }: Readonly<WebPreviewNavigationButtonProps>) {
+	const { chromiumControls } = useWebPreview();
+	const actionHandler = action ? chromiumControls[action] : null;
+	const actionDisabled =
+		action === "back"
+			? !chromiumControls.canGoBack
+			: action === "forward"
+				? !chromiumControls.canGoForward
+				: action === "reload"
+					? !actionHandler
+					: false;
+
 	return (
 		<TooltipProvider>
 			<Tooltip>
-				<TooltipTrigger render={<Button className="h-8 w-8 p-0 hover:text-foreground" disabled={disabled} onClick={onClick} size="sm" variant="ghost" {...props} />}>{children}</TooltipTrigger>
+				<TooltipTrigger
+					render={
+						<Button
+							className="h-8 w-8 p-0 hover:text-foreground"
+							disabled={disabled ?? actionDisabled}
+							onClick={
+								onClick ??
+								(actionHandler
+									? () => {
+											void actionHandler();
+										}
+									: undefined)
+							}
+							size="sm"
+							variant="ghost"
+							{...props}
+						/>
+					}
+				>
+					{children}
+				</TooltipTrigger>
 				<TooltipContent>
 					<p>{tooltip}</p>
 				</TooltipContent>
@@ -195,16 +271,37 @@ export function WebPreviewBody({
 	src,
 	...props
 }: Readonly<WebPreviewBodyProps>) {
-	const { url, proxy } = useWebPreview();
+	const { url, proxy, engine, setChromiumControls, setUrl } = useWebPreview();
+	const rawTargetUrl = src ?? url;
+	const resolvedEngine =
+		engine === "auto"
+			? isChromiumPreviewUrl(rawTargetUrl ?? "")
+				? "chromium"
+				: "iframe"
+			: engine;
 
 	const resolvedSrc = useMemo(() => {
-		const raw = src ?? url;
+		const raw = rawTargetUrl;
 		if (!raw) return undefined;
-		if (proxy && /^https?:\/\//i.test(raw)) {
+		if (resolvedEngine === "iframe" && proxy && /^https?:\/\//i.test(raw)) {
 			return API_ENDPOINTS.webProxy(raw);
 		}
 		return raw;
-	}, [src, url, proxy]);
+	}, [proxy, rawTargetUrl, resolvedEngine]);
+
+	if (resolvedEngine === "chromium" && rawTargetUrl) {
+		return (
+			<div className="flex-1">
+				<ChromiumPreviewBody
+					className={className}
+					loading={loading}
+					onControlsChange={setChromiumControls}
+					onUrlChange={setUrl}
+					targetUrl={rawTargetUrl}
+				/>
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex-1">

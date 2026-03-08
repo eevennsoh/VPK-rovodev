@@ -3,7 +3,7 @@
 ## Mapping
 - [ ] ADS component visual states researched (colors, hover/active/disabled tokens)
 - [ ] Visual specs extracted via computed styles (padding, border-radius, height, font-size, inner gap per size)
-- [ ] **Computed style extraction completed via Playwright on live `atlassian.design` examples page** — never guess from token names
+- [ ] **Computed style extraction completed via `/agent-browser` on live `atlassian.design` examples page** — never guess from token names
 - [ ] For container/layout components: parent `gap`, `display`, `flexDirection` also extracted
 - [ ] Inner layout extracted (gap values from nested flex containers, per size variant)
 - [ ] For ADS Toggle parity: root + thumb geometry extracted for checked and unchecked states (regular/default and large where applicable)

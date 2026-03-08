@@ -23,13 +23,13 @@ export function WebPreviewDemoBasic() {
 	return (
 		<WebPreview proxy defaultUrl={EXAMPLE_URL} className="h-[400px]">
 			<WebPreviewNavigation>
-				<WebPreviewNavigationButton tooltip="Back" disabled>
+				<WebPreviewNavigationButton action="back" tooltip="Back">
 					<ArrowLeft className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Forward" disabled>
+				<WebPreviewNavigationButton action="forward" tooltip="Forward">
 					<ArrowRight className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Reload">
+				<WebPreviewNavigationButton action="reload" tooltip="Reload">
 					<RotateCw className="size-4" />
 				</WebPreviewNavigationButton>
 				<WebPreviewUrl />
@@ -43,13 +43,13 @@ export function WebPreviewDemoWithConsole() {
 	return (
 		<WebPreview proxy defaultUrl={EXAMPLE_URL} className="h-[400px]">
 			<WebPreviewNavigation>
-				<WebPreviewNavigationButton tooltip="Back" disabled>
+				<WebPreviewNavigationButton action="back" tooltip="Back">
 					<ArrowLeft className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Forward" disabled>
+				<WebPreviewNavigationButton action="forward" tooltip="Forward">
 					<ArrowRight className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Reload">
+				<WebPreviewNavigationButton action="reload" tooltip="Reload">
 					<RotateCw className="size-4" />
 				</WebPreviewNavigationButton>
 				<WebPreviewUrl />
@@ -61,7 +61,7 @@ export function WebPreviewDemoWithConsole() {
 }
 
 export function WebPreviewDemoFullscreen() {
-	const [_fullscreen, setFullscreen] = useState(false);
+	const [, setFullscreen] = useState(false);
 
 	const handleToggleFullscreen = useCallback(
 		() => setFullscreen((prev) => !prev),
@@ -71,13 +71,13 @@ export function WebPreviewDemoFullscreen() {
 	return (
 		<WebPreview proxy defaultUrl={EXAMPLE_URL} className="h-[400px]">
 			<WebPreviewNavigation>
-				<WebPreviewNavigationButton tooltip="Back" disabled>
+				<WebPreviewNavigationButton action="back" tooltip="Back">
 					<ArrowLeft className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Forward" disabled>
+				<WebPreviewNavigationButton action="forward" tooltip="Forward">
 					<ArrowRight className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Reload">
+				<WebPreviewNavigationButton action="reload" tooltip="Reload">
 					<RotateCw className="size-4" />
 				</WebPreviewNavigationButton>
 				<WebPreviewUrl />
@@ -106,13 +106,13 @@ export function WebPreviewDemoUrlChange() {
 			</div>
 			<WebPreview proxy defaultUrl={EXAMPLE_URL} onUrlChange={setLastUrl} className="h-[400px]">
 				<WebPreviewNavigation>
-					<WebPreviewNavigationButton tooltip="Back" disabled>
+					<WebPreviewNavigationButton action="back" tooltip="Back">
 						<ArrowLeft className="size-4" />
 					</WebPreviewNavigationButton>
-					<WebPreviewNavigationButton tooltip="Forward" disabled>
+					<WebPreviewNavigationButton action="forward" tooltip="Forward">
 						<ArrowRight className="size-4" />
 					</WebPreviewNavigationButton>
-					<WebPreviewNavigationButton tooltip="Reload">
+					<WebPreviewNavigationButton action="reload" tooltip="Reload">
 						<RotateCw className="size-4" />
 					</WebPreviewNavigationButton>
 					<WebPreviewUrl />
@@ -127,13 +127,13 @@ export function WebPreviewDemoProxy() {
 	return (
 		<WebPreview proxy defaultUrl="https://www.theverge.com" className="h-[400px]">
 			<WebPreviewNavigation>
-				<WebPreviewNavigationButton tooltip="Back" disabled>
+				<WebPreviewNavigationButton action="back" tooltip="Back">
 					<ArrowLeft className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Forward" disabled>
+				<WebPreviewNavigationButton action="forward" tooltip="Forward">
 					<ArrowRight className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Reload">
+				<WebPreviewNavigationButton action="reload" tooltip="Reload">
 					<RotateCw className="size-4" />
 				</WebPreviewNavigationButton>
 				<WebPreviewUrl />
@@ -144,7 +144,7 @@ export function WebPreviewDemoProxy() {
 }
 
 export default function WebPreviewDemo() {
-	const [_fullscreen, setFullscreen] = useState(false);
+	const [, setFullscreen] = useState(false);
 
 	const handleToggleFullscreen = useCallback(
 		() => setFullscreen((prev) => !prev),
@@ -154,13 +154,13 @@ export default function WebPreviewDemo() {
 	return (
 		<WebPreview proxy defaultUrl="/" onUrlChange={(url) => console.log("URL changed to:", url)} className="h-[400px]">
 			<WebPreviewNavigation>
-				<WebPreviewNavigationButton tooltip="Go back" disabled>
+				<WebPreviewNavigationButton action="back" tooltip="Go back">
 					<ArrowLeft className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Go forward" disabled>
+				<WebPreviewNavigationButton action="forward" tooltip="Go forward">
 					<ArrowRight className="size-4" />
 				</WebPreviewNavigationButton>
-				<WebPreviewNavigationButton tooltip="Reload">
+				<WebPreviewNavigationButton action="reload" tooltip="Reload">
 					<RotateCw className="size-4" />
 				</WebPreviewNavigationButton>
 				<WebPreviewUrl />

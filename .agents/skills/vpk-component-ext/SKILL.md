@@ -510,4 +510,4 @@ Feature surfaces should copy the canonical pattern, not invent their own diverge
 | `ads_analyze_a11y` | Analyze component code for accessibility |
 | `ads_analyze_localhost_a11y` | Analyze live page for accessibility |
 | `resolve-library-id` + `query-docs` | Fetch library docs when primary references are needed |
-| `browser_navigate` + `browser_snapshot` | Visual comparison in browser |
+| `/agent-browser` | Visual comparison in browser |

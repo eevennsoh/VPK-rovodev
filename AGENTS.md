@@ -1,7 +1,7 @@
 # VPK (Venn Prototype Kit)
 
 > Provider-neutral project context for AI coding assistants (Cursor, Claude Code, Codex, and others).
-> Canonical source: `.agents/`. Provider dirs (`.cursor/`, `.claude/`, `.codex/`, `.codelassian/`, `.rovodev/`) symlink to it.
+> Canonical source: `AGENTS.md`. `CLAUDE.md` symlinks here. Provider dirs (`.cursor/`, `.claude/`, `.codex/`, `.codelassian/`, `.rovodev/`) symlink to `.agents/`.
 
 Next.js 16 (React 19, Tailwind CSS v4) + Express backend with AI SDK (Vercel) and RovoDev Serve integration.
 
@@ -17,6 +17,7 @@ Next.js 16 (React 19, Tailwind CSS v4) + Express backend with AI SDK (Vercel) an
 - Backend API edits are in `backend/server.js` and `app/api/*/route.ts` (dev proxy).
 - Validate every change with `pnpm run lint` and `pnpm tsc --noEmit`.
 - For UI changes, also run visual + accessibility checks (see `## Workflows (Extended) -> Validation`).
+- Browser automation uses `/agent-browser` (`npx agent-browser`) — not direct Playwright MCP tools.
 
 ## Documentation Index
 
@@ -141,6 +142,11 @@ In VPK feature code, use ADS semantic naming (`bg-surface-raised`, `text-text-su
 - Start backend only: `pnpm run dev:backend`
 - Start with tmux (8 panes): `pnpm run rovodev:tmux`
 - Run backend tests: `node --test backend/lib/*.test.js`
+
+### Testing
+
+- Backend: `node --test backend/lib/*.test.js`
+- Frontend: No automated test framework — use observational validation (lint, typecheck, visual checks via `/agent-browser`, accessibility checks via `ads_analyze_a11y` / `ads_analyze_localhost_a11y`)
 
 ## Gotchas
 

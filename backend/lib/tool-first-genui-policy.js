@@ -349,7 +349,7 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 		id: "browser-automation",
 		label: "Browser Automation",
 		promptPatterns: [
-			/\bplaywright\b/i,
+			/\bagent[_\s-]*browser\b/i,
 			/\bbrowser\s+automation\b/i,
 			/\bscreenshot\b/i,
 			/\bsnapshot\b/i,
@@ -357,7 +357,7 @@ const TOOL_FIRST_DOMAIN_CONFIG = [
 			/\bnavigate\b/i,
 		],
 		toolPatterns: [
-			/\bplaywright\b/i,
+			/\bagent[_\s-]*browser\b/i,
 			/\bbrowser[_\s-]/i,
 			/\bscreenshot\b/i,
 			/\bsnapshot\b/i,

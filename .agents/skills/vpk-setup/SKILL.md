@@ -271,7 +271,7 @@ VPK dev servers automatically find available ports if defaults are in use:
 pnpm ports  # Show port assignments for all worktrees
 ```
 
-The actual ports are written to `.dev-rovodev-port`, `.dev-frontend-port`, and `.dev-backend-port` at runtime. Playwright/agent-browser tools automatically read these files via a PreToolUse hook.
+The actual ports are written to `.dev-rovodev-port`, `.dev-frontend-port`, and `.dev-backend-port` at runtime. Agent-browser and other tools read these files to determine the correct localhost URLs for the current worktree.
 
 ## Next Steps
 

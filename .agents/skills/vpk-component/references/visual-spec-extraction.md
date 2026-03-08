@@ -6,7 +6,7 @@ ADS MCP tools return API-level information (props, variants, usage) but **not** 
 
 ## Method 1 (Mandatory): Computed style extraction from atlassian.design example pages
 
-Navigate Playwright to the component's example page on `atlassian.design`, then use `browser_evaluate` to read `window.getComputedStyle()` on the rendered DOM element. This step is **mandatory** — do not skip it or substitute with token documentation lookups.
+Navigate to the component's example page on `atlassian.design` using `/agent-browser`, then use `npx agent-browser eval` to read `window.getComputedStyle()` on the rendered DOM element. This step is **mandatory** — do not skip it or substitute with token documentation lookups.
 
 URL pattern:
 ```

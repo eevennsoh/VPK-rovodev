@@ -57,7 +57,7 @@ Gather the ADS component's visual specs and identify the target shadcn component
 4. **VPK source** — Read the existing VPK component:
    - UI: `components/ui/[slug].tsx`
    - AI: `components/ui-ai/[slug].tsx`
-5. **Visual specs (mandatory)** — Extract exact computed styles from the ADS component via Playwright `browser_evaluate` on the live `atlassian.design` examples page. **Never guess values from token name lookups** — token names like `radius.small` do not reliably map to computed pixel values. See `references/visual-spec-extraction.md` for the full methodology (Playwright computed styles, inner layout extraction, typography parity). For container/layout components (ButtonGroup, FieldGroup, etc.), also extract parent-level properties: `gap`, `display`, `flexDirection`, `alignItems`.
+5. **Visual specs (mandatory)** — Extract exact computed styles from the ADS component using `/agent-browser` on the live `atlassian.design` examples page. Navigate to the page, then use `npx agent-browser eval` to run `getComputedStyle()`. **Never guess values from token name lookups** — token names like `radius.small` do not reliably map to computed pixel values. See `references/visual-spec-extraction.md` for the full methodology (computed styles, inner layout extraction, typography parity). For container/layout components (ButtonGroup, FieldGroup, etc.), also extract parent-level properties: `gap`, `display`, `flexDirection`, `alignItems`.
 6. **Identity gate (required)** — Confirm which shadcn component maps to the ADS component:
    - ADS Toggle (`@atlaskit/toggle`) maps to VPK `Switch` (`components/ui/switch.tsx`)
    - VPK `Toggle` (`components/ui/toggle.tsx`) is a pressed toolbar button pattern, not ADS Toggle
@@ -443,8 +443,7 @@ See `references/common-mappings.md` for pre-built mapping tables covering Button
 | `view_items_in_registries` | Get shadcn component details |
 | `get_item_examples_from_registries` | Get shadcn example code |
 | `resolve-library-id` + `query-docs` | Fetch library docs via context7 |
-| `browser_navigate` | Navigate Playwright to `atlassian.design/components/[name]/examples` for computed style extraction |
-| `browser_evaluate` | Run `getComputedStyle()` to extract visual specs from rendered ADS components |
+| `/agent-browser` | Navigate to `atlassian.design/components/[name]/examples` and run `getComputedStyle()` to extract visual specs from rendered ADS components |
 
 ---
 
@@ -468,7 +467,7 @@ See `references/common-mappings.md` for pre-built mapping tables covering Button
 For the full 35-item checklist, see `references/checklist-full.md`.
 
 - [ ] ADS visual states researched and visual specs extracted via computed styles
-- [ ] **Computed styles extracted from live `atlassian.design` page via Playwright** — never guessed from token names
+- [ ] **Computed styles extracted from live `atlassian.design` page via `/agent-browser`** — never guessed from token names
 - [ ] shadcn component identified, source read, audit template filled
 - [ ] Each variant has rest, `hover:`, `active:`, `disabled:` states with ADS tokens
 - [ ] Selected state (`aria-pressed` + `aria-expanded`) uses same visual across all variants: `bg-bg-selected text-text-selected border-border-selected`
