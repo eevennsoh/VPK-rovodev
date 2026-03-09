@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
@@ -63,7 +63,7 @@ flowchart LR
 const STREAM_INTERVAL_MS = 24;
 const STREAM_STEP_CHARS = 18;
 
-export default function StreamdownDemo(): React.ReactElement {
+export default function StreamdownDemo(): ReactElement {
 	const [streamedMarkdown, setStreamedMarkdown] = useState("");
 	const [isAnimating, setIsAnimating] = useState(false);
 	const intervalRef = useRef<number | null>(null);

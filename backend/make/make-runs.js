@@ -1,5 +1,6 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { getNonEmptyString, getPositiveInteger } = require("../lib/shared-utils");
 const {
 	streamViaRovoDev,
 	generateTextViaRovoDev,
@@ -51,30 +52,6 @@ const GENUI_WIDGET_BLUEPRINTS = [
 			"Combine run KPIs with at least one chart (PieChart for task status distribution or BarChart for tasks per agent), plus recommended next actions in one interactive overview.",
 	},
 ];
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function getPositiveInteger(value) {
-	if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-		return value;
-	}
-
-	if (typeof value === "string") {
-		const parsedValue = Number.parseInt(value, 10);
-		if (Number.isInteger(parsedValue) && parsedValue > 0) {
-			return parsedValue;
-		}
-	}
-
-	return null;
-}
 
 function getAIGatewayDiagnostics(preferredProvider) {
 	const envVars = getEnvVars();

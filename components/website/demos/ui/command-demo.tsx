@@ -1,4 +1,4 @@
-import * as React from "react";
+import { useState } from "react";
 import { BellIcon, CalculatorIcon, CalendarIcon, ClipboardPasteIcon, CodeIcon, CopyIcon, CreditCardIcon, FileTextIcon, FolderIcon, FolderPlusIcon, HelpCircleIcon, HomeIcon, ImageIcon, InboxIcon, LayoutGridIcon, ListIcon, PlusIcon, ScissorsIcon, SettingsIcon, SmileIcon, TrashIcon, UserIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +19,7 @@ export default function CommandDemo() {
 }
 
 export function CommandDemoBasic() {
-	const [open, setOpen] = React.useState(false);
+	const [open, setOpen] = useState(false);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -142,7 +142,7 @@ export function CommandDemoInline() {
 }
 
 export function CommandDemoManyGroupsAndItems() {
-	const [open, setOpen] = React.useState(false);
+	const [open, setOpen] = useState(false);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -287,7 +287,7 @@ export function CommandDemoManyGroupsAndItems() {
 }
 
 export function CommandDemoWithGroups() {
-	const [open, setOpen] = React.useState(false);
+	const [open, setOpen] = useState(false);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -343,7 +343,7 @@ export function CommandDemoWithGroups() {
 }
 
 export function CommandDemoWithShortcuts() {
-	const [open, setOpen] = React.useState(false);
+	const [open, setOpen] = useState(false);
 
 	return (
 		<div className="flex flex-col gap-4">

@@ -137,7 +137,7 @@ export function useStreamingIndicatorState(
 	const hasDetails = hasContent || hasToolCalls;
 
 	const reasoningKey = lastSource?.id ?? "stream";
-	const { phase: rawReasoningPhase, duration: reasoningDuration } =
+	const { phase: reasoningPhase, duration: reasoningDuration } =
 		useReasoningPhase({
 			isStreaming: isThinkingStreaming,
 			hasMessageText: hasBackendThinkingStarted,
@@ -145,7 +145,6 @@ export function useStreamingIndicatorState(
 			autoIdle: true,
 			minPreloadMs: 0,
 		});
-	const reasoningPhase = rawReasoningPhase;
 	const visibility = resolveThinkingIndicatorVisibility({
 		requestActive: shouldShow,
 		hasThinkingStatusInline: hasInlineThinkingStatus,

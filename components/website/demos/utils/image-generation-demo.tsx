@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { type ReactElement, useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface LogEntry {
@@ -25,7 +25,7 @@ function formatTimestamp(): string {
 	});
 }
 
-export default function ImageGenerationDemo(): React.ReactElement {
+export default function ImageGenerationDemo(): ReactElement {
 	const [prompt, setPrompt] = useState("generate me an image with a red box");
 	const [response, setResponse] = useState("");
 	const [images, setImages] = useState<ImageEntry[]>([]);

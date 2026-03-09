@@ -1,3 +1,5 @@
+const { getNonEmptyString, getPositiveInteger } = require("./shared-utils");
+
 const MAX_TEAM_AGENT_COUNT = 4;
 const DEFAULT_CONTEXT_MAX_MESSAGES = 12;
 const DEFAULT_CONTEXT_MAX_CHARS = 8000;
@@ -109,30 +111,6 @@ const TOKEN_DISPLAY_NAMES = new Map([
 	["db", "DB"],
 	["ai", "AI"],
 ]);
-
-function getPositiveInteger(value) {
-	if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-		return value;
-	}
-
-	if (typeof value === "string") {
-		const parsedValue = Number.parseInt(value, 10);
-		if (Number.isInteger(parsedValue) && parsedValue > 0) {
-			return parsedValue;
-		}
-	}
-
-	return null;
-}
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
 
 function normalizeTeamAgentCount(value, defaultValue = 1) {
 	const parsedCount = typeof value === "number" ? value : Number.parseInt(value, 10);

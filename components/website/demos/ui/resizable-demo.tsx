@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useState } from "react";
 import type { Layout } from "react-resizable-panels";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
@@ -19,7 +19,7 @@ export default function ResizableDemo() {
 }
 
 export function ResizableDemoControlled() {
-	const [layout, setLayout] = React.useState<Layout>({});
+	const [layout, setLayout] = useState<Layout>({});
 
 	return (
 		<ResizablePanelGroup

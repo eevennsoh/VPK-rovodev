@@ -1,18 +1,7 @@
+const { getNonEmptyString, isObjectRecord, normalizeSentence, parseMaybeJson } = require("./shared-utils");
+
 const MAX_CODE_LENGTH = 12000;
 const URL_PATTERN = /https?:\/\/[^\s<>"')\]}]+/gi;
-
-function isObjectRecord(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
-}
 
 function clipText(value, maxLength) {
 	const text = getNonEmptyString(value);
@@ -25,19 +14,6 @@ function clipText(value, maxLength) {
 	}
 
 	return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
-}
-
-function normalizeSentence(value) {
-	const text = getNonEmptyString(value);
-	if (!text) {
-		return "";
-	}
-
-	return text
-		.toLowerCase()
-		.replace(/[.!?]+$/g, "")
-		.replace(/\s+/g, " ")
-		.trim();
 }
 
 function isGenericFigmaDescription(value) {
@@ -123,23 +99,6 @@ function isFigmaToolName(toolName) {
 		/\bget variable defs\b/.test(normalized) ||
 		/\bget code connect\b/.test(normalized)
 	);
-}
-
-function parseMaybeJson(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	if (!trimmed || (trimmed[0] !== "{" && trimmed[0] !== "[")) {
-		return null;
-	}
-
-	try {
-		return JSON.parse(trimmed);
-	} catch {
-		return null;
-	}
 }
 
 function toStructuredPayload(rawValue) {

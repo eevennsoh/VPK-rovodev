@@ -6,7 +6,7 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
+function AlertDialog(props: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
 }
 
@@ -24,7 +24,7 @@ function AlertDialogTrigger({ render, ...props }: AlertDialogTriggerProps) {
   )
 }
 
-function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
+function AlertDialogPortal(props: AlertDialogPrimitive.Portal.Props) {
   return (
     <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
   )
@@ -144,7 +144,7 @@ function AlertDialogAction({
   return (
     <Button
       data-slot="alert-dialog-action"
-      className={cn(className)}
+      className={className}
       {...props}
     />
   )

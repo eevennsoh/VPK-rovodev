@@ -15,7 +15,7 @@ interface ProxyRequestOptions {
 	signal?: AbortSignal;
 }
 
-function buildErrorMessage(rawText: string): string {
+export function buildErrorMessage(rawText: string): string {
 	const trimmedText = rawText.trim();
 	if (!trimmedText) {
 		return "Backend request failed";

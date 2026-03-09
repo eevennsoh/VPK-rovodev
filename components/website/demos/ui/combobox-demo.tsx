@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { type FormEvent, useState } from "react";
 import { ChevronDownIcon, GlobeIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -123,7 +123,7 @@ export function ComboboxDemoDisabled() {
 export function ComboboxDemoFormWithCombobox() {
 	const frameworks = ["Next.js", "SvelteKit", "Nuxt.js", "Remix", "Astro"] as const;
 
-	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const formData = new FormData(event.target as HTMLFormElement);
 		const framework = formData.get("framework") as string;
@@ -199,7 +199,7 @@ export function ComboboxDemoGrouped() {
 export function ComboboxDemoInDialog() {
 	const frameworks = ["Next.js", "SvelteKit", "Nuxt.js", "Remix", "Astro"] as const;
 
-	const [open, setOpen] = React.useState(false);
+	const [open, setOpen] = useState(false);
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
@@ -385,12 +385,12 @@ export function ComboboxDemoMultipleDisabled() {
 			<ComboboxChips ref={anchor}>
 				<ComboboxValue>
 					{(values) => (
-						<React.Fragment>
+						<>
 							{values.map((value: string) => (
 								<ComboboxChip key={value}>{value}</ComboboxChip>
 							))}
 							<ComboboxChipsInput disabled />
-						</React.Fragment>
+						</>
 					)}
 				</ComboboxValue>
 			</ComboboxChips>
@@ -424,12 +424,12 @@ export function ComboboxDemoMultipleInvalid() {
 				<ComboboxChips ref={anchor1}>
 					<ComboboxValue>
 						{(values) => (
-							<React.Fragment>
+							<>
 								{values.map((value: string) => (
 									<ComboboxChip key={value}>{value}</ComboboxChip>
 								))}
 								<ComboboxChipsInput aria-invalid="true" />
-							</React.Fragment>
+							</>
 						)}
 					</ComboboxValue>
 				</ComboboxChips>
@@ -457,7 +457,7 @@ export function ComboboxDemoMultipleInvalid() {
 					<ComboboxChips ref={anchor2}>
 						<ComboboxValue>
 							{(values) => (
-								<React.Fragment>
+								<>
 									{values.map((value: string) => (
 										<ComboboxChip key={value}>{value}</ComboboxChip>
 									))}
@@ -465,7 +465,7 @@ export function ComboboxDemoMultipleInvalid() {
 										id="combobox-multiple-invalid"
 										aria-invalid
 									/>
-								</React.Fragment>
+								</>
 							)}
 						</ComboboxValue>
 					</ComboboxChips>
@@ -503,14 +503,14 @@ export function ComboboxDemoMultipleNoRemove() {
 			<ComboboxChips ref={anchor}>
 				<ComboboxValue>
 					{(values) => (
-						<React.Fragment>
+						<>
 							{values.map((value: string) => (
 								<ComboboxChip key={value} showRemove={false}>
 									{value}
 								</ComboboxChip>
 							))}
 							<ComboboxChipsInput />
-						</React.Fragment>
+						</>
 					)}
 				</ComboboxValue>
 			</ComboboxChips>
@@ -542,12 +542,12 @@ export function ComboboxDemoMultiple() {
 			<ComboboxChips ref={anchor}>
 				<ComboboxValue>
 					{(values) => (
-						<React.Fragment>
+						<>
 							{values.map((value: string) => (
 								<ComboboxChip key={value}>{value}</ComboboxChip>
 							))}
 							<ComboboxChipsInput />
-						</React.Fragment>
+						</>
 					)}
 				</ComboboxValue>
 			</ComboboxChips>

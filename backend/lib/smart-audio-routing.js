@@ -18,14 +18,7 @@ const {
 	resolveReferencedAudioText,
 } = require("./audio-context-resolution");
 
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
+const { getNonEmptyString } = require("./shared-utils");
 
 function countWords(value) {
 	const normalizedValue = getNonEmptyString(value);

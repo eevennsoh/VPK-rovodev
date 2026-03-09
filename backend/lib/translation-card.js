@@ -1,3 +1,5 @@
+const { getNonEmptyString } = require("./shared-utils");
+
 const TRANSLATION_TRIGGER_PATTERN =
 	/\b(translate|translation|how\s+do\s+you\s+say|what(?:'s|\s+is)\s+.+\s+in\s+\S+)\b/i;
 const EXPLICIT_TRANSLATION_TOOL_PATTERN =
@@ -18,15 +20,6 @@ const DEFAULT_TRANSLATION_CLARIFICATION_DESCRIPTION =
 const DEFAULT_TRANSLATION_CLARIFICATION_MAX_ROUNDS = 2;
 const GOOGLE_TRANSLATE_REQUIRED_TOOL_NAME =
 	"google_gcp_atlassian_translate_translate_text";
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
 
 function createTranslationClarificationSessionId() {
 	return `${TRANSLATION_CLARIFICATION_SESSION_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

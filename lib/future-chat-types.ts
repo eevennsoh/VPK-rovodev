@@ -23,9 +23,11 @@ export interface FutureChatVote {
 }
 
 export interface FutureChatDocumentVersion {
+	changeLabel: string;
 	id: string;
 	content: string;
 	createdAt: string;
+	title: string;
 }
 
 export interface FutureChatDocument {

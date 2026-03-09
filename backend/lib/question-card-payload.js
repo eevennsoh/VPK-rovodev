@@ -1,3 +1,5 @@
+const { getNonEmptyString, getPositiveInteger } = require("./shared-utils");
+
 const DEFAULT_WIDGET_TYPE = "question-card";
 const DEFAULT_MAX_ROUNDS = 3;
 const DEFAULT_MAX_PRESET_OPTIONS = 4;
@@ -18,30 +20,6 @@ const REQUEST_USER_INPUT_OPTION_KEYS = [
 	"suggested_answers",
 	"suggestedAnswers",
 ];
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function getPositiveInteger(value) {
-	if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-		return value;
-	}
-
-	if (typeof value === "string") {
-		const parsedValue = Number.parseInt(value, 10);
-		if (Number.isInteger(parsedValue) && parsedValue > 0) {
-			return parsedValue;
-		}
-	}
-
-	return null;
-}
 
 function normalizeQuestionKind(value) {
 	if (typeof value !== "string") {

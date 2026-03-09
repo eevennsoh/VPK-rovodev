@@ -1,3 +1,5 @@
+const { isPlainObject } = require("./shared-utils");
+
 const MAX_TOOL_PREVIEW_CHARS = 1200;
 const MAX_TOOL_PREVIEW_LINES = 20;
 const MAX_INLINE_ASSISTANT_JSON_CHARS = 2000;
@@ -35,10 +37,6 @@ function truncateByChars(value, maxChars) {
 
 	const slicedText = value.slice(0, Math.max(0, maxChars - 1));
 	return { text: `${slicedText}…`, truncated: true };
-}
-
-function isPlainObject(value) {
-	return Object.prototype.toString.call(value) === "[object Object]";
 }
 
 function toBoundedSerializableValue(value, depth, seen) {

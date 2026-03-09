@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { useState } from "react";
 import { addDays, format } from "date-fns";
 import { CalendarIcon, ChevronDownIcon, Clock2Icon } from "lucide-react";
@@ -20,7 +19,7 @@ export default function CalendarDemo() {
 }
 
 export function CalendarDemoBookedDates() {
-	const [date, setDate] = React.useState<Date | undefined>(
+	const [date, setDate] = useState<Date | undefined>(
 		new Date(new Date().getFullYear(), 1, 3)
 	);
 	const bookedDates = Array.from(
@@ -50,7 +49,7 @@ export function CalendarDemoBookedDates() {
 }
 
 export function CalendarDemoCustomDays() {
-	const [range, setRange] = React.useState<DateRange | undefined>({
+	const [range, setRange] = useState<DateRange | undefined>({
 		from: new Date(new Date().getFullYear(), 11, 8),
 		to: addDays(new Date(new Date().getFullYear(), 11, 8), 10),
 	});
@@ -93,7 +92,7 @@ export function CalendarDemoCustomDays() {
 }
 
 export function CalendarDemoDatePickerRange() {
-	const [date, setDate] = React.useState<DateRange | undefined>({
+	const [date, setDate] = useState<DateRange | undefined>({
 		from: new Date(new Date().getFullYear(), 0, 20),
 		to: addDays(new Date(new Date().getFullYear(), 0, 20), 20),
 	});
@@ -140,7 +139,7 @@ export function CalendarDemoDatePickerRange() {
 }
 
 export function CalendarDemoDatePickerSimple() {
-	const [date, setDate] = React.useState<Date>();
+	const [date, setDate] = useState<Date>();
 
 	return (
 		<Field className="mx-auto w-72">
@@ -167,8 +166,8 @@ export function CalendarDemoDatePickerSimple() {
 }
 
 export function CalendarDemoDatePickerWithDropdowns() {
-	const [date, setDate] = React.useState<Date>();
-	const [open, setOpen] = React.useState(false);
+	const [date, setDate] = useState<Date>();
+	const [open, setOpen] = useState(false);
 
 	return (
 		<Field className="mx-auto w-72">
@@ -261,7 +260,7 @@ export function CalendarDemoMultiple() {
 }
 
 export function CalendarDemoRangeMultiMonth() {
-	const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
+	const [dateRange, setDateRange] = useState<DateRange | undefined>({
 		from: new Date(new Date().getFullYear(), 0, 12),
 		to: addDays(new Date(new Date().getFullYear(), 0, 12), 30),
 	});
@@ -285,7 +284,7 @@ export function CalendarDemoRangeMultiMonth() {
 }
 
 export function CalendarDemoRangeMultipleMonths() {
-	const [range, setRange] = React.useState<DateRange | undefined>({
+	const [range, setRange] = useState<DateRange | undefined>({
 		from: new Date(new Date().getFullYear(), 3, 12),
 		to: addDays(new Date(new Date().getFullYear(), 3, 12), 60),
 	});
@@ -322,7 +321,7 @@ export function CalendarDemoRange() {
 }
 
 export function CalendarDemoSingle() {
-	const [date, setDate] = React.useState<Date | undefined>(
+	const [date, setDate] = useState<Date | undefined>(
 		new Date(new Date().getFullYear(), new Date().getMonth(), 12)
 	);
 	return (
@@ -340,7 +339,7 @@ export function CalendarDemoSingle() {
 }
 
 export function CalendarDemoWeekNumbers() {
-	const [date, setDate] = React.useState<Date | undefined>(
+	const [date, setDate] = useState<Date | undefined>(
 		new Date(new Date().getFullYear(), 1, 3)
 	);
 
@@ -360,10 +359,10 @@ export function CalendarDemoWeekNumbers() {
 }
 
 export function CalendarDemoWithPresets() {
-	const [date, setDate] = React.useState<Date | undefined>(
+	const [date, setDate] = useState<Date | undefined>(
 		new Date(new Date().getFullYear(), 1, 12)
 	);
-	const [currentMonth, setCurrentMonth] = React.useState<Date>(
+	const [currentMonth, setCurrentMonth] = useState<Date>(
 		new Date(new Date().getFullYear(), new Date().getMonth(), 1)
 	);
 
@@ -410,7 +409,7 @@ export function CalendarDemoWithPresets() {
 }
 
 export function CalendarDemoWithTime() {
-	const [date, setDate] = React.useState<Date | undefined>(
+	const [date, setDate] = useState<Date | undefined>(
 		new Date(new Date().getFullYear(), new Date().getMonth(), 12)
 	);
 

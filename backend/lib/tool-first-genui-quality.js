@@ -1,13 +1,11 @@
+const { isObjectRecord } = require("./shared-utils");
+
 function getNonNegativeInteger(value) {
 	if (typeof value !== "number" || !Number.isFinite(value)) {
 		return 0;
 	}
 
 	return Math.max(0, Math.floor(value));
-}
-
-function isObjectRecord(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function getElements(spec) {

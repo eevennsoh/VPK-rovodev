@@ -1,3 +1,5 @@
+const { getNonEmptyString } = require("./shared-utils");
+
 const DOMAIN_CONTENT_TYPE_MAP = new Map([
 	["google-translate", "translation"],
 	["slack", "message"],
@@ -11,15 +13,6 @@ const DOMAIN_SOURCE_MAP = new Map([
 	["slack", { name: "Slack", logoSrc: "/3p/slack/16-borderless.svg" }],
 	["figma", { name: "Figma", logoSrc: "/3p/figma/16.svg" }],
 ]);
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
 
 function resolveContentTypeFromDomains(domains) {
 	if (!Array.isArray(domains)) {

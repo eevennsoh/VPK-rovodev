@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils"
 import ChevronRightIcon from "@atlaskit/icon/core/chevron-right"
 import CheckMarkIcon from "@atlaskit/icon/core/check-mark"
 
-function ContextMenu({ ...props }: ContextMenuPrimitive.Root.Props) {
+function ContextMenu(props: ContextMenuPrimitive.Root.Props) {
   return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
 }
 
-function ContextMenuPortal({ ...props }: ContextMenuPrimitive.Portal.Props) {
+function ContextMenuPortal(props: ContextMenuPrimitive.Portal.Props) {
   return (
     <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
   )
@@ -61,7 +61,7 @@ function ContextMenuContent({
   )
 }
 
-function ContextMenuGroup({ ...props }: ContextMenuPrimitive.Group.Props) {
+function ContextMenuGroup(props: ContextMenuPrimitive.Group.Props) {
   return (
     <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />
   )
@@ -107,7 +107,7 @@ function ContextMenuItem({
   )
 }
 
-function ContextMenuSub({ ...props }: ContextMenuPrimitive.SubmenuRoot.Props) {
+function ContextMenuSub(props: ContextMenuPrimitive.SubmenuRoot.Props) {
   return (
     <ContextMenuPrimitive.SubmenuRoot data-slot="context-menu-sub" {...props} />
   )
@@ -181,9 +181,9 @@ function ContextMenuCheckboxItem({
   )
 }
 
-function ContextMenuRadioGroup({
-  ...props
-}: ContextMenuPrimitive.RadioGroup.Props) {
+function ContextMenuRadioGroup(
+  props: ContextMenuPrimitive.RadioGroup.Props
+) {
   return (
     <ContextMenuPrimitive.RadioGroup
       data-slot="context-menu-radio-group"

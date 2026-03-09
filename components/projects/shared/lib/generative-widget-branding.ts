@@ -22,86 +22,29 @@ export const GENERATIVE_CONTENT_TYPE_SUGGESTIONS: ReadonlyArray<GenerativeConten
 	"ui",
 ] as const;
 
+const CONTENT_TYPE_LABELS: Record<string, string> = {
+	image: "Image",
+	text: "Text",
+	translation: "Translation",
+	message: "Message",
+	calendar: "Calendar",
+	"chart-bar": "Bar chart",
+	"chart-line": "Line chart",
+	"chart-area": "Area chart",
+	"chart-pie": "Pie chart",
+	"chart-radar": "Radar chart",
+	"chart-scatter": "Scatter chart",
+	chart: "Chart",
+	sound: "Audio",
+	video: "Video",
+	"work-item": "Work item",
+	page: "Page",
+	board: "Board",
+	table: "Table",
+	code: "Code",
+	ui: "UI",
+};
+
 export function formatContentTypeLabel(contentType: GenerativeContentType): string {
-	if (contentType === "image") {
-		return "Image";
-	}
-
-	if (contentType === "text") {
-		return "Text";
-	}
-
-	if (contentType === "translation") {
-		return "Translation";
-	}
-
-	if (contentType === "message") {
-		return "Message";
-	}
-
-	if (contentType === "calendar") {
-		return "Calendar";
-	}
-
-	if (contentType === "chart-bar") {
-		return "Bar chart";
-	}
-
-	if (contentType === "chart-line") {
-		return "Line chart";
-	}
-
-	if (contentType === "chart-area") {
-		return "Area chart";
-	}
-
-	if (contentType === "chart-pie") {
-		return "Pie chart";
-	}
-
-	if (contentType === "chart-radar") {
-		return "Radar chart";
-	}
-
-	if (contentType === "chart-scatter") {
-		return "Scatter chart";
-	}
-
-	if (contentType === "sound") {
-		return "Audio";
-	}
-
-	if (contentType === "video") {
-		return "Video";
-	}
-
-	if (contentType === "work-item") {
-		return "Work item";
-	}
-
-	if (contentType === "page") {
-		return "Page";
-	}
-
-	if (contentType === "board") {
-		return "Board";
-	}
-
-	if (contentType === "table") {
-		return "Table";
-	}
-
-	if (contentType === "code") {
-		return "Code";
-	}
-
-	if (contentType === "chart") {
-		return "Chart";
-	}
-
-	if (contentType === "ui") {
-		return "UI";
-	}
-
-	return "Content";
+	return CONTENT_TYPE_LABELS[contentType] ?? "Content";
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
 import { NavigationItemWithHoverChevronProps } from "./types";

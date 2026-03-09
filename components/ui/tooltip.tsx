@@ -21,7 +21,7 @@ function TooltipProvider({
 
 type TooltipProps = TooltipPrimitive.Root.Props
 
-function Tooltip({ ...props }: Readonly<TooltipProps>) {
+function Tooltip(props: Readonly<TooltipProps>) {
 	return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
 }
 

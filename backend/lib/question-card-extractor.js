@@ -1,3 +1,5 @@
+const { getNonEmptyString, getPositiveInteger } = require("./shared-utils");
+
 const CLARIFICATION_SIGNAL_PATTERN =
 	/\b(let me ask|few questions|some questions|clarify|scope (?:this|things)|before i (?:put together|build|draft)|before we (?:build|draft)|could you tell me|can you tell me|i need (?:more|actual) details|need (?:a few|some) (?:details|pieces of information)|need some information|few things|need to know|help me understand|tell me more about|i'll need|i just need)\b/i;
 const INTERROGATIVE_PATTERN =
@@ -12,30 +14,6 @@ const MIN_QUESTION_COUNT = 2;
 const DEFAULT_MAX_ROUNDS = 3;
 const MAX_LABEL_LENGTH = 120;
 const URL_ONLY_PATTERN = /^https?:\/\/\S+$/i;
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
-}
-
-function getPositiveInteger(value) {
-	if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-		return value;
-	}
-
-	if (typeof value === "string") {
-		const parsed = Number.parseInt(value, 10);
-		if (Number.isInteger(parsed) && parsed > 0) {
-			return parsed;
-		}
-	}
-
-	return null;
-}
 
 function normalizeQuestionCardText(value) {
 	if (typeof value !== "string") {

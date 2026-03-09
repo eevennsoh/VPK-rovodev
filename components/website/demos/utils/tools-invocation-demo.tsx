@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRovoChat } from "@/app/contexts";
 import type { SendPromptOptions } from "@/app/contexts";
 import {
@@ -36,14 +36,14 @@ const SUGGESTIONS = [
 /*  Inline styles (ported from teamwork-agent RovoDev.css + components)       */
 /* -------------------------------------------------------------------------- */
 
-const viewStyle: React.CSSProperties = {
+const viewStyle: CSSProperties = {
 	display: "flex",
 	flexDirection: "column",
 	height: "calc(100dvh - 1px)",
 	overflow: "hidden",
 };
 
-const chatContainerStyle: React.CSSProperties = {
+const chatContainerStyle: CSSProperties = {
 	flex: 1,
 	overflowY: "auto",
 	padding: 16,
@@ -52,7 +52,7 @@ const chatContainerStyle: React.CSSProperties = {
 	gap: 4,
 };
 
-const userBubbleStyle: React.CSSProperties = {
+const userBubbleStyle: CSSProperties = {
 	background: "var(--ds-background-brand-bold, #0c66e4)",
 	color: "var(--ds-text-inverse, #ffffff)",
 	padding: "10px 14px",
@@ -64,7 +64,7 @@ const userBubbleStyle: React.CSSProperties = {
 	fontSize: 14,
 };
 
-const agentBubbleStyle: React.CSSProperties = {
+const agentBubbleStyle: CSSProperties = {
 	background: "var(--color-surface-raised, var(--ds-surface-raised, #22272b))",
 	color: "var(--color-text, var(--ds-text, #b6c2cf))",
 	padding: "10px 14px",
@@ -77,13 +77,13 @@ const agentBubbleStyle: React.CSSProperties = {
 	border: "1px solid var(--color-border, var(--ds-border, #a6c5e229))",
 };
 
-const msgContainerStyle: React.CSSProperties = {
+const msgContainerStyle: CSSProperties = {
 	display: "flex",
 	flexDirection: "column",
 	marginBottom: 8,
 };
 
-const toolCardStyle: React.CSSProperties = {
+const toolCardStyle: CSSProperties = {
 	border: "1px solid var(--color-border, var(--ds-border, #dfe1e6))",
 	borderRadius: 8,
 	padding: "8px 12px",
@@ -91,7 +91,7 @@ const toolCardStyle: React.CSSProperties = {
 	marginBottom: 8,
 };
 
-const toolNameBadgeStyle: React.CSSProperties = {
+const toolNameBadgeStyle: CSSProperties = {
 	display: "inline-block",
 	padding: "2px 8px",
 	borderRadius: 4,
@@ -102,7 +102,7 @@ const toolNameBadgeStyle: React.CSSProperties = {
 	color: "var(--color-text, var(--ds-text, #172b4d))",
 };
 
-const serverBadgeStyle: React.CSSProperties = {
+const serverBadgeStyle: CSSProperties = {
 	display: "inline-block",
 	padding: "2px 8px",
 	borderRadius: 4,
@@ -112,7 +112,7 @@ const serverBadgeStyle: React.CSSProperties = {
 	color: "var(--ds-text-discovery, #403294)",
 };
 
-const expandButtonStyle: React.CSSProperties = {
+const expandButtonStyle: CSSProperties = {
 	marginLeft: "auto",
 	background: "none",
 	border: "none",
@@ -122,7 +122,7 @@ const expandButtonStyle: React.CSSProperties = {
 	padding: "2px 6px",
 };
 
-const preBlockStyle: React.CSSProperties = {
+const preBlockStyle: CSSProperties = {
 	marginTop: 8,
 	padding: 8,
 	borderRadius: 4,
@@ -138,7 +138,7 @@ const preBlockStyle: React.CSSProperties = {
 	margin: 0,
 };
 
-const thinkingStyle: React.CSSProperties = {
+const thinkingStyle: CSSProperties = {
 	padding: "12px 16px",
 	fontSize: 13,
 	color: "var(--color-text-subtlest, var(--ds-text-subtlest, #8c9bab))",
@@ -147,7 +147,7 @@ const thinkingStyle: React.CSSProperties = {
 	gap: 10,
 };
 
-const inputContainerStyle: React.CSSProperties = {
+const inputContainerStyle: CSSProperties = {
 	display: "flex",
 	flexDirection: "column",
 	gap: 8,
@@ -155,7 +155,7 @@ const inputContainerStyle: React.CSSProperties = {
 	borderTop: "1px solid var(--color-border, var(--ds-border, #a6c5e229))",
 };
 
-const textareaStyle: React.CSSProperties = {
+const textareaStyle: CSSProperties = {
 	width: "100%",
 	minHeight: 44,
 	maxHeight: 200,
@@ -172,7 +172,7 @@ const textareaStyle: React.CSSProperties = {
 	boxSizing: "border-box" as const,
 };
 
-const sendButtonStyle: React.CSSProperties = {
+const sendButtonStyle: CSSProperties = {
 	padding: "6px 16px",
 	borderRadius: 6,
 	border: "none",
@@ -183,7 +183,7 @@ const sendButtonStyle: React.CSSProperties = {
 	cursor: "pointer",
 };
 
-const cancelButtonStyle: React.CSSProperties = {
+const cancelButtonStyle: CSSProperties = {
 	padding: "6px 16px",
 	borderRadius: 6,
 	border: "1px solid var(--color-border, var(--ds-border, #a6c5e229))",
@@ -194,7 +194,7 @@ const cancelButtonStyle: React.CSSProperties = {
 	cursor: "pointer",
 };
 
-const landingStyle: React.CSSProperties = {
+const landingStyle: CSSProperties = {
 	display: "flex",
 	flexDirection: "column",
 	alignItems: "center",
@@ -366,7 +366,7 @@ function getToolError(toolPart: RovoToolPart): string | undefined {
 /*  Permission + status badges (from teamwork-agent ToolCallItem)             */
 /* -------------------------------------------------------------------------- */
 
-const successBadgeStyle: React.CSSProperties = {
+const successBadgeStyle: CSSProperties = {
 	display: "inline-block",
 	padding: "2px 8px",
 	borderRadius: 4,
@@ -377,7 +377,7 @@ const successBadgeStyle: React.CSSProperties = {
 	border: "1px solid var(--ds-border-success, #4bce97)",
 };
 
-const dangerBadgeStyle: React.CSSProperties = {
+const dangerBadgeStyle: CSSProperties = {
 	display: "inline-block",
 	padding: "2px 8px",
 	borderRadius: 4,
@@ -388,7 +388,7 @@ const dangerBadgeStyle: React.CSSProperties = {
 	border: "1px solid var(--ds-border-danger, #fd9891)",
 };
 
-const warningBadgeStyle: React.CSSProperties = {
+const warningBadgeStyle: CSSProperties = {
 	display: "inline-block",
 	padding: "2px 8px",
 	borderRadius: 4,
@@ -399,7 +399,7 @@ const warningBadgeStyle: React.CSSProperties = {
 	border: "1px solid var(--ds-border-warning, #cf9f02)",
 };
 
-const infoBadgeStyle: React.CSSProperties = {
+const infoBadgeStyle: CSSProperties = {
 	display: "inline-flex",
 	alignItems: "center",
 	gap: 4,
@@ -758,7 +758,7 @@ function DemoPromptInput({
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		(e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
 			if (e.key === "Enter" && !e.shiftKey) {
 				e.preventDefault();
 				if (!isStreaming && value.trim()) {
@@ -814,7 +814,7 @@ function DemoPromptInput({
 /*  Main demo                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export default function ToolsInvocationDemo(): React.ReactElement {
+export default function ToolsInvocationDemo(): ReactElement {
 	const {
 		uiMessages: rawUiMessages,
 		sendPrompt,

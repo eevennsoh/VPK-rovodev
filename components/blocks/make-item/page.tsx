@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { MakeItemCard } from "./components/make-item-card";
 import { MOCK_MAKE_ITEMS } from "./lib/types";
 

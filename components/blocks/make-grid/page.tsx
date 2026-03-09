@@ -4,10 +4,6 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import type {
-	MakeAgent,
-	MakeSkill,
-} from "@/lib/make-config-types";
-import type {
 	AgentRunListItem,
 	AgentRunTask,
 } from "@/lib/make-run-types";
@@ -136,29 +132,8 @@ export default function MakeGridPage() {
 		];
 	}, [executions]);
 
-	const handleUnusedSelectChat = useCallback((chatId: string) => {
-		void chatId;
-	}, []);
-
-	const handleUnusedDeleteChat = useCallback((chatId: string) => {
-		void chatId;
-	}, []);
-
-	const handleUnusedEditSkill = useCallback((skill: MakeSkill) => {
-		void skill.name;
-	}, []);
-
-	const handleUnusedEditAgent = useCallback((agent: MakeAgent) => {
-		void agent.name;
-	}, []);
-
-	const handleUnusedCreate = useCallback(() => {
-		void 0;
-	}, []);
-
-	const handleUnusedExport = useCallback((name: string) => {
-		void name;
-	}, []);
+	// No-op handlers for sidebar props that require callbacks in this demo
+	const noop = useCallback(() => {}, []);
 
 	useEffect(() => {
 		return () => {
@@ -189,20 +164,20 @@ export default function MakeGridPage() {
 				activeChatId={null}
 				runHistory={runHistory}
 				activeRunId="mock-run"
-				onSelectChat={handleUnusedSelectChat}
-				onDeleteChat={handleUnusedDeleteChat}
+				onSelectChat={noop}
+				onDeleteChat={noop}
 				onMouseEnter={handleHoverEnter}
 				onMouseLeave={handleHoverLeave}
 				skills={[]}
 				agents={[]}
-				onEditSkill={handleUnusedEditSkill}
-				onNewSkill={handleUnusedCreate}
-				onEditAgent={handleUnusedEditAgent}
-				onNewAgent={handleUnusedCreate}
-				onExportSkill={handleUnusedExport}
-				onExportAgent={handleUnusedExport}
-				onNewChat={handleUnusedCreate}
-				onNewProject={handleUnusedCreate}
+				onEditSkill={noop}
+				onNewSkill={noop}
+				onEditAgent={noop}
+				onNewAgent={noop}
+				onExportSkill={noop}
+				onExportAgent={noop}
+				onNewChat={noop}
+				onNewProject={noop}
 			/>
 			<SidebarInset className="h-svh min-w-0 overflow-hidden">
 				<div className="flex h-full min-h-0 min-w-0 flex-col">

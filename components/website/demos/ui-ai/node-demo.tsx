@@ -1,5 +1,6 @@
 "use client";
 
+import { type ReactNode } from "react";
 import {
 	Node,
 	NodeAction,
@@ -14,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import CopyIcon from "@atlaskit/icon/core/copy";
 import { ReactFlowProvider } from "@xyflow/react";
 
-function FlowWrapper({ children }: { children: React.ReactNode }) {
+function FlowWrapper({ children }: { children: ReactNode }) {
 	return <ReactFlowProvider>{children}</ReactFlowProvider>;
 }
 

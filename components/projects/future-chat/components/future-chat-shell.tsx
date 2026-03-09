@@ -8,6 +8,10 @@ import { FutureChatComposer } from "@/components/projects/future-chat/components
 import { FutureChatHeader } from "@/components/projects/future-chat/components/future-chat-header";
 import { FutureChatMessages } from "@/components/projects/future-chat/components/future-chat-messages";
 import { FutureChatSidebar } from "@/components/projects/future-chat/components/future-chat-sidebar";
+import {
+	FutureChatSteeringLane,
+	type FutureChatSteeringPhase,
+} from "@/components/projects/future-chat/components/future-chat-steering-lane";
 import { useFutureChat } from "@/components/projects/future-chat/hooks/use-future-chat";
 import { getFutureChatShellLayout } from "@/components/projects/future-chat/lib/future-chat-shell-layout";
 import { useLiveVoice } from "@/components/projects/future-chat/hooks/use-live-voice";
@@ -38,12 +42,27 @@ export function FutureChatShell({
 	const voiceTranscriptIdRef = useRef(0);
 	const voiceDrainEpochRef = useRef(0);
 	const isDrainingVoiceRef = useRef(false);
+	const [steeringState, setSteeringState] = useState<{
+		phase: FutureChatSteeringPhase;
+		text: string | null;
+	}>({
+		phase: "idle",
+		text: null,
+	});
+
+	const clearSteeringState = useCallback(() => {
+		setSteeringState({
+			phase: "idle",
+			text: null,
+		});
+	}, []);
 
 	const clearPendingVoiceWork = useCallback((reason: string) => {
 		voiceDrainEpochRef.current += 1;
 		pendingVoiceTranscriptRef.current = null;
+		clearSteeringState();
 		console.info("[FutureChatVoice] Cleared pending voice work", { reason });
-	}, []);
+	}, [clearSteeringState]);
 
 	const drainLatestVoiceTranscript = useCallback(() => {
 		if (isDrainingVoiceRef.current) {
@@ -61,9 +80,12 @@ export function FutureChatShell({
 						return;
 					}
 
-					await chatRef.current.interruptActiveTurn({
-						source: "voice-barge-in",
-					});
+					const shouldArtifactSteer = chatRef.current.isArtifactOpen;
+					if (!shouldArtifactSteer) {
+						await chatRef.current.interruptActiveTurn({
+							source: "voice-barge-in",
+						});
+					}
 
 					if (voiceDrainEpochRef.current !== drainEpoch) {
 						return;
@@ -82,12 +104,25 @@ export function FutureChatShell({
 						transcriptId: pendingTranscript.id,
 						length: pendingTranscript.text.length,
 					});
-					void chatRef.current.submitPrompt({
-						text: pendingTranscript.text,
-						files: [],
-					}).catch((error) => {
-						console.error("[FutureChatVoice] Voice transcript submission failed:", error);
+					setSteeringState({
+						phase: shouldArtifactSteer ? "applying" : "idle",
+						text: shouldArtifactSteer ? pendingTranscript.text : null,
 					});
+					if (shouldArtifactSteer) {
+						void chatRef.current.applyVoiceSteer({
+							text: pendingTranscript.text,
+						}).catch((error) => {
+							clearSteeringState();
+							console.error("[FutureChatVoice] Voice steer submission failed:", error);
+						});
+					} else {
+						void chatRef.current.submitPrompt({
+							text: pendingTranscript.text,
+							files: [],
+						}).catch((error) => {
+							console.error("[FutureChatVoice] Voice transcript submission failed:", error);
+						});
+					}
 
 					// Let the newly-submitted turn start before checking for a newer transcript.
 					await Promise.resolve();
@@ -101,11 +136,27 @@ export function FutureChatShell({
 		})().catch((error) => {
 			console.error("[FutureChatVoice] Voice drain failed:", error);
 		});
-	}, []);
+	}, [clearSteeringState]);
 
 	const voice = useLiveVoice({
 		onBargeInStart: useCallback(() => {
 			stopSpeakingRef.current();
+			if (chatRef.current.isArtifactOpen) {
+				if (chatRef.current.isStreaming) {
+					skipNextAutoSpeakRef.current = true;
+				}
+				setSteeringState((currentState) =>
+					currentState.phase === "pending" || currentState.phase === "applying"
+						? currentState
+						: {
+							phase: "listening",
+							text: null,
+						},
+				);
+				console.info("[FutureChatVoice] Barge-in detected for artifact steering");
+				return;
+			}
+
 			if (chatRef.current.isStreaming) {
 				skipNextAutoSpeakRef.current = true;
 				console.info("[FutureChatVoice] Barge-in detected while assistant turn is active");
@@ -129,6 +180,12 @@ export function FutureChatShell({
 					id: transcriptId,
 					text: trimmedText,
 				};
+				if (chatRef.current.isArtifactOpen) {
+					setSteeringState({
+						phase: "pending",
+						text: trimmedText,
+					});
+				}
 				console.info("[FutureChatVoice] Final transcript ready", {
 					transcriptId,
 					length: trimmedText.length,
@@ -150,6 +207,62 @@ export function FutureChatShell({
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- only sync when isVoiceActive changes
 	}, [isVoiceActive]);
+
+	useEffect(() => {
+		setSteeringState((currentState) => {
+			if (currentState.phase === "idle" || currentState.phase === "pending" || currentState.phase === "applying") {
+				return currentState;
+			}
+
+			if (voice.state === "processing") {
+				return {
+					...currentState,
+					phase: "transcribing",
+				};
+			}
+
+			if (voice.state === "recording" && currentState.phase === "transcribing") {
+				return {
+					...currentState,
+					phase: "listening",
+				};
+			}
+
+			if (voice.state === "idle") {
+				return {
+					phase: "idle",
+					text: null,
+				};
+			}
+
+			return currentState;
+		});
+	}, [voice.state]);
+
+	useEffect(() => {
+		if (steeringState.phase !== "applying") {
+			return;
+		}
+
+		if (chat.status !== "submitted" && chat.status !== "streaming") {
+			return;
+		}
+
+		const timeoutId = window.setTimeout(() => {
+			setSteeringState((currentState) =>
+				currentState.phase === "applying"
+					? {
+						phase: "idle",
+						text: null,
+					}
+					: currentState,
+			);
+		}, 220);
+
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}, [chat.status, steeringState.phase]);
 
 	useEffect(() => {
 		if (wasStreamingRef.current && !chat.isStreaming && voice.state !== "idle") {
@@ -187,6 +300,7 @@ export function FutureChatShell({
 
 	const handleToggleVoice = useCallback(() => {
 		if (voice.state === "idle") {
+			clearSteeringState();
 			voice.start();
 		} else {
 			// Clear any pending transcript without incrementing the drain epoch.
@@ -194,9 +308,10 @@ export function FutureChatShell({
 			// leave the active generation stopped with no replacement prompt.
 			// voice.stop() disables the mic/VAD/TTS so no new transcripts arrive.
 			pendingVoiceTranscriptRef.current = null;
+			clearSteeringState();
 			voice.stop();
 		}
-	}, [voice]);
+	}, [clearSteeringState, voice]);
 
 	const handleStop = useCallback(async () => {
 		const hadActiveTurn = chatRef.current.isStreaming;
@@ -230,9 +345,11 @@ export function FutureChatShell({
 				updatedAt: chat.streamingArtifact.updatedAt,
 				versions: [
 					{
+						changeLabel: "Generating",
 						id: "streaming",
 						content: chat.streamingArtifact.content,
 						createdAt: chat.streamingArtifact.updatedAt,
+						title: chat.streamingArtifact.title || "Artifact draft",
 					},
 				],
 			}
@@ -244,6 +361,7 @@ export function FutureChatShell({
 	const isArtifactOpen = Boolean(workspaceDocument);
 	const shellRef = useRef<HTMLDivElement | null>(null);
 	const composerDockRef = useRef<HTMLDivElement | null>(null);
+	const artifactCardOriginRef = useRef<DOMRect | null>(null);
 	const [shellSize, setShellSize] = useState({ width: 0, height: 0 });
 	const [artifactOrigin, setArtifactOrigin] = useState({
 		left: 0,
@@ -276,8 +394,36 @@ export function FutureChatShell({
 		return () => observer.disconnect();
 	}, []);
 
+	const handleOpenArtifactFromCard = useCallback((documentId: string, element: HTMLElement) => {
+		const shellElement = shellRef.current;
+		if (shellElement) {
+			const shellRect = shellElement.getBoundingClientRect();
+			const cardRect = element.getBoundingClientRect();
+			artifactCardOriginRef.current = new DOMRect(
+				cardRect.left - shellRect.left,
+				cardRect.top - shellRect.top,
+				cardRect.width,
+				cardRect.height,
+			);
+		}
+		chat.setActiveDocumentId(documentId);
+		chat.setArtifactMode("preview");
+	}, [chat]);
+
 	useEffect(() => {
 		if (!isArtifactOpen) {
+			return;
+		}
+
+		const cardOrigin = artifactCardOriginRef.current;
+		if (cardOrigin) {
+			artifactCardOriginRef.current = null;
+			setArtifactOrigin({
+				left: Math.max(cardOrigin.x, 16),
+				top: Math.max(cardOrigin.y, 16),
+				width: Math.min(Math.max(cardOrigin.width, 260), 420),
+				height: Math.min(Math.max(cardOrigin.height, 40), 140),
+			});
 			return;
 		}
 
@@ -315,28 +461,38 @@ export function FutureChatShell({
 			/>
 
 			<FutureChatMessages
+				activeDocumentId={chat.activeDocument?.id ?? chat.streamingArtifact?.documentId ?? null}
 				activeThreadId={chat.activeThreadId}
 				activeThreadTitle={activeThread?.title ?? null}
 				compact={isArtifactOpen}
+				documents={chat.documents}
 				editingMessageId={chat.editingMessageId}
 				isStreaming={chat.isStreaming}
 				messages={chat.messages}
 				onEditMessage={chat.editMessage}
-				onOpenArtifact={chat.openArtifactFromMessage}
+				onOpenArtifactFromCard={handleOpenArtifactFromCard}
 				onRegenerate={chat.regenerateLatest}
 				onSelectSuggestion={chat.suggestedPrompt}
 				onSetEditingMessageId={chat.setEditingMessageId}
 				onVote={chat.voteOnMessage}
+				streamingArtifact={chat.streamingArtifact}
+				streamingArtifactMessageId={chat.streamingArtifactMessageId}
 				votes={chat.votes}
 			/>
 
 			<div
 				ref={composerDockRef}
 				className={cn(
-					"sticky bottom-0 z-10 mx-auto flex w-full gap-2 border-border/80 border-t bg-background/90 px-2 pb-3 pt-3 backdrop-blur md:px-4 md:pb-4",
+					"sticky bottom-0 z-10 mx-auto flex w-full flex-col gap-3 border-border/80 border-t bg-background/90 px-2 pb-3 pt-3 backdrop-blur md:px-4 md:pb-4",
 					isArtifactOpen ? "max-w-none" : "max-w-4xl",
 				)}
 			>
+				{steeringState.phase !== "idle" ? (
+					<FutureChatSteeringLane
+						phase={steeringState.phase}
+						text={steeringState.text}
+					/>
+				) : null}
 				<FutureChatComposer
 					key={chat.runtimeThreadId}
 					artifactTitle={workspaceDocument?.title ?? null}

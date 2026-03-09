@@ -4,6 +4,7 @@ import {
 	fetchBackend,
 	getBackendUrlCandidates,
 } from "@/app/api/_utils/backend-url";
+import { buildErrorMessage } from "@/app/api/_utils/proxy";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 /**
@@ -11,6 +12,8 @@ import { readJsonBody } from "@/app/api/_utils/read-json-body";
  *
  * This route is used only during local development. In production, the frontend
  * is served by Express and calls /api/chat-sdk on the same origin.
+ *
+ * Returns plain-text errors (not JSON) as expected by the AI SDK transport.
  */
 export async function POST(request: NextRequest) {
 	try {
@@ -30,29 +33,6 @@ export async function POST(request: NextRequest) {
 		if (!response.ok) {
 			const retryAfter = response.headers.get("retry-after");
 			const errorText = await response.text();
-			let errorMessage = "Backend request failed";
-
-			if (errorText.trim()) {
-				try {
-					const parsed = JSON.parse(errorText) as {
-						error?: unknown;
-						message?: unknown;
-						details?: unknown;
-					};
-
-					if (typeof parsed.error === "string" && parsed.error.trim()) {
-						errorMessage = parsed.error.trim();
-					} else if (typeof parsed.message === "string" && parsed.message.trim()) {
-						errorMessage = parsed.message.trim();
-					} else if (typeof parsed.details === "string" && parsed.details.trim()) {
-						errorMessage = parsed.details.trim();
-					} else {
-						errorMessage = errorText.trim();
-					}
-				} catch {
-					errorMessage = errorText.trim();
-				}
-			}
 
 			const headers = new Headers({
 				"Content-Type": "text/plain; charset=utf-8",
@@ -61,7 +41,7 @@ export async function POST(request: NextRequest) {
 				headers.set("Retry-After", retryAfter);
 			}
 
-			return new NextResponse(errorMessage, {
+			return new NextResponse(buildErrorMessage(errorText), {
 				status: response.status,
 				headers,
 			});

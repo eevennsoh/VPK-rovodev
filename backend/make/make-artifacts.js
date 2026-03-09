@@ -1,16 +1,8 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { getNonEmptyString } = require("../lib/shared-utils");
 
 const MAX_LIST_LIMIT = 200;
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
-}
 
 function toIsoDate() {
 	return new Date().toISOString();

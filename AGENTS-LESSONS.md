@@ -40,3 +40,8 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **What happened:** The Google STT preset was renamed to a model-specific env key even though the actual Google model is selected separately via `GOOGLE_STT_MODEL`.
 - **Why:** The preset naming conflated provider selection with model selection and drifted from the intended generic-provider env design.
 - **Rule:** For provider-routed presets, keep the preset/env key generic to the provider (`google`) and use provider-specific model vars like `GOOGLE_STT_MODEL` for the concrete model choice.
+
+### 2026-03-09 - Inspect git and working-tree diffs first for reported regressions
+- **What happened:** A Future Chat streaming bug was initially treated as a generic rendering issue even though the user had already identified it as a regression.
+- **Why:** The investigation started from current behavior instead of first comparing the working tree and recent file history to the last known-good implementation.
+- **Rule:** When the user reports a regression, check recent git history and the current working-tree diff on the affected files before broadening the fix. Treat uncommitted local refactors as prime suspects.

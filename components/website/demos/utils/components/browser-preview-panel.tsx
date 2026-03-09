@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { API_ENDPOINTS } from "@/lib/api-config";
 import { cn } from "@/lib/utils";
@@ -123,6 +123,9 @@ function EmbeddedChromiumPreview({
 	const [allowScreenshotFallback, setAllowScreenshotFallback] = useState(false);
 	const [screenshotVersion, setScreenshotVersion] = useState(0);
 	const [displayedScreenshotSrc, setDisplayedScreenshotSrc] = useState<string | null>(null);
+	// Incremented after each viewport POST completes so the WebSocket effect
+	// reconnects only once the Chromium viewport is actually at the new size.
+	const [viewportSequence, setViewportSequence] = useState(0);
 	const isMountedRef = useRef(true);
 	const lastRequestedUrlRef = useRef("");
 	const liveFrameRef = useRef<HTMLImageElement | null>(null);
@@ -376,70 +379,127 @@ function EmbeddedChromiumPreview({
 		return () => observer.disconnect();
 	}, []);
 
-	useEffect(() => {
-		void setViewport(
-			containerViewportSize.width,
-			containerViewportSize.height,
-		);
-	}, [containerViewportSize.height, containerViewportSize.width, setViewport]);
-
-	useEffect(() => {
-		if (!streamConfig?.enabled || !streamConfig.wsUrl) {
+	// Measure the container synchronously before any useEffect fires so the
+	// first setViewport call already carries the real dimensions instead of
+	// the 1280×900 default.  useLayoutEffect runs before useEffect and a
+	// setState inside it triggers a synchronous re-render, so all subsequent
+	// effects see the correct containerViewportSize from the start.
+	useLayoutEffect(() => {
+		const container = liveViewportRef.current;
+		if (!container) {
 			return;
 		}
 
-		if (streamSocketRef.current) {
-			streamSocketRef.current.close();
-		}
-
-		const socket = new window.WebSocket(streamConfig.wsUrl);
-		streamSocketRef.current = socket;
-
-		socket.addEventListener("message", (event) => {
-			try {
-				const payload = JSON.parse(String(event.data)) as
-					| { type?: string; data?: string; metadata?: LiveFrameMetadata }
-					| undefined;
-				if (!payload || payload.type !== "frame" || typeof payload.data !== "string") {
-					return;
-				}
-
-				const nextFrameSrc = `data:image/jpeg;base64,${payload.data}`;
-				if (payload.metadata && isMountedRef.current) {
-					setLiveFrameMetadata(payload.metadata);
-				}
-				if (liveFrameRef.current) {
-					liveFrameRef.current.src = nextFrameSrc;
-				} else if (isMountedRef.current) {
-					setInitialLiveFrameSrc(nextFrameSrc);
-				}
-				if (!hasLiveFrameRef.current && isMountedRef.current) {
-					setHasLiveFrame(true);
-				}
-			} catch {
-				// Ignore malformed frame payloads.
+		const rect = container.getBoundingClientRect();
+		const w = Math.max(320, Math.round(rect.width));
+		const h = Math.max(240, Math.round(rect.height));
+		setContainerViewportSize((current) => {
+			if (current.width === w && current.height === h) {
+				return current;
 			}
-		});
 
-		socket.addEventListener("error", () => {
-			if (!hasLiveFrameRef.current && isMountedRef.current) {
-				setAllowScreenshotFallback(true);
-			}
+			return { width: w, height: h };
 		});
+	}, []);
 
-		socket.addEventListener("close", () => {
-			if (!hasLiveFrameRef.current && isMountedRef.current) {
-				setAllowScreenshotFallback(true);
+	useEffect(() => {
+		// Scale viewport by devicePixelRatio so Chromium renders at physical
+		// pixel resolution.  On Retina (2×) the captured frames match the
+		// display's native density, eliminating blur.
+		const dpr = window.devicePixelRatio || 1;
+		let cancelled = false;
+
+		void (async () => {
+			await setViewport(
+				Math.round(containerViewportSize.width * dpr),
+				Math.round(containerViewportSize.height * dpr),
+			);
+			// Signal that the viewport POST completed so the WebSocket effect
+			// can (re)connect — the stream server's startScreencast will now
+			// read the correct page.viewportSize().
+			if (!cancelled && isMountedRef.current) {
+				setViewportSequence((seq) => seq + 1);
 			}
-		});
+		})();
 
 		return () => {
-			socket.close();
-			if (streamSocketRef.current === socket) {
-				streamSocketRef.current = null;
+			cancelled = true;
+		};
+	}, [containerViewportSize.height, containerViewportSize.width, setViewport]);
+
+	useEffect(() => {
+		// Wait until the first viewport POST completes (viewportSequence > 0)
+		// before connecting, so the stream server's startScreencast reads the
+		// DPR-scaled viewport dimensions for maxWidth/maxHeight.
+		if (viewportSequence === 0 || !streamConfig?.enabled || !streamConfig.wsUrl) {
+			return;
+		}
+
+		// Small delay lets the stream server finish stopScreencast from a
+		// previous WebSocket disconnect before the new client triggers
+		// startScreencast with the updated viewport.
+		let cancelled = false;
+		let socket: WebSocket | null = null;
+		const wsUrl = streamConfig.wsUrl;
+
+		const delayId = window.setTimeout(() => {
+			if (cancelled) {
+				return;
+			}
+
+			socket = new window.WebSocket(wsUrl);
+			streamSocketRef.current = socket;
+
+			socket.addEventListener("message", (event) => {
+				try {
+					const payload = JSON.parse(String(event.data)) as
+						| { type?: string; data?: string; metadata?: LiveFrameMetadata }
+						| undefined;
+					if (!payload || payload.type !== "frame" || typeof payload.data !== "string") {
+						return;
+					}
+
+					const nextFrameSrc = `data:image/jpeg;base64,${payload.data}`;
+					if (payload.metadata && isMountedRef.current) {
+						setLiveFrameMetadata(payload.metadata);
+					}
+					if (liveFrameRef.current) {
+						liveFrameRef.current.src = nextFrameSrc;
+					} else if (isMountedRef.current) {
+						setInitialLiveFrameSrc(nextFrameSrc);
+					}
+					if (!hasLiveFrameRef.current && isMountedRef.current) {
+						setHasLiveFrame(true);
+					}
+				} catch {
+					// Ignore malformed frame payloads.
+				}
+			});
+
+			socket.addEventListener("error", () => {
+				if (!hasLiveFrameRef.current && isMountedRef.current) {
+					setAllowScreenshotFallback(true);
+				}
+			});
+
+			socket.addEventListener("close", () => {
+				if (!hasLiveFrameRef.current && isMountedRef.current) {
+					setAllowScreenshotFallback(true);
+				}
+			});
+		}, 200);
+
+		return () => {
+			cancelled = true;
+			window.clearTimeout(delayId);
+			if (socket) {
+				socket.close();
+				if (streamSocketRef.current === socket) {
+					streamSocketRef.current = null;
+				}
 			}
 		};
-	}, [containerViewportSize.height, containerViewportSize.width, streamConfig]);
+	}, [viewportSequence, streamConfig]);
 
 	useEffect(() => {
 		const normalizedTargetUrl = normalizeComparableUrl(currentUrl);
@@ -534,7 +594,7 @@ function EmbeddedChromiumPreview({
 	}, [currentUrl, previewState.url]);
 
 	const handleUrlKeyDown = useCallback(
-		(event: React.KeyboardEvent<HTMLInputElement>) => {
+		(event: ReactKeyboardEvent<HTMLInputElement>) => {
 			if (event.key !== "Enter") {
 				return;
 			}

@@ -1,13 +1,6 @@
+const { getNonEmptyString } = require("./shared-utils");
+
 const PLAN_MODE_SOURCE = "plan-toggle";
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const normalized = value.trim();
-	return normalized.length > 0 ? normalized : null;
-}
 
 function resolvePlanMode({
 	planMode,

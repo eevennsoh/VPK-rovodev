@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useEffect, useState } from "react";
 import {
 	type AgentState,
 	BarVisualizer,
@@ -39,9 +39,9 @@ function BarVisualizerPreview({
 	title?: string;
 	description?: string;
 }>) {
-	const [state, setState] = React.useState<AgentState>(initialState);
+	const [state, setState] = useState<AgentState>(initialState);
 
-	React.useEffect(() => {
+	useEffect(() => {
 		setState(initialState);
 	}, [initialState]);
 

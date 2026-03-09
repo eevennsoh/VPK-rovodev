@@ -8,15 +8,7 @@ const {
 	streamBedrockGatewayManualSse,
 	streamGoogleGatewayManualSse,
 } = require("./ai-gateway-helpers");
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
+const { getNonEmptyString } = require("./shared-utils");
 
 function normalizeMessages(messages) {
 	if (!Array.isArray(messages)) {

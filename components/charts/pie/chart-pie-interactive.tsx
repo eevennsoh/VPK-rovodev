@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useMemo, useState } from "react";
 import { Label, Pie, PieChart, Sector } from "recharts";
 import { type PieSectorDataItem } from "recharts/types/polar/Pie";
 
@@ -52,10 +52,10 @@ const chartConfig = {
 
 export function ChartPieInteractive() {
 	const id = "pie-interactive";
-	const [activeMonth, setActiveMonth] = React.useState(desktopData[0].month);
+	const [activeMonth, setActiveMonth] = useState(desktopData[0].month);
 
-	const activeIndex = React.useMemo(() => desktopData.findIndex((item) => item.month === activeMonth), [activeMonth]);
-	const months = React.useMemo(() => desktopData.map((item) => item.month), []);
+	const activeIndex = useMemo(() => desktopData.findIndex((item) => item.month === activeMonth), [activeMonth]);
+	const months = useMemo(() => desktopData.map((item) => item.month), []);
 
 	return (
 		<Card data-chart={id} className="flex flex-col h-full">

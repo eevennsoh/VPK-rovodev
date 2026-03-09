@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -21,7 +20,7 @@ export function SliderDemoBasic() {
 }
 
 export function SliderDemoControlled() {
-	const [value, setValue] = React.useState([0.3, 0.7]);
+	const [value, setValue] = useState([0.3, 0.7]);
 
 	return (
 		<div className="grid w-full gap-3">

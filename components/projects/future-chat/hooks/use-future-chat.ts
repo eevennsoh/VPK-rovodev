@@ -14,6 +14,11 @@ import {
 	useState,
 } from "react";
 import {
+	appendFutureChatStreamingArtifactDelta,
+	getFutureChatStreamingArtifactCheckpoint,
+	type FutureChatStreamingArtifact,
+} from "@/components/projects/future-chat/lib/future-chat-streaming-artifact";
+import {
 	createFutureChatThread,
 	deleteAllFutureChatThreads,
 	deleteFutureChatDocument,
@@ -45,16 +50,6 @@ import {
 	type RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
 import { API_ENDPOINTS } from "@/lib/api-config";
-
-interface FutureChatStreamingArtifact {
-	content: string;
-	documentId: string | null;
-	createdAt: string;
-	kind: FutureChatDocumentKind;
-	status: "streaming" | "idle";
-	title: string;
-	updatedAt: string;
-}
 
 function deriveThreadTitle(promptText: string): string {
 	const firstLine = promptText
@@ -173,6 +168,45 @@ function toFutureChatUserErrorMessage(error: unknown): string {
 const EXPLICIT_CANCEL_DEBOUNCE_MS = 750;
 const ACTIVE_TURN_STOP_TIMEOUT_MS = 1_200;
 
+interface FutureChatArtifactContextPayload {
+	content: string;
+	id: string;
+	kind: FutureChatDocumentKind;
+	title: string;
+}
+
+interface FutureChatArtifactSteeringPayload {
+	preferCurrentArtifact: true;
+	source: "voice";
+}
+
+function buildArtifactContextPayload(
+	document: Pick<FutureChatDocument, "id" | "title" | "kind">,
+	content: string,
+): FutureChatArtifactContextPayload {
+	return {
+		content,
+		id: document.id,
+		kind: document.kind,
+		title: document.title,
+	};
+}
+
+function buildStreamingArtifactContextPayload(
+	artifact: FutureChatStreamingArtifact,
+): FutureChatArtifactContextPayload | null {
+	if (!artifact.documentId || !artifact.content.trim()) {
+		return null;
+	}
+
+	return {
+		content: artifact.content,
+		id: artifact.documentId,
+		kind: artifact.kind,
+		title: artifact.title,
+	};
+}
+
 export interface FutureChatHookOptions {
 	embedded?: boolean;
 	initialThreadId?: string | null;
@@ -182,6 +216,7 @@ export interface FutureChatHookResult {
 	activeDocument: FutureChatDocument | null;
 	activeDocumentContent: string;
 	activeThreadId: string | null;
+	applyVoiceSteer: (payload: { text: string }) => Promise<void>;
 	artifactMode: "preview" | "edit";
 	artifactDraftContent: string;
 	deleteAllThreads: () => Promise<void>;
@@ -220,6 +255,7 @@ export interface FutureChatHookResult {
 	suggestedPrompt: (text: string) => Promise<void>;
 	toggleVoiceMode: () => void;
 	streamingArtifact: FutureChatStreamingArtifact | null;
+	streamingArtifactMessageId: string | null;
 	threads: FutureChatThread[];
 	threadVisibility: FutureChatVisibility;
 	votes: Record<string, "up" | "down">;
@@ -243,6 +279,8 @@ export function useFutureChat({
 	const [artifactMode, setArtifactMode] = useState<"preview" | "edit">("preview");
 	const [artifactDraftContent, setArtifactDraftContent] = useState("");
 	const [streamingArtifact, setStreamingArtifact] = useState<FutureChatStreamingArtifact | null>(null);
+	const [streamingArtifactMessageId, setStreamingArtifactMessageId] = useState<string | null>(null);
+	const pendingArtifactAssociationRef = useRef(false);
 	const [votes, setVotes] = useState<Record<string, "up" | "down">>({});
 	const [inputError, setInputError] = useState<string | null>(null);
 	const [isLoadingThread, setIsLoadingThread] = useState(false);
@@ -257,12 +295,18 @@ export function useFutureChat({
 	const runtimeThreadId = activeThreadId ?? draftThreadId;
 	const lastPersistedKeyRef = useRef<string>("");
 	const isHydratingThreadRef = useRef(false);
+	const activeThreadIdRef = useRef<string | null>(initialThreadId);
 	const activeDocumentRef = useRef<FutureChatDocument | null>(null);
 	const streamingArtifactRef = useRef<FutureChatStreamingArtifact | null>(null);
+	const streamingArtifactMessageIdRef = useRef<string | null>(null);
 	const isVoiceModeRef = useRef(isVoiceMode);
 	const statusRef = useRef<ChatStatus>("ready");
 	const interruptPromiseRef = useRef<Promise<void> | null>(null);
 	const lastExplicitCancelAtRef = useRef(0);
+
+	useEffect(() => {
+		activeThreadIdRef.current = activeThreadId;
+	}, [activeThreadId]);
 
 	useEffect(() => {
 		activeDocumentRef.current = activeDocument;
@@ -271,6 +315,10 @@ export function useFutureChat({
 	useEffect(() => {
 		streamingArtifactRef.current = streamingArtifact;
 	}, [streamingArtifact]);
+
+	useEffect(() => {
+		streamingArtifactMessageIdRef.current = streamingArtifactMessageId;
+	}, [streamingArtifactMessageId]);
 
 	useEffect(() => {
 		isVoiceModeRef.current = isVoiceMode;
@@ -289,22 +337,40 @@ export function useFutureChat({
 
 					const resolvedContextDescription =
 						existingContextDescription ?? (isVoiceModeRef.current ? VOICE_MODE_CONTEXT : undefined);
+					const artifactContextFromBody =
+						body?.artifactContext &&
+						typeof body.artifactContext === "object" &&
+						"id" in body.artifactContext &&
+						"title" in body.artifactContext &&
+						"kind" in body.artifactContext &&
+						"content" in body.artifactContext
+							? body.artifactContext
+							: null;
+					const activeArtifactContext =
+						activeDocument && artifactDraftContent.trim()
+							? buildArtifactContextPayload(activeDocument, artifactDraftContent)
+							: activeDocument
+								? buildArtifactContextPayload(activeDocument, activeDocumentContent)
+								: streamingArtifact
+									? buildStreamingArtifactContextPayload(streamingArtifact)
+									: null;
 
 					return {
 						body: {
 							...(body ?? {}),
+							activeDocumentId:
+								artifactContextFromBody?.id ??
+								activeArtifactContext?.id ??
+								activeDocumentId ??
+								null,
 							id: runtimeThreadId,
 							messages,
 							contextDescription: resolvedContextDescription,
 							visibility: threadVisibility,
-							artifactContext: activeDocument
-								? {
-									id: activeDocument.id,
-									title: activeDocument.title,
-									kind: activeDocument.kind,
-									content: activeDocumentContent,
-								}
-								: undefined,
+							artifactContext:
+								artifactContextFromBody ??
+								activeArtifactContext ??
+								undefined,
 							smartGeneration: {
 								enabled: true,
 								surface: embedded ? "future-chat-preview" : "future-chat",
@@ -315,12 +381,56 @@ export function useFutureChat({
 			}),
 		[
 			activeDocument,
+			activeDocumentId,
+			artifactDraftContent,
 			activeDocumentContent,
 			embedded,
 			runtimeThreadId,
+			streamingArtifact,
 			threadVisibility,
-			],
+		],
 	);
+
+	const persistActiveDocumentSelection = useCallback((documentId: string | null) => {
+		const threadId = activeThreadIdRef.current;
+		if (!threadId) {
+			return;
+		}
+
+		void updateFutureChatThread(threadId, {
+			activeDocumentId: documentId,
+		})
+			.then((thread) => {
+				setThreads((previousThreads) => upsertThreadRecord(previousThreads, thread));
+			})
+			.catch((error) => {
+				console.warn(
+					"[FutureChat] Failed to persist active artifact selection:",
+					toFutureChatUserErrorMessage(error),
+				);
+			});
+	}, []);
+
+	const saveStreamingArtifactCheckpoint = useCallback(async () => {
+		const checkpoint = getFutureChatStreamingArtifactCheckpoint(streamingArtifactRef.current);
+		if (!checkpoint) {
+			return null;
+		}
+
+		const document = await saveFutureChatDocument({
+			changeLabel: "Steered checkpoint",
+			documentId: checkpoint.documentId,
+			title: checkpoint.title,
+			kind: checkpoint.kind,
+			content: checkpoint.content,
+		});
+		setDocuments((previousDocuments) => upsertDocumentRecord(previousDocuments, document));
+		setActiveDocumentId(document.id);
+		setSelectedVersionId(document.versions.at(-1)?.id ?? null);
+		setArtifactDraftContent(getLatestDocumentContent(document));
+		setArtifactMode("preview");
+		return document;
+	}, []);
 
 	const hydratePersistedArtifact = useCallback(async (documentId: string) => {
 		try {
@@ -356,105 +466,77 @@ export function useFutureChat({
 	} = useChat<RovoUIMessage>({
 		transport,
 		onData: (dataPart) => {
+			const updateArtifact = (
+				patch: Partial<FutureChatStreamingArtifact>,
+			) => {
+				const now = new Date().toISOString();
+				setStreamingArtifact((prev) => ({
+					content: prev?.content ?? "",
+					documentId: prev?.documentId ?? null,
+					createdAt: prev?.createdAt ?? now,
+					kind: prev?.kind ?? "text",
+					status: "streaming" as const,
+					title: prev?.title ?? "Artifact draft",
+					updatedAt: now,
+					...patch,
+				}));
+			};
+
 			switch (dataPart.type) {
-				case "data-id": {
-					const now = new Date().toISOString();
-					setStreamingArtifact((previousArtifact) => ({
-						content: previousArtifact?.content ?? "",
-						documentId: dataPart.data,
-						createdAt: previousArtifact?.createdAt ?? now,
-						kind: previousArtifact?.kind ?? "text",
-						status: "streaming",
-						title: previousArtifact?.title ?? "Artifact draft",
-						updatedAt: now,
-					}));
+				case "data-id":
+					updateArtifact({ documentId: dataPart.data });
 					setActiveDocumentId(dataPart.data);
+					persistActiveDocumentSelection(dataPart.data);
 					setSelectedVersionId("streaming");
 					setArtifactMode("preview");
+					pendingArtifactAssociationRef.current = true;
 					break;
-				}
 
-				case "data-title": {
-					const now = new Date().toISOString();
-					setStreamingArtifact((previousArtifact) => ({
-						content: previousArtifact?.content ?? "",
-						documentId: previousArtifact?.documentId ?? null,
-						createdAt: previousArtifact?.createdAt ?? now,
-						kind: previousArtifact?.kind ?? "text",
-						status: "streaming",
-						title: dataPart.data,
-						updatedAt: now,
-					}));
+				case "data-title":
+					updateArtifact({ title: dataPart.data });
 					break;
-				}
 
-				case "data-kind": {
-					const now = new Date().toISOString();
-					setStreamingArtifact((previousArtifact) => ({
-						content: previousArtifact?.content ?? "",
-						documentId: previousArtifact?.documentId ?? null,
-						createdAt: previousArtifact?.createdAt ?? now,
-						kind: dataPart.data,
-						status: "streaming",
-						title: previousArtifact?.title ?? "Artifact draft",
-						updatedAt: now,
-					}));
+				case "data-kind":
+					updateArtifact({ kind: dataPart.data });
 					break;
-				}
 
-				case "data-clear": {
-					setStreamingArtifact((previousArtifact) => {
-						if (!previousArtifact) {
-							return null;
-						}
-
-						return {
-							...previousArtifact,
-							content: "",
-							status: "streaming",
-							updatedAt: new Date().toISOString(),
-						};
-					});
+				case "data-clear":
+					setStreamingArtifact((prev) =>
+						prev
+							? { ...prev, content: "", status: "streaming", updatedAt: new Date().toISOString() }
+							: null,
+					);
 					break;
-				}
 
 				case "data-textDelta":
-				case "data-codeDelta": {
-					const now = new Date().toISOString();
-					setStreamingArtifact((previousArtifact) => ({
-						content: `${previousArtifact?.content ?? ""}${dataPart.data}`,
-						documentId: previousArtifact?.documentId ?? null,
-						createdAt: previousArtifact?.createdAt ?? now,
-						kind:
-							previousArtifact?.kind ??
-							(dataPart.type === "data-codeDelta" ? "code" : "text"),
-						status: "streaming",
-						title: previousArtifact?.title ?? "Artifact draft",
-						updatedAt: now,
-					}));
+				case "data-codeDelta":
+					setStreamingArtifact((prev) =>
+						appendFutureChatStreamingArtifactDelta({
+							current: prev,
+							delta: dataPart.data,
+							kind: dataPart.type === "data-codeDelta" ? "code" : undefined,
+							timestamp: new Date().toISOString(),
+						}),
+					);
 					break;
-				}
 
 				case "data-finish": {
 					const documentId = streamingArtifactRef.current?.documentId;
-					setStreamingArtifact((previousArtifact) =>
-						previousArtifact
-							? {
-									...previousArtifact,
-									status: "idle",
-									updatedAt: new Date().toISOString(),
-								}
-							: previousArtifact,
+					setStreamingArtifact((prev) =>
+						prev
+							? { ...prev, status: "idle", updatedAt: new Date().toISOString() }
+							: prev,
 					);
 					if (documentId) {
-						void hydratePersistedArtifact(documentId).finally(() => {
-							setStreamingArtifact((previousArtifact) => {
-								if (!previousArtifact || previousArtifact.documentId !== documentId) {
-									return previousArtifact;
-								}
-								return null;
+						void hydratePersistedArtifact(documentId)
+							.finally(() => {
+								setStreamingArtifact((prev) => {
+									if (!prev || prev.documentId !== documentId) {
+										return prev;
+									}
+									return null;
+								});
 							});
-						});
 					}
 					break;
 				}
@@ -466,6 +548,9 @@ export function useFutureChat({
 		onError: (error) => {
 			const streamingDocumentId = streamingArtifactRef.current?.documentId;
 			setStreamingArtifact(null);
+			setStreamingArtifactMessageId(null);
+			streamingArtifactMessageIdRef.current = null;
+			pendingArtifactAssociationRef.current = false;
 			if (!activeDocumentRef.current && streamingDocumentId) {
 				setActiveDocumentId(null);
 				setSelectedVersionId(null);
@@ -474,11 +559,7 @@ export function useFutureChat({
 			}
 			setInputError(toFutureChatUserErrorMessage(error));
 		},
-		onFinish: ({ isAbort, isError }) => {
-			if (isAbort || isError) {
-				return;
-			}
-		},
+		onFinish: () => {},
 	});
 
 	const isStreaming = status === "submitted" || status === "streaming";
@@ -486,6 +567,28 @@ export function useFutureChat({
 	useEffect(() => {
 		statusRef.current = status;
 	}, [status]);
+
+	useEffect(() => {
+		if (!pendingArtifactAssociationRef.current) return;
+		if (streamingArtifactMessageId) return;
+		const lastMessage = messages[messages.length - 1];
+		if (lastMessage?.role === "assistant") {
+			pendingArtifactAssociationRef.current = false;
+			setStreamingArtifactMessageId(lastMessage.id);
+			streamingArtifactMessageIdRef.current = lastMessage.id;
+			const documentId = streamingArtifactRef.current?.documentId;
+			if (documentId) {
+				void saveFutureChatDocument({
+					documentId,
+					sourceMessageId: lastMessage.id,
+				}).then((updatedDocument) => {
+					setDocuments((prev) => upsertDocumentRecord(prev, updatedDocument));
+				}).catch((error) => {
+					console.warn("[FutureChat] Failed to persist sourceMessageId:", error);
+				});
+			}
+		}
+	}, [messages, streamingArtifactMessageId]);
 
 	const refreshThreads = useCallback(async () => {
 		try {
@@ -510,9 +613,13 @@ export function useFutureChat({
 	const hydrateThreadState = useCallback(
 		(thread: FutureChatThread, nextDocuments: FutureChatDocument[], nextVotes: FutureChatVote[]) => {
 			isHydratingThreadRef.current = true;
+			activeThreadIdRef.current = thread.id;
 			setActiveThreadId(thread.id);
 			setMessages(thread.messages);
 			setStreamingArtifact(null);
+			setStreamingArtifactMessageId(null);
+			streamingArtifactMessageIdRef.current = null;
+			pendingArtifactAssociationRef.current = false;
 			setThreadVisibility(thread.visibility);
 			setDocuments(nextDocuments);
 			setActiveDocumentId(thread.activeDocumentId);
@@ -584,9 +691,13 @@ export function useFutureChat({
 		const nextDraftId = createFutureChatId();
 		isHydratingThreadRef.current = true;
 		setDraftThreadId(nextDraftId);
+		activeThreadIdRef.current = null;
 		setActiveThreadId(null);
 		setMessages([]);
 		setStreamingArtifact(null);
+		setStreamingArtifactMessageId(null);
+		streamingArtifactMessageIdRef.current = null;
+		pendingArtifactAssociationRef.current = false;
 		setDocuments([]);
 		setActiveDocumentId(null);
 		setSelectedVersionId(null);
@@ -624,6 +735,7 @@ export function useFutureChat({
 				visibility: threadVisibility,
 				activeDocumentId,
 			});
+			activeThreadIdRef.current = nextThread.id;
 			setActiveThreadId(nextThread.id);
 			setThreads((previousThreads) => upsertThreadRecord(previousThreads, nextThread));
 			lastPersistedKeyRef.current = buildThreadPersistKey({
@@ -664,17 +776,36 @@ export function useFutureChat({
 			}
 
 			try {
+				const resolvedArtifactContext =
+					activeDocument && artifactDraftContent.trim()
+						? buildArtifactContextPayload(activeDocument, artifactDraftContent)
+						: activeDocument
+							? buildArtifactContextPayload(activeDocument, activeDocumentContent)
+							: streamingArtifact
+								? buildStreamingArtifactContextPayload(streamingArtifact)
+								: null;
 				await ensureThread(trimmedText || files[0]?.filename || "New chat");
 				await sendMessage({
 					text: trimmedText,
 					files,
+				}, {
+					body: {
+						artifactContext: resolvedArtifactContext ?? undefined,
+					},
 				});
 			} catch (error) {
 				setInputError(toFutureChatUserErrorMessage(error));
 				throw error;
 			}
 		},
-		[ensureThread, sendMessage],
+		[
+			activeDocument,
+			activeDocumentContent,
+			artifactDraftContent,
+			ensureThread,
+			sendMessage,
+			streamingArtifact,
+		],
 	);
 
 	const suggestedPrompt = useCallback(
@@ -782,6 +913,56 @@ export function useFutureChat({
 			return interruptPromise;
 		},
 		[requestExplicitCancel, setMessages, stop, waitForActiveTurnToStop],
+	);
+
+	const applyVoiceSteer = useCallback(
+		async ({ text }: { text: string }) => {
+			const trimmedText = text.trim();
+			if (!trimmedText) {
+				return;
+			}
+
+			setInputError(null);
+
+			try {
+				const hadActiveTurn =
+					statusRef.current === "submitted" || statusRef.current === "streaming";
+				const checkpointDocument = hadActiveTurn
+					? await saveStreamingArtifactCheckpoint()
+					: null;
+				if (hadActiveTurn) {
+					await interruptActiveTurn({ source: "voice-barge-in" });
+				}
+
+				await ensureThread(trimmedText);
+				void sendMessage(
+					{
+						text: trimmedText,
+						files: [],
+					},
+					{
+						body: {
+							artifactSteering: {
+								preferCurrentArtifact: true,
+								source: "voice",
+							} satisfies FutureChatArtifactSteeringPayload,
+							artifactContext: checkpointDocument
+								? buildArtifactContextPayload(
+									checkpointDocument,
+									getLatestDocumentContent(checkpointDocument),
+								)
+								: undefined,
+						},
+					},
+				).catch((error) => {
+					setInputError(toFutureChatUserErrorMessage(error));
+				});
+			} catch (error) {
+				setInputError(toFutureChatUserErrorMessage(error));
+				throw error;
+			}
+		},
+		[ensureThread, interruptActiveTurn, saveStreamingArtifactCheckpoint, sendMessage],
 	);
 
 	const deleteThread = useCallback(
@@ -897,6 +1078,7 @@ export function useFutureChat({
 
 		try {
 			const document = await saveFutureChatDocument({
+				changeLabel: "Manual edit",
 				documentId: activeDocumentId,
 				title: activeDocument?.title ?? "Artifact",
 				kind: activeDocument?.kind ?? "text",
@@ -967,9 +1149,7 @@ export function useFutureChat({
 		[messages, regenerate, setMessages],
 	);
 
-	const regenerateLatest = useCallback(() => {
-		regenerate();
-	}, [regenerate]);
+	const regenerateLatest = regenerate;
 
 	useEffect(() => {
 		if (!activeThreadId || isLoadingThread || isStreaming || isHydratingThreadRef.current) {
@@ -1044,6 +1224,7 @@ export function useFutureChat({
 		activeDocument,
 		activeDocumentContent,
 		activeThreadId,
+		applyVoiceSteer,
 		artifactMode,
 		artifactDraftContent,
 		deleteAllThreads,
@@ -1080,6 +1261,7 @@ export function useFutureChat({
 		suggestedPrompt,
 		toggleVoiceMode,
 		streamingArtifact,
+		streamingArtifactMessageId,
 		threads,
 		threadVisibility,
 		votes,

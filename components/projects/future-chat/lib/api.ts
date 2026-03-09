@@ -188,11 +188,12 @@ export async function getFutureChatDocument(documentId: string): Promise<FutureC
 }
 
 export async function saveFutureChatDocument(input: {
+	changeLabel?: string;
 	documentId?: string;
 	threadId?: string;
 	title?: string;
 	kind?: string;
-	content: string;
+	content?: string;
 	sourceMessageId?: string;
 }): Promise<FutureChatDocument> {
 	const response = await fetch(API_ENDPOINTS.FUTURE_CHAT_DOCUMENTS, {

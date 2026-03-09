@@ -5,17 +5,9 @@ const {
 	getGatewayHeaders,
 	resolveGatewayUrl,
 } = require("./ai-gateway-helpers");
+const { getNonEmptyString } = require("./shared-utils");
 
 const MAX_INPUT_LENGTH = 4096;
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
 
 function createHttpError(status, message) {
 	const error = new Error(message);

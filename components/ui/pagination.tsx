@@ -40,7 +40,7 @@ function PaginationContent({
 
 export type PaginationItemProps = React.ComponentProps<"li">
 
-function PaginationItem({ ...props }: Readonly<PaginationItemProps>) {
+function PaginationItem(props: Readonly<PaginationItemProps>) {
   return <li data-slot="pagination-item" {...props} />
 }
 
@@ -59,7 +59,7 @@ function PaginationLink({
     <Button
       variant={isActive ? "outline" : "ghost"}
       size={size}
-      className={cn(className)}
+      className={className}
       nativeButton={false}
       render={
         <a

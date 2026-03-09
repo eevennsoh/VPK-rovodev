@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactElement, useCallback, useMemo, useRef, useState } from "react";
 import type { Spec } from "@json-render/react";
 import { useChatUI } from "@json-render/react";
 import { EXAMPLE_SPECS } from "@/lib/json-render/demos";
@@ -118,7 +118,7 @@ function ChatView() {
 	const formRef = useRef<HTMLFormElement>(null);
 
 	const handleSubmit = useCallback(
-		async (e: React.FormEvent) => {
+		async (e: FormEvent) => {
 			e.preventDefault();
 			const text = input.trim();
 			if (!text || isStreaming) return;
@@ -129,7 +129,7 @@ function ChatView() {
 	);
 
 	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		(e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
 			if (e.key === "Enter" && !e.shiftKey) {
 				e.preventDefault();
 				formRef.current?.requestSubmit();
@@ -272,7 +272,7 @@ function ChatView() {
 	);
 }
 
-export default function UIGenerationDemo(): React.ReactElement {
+export default function UIGenerationDemo(): ReactElement {
 	const [viewMode, setViewMode] = useState<ViewMode>("examples");
 	const [activeSpecId, setActiveSpecId] = useState(EXAMPLE_SPECS[0].id);
 	const [showEditor, setShowEditor] = useState(false);

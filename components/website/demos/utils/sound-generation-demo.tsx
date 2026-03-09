@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface LogEntry {
@@ -57,7 +57,7 @@ function formatBytes(value: number): string {
 	return `${(kbValue / 1024).toFixed(2)} MB`;
 }
 
-export default function SoundGenerationDemo(): React.ReactElement {
+export default function SoundGenerationDemo(): ReactElement {
 	const [input, setInput] = useState(
 		"Read this in a friendly, clear voice: the deployment is complete and all systems are healthy."
 	);

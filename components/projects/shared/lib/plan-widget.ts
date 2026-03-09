@@ -309,12 +309,7 @@ export function getLatestPlanWidgetPayload(
 				continue;
 			}
 
-			const widgetType = getNonEmptyString(part.data?.type);
-			if (!widgetType) {
-				continue;
-			}
-
-			if (widgetType !== "plan") {
+			if (getNonEmptyString(part.data?.type) !== "plan") {
 				continue;
 			}
 

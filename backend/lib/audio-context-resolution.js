@@ -3,6 +3,8 @@ const {
 	normalizeSpeechPayload,
 } = require("./audio-input-extractor");
 
+const { getNonEmptyString, extractTextFromUiParts } = require("./shared-utils");
+
 const AUDIO_CONTEXT_CLARIFICATION_SESSION_PREFIX = "audio-context-clarification-";
 const AUDIO_CONTEXT_QUESTION_ID = "audio_source";
 const AUDIO_CONTEXT_LITERAL_OPTION_ID = "audio-context-literal-request";
@@ -16,7 +18,7 @@ const DEFAULT_AMBIGUITY_THRESHOLD = 0.08;
 const DEFAULT_MIN_SUBSTANTIVE_CHARS = 24;
 
 const QUOTED_SEGMENT_PATTERN =
-	/"([^"\n]{2,200})"|“([^”\n]{2,200})”|`([^`\n]{2,200})`|'([^'\n]{2,200})'/gu;
+	/"([^"\n]{2,200})"|"([^"\n]{2,200})"|`([^`\n]{2,200})`|'([^'\n]{2,200})'/gu;
 
 const CONTEXT_REFERENTIAL_PATTERNS = [
 	/\b(?:above|earlier|previous|prior|same|entire|full|whole)\b/i,
@@ -71,28 +73,6 @@ const STOPWORDS = new Set([
 	"voice",
 	"with",
 ]);
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function extractTextFromUiParts(parts) {
-	if (!Array.isArray(parts)) {
-		return "";
-	}
-
-	return parts
-		.filter((part) => part?.type === "text" && typeof part.text === "string")
-		.map((part) => part.text)
-		.join("")
-		.trim();
-}
-
 function sanitizeOptionToken(value) {
 	return String(value)
 		.toLowerCase()

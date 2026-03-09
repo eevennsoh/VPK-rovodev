@@ -11,8 +11,11 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	formatFutureChatVersionLabel,
+	getFutureChatVersionTitle,
+} from "@/components/projects/future-chat/lib/future-chat-version-labels";
 import type { FutureChatDocument } from "@/lib/future-chat-types";
-import { formatDistanceToNow } from "date-fns";
 import { CopyIcon, PencilLineIcon, SaveIcon, Trash2Icon, XIcon } from "lucide-react";
 import Image from "next/image";
 
@@ -28,6 +31,18 @@ interface FutureChatArtifactPanelProps {
 	onSave: () => Promise<void>;
 	onVersionChange: (versionId: string | null) => void;
 	selectedVersionId: string | null;
+}
+
+function inferFutureChatCodeLanguage(code: string): "html" | "css" | "tsx" {
+	if (/<!doctype html>|<html[\s>]|<head[\s>]|<body[\s>]|<style[\s>]/iu.test(code)) {
+		return "html";
+	}
+
+	if (/^\s*[.#@]?[a-z0-9_-]+\s*\{[\s\S]*\}\s*$/imu.test(code)) {
+		return "css";
+	}
+
+	return "tsx";
 }
 
 export function FutureChatArtifactPanel({
@@ -47,6 +62,10 @@ export function FutureChatArtifactPanel({
 		document.versions.find((version) => version.id === selectedVersionId)
 		?? document.versions[document.versions.length - 1]
 		?? null;
+	const selectedVersionTitle = getFutureChatVersionTitle({
+		document,
+		version: selectedVersion,
+	});
 	const previewContent =
 		isStreamingArtifact && draftContent.trim().length > 0
 			? draftContent
@@ -54,9 +73,10 @@ export function FutureChatArtifactPanel({
 	const versionLabel = isStreamingArtifact
 		? "Generating artifact..."
 		: selectedVersion
-		? `Updated ${formatDistanceToNow(new Date(selectedVersion.createdAt), {
-			addSuffix: true,
-		})}`
+		? formatFutureChatVersionLabel({
+			document,
+			version: selectedVersion,
+		})
 		: `${document.kind} artifact`;
 
 	return (
@@ -68,7 +88,7 @@ export function FutureChatArtifactPanel({
 					</Button>
 					<div className="min-w-0">
 						<div className="flex items-center gap-2">
-							<p className="truncate font-medium text-sm">{document.title}</p>
+							<p className="truncate font-medium text-sm">{selectedVersionTitle}</p>
 							<span className="rounded-full bg-bg-neutral px-2 py-0.5 text-[11px] text-text-subtle uppercase">
 								{document.kind}
 							</span>
@@ -83,16 +103,26 @@ export function FutureChatArtifactPanel({
 							onValueChange={(value) => onVersionChange(value)}
 							value={selectedVersion?.id ?? undefined}
 						>
-							<SelectTrigger className="h-8 min-w-[140px] bg-background">
-								<SelectValue placeholder="Choose a version" />
+							<SelectTrigger className="h-8 min-w-[240px] max-w-[320px] bg-background">
+								<SelectValue placeholder="Choose a version">
+									{selectedVersion
+										? formatFutureChatVersionLabel({
+											document,
+											version: selectedVersion,
+										})
+										: "Choose a version"}
+								</SelectValue>
 							</SelectTrigger>
 							<SelectContent>
 								{document.versions
 									.slice()
 									.reverse()
-									.map((version, index) => (
+									.map((version) => (
 										<SelectItem key={version.id} value={version.id}>
-											Version {document.versions.length - index}
+											{formatFutureChatVersionLabel({
+												document,
+												version,
+											})}
 										</SelectItem>
 									))}
 							</SelectContent>
@@ -152,11 +182,14 @@ export function FutureChatArtifactPanel({
 						) : (
 							<div className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
 								{document.kind === "code" ? (
-									<CodeBlock code={previewContent} language="tsx" />
+									<CodeBlock
+										code={previewContent}
+										language={inferFutureChatCodeLanguage(previewContent)}
+									/>
 								) : document.kind === "image" && /^https?:|^data:image\//u.test(previewContent) ? (
 									<div className="flex h-full min-h-[320px] items-center justify-center rounded-2xl border border-border bg-surface-raised p-4">
 										<Image
-											alt={document.title}
+											alt={selectedVersionTitle}
 											className="h-auto max-w-full rounded-md"
 											height={900}
 											src={previewContent}
@@ -165,7 +198,9 @@ export function FutureChatArtifactPanel({
 										/>
 									</div>
 								) : (
-									<MessageResponse>{previewContent}</MessageResponse>
+									<MessageResponse isAnimating={isStreamingArtifact}>
+										{previewContent}
+									</MessageResponse>
 								)}
 							</div>
 						)}

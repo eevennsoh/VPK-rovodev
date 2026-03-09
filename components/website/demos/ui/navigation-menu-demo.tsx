@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { type ReactNode } from "react";
 import { CircleAlertIcon } from "lucide-react";
 import Link from "next/link";
 import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, navigationMenuTriggerStyle } from "@/components/ui/navigation-menu";
@@ -27,7 +27,7 @@ function ListItem({
 	title,
 	href,
 	children,
-}: Readonly<{ title: string; href: string; children: React.ReactNode }>) {
+}: Readonly<{ title: string; href: string; children: ReactNode }>) {
 	return (
 		<li>
 			<NavigationMenuLink href={href}>

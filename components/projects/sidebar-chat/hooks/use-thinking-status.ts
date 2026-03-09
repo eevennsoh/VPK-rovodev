@@ -148,7 +148,7 @@ export function useThinkingStatus({
 	const hasThinkingDetails = hasReasoningContent || hasThinkingToolCalls;
 	const streamingReasoningKey = lastMessage?.id ?? "stream";
 
-	const { phase: rawReasoningPhase, duration: reasoningDuration } =
+	const { phase: reasoningPhase, duration: reasoningDuration } =
 		useReasoningPhase({
 			isStreaming: isThinkingStreaming,
 			hasMessageText: hasActiveThinkingSignals,
@@ -156,7 +156,6 @@ export function useThinkingStatus({
 			autoIdle: true,
 			minPreloadMs: 0,
 		});
-	const reasoningPhase = rawReasoningPhase;
 	const resolvedThinkingLabel = resolveThinkingLabelForSurface({
 		baseLabel: dynamicThinkingLabel,
 		surface: "sidebar",

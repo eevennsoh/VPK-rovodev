@@ -18,6 +18,31 @@ function safeJsonParse(rawValue) {
 	}
 }
 
+function getNonEmptyString(value) {
+	return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeDocumentVersion(rawVersion, options) {
+	if (!rawVersion || typeof rawVersion !== "object") {
+		return null;
+	}
+
+	const versionId = typeof rawVersion.id === "string" && rawVersion.id.trim()
+		? rawVersion.id.trim()
+		: createId("doc-version");
+	return {
+		id: versionId,
+		changeLabel:
+			getNonEmptyString(rawVersion.changeLabel) || options.fallbackChangeLabel,
+		content: typeof rawVersion.content === "string" ? rawVersion.content : "",
+		createdAt:
+			typeof rawVersion.createdAt === "string" && rawVersion.createdAt.trim()
+				? rawVersion.createdAt
+				: options.fallbackCreatedAt,
+		title: getNonEmptyString(rawVersion.title) || options.fallbackTitle,
+	};
+}
+
 function normalizeDocument(rawDocument) {
 	if (!rawDocument || typeof rawDocument !== "object") {
 		return null;
@@ -40,35 +65,24 @@ function normalizeDocument(rawDocument) {
 	const createdAt = typeof rawDocument.createdAt === "string" && rawDocument.createdAt.trim()
 		? rawDocument.createdAt
 		: toIsoDate();
+	const normalizedTitle =
+		getNonEmptyString(rawDocument.title) || "Untitled artifact";
 	const versions = Array.isArray(rawDocument.versions)
 		? rawDocument.versions
-			.map((version) => {
-				if (!version || typeof version !== "object") {
-					return null;
-				}
-
-				const versionId = typeof version.id === "string" && version.id.trim()
-					? version.id.trim()
-					: createId("doc-version");
-				return {
-					id: versionId,
-					content: typeof version.content === "string" ? version.content : "",
-					createdAt:
-						typeof version.createdAt === "string" && version.createdAt.trim()
-							? version.createdAt
-							: createdAt,
-				};
-			})
+			.map((version, index) =>
+				normalizeDocumentVersion(version, {
+					fallbackChangeLabel: index === 0 ? "Created" : "Updated",
+					fallbackCreatedAt: createdAt,
+					fallbackTitle: normalizedTitle,
+				})
+			)
 			.filter(Boolean)
 		: [];
 
 	return {
 		id,
 		threadId,
-		title:
-			typeof rawDocument.title === "string" && rawDocument.title.trim()
-				? rawDocument.title.trim()
-				: "Untitled artifact",
+		title: normalizedTitle,
 		kind:
 			rawDocument.kind === "code" ||
 			rawDocument.kind === "image" ||
@@ -150,6 +164,7 @@ function createFutureChatDocumentManager({ baseDir }) {
 	};
 
 	const createDocument = async ({
+		changeLabel,
 		threadId,
 		title,
 		kind,
@@ -166,9 +181,11 @@ function createFutureChatDocumentManager({ baseDir }) {
 			createdAt: now,
 			updatedAt: now,
 			versions: [{
+				changeLabel: getNonEmptyString(changeLabel) || "Created",
 				id: createId("doc-version"),
 				content: typeof content === "string" ? content : "",
 				createdAt: now,
+				title: getNonEmptyString(title) || "Untitled artifact",
 			}],
 		});
 		await writeDocument(nextDocument);
@@ -197,16 +214,23 @@ function createFutureChatDocumentManager({ baseDir }) {
 		return nextDocument;
 	};
 
-	const appendDocumentVersion = async (documentId, { title, content, kind }) => {
+	const appendDocumentVersion = async (documentId, {
+		changeLabel,
+		title,
+		content,
+		kind,
+	}) => {
 		const currentDocument = await readDocument(documentId);
 		if (!currentDocument) {
 			return null;
 		}
 
 		const now = toIsoDate();
+		const nextTitle =
+			typeof title === "string" && title.trim() ? title.trim() : currentDocument.title;
 		const nextDocument = normalizeDocument({
 			...currentDocument,
-			title: typeof title === "string" && title.trim() ? title.trim() : currentDocument.title,
+			title: nextTitle,
 			kind:
 				kind === "code" || kind === "image" || kind === "sheet" || kind === "text"
 					? kind
@@ -215,9 +239,11 @@ function createFutureChatDocumentManager({ baseDir }) {
 			versions: [
 				...currentDocument.versions,
 				{
+					changeLabel: getNonEmptyString(changeLabel) || "Updated",
 					id: createId("doc-version"),
 					content: typeof content === "string" ? content : "",
 					createdAt: now,
+					title: nextTitle,
 				},
 			],
 		});
@@ -225,40 +251,65 @@ function createFutureChatDocumentManager({ baseDir }) {
 		return nextDocument;
 	};
 
-	const finalizeDocumentShell = async (documentId, { title, content, kind }) => {
+	const finalizeDocumentShell = async (documentId, {
+		changeLabel,
+		title,
+		content,
+		kind,
+	}) => {
 		const currentDocument = await readDocument(documentId);
 		if (!currentDocument) {
 			return null;
 		}
 
 		const now = toIsoDate();
+		const nextTitle =
+			typeof title === "string" && title.trim() ? title.trim() : currentDocument.title;
 		const nextVersions =
 			currentDocument.versions.length === 0
 				? [
 						{
+							changeLabel: getNonEmptyString(changeLabel) || "Created",
 							id: createId("doc-version"),
 							content: typeof content === "string" ? content : "",
 							createdAt: now,
+							title: nextTitle,
 						},
 					]
 				: [
 						...currentDocument.versions,
 						{
+							changeLabel: getNonEmptyString(changeLabel) || "Updated",
 							id: createId("doc-version"),
 							content: typeof content === "string" ? content : "",
 							createdAt: now,
+							title: nextTitle,
 						},
 					];
 
 		const nextDocument = normalizeDocument({
 			...currentDocument,
-			title: typeof title === "string" && title.trim() ? title.trim() : currentDocument.title,
+			title: nextTitle,
 			kind:
 				kind === "code" || kind === "image" || kind === "sheet" || kind === "text"
 					? kind
 					: currentDocument.kind,
 			updatedAt: now,
 			versions: nextVersions,
+		});
+		await writeDocument(nextDocument);
+		return nextDocument;
+	};
+
+	const patchDocumentMetadata = async (documentId, patch) => {
+		const currentDocument = await readDocument(documentId);
+		if (!currentDocument) {
+			return null;
+		}
+
+		const nextDocument = normalizeDocument({
+			...currentDocument,
+			...(typeof patch.sourceMessageId === "string" ? { sourceMessageId: patch.sourceMessageId } : {}),
 		});
 		await writeDocument(nextDocument);
 		return nextDocument;
@@ -284,6 +335,7 @@ function createFutureChatDocumentManager({ baseDir }) {
 		createDocumentShell,
 		appendDocumentVersion,
 		finalizeDocumentShell,
+		patchDocumentMetadata,
 		deleteDocument,
 		deleteDocumentsByThread,
 		deleteAllDocuments,

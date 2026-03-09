@@ -29,13 +29,13 @@ export type SkillCardSource =
 
 export type SkillCardRootProps = React.ComponentProps<typeof HoverCard>
 
-function SkillCardRoot({ ...props }: Readonly<SkillCardRootProps>) {
+function SkillCardRoot(props: Readonly<SkillCardRootProps>) {
 	return <HoverCard {...props} />
 }
 
 export type SkillCardTriggerProps = React.ComponentProps<typeof HoverCardTrigger>
 
-function SkillCardTrigger({ ...props }: Readonly<SkillCardTriggerProps>) {
+function SkillCardTrigger(props: Readonly<SkillCardTriggerProps>) {
 	return <HoverCardTrigger {...props} />
 }
 

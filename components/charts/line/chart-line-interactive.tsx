@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,9 +24,9 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function ChartLineInteractive() {
-	const [activeChart, setActiveChart] = React.useState<keyof typeof chartConfig>("desktop");
+	const [activeChart, setActiveChart] = useState<keyof typeof chartConfig>("desktop");
 
-	const total = React.useMemo(
+	const total = useMemo(
 		() => ({
 			desktop: INTERACTIVE_CHART_DATA.reduce((acc, curr) => acc + curr.desktop, 0),
 			mobile: INTERACTIVE_CHART_DATA.reduce((acc, curr) => acc + curr.mobile, 0),

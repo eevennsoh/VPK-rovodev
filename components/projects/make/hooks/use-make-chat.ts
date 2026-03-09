@@ -654,12 +654,9 @@ export function useMakeChat(options: {
 			}
 
 			const activeCreationMode = creationModeRef.current;
+			const usePlanMode = hookMode === "make" || isPlanMode;
 
-			// Make mode: enforce ask_user_questions only on the initial
-			// interview turn for the current thread. Subsequent turns keep
-			// make-mode planning guidance but let RovoDev decide if follow-up
-			// clarification is necessary.
-			if (hookMode === "make") {
+			if (usePlanMode) {
 				const requestId = createPlanRequestId();
 				setPlanningSession({
 					requestId,
@@ -668,36 +665,17 @@ export function useMakeChat(options: {
 					retryUsed: false,
 				});
 
-				const makeContextDescription = hasCompletedInitialMakeInterview
-					? MAKE_INTERVIEW_FOLLOW_UP_CONTEXT_DESCRIPTION
-					: MAKE_INTERVIEW_CONTEXT_DESCRIPTION;
-
-				await sendPrompt(nextPrompt, {
-					contextDescription: makeContextDescription,
-					planMode: true,
-					planModeSource: MAKE_MODE_SOURCE,
-					planRequestId: requestId,
-					creationMode: activeCreationMode ?? undefined,
-				});
-				if (activeCreationMode) {
-					clearCreationMode();
-				}
-				return;
-			}
-
-			if (isPlanMode) {
-				const requestId = createPlanRequestId();
-				setPlanningSession({
-					requestId,
-					phase: "awaiting-plan",
-					hasStreamStarted: false,
-					retryUsed: false,
-				});
-				const planModeContextDescription = hasCompletedInitialMakeInterview
-					? MAKE_INTERVIEW_FOLLOW_UP_CONTEXT_DESCRIPTION
+				// Make mode uses interview-specific context; plan mode uses
+				// generic make-mode context on the initial turn.
+				const initialContextDescription = hookMode === "make"
+					? MAKE_INTERVIEW_CONTEXT_DESCRIPTION
 					: MAKE_MODE_CONTEXT_DESCRIPTION;
+				const contextDescription = hasCompletedInitialMakeInterview
+					? MAKE_INTERVIEW_FOLLOW_UP_CONTEXT_DESCRIPTION
+					: initialContextDescription;
+
 				await sendPrompt(nextPrompt, {
-					contextDescription: planModeContextDescription,
+					contextDescription,
 					planMode: true,
 					planModeSource: MAKE_MODE_SOURCE,
 					planRequestId: requestId,
@@ -933,6 +911,19 @@ export function useMakeChat(options: {
 		[sendPrompt],
 	);
 
+	const ensureChatMode = useCallback(
+		(promptText: string) => {
+			if (!isChatMode || activeChatIdRef.current === null) {
+				setIsChatMode(true);
+				createChatEntry(promptText, {
+					category: "chat",
+					origin: hookMode === "make" ? "make" : "chat",
+				});
+			}
+		},
+		[createChatEntry, hookMode, isChatMode],
+	);
+
 	const handleSubmit = useCallback(async () => {
 		if (!prompt.trim()) {
 			return;
@@ -944,24 +935,14 @@ export function useMakeChat(options: {
 
 		const currentPrompt = prompt;
 		setPrompt("");
-
-		if (!isChatMode || activeChatIdRef.current === null) {
-			setIsChatMode(true);
-			createChatEntry(currentPrompt, {
-				category: "chat",
-				origin: hookMode === "make" ? "make" : "chat",
-			});
-		}
-
+		ensureChatMode(currentPrompt);
 		await sendAgentsPrompt(currentPrompt);
 	}, [
 		prompt,
 		isPlanMode,
 		planningSession,
-		hookMode,
-		isChatMode,
+		ensureChatMode,
 		sendAgentsPrompt,
-		createChatEntry,
 	]);
 
 	const handleSuggestedQuestionClick = useCallback(
@@ -974,23 +955,14 @@ export function useMakeChat(options: {
 				return;
 			}
 
-			if (!isChatMode || activeChatIdRef.current === null) {
-				setIsChatMode(true);
-				createChatEntry(question, {
-					category: "chat",
-					origin: hookMode === "make" ? "make" : "chat",
-				});
-			}
-
+			ensureChatMode(question);
 			await sendAgentsPrompt(question);
 		},
 		[
 			isPlanMode,
 			planningSession,
-			hookMode,
-			isChatMode,
+			ensureChatMode,
 			sendAgentsPrompt,
-			createChatEntry,
 		],
 	);
 
@@ -1001,17 +973,10 @@ export function useMakeChat(options: {
 				return;
 			}
 
-			if (!isChatMode || activeChatIdRef.current === null) {
-				setIsChatMode(true);
-				createChatEntry(submitPrompt, {
-					category: "chat",
-					origin: hookMode === "make" ? "make" : "chat",
-				});
-			}
-
+			ensureChatMode(submitPrompt);
 			await sendAgentsPrompt(submitPrompt);
 		},
-		[createChatEntry, hookMode, isChatMode, sendAgentsPrompt],
+		[ensureChatMode, sendAgentsPrompt],
 	);
 
 	const clearPendingTitleState = useCallback(() => {

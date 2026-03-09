@@ -20,17 +20,15 @@ import type { TaskExecution } from "../lib/execution-data";
  */
 function ScrollWatcher({ onChange }: { onChange: (scrolled: boolean) => void }) {
 	const { scrollRef } = useStickToBottomContext();
-	// Alias keeps compatibility with stale/hot-reload code paths that referenced scrollAreaRef.
-	const scrollAreaRef = scrollRef;
 
 	useEffect(() => {
-		const el = scrollAreaRef.current;
+		const el = scrollRef.current;
 		if (!el) return;
 
 		const onScroll = () => onChange(el.scrollTop > 0);
 		el.addEventListener("scroll", onScroll, { passive: true });
 		return () => el.removeEventListener("scroll", onScroll);
-	}, [scrollAreaRef, onChange]);
+	}, [scrollRef, onChange]);
 
 	return null;
 }

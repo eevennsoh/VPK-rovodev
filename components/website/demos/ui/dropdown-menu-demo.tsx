@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { type ReactElement, useState } from "react";
 import Link from "next/link";
 import AddIcon from "@atlaskit/icon/core/add";
 import ArrowDownIcon from "@atlaskit/icon/core/arrow-down";
@@ -42,7 +42,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 
 type DemoIconProps = Readonly<{
-	render: React.ReactElement;
+	render: ReactElement;
 	label: string;
 	className?: string;
 }>;
@@ -301,7 +301,7 @@ export function DropdownMenuDemoLoading() {
 }
 
 export function DropdownMenuDemoOpen() {
-	const [open, setOpen] = React.useState(true);
+	const [open, setOpen] = useState(true);
 
 	return (
 		<div className="flex items-center gap-3">
@@ -672,8 +672,8 @@ export function DropdownMenuDemoCheckboxDefaultSelected() {
 }
 
 export function DropdownMenuDemoCheckboxSelected() {
-	const [showSidebar, setShowSidebar] = React.useState(true);
-	const [showActivity, setShowActivity] = React.useState(false);
+	const [showSidebar, setShowSidebar] = useState(true);
+	const [showActivity, setShowActivity] = useState(false);
 
 	return (
 		<DropdownMenu>
@@ -713,7 +713,7 @@ export function DropdownMenuDemoRadioDefaultSelected() {
 }
 
 export function DropdownMenuDemoRadioSelected() {
-	const [view, setView] = React.useState("list");
+	const [view, setView] = useState("list");
 
 	return (
 		<DropdownMenu>
@@ -734,9 +734,9 @@ export function DropdownMenuDemoRadioSelected() {
 }
 
 export function DropdownMenuDemoWithCheckbox() {
-	const [showSidebar, setShowSidebar] = React.useState(true);
-	const [showActivity, setShowActivity] = React.useState(false);
-	const [showPreview, setShowPreview] = React.useState(true);
+	const [showSidebar, setShowSidebar] = useState(true);
+	const [showActivity, setShowActivity] = useState(false);
+	const [showPreview, setShowPreview] = useState(true);
 
 	return (
 		<Popover>
@@ -772,7 +772,7 @@ export function DropdownMenuDemoWithCheckbox() {
 }
 
 export function DropdownMenuDemoWithRadioGroup() {
-	const [view, setView] = React.useState("list");
+	const [view, setView] = useState("list");
 
 	return (
 		<Popover>

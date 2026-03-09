@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field";
@@ -114,7 +113,7 @@ export function CheckboxDemoInTable() {
 		{ id: "3", name: "Emily Watson", email: "emily.watson@acme.com", role: "User" },
 	];
 
-	const [selectedRows, setSelectedRows] = React.useState<Set<string>>(
+	const [selectedRows, setSelectedRows] = useState<Set<string>>(
 		new Set(["1"])
 	);
 

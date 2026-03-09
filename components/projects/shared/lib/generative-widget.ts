@@ -1059,28 +1059,17 @@ function getElementProps(element: Record<string, unknown>): Record<string, unkno
 	return isObjectRecord(element.props) ? element.props : null;
 }
 
-function chooseBestTextCandidate(
-	currentBest: { text: string; score: number; index: number } | null,
-	candidate: { text: string; score: number; index: number }
-): { text: string; score: number; index: number } {
-	if (!currentBest) {
-		return candidate;
-	}
-
-	if (candidate.score > currentBest.score) {
-		return candidate;
-	}
-
-	if (candidate.score === currentBest.score && candidate.index < currentBest.index) {
-		return candidate;
-	}
-
-	return currentBest;
+interface SpecTitleCandidate {
+	text: string;
+	propName: string;
+	key: string;
+	score: number;
+	index: number;
 }
 
-function resolveGenuiTitleFromSpec(widget: ParsedGenuiPreviewWidget): string | undefined {
+function findBestTitleInSpec(widget: ParsedGenuiPreviewWidget): SpecTitleCandidate | null {
 	const traversalKeys = getSpecTraversalKeys(widget.spec);
-	let best: { text: string; score: number; index: number } | null = null;
+	let best: SpecTitleCandidate | null = null;
 
 	for (const [index, key] of traversalKeys.entries()) {
 		const element = widget.spec.elements[key];
@@ -1095,19 +1084,25 @@ function resolveGenuiTitleFromSpec(widget: ParsedGenuiPreviewWidget): string | u
 		}
 
 		let candidateText: string | undefined;
+		let propName = "title";
 		let score = 0;
 		if (elementType === "PageHeader") {
 			candidateText = getNonEmptyString(props.title);
 			score = 140;
 		} else if (elementType === "Heading") {
 			candidateText = getNonEmptyString(props.text);
+			propName = "text";
 			const headingLevel = getNonEmptyString(props.level);
 			score = headingLevel === "h1" ? 130 : headingLevel === "h2" ? 125 : 120;
 		} else if (elementType === "Card") {
 			candidateText = getNonEmptyString(props.title);
 			score = 110;
 		} else {
-			candidateText = getNonEmptyString(props.title) ?? getNonEmptyString(props.text);
+			candidateText = getNonEmptyString(props.title);
+			if (!candidateText) {
+				candidateText = getNonEmptyString(props.text);
+				propName = "text";
+			}
 			score = 80;
 		}
 
@@ -1115,19 +1110,29 @@ function resolveGenuiTitleFromSpec(widget: ParsedGenuiPreviewWidget): string | u
 			continue;
 		}
 
-		best = chooseBestTextCandidate(best, {
-			text: candidateText,
-			score,
-			index,
-		});
+		if (!best || score > best.score || (score === best.score && index < best.index)) {
+			best = { text: candidateText, propName, key, score, index };
+		}
 	}
 
-	return best?.text;
+	return best;
 }
 
-function resolveGenuiDescriptionFromSpec(widget: ParsedGenuiPreviewWidget): string | undefined {
+function resolveGenuiTitleFromSpec(widget: ParsedGenuiPreviewWidget): string | undefined {
+	return findBestTitleInSpec(widget)?.text;
+}
+
+interface SpecDescriptionCandidate {
+	text: string;
+	propName: string;
+	key: string;
+	score: number;
+	index: number;
+}
+
+function findBestDescriptionInSpec(widget: ParsedGenuiPreviewWidget): SpecDescriptionCandidate | null {
 	const traversalKeys = getSpecTraversalKeys(widget.spec);
-	let best: { text: string; score: number; index: number } | null = null;
+	let best: SpecDescriptionCandidate | null = null;
 
 	for (const [index, key] of traversalKeys.entries()) {
 		const element = widget.spec.elements[key];
@@ -1142,6 +1147,7 @@ function resolveGenuiDescriptionFromSpec(widget: ParsedGenuiPreviewWidget): stri
 		}
 
 		let candidateText: string | undefined;
+		let propName = "description";
 		let score = 0;
 		if (elementType === "PageHeader") {
 			candidateText = getNonEmptyString(props.description);
@@ -1151,6 +1157,7 @@ function resolveGenuiDescriptionFromSpec(widget: ParsedGenuiPreviewWidget): stri
 			score = 120;
 		} else if (elementType === "Text") {
 			candidateText = getNonEmptyString(props.content);
+			propName = "content";
 			score = 100;
 		} else {
 			candidateText = getNonEmptyString(props.description);
@@ -1161,14 +1168,16 @@ function resolveGenuiDescriptionFromSpec(widget: ParsedGenuiPreviewWidget): stri
 			continue;
 		}
 
-		best = chooseBestTextCandidate(best, {
-			text: candidateText,
-			score,
-			index,
-		});
+		if (!best || score > best.score || (score === best.score && index < best.index)) {
+			best = { text: candidateText, propName, key, score, index };
+		}
 	}
 
-	return best?.text;
+	return best;
+}
+
+function resolveGenuiDescriptionFromSpec(widget: ParsedGenuiPreviewWidget): string | undefined {
+	return findBestDescriptionInSpec(widget)?.text;
 }
 
 function scorePrimaryActionLabel(
@@ -1753,95 +1762,12 @@ interface SpecTextSource {
 }
 
 function findTitleSourceInSpec(widget: ParsedGenuiPreviewWidget): SpecTextSource | null {
-	const traversalKeys = getSpecTraversalKeys(widget.spec);
-	let best: { key: string; propName: string; score: number; index: number } | null = null;
-
-	for (const [index, key] of traversalKeys.entries()) {
-		const element = widget.spec.elements[key];
-		if (!isObjectRecord(element)) continue;
-
-		const elementType = getNonEmptyString(element.type);
-		const props = getElementProps(element);
-		if (!elementType || !props) continue;
-
-		let candidateText: string | undefined;
-		let propName = "title";
-		let score = 0;
-
-		if (elementType === "PageHeader") {
-			candidateText = getNonEmptyString(props.title);
-			propName = "title";
-			score = 140;
-		} else if (elementType === "Heading") {
-			candidateText = getNonEmptyString(props.text);
-			propName = "text";
-			const headingLevel = getNonEmptyString(props.level);
-			score = headingLevel === "h1" ? 130 : headingLevel === "h2" ? 125 : 120;
-		} else if (elementType === "Card") {
-			candidateText = getNonEmptyString(props.title);
-			propName = "title";
-			score = 110;
-		} else {
-			candidateText = getNonEmptyString(props.title);
-			propName = "title";
-			if (!candidateText) {
-				candidateText = getNonEmptyString(props.text);
-				propName = "text";
-			}
-			score = 80;
-		}
-
-		if (!candidateText) continue;
-
-		if (!best || score > best.score || (score === best.score && index < best.index)) {
-			best = { key, propName, score, index };
-		}
-	}
-
+	const best = findBestTitleInSpec(widget);
 	return best ? { key: best.key, propName: best.propName } : null;
 }
 
 function findDescriptionSourceInSpec(widget: ParsedGenuiPreviewWidget): SpecTextSource | null {
-	const traversalKeys = getSpecTraversalKeys(widget.spec);
-	let best: { key: string; propName: string; score: number; index: number } | null = null;
-
-	for (const [index, key] of traversalKeys.entries()) {
-		const element = widget.spec.elements[key];
-		if (!isObjectRecord(element)) continue;
-
-		const elementType = getNonEmptyString(element.type);
-		const props = getElementProps(element);
-		if (!elementType || !props) continue;
-
-		let candidateText: string | undefined;
-		let propName = "description";
-		let score = 0;
-
-		if (elementType === "PageHeader") {
-			candidateText = getNonEmptyString(props.description);
-			propName = "description";
-			score = 140;
-		} else if (elementType === "Card") {
-			candidateText = getNonEmptyString(props.description);
-			propName = "description";
-			score = 120;
-		} else if (elementType === "Text") {
-			candidateText = getNonEmptyString(props.content);
-			propName = "content";
-			score = 100;
-		} else {
-			candidateText = getNonEmptyString(props.description);
-			propName = "description";
-			score = 80;
-		}
-
-		if (!candidateText || candidateText.length < 12) continue;
-
-		if (!best || score > best.score || (score === best.score && index < best.index)) {
-			best = { key, propName, score, index };
-		}
-	}
-
+	const best = findBestDescriptionInSpec(widget);
 	return best ? { key: best.key, propName: best.propName } : null;
 }
 

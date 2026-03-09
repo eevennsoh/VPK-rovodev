@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { token } from "@/lib/tokens";
 
 export function Divider() {

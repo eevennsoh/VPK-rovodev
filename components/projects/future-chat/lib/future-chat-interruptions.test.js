@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
+	getFutureChatInterruptionLabel,
 	isFutureChatAssistantMessageInterruptible,
 	markLastFutureChatAssistantMessageInterrupted,
 } = require("../../../../lib/future-chat-interruptions.ts");
@@ -31,6 +32,10 @@ test("marks the latest unfinished assistant reply as interrupted", () => {
 		getMessageInterruption(result.messages[0])?.source,
 		"voice-barge-in",
 	);
+	assert.equal(
+		getFutureChatInterruptionLabel(getMessageInterruption(result.messages[0])),
+		"Steered",
+	);
 });
 
 test("does not relabel assistant replies that already completed", () => {
@@ -57,6 +62,17 @@ test("does not relabel assistant replies that already completed", () => {
 
 	assert.equal(result.messageId, null);
 	assert.equal(getMessageInterruption(result.messages[0]), null);
+});
+
+test("maps explicit user stops to interrupted badge copy", () => {
+	assert.equal(
+		getFutureChatInterruptionLabel({
+			status: "interrupted",
+			source: "user-stop",
+			interruptedAt: "2026-03-08T10:01:00.000Z",
+		}),
+		"Interrupted",
+	);
 });
 
 test("does not mark a turn without assistant text", () => {

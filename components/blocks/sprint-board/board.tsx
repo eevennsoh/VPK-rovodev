@@ -27,7 +27,6 @@ interface BoardProps {
 	tasks: Record<string, Task>;
 	onColumnsChange: (columnUpdates: Record<string, string[]>) => void;
 	onTaskClick?: (task: Task) => void;
-	onDeleteTask?: (task: Task) => void;
 	onAddToColumn?: (columnId: ColumnId) => void;
 }
 

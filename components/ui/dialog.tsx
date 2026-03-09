@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/ui/icon"
 import CrossIcon from "@atlaskit/icon/core/cross"
 
-function Dialog({ ...props }: Readonly<DialogPrimitive.Root.Props>) {
+function Dialog(props: Readonly<DialogPrimitive.Root.Props>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
@@ -23,7 +23,7 @@ function DialogTrigger({ render, ...props }: Readonly<DialogTriggerProps>) {
   return <Trigger data-slot="dialog-trigger" render={render} {...props} />
 }
 
-function DialogPortal({ ...props }: Readonly<DialogPrimitive.Portal.Props>) {
+function DialogPortal(props: Readonly<DialogPrimitive.Portal.Props>) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
 }
 

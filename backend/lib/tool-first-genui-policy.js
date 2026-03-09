@@ -1,3 +1,5 @@
+const { getNonEmptyString } = require("./shared-utils");
+
 const TOOL_FIRST_DOMAIN_CONFIG = [
 	{
 		id: "google-calendar",
@@ -465,15 +467,6 @@ const TOOL_FIRST_RELATIVE_NUMBER_MAP = new Map([
 const TOOL_FIRST_DOMAIN_MAP = new Map(
 	TOOL_FIRST_DOMAIN_CONFIG.map((domain) => [domain.id, domain])
 );
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
 
 function trimPreview(value, maxLength = 280) {
 	const text = getNonEmptyString(value);

@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useState } from "react";
 import { InfoIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -64,11 +64,11 @@ export function DialogDemoChatSettings() {
 		{ value: "nova", label: "Nova" },
 	];
 
-	const [tab, setTab] = React.useState("general");
-	const [theme, setTheme] = React.useState("system");
-	const [accentColor, setAccentColor] = React.useState("default");
-	const [spokenLanguage, setSpokenLanguage] = React.useState("en");
-	const [voice, setVoice] = React.useState("samantha");
+	const [tab, setTab] = useState("general");
+	const [theme, setTheme] = useState("system");
+	const [accentColor, setAccentColor] = useState("default");
+	const [spokenLanguage, setSpokenLanguage] = useState("en");
+	const [voice, setVoice] = useState("samantha");
 
 	return (
 		<Dialog>

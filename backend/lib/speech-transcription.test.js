@@ -115,7 +115,7 @@ test("resolveConfiguredTranscriptionProvider prefers explicit request provider, 
 	);
 });
 
-test("resolveConfiguredTranscriptionProvider falls back to google when an OpenAI-compatible preset has no base URL", () => {
+test("resolveConfiguredTranscriptionProvider honours openai-compatible preset even without explicit base URL", () => {
 	assert.equal(
 		resolveConfiguredTranscriptionProvider(
 			null,
@@ -126,7 +126,7 @@ test("resolveConfiguredTranscriptionProvider falls back to google when an OpenAI
 				OPENAI_COMPATIBLE_STT_BASE_URL: "",
 			},
 		),
-		"google",
+		"openai-compatible",
 	);
 });
 

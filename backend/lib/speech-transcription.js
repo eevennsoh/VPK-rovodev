@@ -2,6 +2,7 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const { getNonEmptyString } = require("./shared-utils");
 
 const {
 	getEnvVars,
@@ -16,7 +17,7 @@ const OPENAI_COMPATIBLE_TRANSCRIPTION_TIMEOUT_MS = 60_000;
 const LOCAL_WHISPER_PROVIDER = "local-whisper";
 const OPENAI_COMPATIBLE_PROVIDER = "openai-compatible";
 const DEFAULT_LOCAL_WHISPER_BIN = "whisper";
-const DEFAULT_OPENAI_COMPATIBLE_STT_BASE_URL = "http://localhost:8001/v1";
+const DEFAULT_OPENAI_COMPATIBLE_STT_BASE_URL = "http://localhost:8801/v1";
 
 const STT_PRESET_ENV_MAP = Object.freeze({
 	"whisper-tiny": Object.freeze({
@@ -59,15 +60,6 @@ function createAbortError(message = "Speech transcription aborted") {
 	error.name = "AbortError";
 	error.code = "ABORT_ERR";
 	return error;
-}
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
 }
 
 function getSpeechTranscriptionEnvVars() {
@@ -168,15 +160,6 @@ function resolveConfiguredTranscriptionProvider(rawProvider, envVars, sttEnvVars
 		resolvePresetKey(sttEnvVars.STT_PRESET),
 	);
 	if (presetConfig?.provider) {
-		if (
-			presetConfig.provider === OPENAI_COMPATIBLE_PROVIDER &&
-			!hasConfiguredOpenAiCompatibleBaseUrl(sttEnvVars)
-		) {
-			if (getNonEmptyString(envVars.GOOGLE_STT_MODEL)) {
-				return "google";
-			}
-		}
-
 		return presetConfig.provider;
 	}
 

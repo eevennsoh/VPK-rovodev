@@ -7,7 +7,9 @@ const {
 	getThinkingActivityFromToolName,
 	buildThinkingStatusFromToolEvent,
 	isChatInProgressError,
+	isPendingDeferredToolRequestError,
 	generateTextViaRovoDev,
+	recoverPendingDeferredToolRequest,
 	retryChatInProgress,
 	shouldCancelConflictingTurn,
 	parseToolCallArgsInput,
@@ -159,6 +161,59 @@ test("isChatInProgressError does not match unrelated 409 responses", () => {
 		}),
 		false
 	);
+});
+
+test("isPendingDeferredToolRequestError detects stale deferred-tool 404s", () => {
+	assert.equal(
+		isPendingDeferredToolRequestError({
+			message: "Stream failed (status 404): {\"detail\":\"Pending deferred tool request found\"}",
+			status: 404,
+			endpoint: "/v3/stream_chat",
+		}),
+		true
+	);
+});
+
+test("isPendingDeferredToolRequestError ignores unrelated 404 responses", () => {
+	assert.equal(
+		isPendingDeferredToolRequestError({
+			message: "Stream failed (status 404): {\"detail\":\"Not found\"}",
+			status: 404,
+			endpoint: "/v3/stream_chat",
+		}),
+		false
+	);
+});
+
+test("recoverPendingDeferredToolRequest cancels stale deferred state and retries once", async () => {
+	let attempts = 0;
+	let cancelCalls = 0;
+
+	const value = await recoverPendingDeferredToolRequest(
+		async () => {
+			attempts += 1;
+			if (attempts === 1) {
+				const deferredError = new Error(
+					"Stream failed (status 404): {\"detail\":\"Pending deferred tool request found\"}"
+				);
+				deferredError.status = 404;
+				deferredError.endpoint = "/v3/stream_chat";
+				throw deferredError;
+			}
+			return "ok";
+		},
+		{
+			cancelDeferredTurn: async () => {
+				cancelCalls += 1;
+			},
+			logPrefix: "recoverPendingDeferredToolRequest.test",
+			port: 8000,
+		}
+	);
+
+	assert.equal(value, "ok");
+	assert.equal(attempts, 2);
+	assert.equal(cancelCalls, 1);
 });
 
 test("generateTextViaRovoDev rejects immediately when signal is already aborted", async () => {

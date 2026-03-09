@@ -3,6 +3,7 @@
 # dependencies
 /node_modules
 /backend/node_modules
+/.venv
 .pnpm-store/
 /.pnp
 .pnp.*

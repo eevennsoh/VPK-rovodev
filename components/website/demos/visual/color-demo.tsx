@@ -1,5 +1,6 @@
 "use client";
 
+import { type ReactNode } from "react";
 import { token } from "@/lib/tokens";
 
 interface SwatchProps {
@@ -35,7 +36,7 @@ function Swatch({ label, className, type }: Readonly<SwatchProps>) {
 
 interface SectionProps {
 	title: string;
-	children: React.ReactNode;
+	children: ReactNode;
 }
 
 function Section({ title, children }: Readonly<SectionProps>) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { type CSSProperties } from "react";
 import { token } from "@/lib/tokens";
 import type { PropDefinition, SubComponentDoc } from "@/app/data/component-detail-types";
 import { DocSection } from "./doc-section";
@@ -109,7 +110,7 @@ function PropsTable({ props }: Readonly<{ props: PropDefinition[] }>) {
 	);
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
 	textAlign: "left",
 	padding: "8px 12px",
 	fontWeight: 500,
@@ -119,7 +120,7 @@ const thStyle: React.CSSProperties = {
 	letterSpacing: "0.05em",
 };
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
 	padding: "8px 12px",
 	verticalAlign: "top",
 };

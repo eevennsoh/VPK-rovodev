@@ -1,4 +1,5 @@
 const { looksLikeInabilityResponse } = require("./inability-response-detector");
+const { getNonEmptyString } = require("./shared-utils");
 
 const DEFAULT_MAX_DETAIL_LINES = 8;
 const DEFAULT_LINE_MAX_CHARS = 180;
@@ -38,15 +39,6 @@ const PRIORITY_TO_BADGE_VARIANT = {
 	trivial: "secondary",
 	lowest: "secondary",
 };
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
-}
 
 function clipText(value, maxChars = DEFAULT_LINE_MAX_CHARS) {
 	if (typeof value !== "string") {

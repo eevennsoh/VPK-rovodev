@@ -27,10 +27,6 @@ interface ResolveThinkingStatusTriggerLabelOptions {
 	duration: number | undefined;
 }
 
-function formatReasoningCompletedLabel(duration: number | undefined): string {
-	return getReasoningCompletedLabel(duration);
-}
-
 export function isThinkingStatusActive({
 	hasThinkingStatusPart,
 	hasThinkingEvents,
@@ -86,7 +82,7 @@ export function resolveThinkingStatusTriggerLabel({
 		duration > 0;
 
 	if (reasoningPhase === "completed" && !hasCompletedDuration) {
-		return formatReasoningCompletedLabel(duration);
+		return getReasoningCompletedLabel(duration);
 	}
 
 	return resolvedLabel;

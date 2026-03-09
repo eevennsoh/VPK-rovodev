@@ -7,6 +7,7 @@ import type {
 	AgentRun,
 	AgentRunStreamEvent,
 } from "@/lib/make-run-types";
+import { isAgentRunStreamEvent } from "@/lib/make-run-types";
 import {
 	computeTaskStatusGroupsFromRun,
 	deriveTaskExecutionsFromRun,
@@ -108,14 +109,6 @@ function toExecutionState(runStatus: AgentRun["status"]): ExecutionState {
 	}
 
 	return "executing";
-}
-
-function isAgentRunStreamEvent(value: unknown): value is AgentRunStreamEvent {
-	if (!value || typeof value !== "object") {
-		return false;
-	}
-
-	return typeof (value as { type?: unknown }).type === "string";
 }
 
 function toExecutionPlan(run: AgentRun | null): ParsedPlanWidgetPayload | null {

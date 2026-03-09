@@ -27,6 +27,25 @@ const {
 	normalizeArtifactKind,
 	parseFutureChatArtifactIntent,
 } = require("./lib/future-chat-artifact-intent");
+const {
+	deriveFutureChatVersionChangeLabel,
+	isExplicitNewFutureChatArtifactRequest,
+	isSameFutureChatArtifactVersionRequest,
+} = require("./lib/future-chat-artifact-updates");
+const {
+	inferFutureChatArtifactKindFromContent,
+	inferFutureChatArtifactKindFromRequest,
+} = require("./lib/future-chat-artifact-kind");
+const {
+	resolveFutureChatActiveArtifact,
+} = require("./lib/future-chat-artifact-routing");
+const {
+	deriveFutureChatArtifactTitle,
+	sanitizeFutureChatArtifactTitle,
+} = require("./lib/future-chat-artifact-titles");
+const {
+	generateAndPersistFutureChatArtifact,
+} = require("./lib/future-chat-artifact-runner");
 const makeFs = require("./make/make-filesystem");
 const { createAppRegistry } = require("./make/make-app-registry");
 const { createForgePublishManager } = require("./make/make-forge-publish");
@@ -185,6 +204,12 @@ const {
 	isLikelyLargeJsonDump,
 	sanitizeAssistantNarrative,
 } = require("./lib/tool-output-sanitizer");
+const {
+	getNonEmptyString,
+	getPositiveInteger,
+	extractTextFromUiParts,
+	isPlainObject,
+} = require("./lib/shared-utils");
 
 console.log("[STARTUP] Dependencies loaded");
 
@@ -885,18 +910,6 @@ async function streamTextViaGateway({
 	}
 }
 
-function extractTextFromUiParts(parts) {
-	if (!Array.isArray(parts)) {
-		return "";
-	}
-
-	return parts
-		.filter((part) => part?.type === "text" && typeof part.text === "string")
-		.map((part) => part.text)
-		.join("")
-		.trim();
-}
-
 function mapUiMessagesToConversation(messages) {
 	if (!Array.isArray(messages)) {
 		return { message: "", conversationHistory: [] };
@@ -1470,17 +1483,17 @@ function buildFutureChatArtifactSystemPrompt({
 	return [
 		header,
 		contentRule,
+		mode === "update"
+			? "Return the complete updated artifact, not a summary of the edits. Apply title changes directly to the artifact content when they affect the document heading."
+			: null,
+		mode === "update"
+			? "When the user changes the artifact title, framing, or subject, regenerate the full artifact so the new version fully matches that request. Do not only rename the heading."
+			: null,
 		"If essential details are missing, make the most reasonable default assumptions and continue instead of asking follow-up questions.",
 		"Be concise when the request is narrow, and fully detailed when the request explicitly asks for a complete draft.",
-	].join("\n");
-}
-
-function buildFutureChatArtifactProviderCandidates(provider) {
-	return [...new Set([
-		getNonEmptyString(provider),
-		"openai",
-		"google",
-	].filter((value) => typeof value === "string" && value.length > 0))];
+	]
+		.filter((value) => typeof value === "string" && value.length > 0)
+		.join("\n");
 }
 
 async function generateFutureChatArtifactText({
@@ -1510,141 +1523,81 @@ async function generateFutureChatArtifactText({
 		}))
 		: [];
 	const maxOutputTokens = kind === "code" ? 3200 : kind === "sheet" ? 2200 : 1800;
-	let lastError = null;
-	for (const candidateProvider of buildFutureChatArtifactProviderCandidates(provider)) {
+	const streamArtifactText = () =>
+		streamTextViaGateway({
+			system,
+			prompt,
+			messages: normalizedMessages,
+			maxOutputTokens,
+			temperature: 0.35,
+			provider,
+			signal,
+			allowFallback: false,
+			onTextDelta,
+		});
+
+	try {
+		return await streamArtifactText();
+	} catch (error) {
+		const errorMessage =
+			error instanceof Error ? error.message : String(error);
+		if (!/pending deferred tool request/i.test(errorMessage)) {
+			throw error;
+		}
+
+		console.warn("[FUTURE-CHAT] Artifact generation hit pending deferred tool request; clearing RovoDev chat state and retrying once.");
 		try {
-			if (candidateProvider === getNonEmptyString(provider)) {
-				try {
-					return await streamTextViaGateway({
-						system,
-						prompt,
-						messages: normalizedMessages,
-						maxOutputTokens,
-						temperature: 0.35,
-						provider: candidateProvider,
-						signal,
-						allowFallback: true,
-						onTextDelta,
-					});
-				} catch (error) {
-					const errorMessage =
-						error instanceof Error ? error.message : String(error);
-					if (!/pending deferred tool request/i.test(errorMessage)) {
-						throw error;
-					}
-
-					console.warn("[FUTURE-CHAT] Artifact generation hit pending deferred tool request; clearing RovoDev chat state and retrying once.");
-					try {
-						await rovoDevCancelChat();
-					} catch (cancelError) {
-						console.warn(
-							"[FUTURE-CHAT] Failed to cancel stale RovoDev chat state before retry:",
-							cancelError instanceof Error ? cancelError.message : cancelError,
-						);
-					}
-
-					try {
-						return await streamTextViaGateway({
-							system,
-							prompt,
-							messages: normalizedMessages,
-							maxOutputTokens,
-							temperature: 0.35,
-							provider: candidateProvider,
-							signal,
-							allowFallback: false,
-							onTextDelta,
-						});
-					} catch (retryError) {
-						console.warn(
-							"[FUTURE-CHAT] Retry after clearing stale RovoDev state failed; falling back to AI Gateway direct text.",
-							retryError instanceof Error ? retryError.message : retryError,
-						);
-					}
-				}
-			}
-
-			return await aiGatewayProvider.streamText({
-				system,
-				prompt,
-				messages: normalizedMessages,
-				maxOutputTokens,
-				temperature: 0.35,
-				provider: candidateProvider,
-				signal,
-				onTextDelta,
-			});
-		} catch (error) {
-			lastError = error;
+			await rovoDevCancelChat();
+		} catch (cancelError) {
 			console.warn(
-				`[FUTURE-CHAT] Artifact generation failed for provider "${candidateProvider}", trying fallback provider if available:`,
-				error instanceof Error ? error.message : error,
+				"[FUTURE-CHAT] Failed to cancel stale RovoDev chat state before retry:",
+				cancelError instanceof Error ? cancelError.message : cancelError,
 			);
 		}
-	}
 
-	throw lastError instanceof Error ? lastError : new Error("Future Chat artifact generation failed.");
+		return streamArtifactText();
+	}
 }
 
 function deriveFutureChatArtifactDeltaType(kind) {
 	return normalizeArtifactKind(kind) === "code" ? "data-codeDelta" : "data-textDelta";
 }
 
-function deriveFutureChatArtifactTitle({
-	activeArtifact,
-	conversationHistory,
-	decisionTitle,
-	latestUserMessage,
+async function generateFutureChatArtifactTitleFromContent({
+	content,
+	provider,
+	signal,
 }) {
-	const normalizedDecisionTitle = getNonEmptyString(decisionTitle);
-	if (
-		normalizedDecisionTitle &&
-		!/^(?:an?\s+)?artifact(?:\s+(?:about|from|for|of|based on)\s+(?:it|this|that|them))?$/i.test(
-			normalizedDecisionTitle,
-		)
-	) {
-		return normalizedDecisionTitle;
+	const normalizedContent = getNonEmptyString(content);
+	if (!normalizedContent) {
+		return null;
 	}
 
-	const candidateMessages = [];
-	if (Array.isArray(conversationHistory)) {
-		for (let index = conversationHistory.length - 1; index >= 0; index--) {
-			const message = conversationHistory[index];
-			if (message?.type === "user" && typeof message.content === "string") {
-				candidateMessages.push(message.content);
-			}
-		}
+	const titlePrompt = [
+		"Generate a concise artifact title that matches this content.",
+		"Return ONLY the title text. No quotes, no punctuation at the end, no explanation.",
+		"",
+		normalizedContent.slice(0, 4000),
+	].join("\n");
+
+	try {
+		const text = await aiGatewayProvider.generateText({
+			system: "You generate concise artifact titles. Respond with only the title, 2-6 words.",
+			prompt: titlePrompt,
+			maxOutputTokens: 30,
+			temperature: 0.2,
+			provider,
+			signal,
+		});
+
+		return sanitizeFutureChatArtifactTitle(text);
+	} catch (error) {
+		console.warn(
+			"[FUTURE-CHAT] Failed to generate artifact title from content, falling back:",
+			error instanceof Error ? error.message : error,
+		);
+		return null;
 	}
-	candidateMessages.push(latestUserMessage);
-
-	for (const candidate of candidateMessages) {
-		const normalizedCandidate = getNonEmptyString(candidate);
-		if (!normalizedCandidate) {
-			continue;
-		}
-
-		const cleanedCandidate = normalizedCandidate
-			.replace(
-				/^(write|draft|create|build|generate|make|compose|outline|summari[sz]e|plan|design|implement|refactor|turn|convert)\s+/i,
-				"",
-			)
-			.trim();
-		if (!cleanedCandidate) {
-			continue;
-		}
-
-		if (
-			/^(?:an?\s+)?artifact(?:\s+(?:about|from|for|of|based on)\s+(?:it|this|that|them))?$/i.test(
-				cleanedCandidate,
-			)
-		) {
-			continue;
-		}
-
-		return cleanedCandidate.slice(0, 80);
-	}
-
-	return getNonEmptyString(activeArtifact?.title) || "Artifact draft";
 }
 
 function resolveFutureChatArtifactKind({
@@ -1653,10 +1606,14 @@ function resolveFutureChatArtifactKind({
 	decisionKind,
 	latestUserMessage,
 }) {
+	const requestedKind = inferFutureChatArtifactKindFromRequest(
+		latestUserMessage,
+		action === "updateDocument" ? activeArtifact?.kind : decisionKind,
+	);
 	const normalizedKind =
 		action === "updateDocument"
-			? normalizeArtifactKind(decisionKind || activeArtifact?.kind)
-			: normalizeArtifactKind(decisionKind);
+			? normalizeArtifactKind(decisionKind || requestedKind || activeArtifact?.kind)
+			: normalizeArtifactKind(decisionKind || requestedKind);
 
 	const normalizedMessage = getNonEmptyString(latestUserMessage)?.toLowerCase() || "";
 	const hasDocumentCue =
@@ -1667,8 +1624,12 @@ function resolveFutureChatArtifactKind({
 		/\b(code|component|tsx|jsx|react|javascript|typescript|python|sql|api|function|script)\b/.test(
 			normalizedMessage,
 		);
+	const hasWebArtifactCue =
+		/\b(page|web\s?page|website|site|landing\s?page|home\s?page|homepage|html|css|tailwind)\b/.test(
+			normalizedMessage,
+		);
 
-	if (normalizedKind === "code" && hasDocumentCue && !hasCodeCue) {
+	if (normalizedKind === "code" && hasDocumentCue && !hasCodeCue && !hasWebArtifactCue) {
 		return "text";
 	}
 
@@ -1677,6 +1638,7 @@ function resolveFutureChatArtifactKind({
 
 async function resolveFutureChatArtifactDecision({
 	activeArtifact,
+	artifactSteering,
 	conversationHistory,
 	latestUserMessage,
 	provider,
@@ -1684,11 +1646,20 @@ async function resolveFutureChatArtifactDecision({
 }) {
 	const prompt = buildFutureChatArtifactIntentPrompt({
 		activeArtifact,
+		artifactSteering,
 		conversationHistory,
 		latestUserMessage,
 	});
 	const fallbackDecision = fallbackFutureChatArtifactIntent({
 		activeArtifact,
+		artifactSteering,
+		latestUserMessage,
+	});
+	const sameArtifactVersionRequest = isSameFutureChatArtifactVersionRequest({
+		activeArtifact,
+		latestUserMessage,
+	});
+	const explicitlyRequestsNewArtifact = isExplicitNewFutureChatArtifactRequest({
 		latestUserMessage,
 	});
 	const normalizedLatestUserMessage = getNonEmptyString(latestUserMessage) || "";
@@ -1719,6 +1690,15 @@ async function resolveFutureChatArtifactDecision({
 			return fallbackDecision;
 		}
 
+		if (sameArtifactVersionRequest && !explicitlyRequestsNewArtifact) {
+			return {
+				action: "updateDocument",
+				title:
+					getNonEmptyString(parsedDecision.title) || getNonEmptyString(activeArtifact?.title),
+				kind: parsedDecision.kind || normalizeArtifactKind(activeArtifact?.kind),
+			};
+		}
+
 		if (
 			parsedDecision.action === "chat" &&
 			fallbackDecision.action !== "chat" &&
@@ -1740,9 +1720,12 @@ async function resolveFutureChatArtifactDecision({
 function streamFutureChatArtifactToolResponse({
 	artifactAction,
 	artifactDocument,
+	changeLabel,
 	contextDescription,
 	conversationHistory,
 	latestUserMessage,
+	artifactThreadId,
+	previousActiveDocumentId,
 	provider,
 	res,
 	signal,
@@ -1782,43 +1765,84 @@ function streamFutureChatArtifactToolResponse({
 			});
 
 			const deltaType = deriveFutureChatArtifactDeltaType(artifactDocument.kind);
-			const streamedChunks = [];
-			const assistantText = await generateFutureChatArtifactText({
-				mode: artifactAction === "updateDocument" ? "update" : "create",
-				title: artifactDocument.title,
-				kind: artifactDocument.kind,
+			const {
+				contentToPersist,
+				persistedArtifactDocument,
+				titleChanged,
+				kindChanged,
+			} = await generateAndPersistFutureChatArtifact({
+				artifactAction,
+				artifactDocument,
+				changeLabel,
+				fallbackTitle: artifactDocument.title,
 				latestUserMessage,
-				conversationHistory,
-				contextDescription,
-				provider,
-				signal,
-				onTextDelta: (delta) => {
-					streamedChunks.push(delta);
-					writer.write({
-						type: deltaType,
-						data: delta,
-						transient: true,
-					});
+				generateArtifactText: ({ onTextDelta }) =>
+					generateFutureChatArtifactText({
+						mode: artifactAction === "updateDocument" ? "update" : "create",
+						title: artifactDocument.title,
+						kind: artifactDocument.kind,
+						latestUserMessage,
+						conversationHistory,
+						contextDescription,
+						provider,
+						signal,
+						onTextDelta: (delta) => {
+							writer.write({
+								type: deltaType,
+								data: delta,
+								transient: true,
+							});
+							if (typeof onTextDelta === "function") {
+								onTextDelta(delta);
+							}
+						},
+					}),
+				inferArtifactKindFromContent: inferFutureChatArtifactKindFromContent,
+				futureChatDocumentManager,
+				onCreateFailure: async () => {
+					const cleanupTasks = [
+						futureChatDocumentManager.deleteDocument(artifactDocument.id),
+					];
+					if (artifactThreadId) {
+						cleanupTasks.push(
+							futureChatThreadManager.updateThread(artifactThreadId, {
+								activeDocumentId: previousActiveDocumentId,
+							}),
+						);
+					}
+
+					const cleanupResults = await Promise.allSettled(cleanupTasks);
+					for (const cleanupResult of cleanupResults) {
+						if (cleanupResult.status === "rejected") {
+							console.warn(
+								"[FUTURE-CHAT] Failed to clean up after artifact create failure:",
+								cleanupResult.reason instanceof Error
+									? cleanupResult.reason.message
+									: cleanupResult.reason,
+							);
+						}
+					}
 				},
+				resolveGeneratedTitle: ({ content }) =>
+					generateFutureChatArtifactTitleFromContent({
+						content,
+						provider,
+						signal,
+					}),
 			});
 
-			const normalizedAssistantText =
-				typeof assistantText === "string" ? assistantText.trim() : "";
-			if (!normalizedAssistantText && streamedChunks.length === 0) {
-				throw new Error("Future Chat artifact generation returned no content.");
-			}
-
-			if (artifactAction === "updateDocument") {
-				await futureChatDocumentManager.appendDocumentVersion(artifactDocument.id, {
-					content: normalizedAssistantText,
-					title: artifactDocument.title,
-					kind: artifactDocument.kind,
+			if (titleChanged) {
+				writer.write({
+					type: "data-title",
+					data: persistedArtifactDocument.title,
+					transient: true,
 				});
-			} else {
-				await futureChatDocumentManager.finalizeDocumentShell(artifactDocument.id, {
-					content: normalizedAssistantText,
-					title: artifactDocument.title,
-					kind: artifactDocument.kind,
+			}
+			if (kindChanged) {
+				writer.write({
+					type: "data-kind",
+					data: persistedArtifactDocument.kind,
+					transient: true,
 				});
 			}
 
@@ -1831,8 +1855,8 @@ function streamFutureChatArtifactToolResponse({
 			const textId = `future-chat-artifact-summary-${Date.now()}`;
 			const summaryText =
 				artifactAction === "updateDocument"
-					? `Updated artifact "${artifactDocument.title}".`
-					: `Created artifact "${artifactDocument.title}".`;
+					? `Updated artifact "${persistedArtifactDocument.title}".`
+					: `Created artifact "${persistedArtifactDocument.title}".`;
 			writer.write({ type: "text-start", id: textId });
 			writer.write({
 				type: "text-delta",
@@ -1849,7 +1873,7 @@ function streamFutureChatArtifactToolResponse({
 						prompt: createSuggestedQuestionsPrompt(
 							latestUserMessage,
 							conversationHistory,
-							normalizedAssistantText,
+							contentToPersist,
 						),
 						maxOutputTokens: 120,
 						temperature: 0.5,
@@ -1896,6 +1920,8 @@ function streamFutureChatArtifactToolResponse({
 
 async function handleFutureChatArtifactToolRequest({
 	activeArtifact,
+	activeDocument,
+	artifactSteering,
 	contextDescription,
 	req,
 	requestBody,
@@ -1920,6 +1946,7 @@ async function handleFutureChatArtifactToolRequest({
 				}
 			: await resolveFutureChatArtifactDecision({
 					activeArtifact,
+					artifactSteering,
 					conversationHistory,
 					latestUserMessage,
 					provider: getNonEmptyString(requestBody.provider),
@@ -1930,7 +1957,18 @@ async function handleFutureChatArtifactToolRequest({
 		return false;
 	}
 
+	const artifactContextBlock =
+		decision.action === "updateDocument"
+			? buildFutureChatArtifactContext(activeArtifact)
+			: null;
+	const resolvedContextDescription = artifactContextBlock
+		? contextDescription
+			? `${artifactContextBlock}\n\n${contextDescription}`
+			: artifactContextBlock
+		: contextDescription;
+
 	const artifactTitle = deriveFutureChatArtifactTitle({
+		action: decision.action,
 		activeArtifact,
 		conversationHistory,
 		decisionTitle: decision.title,
@@ -1944,12 +1982,25 @@ async function handleFutureChatArtifactToolRequest({
 	});
 
 	let artifactDocument;
+	let existingDocument = null;
+	const previousActiveDocumentId =
+		getNonEmptyString(activeDocument?.id) || getNonEmptyString(activeArtifact?.id);
+	let changeLabel = deriveFutureChatVersionChangeLabel({
+		artifactAction: decision.action,
+		artifactSteering,
+		latestUserMessage,
+		nextTitle: artifactTitle,
+		previousTitle: getNonEmptyString(activeArtifact?.title),
+	});
 	if (decision.action === "updateDocument") {
 		if (!activeArtifact?.id) {
 			return false;
 		}
 
-		const existingDocument = await futureChatDocumentManager.getDocument(activeArtifact.id);
+		existingDocument =
+			activeDocument?.id === activeArtifact.id
+				? activeDocument
+				: await futureChatDocumentManager.getDocument(activeArtifact.id);
 		if (!existingDocument) {
 			return false;
 		}
@@ -1959,6 +2010,13 @@ async function handleFutureChatArtifactToolRequest({
 			title: artifactTitle || existingDocument.title,
 			kind: artifactKind || existingDocument.kind,
 		};
+		changeLabel = deriveFutureChatVersionChangeLabel({
+			artifactAction: decision.action,
+			artifactSteering,
+			latestUserMessage,
+			nextTitle: artifactDocument.title,
+			previousTitle: existingDocument.title,
+		});
 	} else {
 		if (!threadId) {
 			return false;
@@ -1976,15 +2034,31 @@ async function handleFutureChatArtifactToolRequest({
 		};
 	}
 
+	const artifactThreadId =
+		getNonEmptyString(threadId) || getNonEmptyString(existingDocument?.threadId);
+	if (artifactThreadId) {
+		void futureChatThreadManager.updateThread(artifactThreadId, {
+			activeDocumentId: artifactDocument.id,
+		}).catch((error) => {
+			console.warn(
+				"[FUTURE-CHAT] Failed to persist active artifact selection:",
+				error instanceof Error ? error.message : error,
+			);
+		});
+	}
+
 	streamFutureChatArtifactToolResponse({
 		artifactAction: decision.action,
 		artifactDocument,
-		contextDescription,
+		changeLabel,
+		contextDescription: resolvedContextDescription,
 		conversationHistory,
 		latestUserMessage,
 		provider: getNonEmptyString(requestBody.provider),
 		res,
 		signal: req.signal,
+		artifactThreadId,
+		previousActiveDocumentId,
 	});
 	return true;
 }
@@ -1997,30 +2071,50 @@ async function proxyFutureChatChatRequest(req, res) {
 			console.log("[FUTURE-CHAT] Client disconnected, aborting chat proxy");
 		},
 	});
-	const activeArtifact = requestBody.artifactContext;
-	const artifactContextBlock = buildFutureChatArtifactContext(activeArtifact);
+	const threadId = getNonEmptyString(requestBody.id);
+	const {
+		activeArtifact,
+		activeDocument,
+	} = await resolveFutureChatActiveArtifact({
+		activeDocumentId: requestBody.activeDocumentId,
+		artifactContext: requestBody.artifactContext,
+		futureChatDocumentManager,
+		futureChatThreadManager,
+		threadId,
+	});
+	const artifactSteering =
+		requestBody.artifactSteering &&
+		typeof requestBody.artifactSteering === "object"
+			? requestBody.artifactSteering
+			: null;
+	const baseContextDescription = getNonEmptyString(requestBody.contextDescription);
+	delete requestBody.activeDocumentId;
 	delete requestBody.artifactContext;
-	if (artifactContextBlock) {
-		const existingContextDescription = getNonEmptyString(
-			requestBody.contextDescription
-		);
-		requestBody.contextDescription = existingContextDescription
-			? `${artifactContextBlock}\n\n${existingContextDescription}`
-			: artifactContextBlock;
-	}
+	delete requestBody.artifactSteering;
 
 	if (
 		await handleFutureChatArtifactToolRequest({
 			activeArtifact,
-			contextDescription: getNonEmptyString(requestBody.contextDescription),
+			activeDocument,
+			artifactSteering,
+			contextDescription: baseContextDescription,
 			req,
 			requestBody,
 			res,
-			threadId: getNonEmptyString(requestBody.id),
+			threadId,
 		})
 	) {
 		cleanup();
 		return;
+	}
+
+	const artifactContextBlock = buildFutureChatArtifactContext(activeArtifact);
+	if (artifactContextBlock) {
+		requestBody.contextDescription = baseContextDescription
+			? `${artifactContextBlock}\n\n${baseContextDescription}`
+			: artifactContextBlock;
+	} else if (baseContextDescription) {
+		requestBody.contextDescription = baseContextDescription;
 	}
 
 	let response;
@@ -2159,15 +2253,6 @@ function parseSuggestedQuestions(rawText) {
 
 // RovoDev-only mode - no local clarification/approval logic
 
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
 const IMAGE_PROXY_TIMEOUT_MS = 15_000;
 const WEB_PROXY_TIMEOUT_MS = 30_000;
 const FIGMA_MCP_ASSET_PATH_PREFIX = "/api/mcp/asset/";
@@ -2285,21 +2370,6 @@ function hasRequiredGoogleTranslateProjectArg(toolInput) {
 	return projectCandidates.some((candidate) => Boolean(getNonEmptyString(candidate)));
 }
 
-function getPositiveInteger(value) {
-	if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-		return value;
-	}
-
-	if (typeof value === "string") {
-		const parsedValue = Number.parseInt(value, 10);
-		if (Number.isInteger(parsedValue) && parsedValue > 0) {
-			return parsedValue;
-		}
-	}
-
-	return null;
-}
-
 function normalizeClientTimeZone(value) {
 	const timeZone = getNonEmptyString(value);
 	if (!timeZone || timeZone.length > 100) {
@@ -2344,10 +2414,6 @@ function truncateObservationString(value) {
 	}
 
 	return `${value.slice(0, TOOL_OBSERVATION_RAW_MAX_STRING_CHARS - 1)}…`;
-}
-
-function isPlainObject(value) {
-	return Object.prototype.toString.call(value) === "[object Object]";
 }
 
 function toBoundedToolObservationRawOutput(value, depth = 0, seen = new WeakSet()) {
@@ -9220,7 +9286,7 @@ app.post("/api/speech-transcription", async (req, res) => {
 			mimeType: mimeType || "audio/webm",
 			audioLength: audio.length,
 			model: model || null,
-			provider: provider || "google",
+			provider: provider || `(preset: ${process.env.STT_PRESET || "none"})`,
 		});
 
 		const text = await transcribeAudio({
@@ -9987,6 +10053,7 @@ app.get("/api/future-chat/documents", async (req, res) => {
 app.post("/api/future-chat/documents", async (req, res) => {
 	try {
 		const {
+			changeLabel,
 			documentId,
 			threadId,
 			title,
@@ -9995,10 +10062,21 @@ app.post("/api/future-chat/documents", async (req, res) => {
 			sourceMessageId,
 		} = req.body || {};
 		if (typeof documentId === "string" && documentId.trim()) {
-			const document = await futureChatDocumentManager.appendDocumentVersion(documentId, {
-				title,
-				kind,
-				content,
+			if (typeof content === "string") {
+				const document = await futureChatDocumentManager.appendDocumentVersion(documentId, {
+					changeLabel,
+					title,
+					kind,
+					content,
+				});
+				if (!document) {
+					return res.status(404).json({ error: "Document not found" });
+				}
+				return res.status(200).json({ document });
+			}
+
+			const document = await futureChatDocumentManager.patchDocumentMetadata(documentId, {
+				sourceMessageId,
 			});
 			if (!document) {
 				return res.status(404).json({ error: "Document not found" });
@@ -10011,6 +10089,7 @@ app.post("/api/future-chat/documents", async (req, res) => {
 		}
 
 		const document = await futureChatDocumentManager.createDocument({
+			changeLabel,
 			threadId,
 			title,
 			kind,

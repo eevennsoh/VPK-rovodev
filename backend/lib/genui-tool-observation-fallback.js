@@ -1,14 +1,7 @@
+const { getNonEmptyString, pluralize } = require("./shared-utils");
+
 const DEFAULT_MAX_OBSERVATIONS = 40;
 const DEFAULT_MAX_OBSERVATION_CHARS = 1200;
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
-}
 
 function clipText(value, maxChars) {
 	if (typeof value !== "string") {
@@ -18,10 +11,6 @@ function clipText(value, maxChars) {
 		return value;
 	}
 	return `${value.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
-}
-
-function pluralize(count, singular, plural) {
-	return count === 1 ? singular : plural;
 }
 
 function normalizeObservationPhase(value) {

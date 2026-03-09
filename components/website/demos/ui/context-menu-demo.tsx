@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useState } from "react";
 import { ArchiveIcon, ClipboardPasteIcon, CopyIcon, PencilIcon, ScissorsIcon, ShareIcon, TrashIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuLabel, ContextMenuRadioGroup, ContextMenuRadioItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -266,9 +266,9 @@ export function ContextMenuDemoWithIcons() {
 }
 
 export function ContextMenuDemoWithInset() {
-	const [showBookmarks, setShowBookmarks] = React.useState(true);
-	const [showUrls, setShowUrls] = React.useState(false);
-	const [theme, setTheme] = React.useState("system");
+	const [showBookmarks, setShowBookmarks] = useState(true);
+	const [showUrls, setShowUrls] = useState(false);
+	const [theme, setTheme] = useState("system");
 
 	return (
 		<ContextMenu>
@@ -337,8 +337,8 @@ export function ContextMenuDemoWithInset() {
 }
 
 export function ContextMenuDemoWithRadioGroup() {
-	const [user, setUser] = React.useState("pedro");
-	const [theme, setTheme] = React.useState("light");
+	const [user, setUser] = useState("pedro");
+	const [theme, setTheme] = useState("light");
 
 	return (
 		<ContextMenu>

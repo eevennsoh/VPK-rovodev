@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, type ReactElement, useCallback, useEffect, useRef } from "react";
 import { RovoChatProvider } from "@/app/contexts";
 import ChatPanel from "@/components/projects/sidebar-chat/page";
 import type { GenerativeCardAnimationProps } from "@/components/projects/shared/components/generative-widget-card";
@@ -11,10 +11,10 @@ const MULTIPORTS_GENERATIVE_CARD_ANIMATION: GenerativeCardAnimationProps = {
 	distortion: false,
 };
 
-export default function MultiportsDemo(): React.ReactElement {
+export default function MultiportsDemo(): ReactElement {
 	const containerRef = useRef<HTMLDivElement>(null);
 
-	const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+	const handleKeyDown = useCallback((e: ReactKeyboardEvent) => {
 		if (e.key !== "Tab") return;
 
 		const container = containerRef.current;

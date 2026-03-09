@@ -244,7 +244,7 @@ The current setup also writes a live-voice STT block into `.env.local`. Switch o
 Notes:
 
 - `STT_PRESET=google` uses `GOOGLE_STT_MODEL` for the actual Google model.
-- Qwen presets target an OpenAI-compatible transcription endpoint. If `OPENAI_COMPATIBLE_STT_BASE_URL` is not set, the backend defaults to `http://localhost:8001/v1`.
+- Qwen presets target an OpenAI-compatible transcription endpoint at `http://localhost:8801/v1`. Launch it with `pnpm run dev:stt`.
 - Whisper presets require the `whisper` CLI on PATH.
 
 **Default RovoDev billing site (recommended):**

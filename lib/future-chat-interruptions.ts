@@ -35,6 +35,16 @@ function getMessageText(message: Pick<RovoUIMessage, "parts">): string {
 		.trim();
 }
 
+export function getFutureChatInterruptionLabel(
+	interruption: RovoMessageInterruption | null,
+): string | null {
+	if (!interruption) {
+		return null;
+	}
+
+	return interruption.source === "voice-barge-in" ? "Steered" : "Interrupted";
+}
+
 export function isFutureChatAssistantMessageInterruptible(
 	message: RovoUIMessage,
 ): boolean {

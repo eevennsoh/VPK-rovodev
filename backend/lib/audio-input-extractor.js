@@ -1,3 +1,5 @@
+const { getNonEmptyString } = require("./shared-utils");
+
 const QUOTED_SEGMENT_PATTERN =
 	/"([^"\n]{1,4000})"|“([^”\n]{1,4000})”|`([^`\n]{1,4000})`|'([^'\n]{2,4000})'/gu;
 
@@ -12,15 +14,6 @@ const COMMAND_EXTRACTION_PATTERNS = [
 ];
 
 const MAX_DEFAULT_CHARS = 4000;
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
 
 function clipToMaxChars(value, maxChars = MAX_DEFAULT_CHARS) {
 	const text = getNonEmptyString(value);

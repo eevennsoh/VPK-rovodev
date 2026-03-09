@@ -109,7 +109,7 @@ function Carousel({
     <CarouselContext
       value={{
         carouselRef,
-        api: api,
+        api,
         opts,
         orientation:
           orientation || (opts?.axis === "y" ? "vertical" : "horizontal"),

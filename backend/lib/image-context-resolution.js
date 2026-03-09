@@ -2,6 +2,8 @@ const {
 	clipToMaxChars,
 } = require("./audio-input-extractor");
 
+const { getNonEmptyString, extractTextFromUiParts } = require("./shared-utils");
+
 const IMAGE_CONTEXT_CLARIFICATION_SESSION_PREFIX = "image-context-clarification-";
 const IMAGE_CONTEXT_QUESTION_ID = "image_context";
 const IMAGE_CONTEXT_LITERAL_OPTION_ID = "image-context-literal-request";
@@ -73,28 +75,6 @@ const STOPWORDS = new Set([
 	"visualize",
 	"with",
 ]);
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function extractTextFromUiParts(parts) {
-	if (!Array.isArray(parts)) {
-		return "";
-	}
-
-	return parts
-		.filter((part) => part?.type === "text" && typeof part.text === "string")
-		.map((part) => part.text)
-		.join("")
-		.trim();
-}
-
 function sanitizeOptionToken(value) {
 	return String(value)
 		.toLowerCase()

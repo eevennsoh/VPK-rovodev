@@ -26,13 +26,13 @@ export const dropdownStyles = {
 
 type DropdownMenuProps = MenuPrimitive.Root.Props
 
-function DropdownMenu({ ...props }: Readonly<DropdownMenuProps>) {
+function DropdownMenu(props: Readonly<DropdownMenuProps>) {
 	return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />
 }
 
 type DropdownMenuPortalProps = MenuPrimitive.Portal.Props
 
-function DropdownMenuPortal({ ...props }: Readonly<DropdownMenuPortalProps>) {
+function DropdownMenuPortal(props: Readonly<DropdownMenuPortalProps>) {
 	return <MenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
 }
 
@@ -205,7 +205,7 @@ function DropdownMenuItem({
 
 type DropdownMenuSubProps = MenuPrimitive.SubmenuRoot.Props
 
-function DropdownMenuSub({ ...props }: Readonly<DropdownMenuSubProps>) {
+function DropdownMenuSub(props: Readonly<DropdownMenuSubProps>) {
 	return (
 		<MenuPrimitive.SubmenuRoot data-slot="dropdown-menu-sub" {...props} />
 	)
@@ -309,9 +309,7 @@ function DropdownMenuCheckboxItem({
 
 type DropdownMenuRadioGroupProps = MenuPrimitive.RadioGroup.Props
 
-function DropdownMenuRadioGroup({
-	...props
-}: Readonly<DropdownMenuRadioGroupProps>) {
+function DropdownMenuRadioGroup(props: Readonly<DropdownMenuRadioGroupProps>) {
 	return (
 		<MenuPrimitive.RadioGroup
 			data-slot="dropdown-menu-radio-group"

@@ -198,10 +198,6 @@ function normalizeQuestionOptions(value: unknown): ParsedQuestionCardOption[] {
 	return options.slice(0, MAX_GENERATED_OPTIONS);
 }
 
-function createFallbackQuestionOptions(): ParsedQuestionCardOption[] {
-	return [];
-}
-
 function getUniqueQuestionId(baseId: string, seenQuestionIds: Set<string>): string {
 	let uniqueQuestionId = baseId;
 	let duplicateIndex = 2;
@@ -257,11 +253,7 @@ export function parseQuestionCardPayload(
 		if (seenLabels.has(normalizedLabel)) continue;
 		seenLabels.add(normalizedLabel);
 
-		const parsedOptions = normalizeQuestionOptions(question.options);
-		const options =
-			parsedOptions.length > 0
-				? parsedOptions
-				: createFallbackQuestionOptions();
+		const options = normalizeQuestionOptions(question.options);
 		const baseQuestionId = getNonEmptyString(question.id) ?? `q-${index + 1}`;
 		const questionId = getUniqueQuestionId(baseQuestionId, seenQuestionIds);
 
@@ -528,12 +520,7 @@ export function getLatestQuestionCardPayload(
 			continue;
 		}
 
-		const widgetType = getNonEmptyString(part.data?.type);
-		if (!widgetType) {
-			continue;
-		}
-
-		if (widgetType !== "question-card") {
+		if (getNonEmptyString(part.data?.type) !== "question-card") {
 			continue;
 		}
 

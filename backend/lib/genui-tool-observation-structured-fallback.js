@@ -1,3 +1,5 @@
+const { getNonEmptyString, isObjectRecord, clipText: _clipText, normalizeSentence, pluralize, parseMaybeJson } = require("./shared-utils");
+
 const DEFAULT_MAX_TOOL_GROUPS = 24;
 const DEFAULT_MAX_TOTAL_EVENTS = 160;
 const DEFAULT_MAX_EVENTS_PER_TOOL = 40;
@@ -32,50 +34,9 @@ const WORK_SUMMARY_INTENT_PATTERN =
 const WORK_SUMMARY_TIME_WINDOW_PATTERN =
 	/\b(last|past|recent)\b[\s\S]{0,48}\b(\d+\s*(?:day|days|week|weeks|month|months)|7d|14d|30d)\b/i;
 
-function isObjectRecord(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
-}
-
+/** @param {unknown} value @returns {string | null} */
 function clipText(value, maxChars = DEFAULT_MAX_LINE_CHARS) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	if (!trimmed) {
-		return null;
-	}
-	if (trimmed.length <= maxChars) {
-		return trimmed;
-	}
-
-	return `${trimmed.slice(0, Math.max(0, maxChars - 3)).trimEnd()}...`;
-}
-
-function normalizeSentence(value) {
-	const text = getNonEmptyString(value);
-	if (!text) {
-		return "";
-	}
-
-	return text
-		.toLowerCase()
-		.replace(/[.!?]+$/g, "")
-		.replace(/\s+/g, " ")
-		.trim();
-}
-
-function pluralize(count, singular, plural) {
-	return count === 1 ? singular : plural;
+	return _clipText(value, maxChars);
 }
 
 function isGenericFallbackDescription(value) {
@@ -88,19 +49,6 @@ function isGenericFallbackDescription(value) {
 		normalized === "generated from tool execution errors" ||
 		normalized === "generated from tool executions"
 	);
-}
-
-function parseMaybeJson(value) {
-	const text = getNonEmptyString(value);
-	if (!text || (text[0] !== "{" && text[0] !== "[")) {
-		return null;
-	}
-
-	try {
-		return JSON.parse(text);
-	} catch {
-		return null;
-	}
 }
 
 function toStructuredPayload(value) {

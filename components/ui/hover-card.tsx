@@ -21,7 +21,7 @@ function HoverCard({ openDelay, closeDelay, ...props }: HoverCardProps) {
   )
 }
 
-function HoverCardTrigger({ ...props }: PreviewCardPrimitive.Trigger.Props) {
+function HoverCardTrigger(props: PreviewCardPrimitive.Trigger.Props) {
   return (
     <PreviewCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />
   )

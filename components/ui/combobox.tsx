@@ -17,7 +17,7 @@ import CheckMarkIcon from "@atlaskit/icon/core/check-mark"
 
 const Combobox = ComboboxPrimitive.Root
 
-function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
+function ComboboxValue(props: ComboboxPrimitive.Value.Props) {
   return <ComboboxPrimitive.Value data-slot="combobox-value" {...props} />
 }
 
@@ -43,7 +43,7 @@ function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.Props) {
     <ComboboxPrimitive.Clear
       data-slot="combobox-clear"
       render={<InputGroupButton variant="ghost" size="icon-xs" />}
-      className={cn(className)}
+      className={className}
       {...props}
     >
       <CrossIcon label="" spacing="none" />
@@ -161,7 +161,7 @@ function ComboboxGroup({ className, ...props }: ComboboxPrimitive.Group.Props) {
   return (
     <ComboboxPrimitive.Group
       data-slot="combobox-group"
-      className={cn(className)}
+      className={className}
       {...props}
     />
   )
@@ -180,7 +180,7 @@ function ComboboxLabel({
   )
 }
 
-function ComboboxCollection({ ...props }: ComboboxPrimitive.Collection.Props) {
+function ComboboxCollection(props: ComboboxPrimitive.Collection.Props) {
   return (
     <ComboboxPrimitive.Collection data-slot="combobox-collection" {...props} />
   )

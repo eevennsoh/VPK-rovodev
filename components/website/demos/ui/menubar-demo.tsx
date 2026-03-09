@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useState } from "react";
 import { BoldIcon, CheckIcon, CircleDashedIcon, ClipboardPasteIcon, CopyIcon, FileIcon, FolderIcon, ImageIcon, ItalicIcon, LinkIcon, LogOutIcon, SaveIcon, ScissorsIcon, SearchIcon, SettingsIcon, TableIcon, TrashIcon, UnderlineIcon, UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -400,9 +400,9 @@ export function MenubarDemoWithIcons() {
 }
 
 export function MenubarDemoWithInset() {
-	const [showBookmarks, setShowBookmarks] = React.useState(true);
-	const [showUrls, setShowUrls] = React.useState(false);
-	const [theme, setTheme] = React.useState("system");
+	const [showBookmarks, setShowBookmarks] = useState(true);
+	const [showUrls, setShowUrls] = useState(false);
+	const [theme, setTheme] = useState("system");
 
 	return (
 		<Menubar>
@@ -471,8 +471,8 @@ export function MenubarDemoWithInset() {
 }
 
 export function MenubarDemoWithRadio() {
-	const [user, setUser] = React.useState("benoit");
-	const [theme, setTheme] = React.useState("system");
+	const [user, setUser] = useState("benoit");
+	const [theme, setTheme] = useState("system");
 
 	return (
 		<Menubar>

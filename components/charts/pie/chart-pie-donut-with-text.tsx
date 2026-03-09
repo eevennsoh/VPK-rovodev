@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useMemo } from "react";
 import { TrendingUp } from "lucide-react";
 import { Label, Pie, PieChart } from "recharts";
 
@@ -44,7 +44,7 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function ChartPieDonutText() {
-	const totalVisitors = React.useMemo(() => {
+	const totalVisitors = useMemo(() => {
 		return chartData.reduce((acc, curr) => acc + curr.visitors, 0);
 	}, []);
 

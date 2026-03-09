@@ -147,6 +147,79 @@ function isChatInProgressError(err) {
 }
 
 /**
+ * Check whether an error indicates RovoDev still has a stale deferred tool
+ * request waiting in session state.
+ * @param {Error} err
+ * @returns {boolean}
+ */
+function isPendingDeferredToolRequestError(err) {
+	if (!err || typeof err !== "object") {
+		return false;
+	}
+
+	const errorRecord = /** @type {{ message?: unknown; code?: unknown; status?: unknown; statusCode?: unknown; endpoint?: unknown }} */ (
+		err
+	);
+	const message =
+		typeof errorRecord.message === "string" ? errorRecord.message : "";
+	if (!/pending deferred tool request found/i.test(message)) {
+		return false;
+	}
+
+	const status =
+		typeof errorRecord.status === "number"
+			? errorRecord.status
+			: typeof errorRecord.statusCode === "number"
+				? errorRecord.statusCode
+				: null;
+	if (status !== null && status !== 404) {
+		return false;
+	}
+
+	const endpoint =
+		typeof errorRecord.endpoint === "string" ? errorRecord.endpoint : "";
+	return (
+		endpoint.length === 0 ||
+		/\/v3\/(?:set_chat_message|stream_chat)\b/i.test(endpoint)
+	);
+}
+
+async function recoverPendingDeferredToolRequest(operation, {
+	cancelDeferredTurn = cancelChat,
+	logPrefix = "rovodev",
+	port,
+	retried = false,
+} = {}) {
+	try {
+		return await operation();
+	} catch (error) {
+		if (retried || !isPendingDeferredToolRequestError(error)) {
+			throw error;
+		}
+
+		console.warn(
+			`[${logPrefix}] Pending deferred tool request found on port ${port}. Cancelling stale deferred session and retrying once.`
+		);
+		try {
+			await cancelDeferredTurn(port, { timeoutMs: 3_000 });
+		} catch (cancelError) {
+			console.warn(
+				`[${logPrefix}] Failed to cancel stale deferred tool request on port ${port}: ${
+					cancelError instanceof Error ? cancelError.message : String(cancelError)
+				}`
+			);
+		}
+
+		return recoverPendingDeferredToolRequest(operation, {
+			cancelDeferredTurn,
+			logPrefix,
+			port,
+			retried: true,
+		});
+	}
+}
+
+/**
  * Check whether an error indicates the prompt exceeded the model's context window.
  * @param {Error} err
  * @returns {boolean}
@@ -1296,13 +1369,17 @@ async function streamViaRovoDev({
 						if (signal && onAbort) {
 							signal.removeEventListener("abort", onAbort);
 						}
-						if (isChatInProgressError(err)) {
-							reject(err);
-							return;
-						}
-						console.error("[streamViaRovoDev] Error:", err.message);
-						const userFacingErrorMessage = isPromptTooLongError(err)
-							? "This conversation has become too long for the model to process. Please start a new chat session to continue."
+							if (isChatInProgressError(err)) {
+								reject(err);
+								return;
+							}
+							if (isPendingDeferredToolRequestError(err)) {
+								reject(err);
+								return;
+							}
+							console.error("[streamViaRovoDev] Error:", err.message);
+							const userFacingErrorMessage = isPromptTooLongError(err)
+								? "This conversation has become too long for the model to process. Please start a new chat session to continue."
 							: `RovoDev error: ${err.message}`;
 						if (failOnError) {
 							const streamError = new Error(userFacingErrorMessage);
@@ -1339,7 +1416,13 @@ async function streamViaRovoDev({
 			// stuck and must be restarted (retrying won't help). The caller
 			// catches ROVODEV_PORT_STUCK and triggers restartRovoDevPort.
 			try {
-				await attempt(handle.port);
+				await recoverPendingDeferredToolRequest(
+					() => attempt(handle.port),
+					{
+						logPrefix: "streamViaRovoDev",
+						port: handle.port,
+					}
+				);
 			} catch (err) {
 				if (isChatInProgressError(err)) {
 					portStuck = true;
@@ -1375,7 +1458,14 @@ async function streamViaRovoDev({
 			// Cancel-and-retry mode for background tasks
 			try {
 				const { aborted } = await retryChatInProgress(
-					() => attempt(handle.port),
+					() =>
+						recoverPendingDeferredToolRequest(
+							() => attempt(handle.port),
+							{
+								logPrefix: "streamViaRovoDev",
+								port: handle.port,
+							}
+						),
 					{
 						signal,
 						onRetry,
@@ -1533,7 +1623,13 @@ async function generateTextViaRovoDev({
 			if (waitForTurn) {
 				// Single attempt — no retry. 409 is terminal (see streamViaRovoDev).
 				try {
-					const value = await sendMessageSync(fullMessage, syncOptions);
+					const value = await recoverPendingDeferredToolRequest(
+						() => sendMessageSync(fullMessage, syncOptions),
+						{
+							logPrefix: "generateTextViaRovoDev",
+							port: handle.port,
+						}
+					);
 					return typeof value === "string" ? value : "";
 				} catch (error) {
 					if (isChatInProgressError(error)) {
@@ -1562,7 +1658,14 @@ async function generateTextViaRovoDev({
 			// Cancel-and-retry mode for background tasks
 			try {
 				const { value, aborted } = await retryChatInProgress(
-					() => sendMessageSync(fullMessage, syncOptions),
+					() =>
+						recoverPendingDeferredToolRequest(
+							() => sendMessageSync(fullMessage, syncOptions),
+							{
+								logPrefix: "generateTextViaRovoDev",
+								port: handle.port,
+							}
+						),
 					{
 						signal,
 						logPrefix: "generateTextViaRovoDev",
@@ -1592,7 +1695,13 @@ async function generateTextViaRovoDev({
 			return await enqueueTextGeneration(async () => {
 				throwIfAborted(signal, "RovoDev text generation aborted");
 				try {
-					return await sendMessageSync(fullMessage, syncOptions);
+					return await recoverPendingDeferredToolRequest(
+						() => sendMessageSync(fullMessage, syncOptions),
+						{
+							logPrefix: "generateTextViaRovoDev",
+							port: handle.port,
+						}
+					);
 				} catch (err) {
 					if (isChatInProgressError(err)) {
 						throw createPortStuckError(handle.port, portIndex);
@@ -1606,7 +1715,13 @@ async function generateTextViaRovoDev({
 
 		// No pool, cancel-and-retry mode
 		try {
-			return await sendMessageSync(fullMessage, syncOptions);
+			return await recoverPendingDeferredToolRequest(
+				() => sendMessageSync(fullMessage, syncOptions),
+				{
+					logPrefix: "generateTextViaRovoDev",
+					port: handle.port,
+				}
+			);
 		} catch (err) {
 			if (isChatInProgressError(err)) {
 				try {
@@ -1686,6 +1801,8 @@ module.exports = {
 	streamViaRovoDev,
 	generateTextViaRovoDev,
 	isChatInProgressError,
+	isPendingDeferredToolRequestError,
+	recoverPendingDeferredToolRequest,
 	retryChatInProgress,
 	shouldCancelConflictingTurn,
 	createPortStuckError,

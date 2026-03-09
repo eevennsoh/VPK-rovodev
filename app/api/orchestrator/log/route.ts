@@ -1,56 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
-import { fetchBackend } from "@/app/api/_utils/backend-url";
-
-/**
- * Dev proxy for the orchestrator log endpoint.
- * Forwards GET (read log) and DELETE (clear log) to the Express backend.
- */
+import { type NextRequest } from "next/server";
+import { proxyToBackend } from "@/app/api/_utils/proxy";
 
 export async function GET(request: NextRequest) {
-	try {
-		const { searchParams } = new URL(request.url);
-		const params = new URLSearchParams();
+	const { searchParams } = new URL(request.url);
+	const params = new URLSearchParams();
 
-		const portIndex = searchParams.get("portIndex");
-		const limit = searchParams.get("limit");
-		if (portIndex !== null) params.set("portIndex", portIndex);
-		if (limit !== null) params.set("limit", limit);
+	const portIndex = searchParams.get("portIndex");
+	const limit = searchParams.get("limit");
+	if (portIndex !== null) params.set("portIndex", portIndex);
+	if (limit !== null) params.set("limit", limit);
 
-		const queryString = params.toString();
-		const response = (
-			await fetchBackend(`/api/orchestrator/log${queryString ? `?${queryString}` : ""}`, {
-			method: "GET",
-			headers: { "Content-Type": "application/json" },
-			})
-		).response;
-
-		const data = await response.json();
-		return NextResponse.json(data, { status: response.status });
-	} catch (error) {
-		console.error("Orchestrator log proxy error:", error);
-		return NextResponse.json(
-			{ error: "Failed to proxy orchestrator log request" },
-			{ status: 502 }
-		);
-	}
+	const queryString = params.toString();
+	return proxyToBackend({
+		method: "GET",
+		path: `/api/orchestrator/log${queryString ? `?${queryString}` : ""}`,
+	});
 }
 
 export async function DELETE() {
-	try {
-		const response = (
-			await fetchBackend("/api/orchestrator/log", {
-			method: "DELETE",
-			headers: { "Content-Type": "application/json" },
-			})
-		).response;
-
-		const data = await response.json();
-		return NextResponse.json(data, { status: response.status });
-	} catch (error) {
-		console.error("Orchestrator log clear proxy error:", error);
-		return NextResponse.json(
-			{ error: "Failed to proxy orchestrator log clear request" },
-			{ status: 502 }
-		);
-	}
+	return proxyToBackend({
+		method: "DELETE",
+		path: "/api/orchestrator/log",
+	});
 }

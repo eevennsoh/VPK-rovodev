@@ -18,6 +18,7 @@ import {
 } from "@/components/ui-ai/reasoning";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { getFutureChatInterruptionLabel } from "@/lib/future-chat-interruptions";
 import { GenerativeWidgetCard } from "@/components/projects/shared/components/generative-widget-card";
 import LoadingWidget from "@/components/projects/shared/components/loading-widget";
 import {
@@ -29,6 +30,9 @@ import {
 	type RovoUIMessage,
 } from "@/lib/rovo-ui-messages";
 import { cn } from "@/lib/utils";
+import { FutureChatArtifactCard } from "@/components/projects/future-chat/components/future-chat-artifact-card";
+import type { FutureChatDocument } from "@/lib/future-chat-types";
+import type { FutureChatStreamingArtifact } from "@/components/projects/future-chat/lib/future-chat-streaming-artifact";
 import {
 	CopyIcon,
 	PencilLineIcon,
@@ -40,18 +44,22 @@ import {
 import { useMemo, useState } from "react";
 
 interface FutureChatMessagesProps {
+	activeDocumentId: string | null;
 	activeThreadId: string | null;
 	activeThreadTitle?: string | null;
 	compact?: boolean;
+	documents: ReadonlyArray<FutureChatDocument>;
 	editingMessageId: string | null;
 	isStreaming: boolean;
 	messages: ReadonlyArray<RovoUIMessage>;
 	onEditMessage: (messageId: string, nextText: string) => Promise<void>;
-	onOpenArtifact: (message: RovoUIMessage) => Promise<void>;
+	onOpenArtifactFromCard: (documentId: string, element: HTMLElement) => void;
 	onRegenerate: () => void;
 	onSelectSuggestion: (suggestion: string) => Promise<void>;
 	onSetEditingMessageId: (messageId: string | null) => void;
 	onVote: (messageId: string, value: "up" | "down" | null) => Promise<void>;
+	streamingArtifact: FutureChatStreamingArtifact | null;
+	streamingArtifactMessageId: string | null;
 	votes: Record<string, "up" | "down">;
 }
 
@@ -200,25 +208,26 @@ function UserMessage({
 }
 
 function AssistantMessage({
+	artifactCard,
 	isLastAssistant,
 	isStreaming,
 	message,
-	onOpenArtifact,
 	onRegenerate,
 	onSelectSuggestion,
 	onVote,
 	voteValue,
 }: Readonly<{
+	artifactCard: React.ReactNode;
 	isLastAssistant: boolean;
 	isStreaming: boolean;
 	message: RovoUIMessage;
-	onOpenArtifact: (message: RovoUIMessage) => Promise<void>;
 	onRegenerate: () => void;
 	onSelectSuggestion: (suggestion: string) => Promise<void>;
 	onVote: (messageId: string, value: "up" | "down" | null) => Promise<void>;
 	voteValue?: "up" | "down";
 }>) {
 	const interruption = getMessageInterruption(message);
+	const interruptionLabel = getFutureChatInterruptionLabel(interruption);
 	const text = sanitizeFutureChatAssistantText(getMessageText(message));
 	const reasoning = getMessageReasoning(message);
 	const widget = getLatestDataPart(message, "data-widget-data");
@@ -226,7 +235,6 @@ function AssistantMessage({
 	const widgetError = getLatestDataPart(message, "data-widget-error");
 	const suggestions = getLatestDataPart(message, "data-suggested-questions")?.data.questions ?? [];
 	const sources = getMessageSources(message);
-	const hasArtifactContent = text.trim().length > 0 || Boolean(widget);
 
 	return (
 		<div
@@ -279,9 +287,11 @@ function AssistantMessage({
 						</div>
 					) : null}
 
-					{interruption ? (
+					{artifactCard}
+
+					{interruptionLabel ? (
 						<div className="inline-flex w-fit items-center rounded-full border border-border-warning/40 bg-bg-warning-subtler px-2.5 py-1 text-text-warning-bolder text-xs">
-							Interrupted
+							{interruptionLabel}
 						</div>
 					) : null}
 
@@ -346,18 +356,6 @@ function AssistantMessage({
 							<CopyIcon className="size-4" />
 						</Button>
 
-						{hasArtifactContent ? (
-							<Button
-								aria-label="Open artifact"
-								onClick={() => void onOpenArtifact(message)}
-								size="icon-sm"
-								type="button"
-								variant="ghost"
-							>
-								<PencilLineIcon className="size-4" />
-							</Button>
-						) : null}
-
 						<Button
 							aria-label="Like response"
 							className={cn(voteValue === "up" && "text-success")}
@@ -415,18 +413,22 @@ function ThinkingMessage() {
 }
 
 export function FutureChatMessages({
+	activeDocumentId,
 	activeThreadId,
 	activeThreadTitle,
 	compact = false,
+	documents,
 	editingMessageId,
 	isStreaming,
 	messages,
 	onEditMessage,
-	onOpenArtifact,
+	onOpenArtifactFromCard,
 	onRegenerate,
 	onSelectSuggestion,
 	onSetEditingMessageId,
 	onVote,
+	streamingArtifact,
+	streamingArtifactMessageId,
 	votes,
 }: Readonly<FutureChatMessagesProps>) {
 	const visibleMessages = useMemo(
@@ -494,11 +496,27 @@ export function FutureChatMessages({
 
 						return (
 							<AssistantMessage
+								artifactCard={
+									streamingArtifactMessageId === message.id && streamingArtifact ? (
+										<FutureChatArtifactCard
+											activeDocumentId={activeDocumentId}
+											document={null}
+											onOpen={onOpenArtifactFromCard}
+											streamingArtifact={streamingArtifact}
+										/>
+									) : documents.find((d) => d.sourceMessageId === message.id) ? (
+										<FutureChatArtifactCard
+											activeDocumentId={activeDocumentId}
+											document={documents.find((d) => d.sourceMessageId === message.id) ?? null}
+											onOpen={onOpenArtifactFromCard}
+											streamingArtifact={null}
+										/>
+									) : null
+								}
 								isLastAssistant={message.id === lastAssistantMessageId}
 								isStreaming={isStreaming}
 								key={message.id}
 								message={message}
-								onOpenArtifact={onOpenArtifact}
 								onRegenerate={onRegenerate}
 								onSelectSuggestion={onSelectSuggestion}
 								onVote={onVote}

@@ -14,7 +14,9 @@
 		"rovodev:tmux": "./scripts/dev-tmux.sh",
 		"rovodev": "node scripts/run-rovodev-stack.js",
 		"ports": "node scripts/show-worktree-ports.js",
-		"generate:prompt": "node --experimental-strip-types scripts/generate-catalog-prompt.js"
+		"generate:prompt": "node --experimental-strip-types scripts/generate-catalog-prompt.js",
+		"dev:stt": ".venv/bin/python scripts/stt-server.py",
+		"dev:stt:install": "python3 -m venv .venv && .venv/bin/pip install -r scripts/stt-requirements.txt"
 	},
 	"dependencies": {
 		"@ai-sdk/openai-compatible": "^2.0.35",

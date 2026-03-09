@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { useState } from "react";
 import { ChevronRightIcon, ChevronsUpDownIcon, FileIcon, FolderIcon, MaximizeIcon, MinimizeIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -174,7 +173,7 @@ export function CollapsibleDemoOpen() {
 }
 
 export function CollapsibleDemoSettings() {
-	const [isOpen, setIsOpen] = React.useState(false);
+	const [isOpen, setIsOpen] = useState(false);
 
 	return (
 		<Card className="mx-auto w-full max-w-xs" size="sm">

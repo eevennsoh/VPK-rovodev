@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest } from "next/server";
 import { proxyToBackend } from "@/app/api/make/_utils/proxy";
 
 interface RouteParams {
@@ -6,20 +6,9 @@ interface RouteParams {
 }
 
 export async function GET(_request: NextRequest, { params }: RouteParams) {
-	try {
-		const { runId } = await params;
-		return await proxyToBackend({
-			method: "GET",
-			path: `/api/make/runs/${encodeURIComponent(runId)}/summary`,
-		});
-	} catch (error) {
-		console.error("Agents team summary proxy error:", error);
-		return NextResponse.json(
-			{
-				error: "Internal server error",
-				details: error instanceof Error ? error.message : String(error),
-			},
-			{ status: 500 }
-		);
-	}
+	const { runId } = await params;
+	return proxyToBackend({
+		method: "GET",
+		path: `/api/make/runs/${encodeURIComponent(runId)}/summary`,
+	});
 }

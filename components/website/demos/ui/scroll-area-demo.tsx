@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { Fragment } from "react";
 import Image from "next/image";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -105,10 +105,10 @@ export function ScrollAreaDemoVertical() {
 			<div className="p-4">
 				<h4 className="mb-4 text-sm leading-none font-medium">Tags</h4>
 				{tags.map((tag) => (
-					<React.Fragment key={tag}>
+					<Fragment key={tag}>
 						<div className="text-sm">{tag}</div>
 						<Separator className="my-2" />
-					</React.Fragment>
+					</Fragment>
 				))}
 			</div>
 		</ScrollArea>

@@ -1,5 +1,6 @@
 "use client";
 
+import { type ImgHTMLAttributes } from "react";
 import {
 	AtlassianLogo,
 	CustomLogo,
@@ -198,7 +199,7 @@ export function LogoDemoAppearances() {
 
 /* ── Demo: Custom Logo ────────────────────────────────────────── */
 
-function RovoSvg(props: React.ImgHTMLAttributes<HTMLImageElement>) {
+function RovoSvg(props: ImgHTMLAttributes<HTMLImageElement>) {
 	// eslint-disable-next-line @next/next/no-img-element
 	return <img src="/1p/rovo.svg" alt="" {...props} />;
 }

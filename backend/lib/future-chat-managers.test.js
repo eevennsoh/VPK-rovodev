@@ -89,12 +89,17 @@ test("future chat document manager versions artifacts over time", async () => {
 	assert.equal(createdDocument.versions.length, 1);
 
 	const updatedDocument = await manager.appendDocumentVersion(createdDocument.id, {
+		changeLabel: "Renamed title",
 		content: "Version two",
 		title: "Spec draft v2",
 	});
 
 	assert.equal(updatedDocument?.title, "Spec draft v2");
 	assert.equal(updatedDocument?.versions.length, 2);
+	assert.equal(updatedDocument?.versions[0].title, "Spec draft");
+	assert.equal(updatedDocument?.versions[0].changeLabel, "Created");
+	assert.equal(updatedDocument?.versions[1].title, "Spec draft v2");
+	assert.equal(updatedDocument?.versions[1].changeLabel, "Renamed title");
 
 	const listedDocuments = await manager.listDocuments({ threadId: "thread-1" });
 	assert.equal(listedDocuments.length, 1);
@@ -120,6 +125,39 @@ test("future chat document manager can create and finalize streaming document sh
 
 	assert.equal(finalizedDocument?.versions.length, 1);
 	assert.equal(finalizedDocument?.versions[0].content, "Streamed content");
+	assert.equal(finalizedDocument?.versions[0].changeLabel, "Created");
+	assert.equal(finalizedDocument?.versions[0].title, "Streaming draft");
+});
+
+test("future chat document manager backfills legacy versions without title snapshots", async () => {
+	const baseDir = await createTempBaseDir();
+	const documentsDir = path.join(baseDir, "future-chat", "documents");
+	await fs.mkdir(documentsDir, { recursive: true });
+	await fs.writeFile(
+		path.join(documentsDir, "legacy-doc.json"),
+		JSON.stringify({
+			id: "legacy-doc",
+			threadId: "thread-1",
+			title: "Legacy artifact",
+			kind: "text",
+			createdAt: "2026-03-09T00:00:00.000Z",
+			updatedAt: "2026-03-09T00:05:00.000Z",
+			versions: [
+				{
+					id: "legacy-version-1",
+					content: "Legacy content",
+					createdAt: "2026-03-09T00:00:00.000Z",
+				},
+			],
+		}),
+		"utf8",
+	);
+
+	const manager = createFutureChatDocumentManager({ baseDir });
+	const document = await manager.getDocument("legacy-doc");
+
+	assert.equal(document?.versions[0].title, "Legacy artifact");
+	assert.equal(document?.versions[0].changeLabel, "Created");
 });
 
 test("future chat upload manager writes and reads data-url files", async () => {

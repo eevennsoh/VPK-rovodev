@@ -1,27 +1,16 @@
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
+const { getNonEmptyString } = require("./shared-utils");
+const {
+	extractFutureChatRequestedTitle,
+	isExplicitNewFutureChatArtifactRequest,
+	isSameFutureChatArtifactVersionRequest,
+} = require("./future-chat-artifact-updates");
+const {
+	inferFutureChatArtifactKindFromRequest,
+	normalizeFutureChatArtifactKind,
+} = require("./future-chat-artifact-kind");
 
 function normalizeArtifactKind(value) {
-	const normalizedValue = getNonEmptyString(value)?.toLowerCase();
-	if (normalizedValue === "code") {
-		return "code";
-	}
-
-	if (normalizedValue === "sheet" || normalizedValue === "spreadsheet" || normalizedValue === "table") {
-		return "sheet";
-	}
-
-	if (normalizedValue === "image") {
-		return "image";
-	}
-
-	return "text";
+	return normalizeFutureChatArtifactKind(value);
 }
 
 function parseJsonFromText(rawText) {
@@ -43,6 +32,7 @@ function parseJsonFromText(rawText) {
 
 function buildFutureChatArtifactIntentPrompt({
 	activeArtifact,
+	artifactSteering,
 	conversationHistory,
 	latestUserMessage,
 }) {
@@ -61,6 +51,15 @@ function buildFutureChatArtifactIntentPrompt({
 					.map((message) => `${message.type === "assistant" ? "Assistant" : "User"}: ${message.content}`)
 					.join("\n")
 			: "No previous conversation.";
+	const steeringContext =
+		artifactSteering?.preferCurrentArtifact && activeArtifact?.id
+			? [
+					"Voice steering context:",
+					"- This request arrived as a live steering update while the current artifact workspace was active.",
+					"- If the request is ambiguous, prefer updateDocument over chat or createDocument.",
+					"- Only choose createDocument when the user clearly asks for a new/separate artifact.",
+				].join("\n")
+			: null;
 
 	return `Classify the user's latest request for a chat app with a document workspace.
 Return ONLY valid JSON with this shape:
@@ -73,6 +72,7 @@ Return ONLY valid JSON with this shape:
 Rules:
 - Use "createDocument" when the user is asking to draft, create, generate, write, make, build, or turn something into a durable artifact/document.
 - Use "updateDocument" when an artifact is currently open and the user is asking to revise, rewrite, shorten, expand, polish, convert, format, or otherwise modify that current artifact. Pronoun references like "it", "this", or "that" usually indicate updateDocument when an artifact is open.
+- When an artifact is currently open, requests to turn it into a report, translate it, compare or add detail to it, or otherwise transform that same artifact should stay in updateDocument and create a new version instead of a new artifact.
 - Use "chat" for normal conversational responses, explanations, questions, or analysis that should stay in the transcript.
 - Prefer "createDocument" for explicit mentions of "artifact", "document", "memo", "spec", "proposal", "code", "component", "table", or "sheet" unless the user is clearly only asking about them.
 - For "updateDocument", preserve the current artifact title unless the user clearly asks to rename it.
@@ -80,6 +80,8 @@ Rules:
 - Choose kind "code" for coding artifacts, "sheet" for tables/spreadsheets, otherwise "text" unless image creation is explicitly requested.
 
 ${activeArtifactBlock}
+
+${steeringContext ? `${steeringContext}\n` : ""}
 
 Conversation context:
 ${conversationContext}
@@ -127,10 +129,17 @@ function parseFutureChatArtifactIntent(rawText, { activeArtifact } = {}) {
 
 function fallbackFutureChatArtifactIntent({
 	activeArtifact,
+	artifactSteering,
 	latestUserMessage,
 }) {
 	const normalizedMessage = getNonEmptyString(latestUserMessage) || "";
 	const lowerMessage = normalizedMessage.toLowerCase();
+	const prefersCurrentArtifact =
+		Boolean(activeArtifact?.id) && artifactSteering?.preferCurrentArtifact === true;
+	const sameArtifactVersionRequest = isSameFutureChatArtifactVersionRequest({
+		activeArtifact,
+		latestUserMessage,
+	});
 	const hasArtifactWord = /\bartifact\b/.test(lowerMessage);
 	const asksForDocument =
 		/\b(write|draft|create|build|generate|make|compose|outline|summari[sz]e|plan|design|implement|refactor|turn|convert)\b/.test(
@@ -144,26 +153,46 @@ function fallbackFutureChatArtifactIntent({
 		/\b(update|edit|revise|rewrite|shorten|expand|polish|refine|change|format|convert|improve|fix)\b/.test(
 			lowerMessage,
 		);
+	const requestedTitle = extractFutureChatRequestedTitle({
+		latestUserMessage,
+	});
+	const explicitlyRequestsNewArtifact = isExplicitNewFutureChatArtifactRequest({
+		latestUserMessage,
+	});
 
-	if (asksToModifyCurrentArtifact) {
+	if (asksToModifyCurrentArtifact || sameArtifactVersionRequest) {
 		return {
 			action: "updateDocument",
-			title: getNonEmptyString(activeArtifact?.title),
+			title: requestedTitle || getNonEmptyString(activeArtifact?.title),
 			kind: normalizeArtifactKind(activeArtifact?.kind),
 		};
 	}
 
 	if (hasArtifactWord || asksForDocument) {
-		return {
-			action: activeArtifact?.id && hasArtifactWord && /\b(it|this|that)\b/.test(lowerMessage)
+		const action =
+			activeArtifact?.id && hasArtifactWord && /\b(it|this|that)\b/.test(lowerMessage)
 				? "updateDocument"
-				: "createDocument",
-			title: getNonEmptyString(activeArtifact?.title),
-			kind: /\b(code|component|tsx|jsx|react|javascript|typescript|python|sql|api|function|script|app|ui)\b/.test(lowerMessage)
-				? "code"
-				: /\b(table|spreadsheet|sheet|csv|matrix|grid)\b/.test(lowerMessage)
-					? "sheet"
-					: "text",
+				: "createDocument";
+		return {
+			action,
+			title:
+				action === "updateDocument"
+					? requestedTitle || getNonEmptyString(activeArtifact?.title)
+					: null,
+			kind: inferFutureChatArtifactKindFromRequest(latestUserMessage),
+			};
+	}
+
+	if (
+		prefersCurrentArtifact &&
+		!explicitlyRequestsNewArtifact &&
+		normalizedMessage &&
+		!/[?]\s*$/u.test(normalizedMessage)
+	) {
+		return {
+			action: "updateDocument",
+			title: requestedTitle || getNonEmptyString(activeArtifact?.title),
+			kind: normalizeArtifactKind(activeArtifact?.kind),
 		};
 	}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useMemo, useState } from "react";
 import { FileIcon } from "lucide-react";
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
@@ -11,7 +11,7 @@ export default function ProgressDemo() {
 }
 
 export function ProgressDemoControlled() {
-	const [value, setValue] = React.useState(50);
+	const [value, setValue] = useState(50);
 
 	return (
 		<div className="flex w-full flex-col gap-4">
@@ -26,7 +26,7 @@ export function ProgressDemoDefault() {
 }
 
 export function ProgressDemoFileUploadList() {
-	const files = React.useMemo(
+	const files = useMemo(
 		() => [
 			{
 				id: "1",

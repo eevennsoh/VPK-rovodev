@@ -1,3 +1,5 @@
+const { getNonEmptyString } = require("./shared-utils");
+
 const SMART_GENERATION_INTENTS = new Set(["normal", "audio", "image"]);
 
 const CLASSIFIER_SYSTEM_PROMPT = `You are an intent router for a chat assistant. Your only job is to detect media generation requests.
@@ -82,15 +84,6 @@ function preClassifyMediaIntent(message) {
 	}
 
 	return { intent: null, confidence: 0, reason: "no-keyword-match" };
-}
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
 }
 
 function normalizeIntent(value) {

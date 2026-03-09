@@ -4,20 +4,13 @@ const {
 	resolveReferencedImageContext,
 } = require("./image-context-resolution");
 
+const { getNonEmptyString } = require("./shared-utils");
+
 const IMAGE_SUBJECT_PATTERNS = [
 	/\b(?:generate|create|draw|make|design|render|paint|sketch|illustrate)\b[\s\S]{0,12}\b(?:an?\s+)?(?:image|photo|picture|illustration|art|drawing|painting|sketch)\b\s+(?:of|about|depicting|showing|featuring)\s+([\s\S]+)$/iu,
 	/\b(?:image|photo|picture|illustration|art|drawing|painting|sketch)\b\s+(?:of|about|depicting|showing|featuring)\s+([\s\S]+)$/iu,
 	/\b(?:generate|create|draw|make|design|render|paint|sketch|illustrate)\b\s+([\s\S]+)$/iu,
 ];
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	return trimmedValue.length > 0 ? trimmedValue : null;
-}
 
 function extractImageSubject(userMessage) {
 	const text = getNonEmptyString(userMessage);

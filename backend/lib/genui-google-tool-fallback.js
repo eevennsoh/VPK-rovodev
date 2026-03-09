@@ -1,3 +1,5 @@
+const { getNonEmptyString, isObjectRecord, normalizeSentence, pluralize, parseMaybeJson } = require("./shared-utils");
+
 const DEFAULT_MAX_ITEMS = 10;
 const MAX_SCAN_NODES = 240;
 const MAX_LABEL_LENGTH = 180;
@@ -10,19 +12,6 @@ const CALENDAR_SCOPE_PROMPT_PATTERNS = [
 	{ pattern: /\bnext\s+month\b/i, label: "Next month" },
 ];
 
-function isObjectRecord(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getNonEmptyString(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
-}
-
 function clipText(value, maxLength = MAX_LABEL_LENGTH) {
 	const text = getNonEmptyString(value);
 	if (!text) {
@@ -34,23 +23,6 @@ function clipText(value, maxLength = MAX_LABEL_LENGTH) {
 	}
 
 	return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
-}
-
-function pluralize(count, singular, plural) {
-	return count === 1 ? singular : plural;
-}
-
-function normalizeSentence(value) {
-	const text = getNonEmptyString(value);
-	if (!text) {
-		return "";
-	}
-
-	return text
-		.toLowerCase()
-		.replace(/[.!?]+$/g, "")
-		.replace(/\s+/g, " ")
-		.trim();
 }
 
 function isGenericToolTitle(value) {
@@ -92,23 +64,6 @@ function resolveCandidateDescription(
 	}
 
 	return explicitDescription;
-}
-
-function parseMaybeJson(value) {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	if (!trimmed || (trimmed[0] !== "{" && trimmed[0] !== "[")) {
-		return null;
-	}
-
-	try {
-		return JSON.parse(trimmed);
-	} catch {
-		return null;
-	}
 }
 
 function toStructuredPayload(rawValue) {

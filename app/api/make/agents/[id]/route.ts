@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest } from "next/server";
 import { proxyToBackend } from "@/app/api/make/_utils/proxy";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
@@ -7,44 +7,22 @@ interface RouteParams {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-	try {
-		const { id } = await params;
-		const { body, errorResponse } = await readJsonBody(request);
-		if (errorResponse) {
-			return errorResponse;
-		}
-		return await proxyToBackend({
-			method: "PUT",
-			path: `/api/make/agents/${encodeURIComponent(id)}`,
-			body,
-		});
-	} catch (error) {
-		console.error("Agents team agent update proxy error:", error);
-		return NextResponse.json(
-			{
-				error: "Internal server error",
-				details: error instanceof Error ? error.message : String(error),
-			},
-			{ status: 500 }
-		);
+	const { id } = await params;
+	const { body, errorResponse } = await readJsonBody(request);
+	if (errorResponse) {
+		return errorResponse;
 	}
+	return proxyToBackend({
+		method: "PUT",
+		path: `/api/make/agents/${encodeURIComponent(id)}`,
+		body,
+	});
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
-	try {
-		const { id } = await params;
-		return await proxyToBackend({
-			method: "DELETE",
-			path: `/api/make/agents/${encodeURIComponent(id)}`,
-		});
-	} catch (error) {
-		console.error("Agents team agent delete proxy error:", error);
-		return NextResponse.json(
-			{
-				error: "Internal server error",
-				details: error instanceof Error ? error.message : String(error),
-			},
-			{ status: 500 }
-		);
-	}
+	const { id } = await params;
+	return proxyToBackend({
+		method: "DELETE",
+		path: `/api/make/agents/${encodeURIComponent(id)}`,
+	});
 }
