@@ -140,6 +140,12 @@ export type RovoDataParts = {
 	id: string;
 	title: string;
 	kind: "text" | "code" | "image" | "sheet";
+	"artifact-result": {
+		documentId: string;
+		title: string;
+		kind: "text" | "code" | "image" | "sheet";
+		action: "create" | "update";
+	};
 	clear: null;
 	finish: null;
 	textDelta: string;
@@ -278,7 +284,7 @@ export function isMessageVisibleInTranscript(
 }
 
 export function getLatestDataPart<KEY extends keyof RovoDataParts & string>(
-	message: RovoUIMessage,
+	message: Pick<RovoUIMessage, "parts">,
 	type: `data-${KEY}`
 ): RovoDataPart<KEY> | null {
 	for (let index = message.parts.length - 1; index >= 0; index--) {
@@ -386,6 +392,12 @@ export function getMessageSources(
 		seenSourceIds.add(sourceKey);
 		return true;
 	});
+}
+
+export function getMessageArtifactResult(
+	message: Pick<RovoUIMessage, "parts">
+): RovoDataParts["artifact-result"] | null {
+	return getLatestDataPart(message, "data-artifact-result")?.data ?? null;
 }
 
 export function getMessageToolParts(

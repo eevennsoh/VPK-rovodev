@@ -932,7 +932,11 @@ async function streamViaRovoDev({
 		(typeof port === "number" && port > 0) ||
 		(typeof portIndex === "number" && portIndex >= 0);
 	const handle = await acquirePort({
-		timeoutMs: hasPinnedPort ? PINNED_PORT_ACQUIRE_TIMEOUT_MS : RETRY_TIMEOUT_MS,
+		timeoutMs: hasPinnedPort
+			? PINNED_PORT_ACQUIRE_TIMEOUT_MS
+			: waitForTurn
+				? WAIT_FOR_TURN_TIMEOUT_MS
+				: RETRY_TIMEOUT_MS,
 		signal,
 		port,
 		portIndex,

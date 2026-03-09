@@ -8,12 +8,16 @@ const {
 	buildThinkingStatusFromToolEvent,
 	isChatInProgressError,
 	isPendingDeferredToolRequestError,
+	streamViaRovoDev,
 	generateTextViaRovoDev,
 	recoverPendingDeferredToolRequest,
 	retryChatInProgress,
 	shouldCancelConflictingTurn,
 	parseToolCallArgsInput,
 	resolveToolCallInput,
+	initPool,
+	setPinnedPortCount,
+	WAIT_FOR_TURN_TIMEOUT_MS,
 } = require("./rovodev-gateway");
 
 test("isGenericIntegrationWrapperToolName detects wrapper tool names", () => {
@@ -228,6 +232,30 @@ test("generateTextViaRovoDev rejects immediately when signal is already aborted"
 			}),
 		(error) => error?.name === "AbortError" || error?.code === "ABORT_ERR"
 	);
+});
+
+test("streamViaRovoDev uses wait-for-turn timeout while acquiring a non-pinned port", async () => {
+	let observedTimeoutMs = null;
+	initPool({
+		acquire: async ({ timeoutMs }) => {
+			observedTimeoutMs = timeoutMs;
+			throw new Error("stop after acquire");
+		},
+	});
+	setPinnedPortCount(0);
+
+	await assert.rejects(
+		() =>
+			streamViaRovoDev({
+				message: "hello",
+				onTextDelta: () => {},
+				conflictPolicy: "wait-for-turn",
+			}),
+		/stop after acquire/,
+	);
+
+	assert.equal(observedTimeoutMs, WAIT_FOR_TURN_TIMEOUT_MS);
+	initPool(null);
 });
 
 test("shouldCancelConflictingTurn honors cancel grace threshold", () => {

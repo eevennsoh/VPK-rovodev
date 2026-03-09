@@ -92,6 +92,18 @@ function createAppRegistry({ baseDir, logger = console }) {
 	};
 
 	/**
+	 * Unregister all apps, clearing the entire registry.
+	 */
+	const unregisterAllApps = async () => {
+		const apps = await readRegistry();
+		if (apps.length > 0) {
+			await writeRegistry([]);
+			logger.info(`[app-registry] Unregistered all ${apps.length} app(s)`);
+		}
+		return apps;
+	};
+
+	/**
 	 * Unregister all apps associated with a given run ID.
 	 */
 	const unregisterByRunId = async (runId) => {
@@ -178,6 +190,7 @@ function createAppRegistry({ baseDir, logger = console }) {
 		getAppByRunId,
 		registerApp,
 		unregisterApp,
+		unregisterAllApps,
 		unregisterByRunId,
 		updateForgeMetadata,
 		getForgeMetadata,

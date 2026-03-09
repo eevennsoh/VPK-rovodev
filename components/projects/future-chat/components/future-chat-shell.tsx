@@ -18,7 +18,11 @@ import { useLiveVoice } from "@/components/projects/future-chat/hooks/use-live-v
 import type { VoiceButtonState } from "@/components/ui-audio/voice-button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import { getMessageInterruption, getMessageText } from "@/lib/rovo-ui-messages";
+import {
+	getMessageArtifactResult,
+	getMessageInterruption,
+	getMessageText,
+} from "@/lib/rovo-ui-messages";
 
 interface FutureChatShellProps {
 	embedded?: boolean;
@@ -286,10 +290,10 @@ export function FutureChatShell({
 				// 'Created artifact "Title".' — use the document title directly
 				// to avoid double-wrapping that confuses TTS.
 				const createdArtifact = lastAssistantMessage
-					? chat.documents.find((doc) => doc.sourceMessageId === lastAssistantMessage.id)
+					? getMessageArtifactResult(lastAssistantMessage)
 					: null;
 				const spokenText = createdArtifact
-					? `Created artifact ${createdArtifact.title}.`
+					? `${createdArtifact.action === "update" ? "Updated" : "Created"} artifact ${createdArtifact.title}.`
 					: text;
 				voice.speak(spokenText);
 			}
@@ -334,26 +338,31 @@ export function FutureChatShell({
 	const visibleMessages = chat.messages.filter((message) => {
 		return message.role === "user" || message.role === "assistant";
 	});
-	const workspaceDocument = chat.streamingArtifact
-		? {
-				id: chat.streamingArtifact.documentId ?? "streaming-artifact",
-				threadId: chat.activeThreadId ?? chat.runtimeThreadId,
-				title: chat.streamingArtifact.title || "Artifact draft",
-				kind: chat.streamingArtifact.kind,
-				sourceMessageId: null,
-				createdAt: chat.streamingArtifact.createdAt,
-				updatedAt: chat.streamingArtifact.updatedAt,
-				versions: [
-					{
-						changeLabel: "Generating",
-						id: "streaming",
-						content: chat.streamingArtifact.content,
-						createdAt: chat.streamingArtifact.updatedAt,
-						title: chat.streamingArtifact.title || "Artifact draft",
-					},
-				],
-			}
-		: chat.activeDocument;
+	const visibleWorkspaceDocumentId = chat.visibleArtifactDocumentId;
+	const workspaceDocument =
+		visibleWorkspaceDocumentId &&
+		chat.streamingArtifact?.documentId === visibleWorkspaceDocumentId
+			? {
+					id: chat.streamingArtifact.documentId ?? "streaming-artifact",
+					threadId: chat.activeThreadId ?? chat.runtimeThreadId,
+					title: chat.streamingArtifact.title || "Artifact draft",
+					kind: chat.streamingArtifact.kind,
+					sourceMessageId: null,
+					createdAt: chat.streamingArtifact.createdAt,
+					updatedAt: chat.streamingArtifact.updatedAt,
+					versions: [
+						{
+							changeLabel: "Generating",
+							id: "streaming",
+							content: chat.streamingArtifact.content,
+							createdAt: chat.streamingArtifact.updatedAt,
+							title: chat.streamingArtifact.title || "Artifact draft",
+						},
+					],
+				}
+			: visibleWorkspaceDocumentId
+				? chat.documents.find((document) => document.id === visibleWorkspaceDocumentId) ?? null
+				: null;
 	const selectedDocumentVersion =
 		workspaceDocument?.versions.find((version) => version.id === chat.selectedVersionId)
 		?? workspaceDocument?.versions.at(-1)
@@ -362,6 +371,7 @@ export function FutureChatShell({
 	const shellRef = useRef<HTMLDivElement | null>(null);
 	const composerDockRef = useRef<HTMLDivElement | null>(null);
 	const artifactCardOriginRef = useRef<DOMRect | null>(null);
+	const artifactPreviewOriginRef = useRef<Map<string, DOMRect>>(new Map());
 	const [shellSize, setShellSize] = useState({ width: 0, height: 0 });
 	const [artifactOrigin, setArtifactOrigin] = useState({
 		left: 0,
@@ -406,9 +416,27 @@ export function FutureChatShell({
 				cardRect.height,
 			);
 		}
-		chat.setActiveDocumentId(documentId);
-		chat.setArtifactMode("preview");
+		void chat.openDocument(documentId);
 	}, [chat]);
+
+	const handleRegisterArtifactCard = useCallback((documentId: string, element: HTMLElement) => {
+		const shellElement = shellRef.current;
+		if (!shellElement) {
+			return;
+		}
+
+		const shellRect = shellElement.getBoundingClientRect();
+		const cardRect = element.getBoundingClientRect();
+		artifactPreviewOriginRef.current.set(
+			documentId,
+			new DOMRect(
+				cardRect.left - shellRect.left,
+				cardRect.top - shellRect.top,
+				cardRect.width,
+				cardRect.height,
+			),
+		);
+	}, []);
 
 	useEffect(() => {
 		if (!isArtifactOpen) {
@@ -423,6 +451,20 @@ export function FutureChatShell({
 				top: Math.max(cardOrigin.y, 16),
 				width: Math.min(Math.max(cardOrigin.width, 260), 420),
 				height: Math.min(Math.max(cardOrigin.height, 40), 140),
+			});
+			return;
+		}
+
+		const previewOrigin =
+			workspaceDocument?.id
+				? artifactPreviewOriginRef.current.get(workspaceDocument.id) ?? null
+				: null;
+		if (previewOrigin) {
+			setArtifactOrigin({
+				left: Math.max(previewOrigin.x, 16),
+				top: Math.max(previewOrigin.y, 16),
+				width: Math.min(Math.max(previewOrigin.width, 260), 420),
+				height: Math.min(Math.max(previewOrigin.height, 40), 220),
 			});
 			return;
 		}
@@ -453,6 +495,7 @@ export function FutureChatShell({
 			<FutureChatHeader
 				activeArtifactId={chat.activeDocument?.id ?? null}
 				artifacts={chat.documents}
+				messages={chat.messages}
 				onNewChat={() => void chat.openNewChat()}
 				onOpenArtifact={(documentId) => void chat.openDocument(documentId)}
 				onSelectVisibility={chat.setThreadVisibility}
@@ -461,7 +504,7 @@ export function FutureChatShell({
 			/>
 
 			<FutureChatMessages
-				activeDocumentId={chat.activeDocument?.id ?? chat.streamingArtifact?.documentId ?? null}
+				visibleDocumentId={chat.visibleArtifactDocumentId}
 				activeThreadId={chat.activeThreadId}
 				activeThreadTitle={activeThread?.title ?? null}
 				compact={isArtifactOpen}
@@ -471,10 +514,12 @@ export function FutureChatShell({
 				messages={chat.messages}
 				onEditMessage={chat.editMessage}
 				onOpenArtifactFromCard={handleOpenArtifactFromCard}
+				onRegisterArtifactCard={handleRegisterArtifactCard}
 				onRegenerate={chat.regenerateLatest}
 				onSelectSuggestion={chat.suggestedPrompt}
 				onSetEditingMessageId={chat.setEditingMessageId}
 				onVote={chat.voteOnMessage}
+				pendingArtifactResult={chat.pendingArtifactResult}
 				streamingArtifact={chat.streamingArtifact}
 				streamingArtifactMessageId={chat.streamingArtifactMessageId}
 				votes={chat.votes}
@@ -627,9 +672,12 @@ export function FutureChatShell({
 										isStreamingArtifact={Boolean(chat.streamingArtifact)}
 										mode={chat.artifactMode}
 										onClose={() => {
-											if (chat.streamingArtifact) {
+											if (chat.streamingArtifact?.documentId === workspaceDocument.id) {
+												chat.hideArtifactPane();
 												return;
 											}
+
+											chat.hideArtifactPane();
 											chat.setActiveDocumentId(null);
 										}}
 										onDelete={() => chat.deleteDocument(workspaceDocument.id)}

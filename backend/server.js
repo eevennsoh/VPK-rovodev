@@ -23,7 +23,6 @@ const { createFutureChatUploadManager } = require("./lib/future-chat-uploads");
 const { createAbortControllerFromRequest } = require("./lib/http-request-abort");
 const {
 	buildFutureChatArtifactIntentPrompt,
-	fallbackFutureChatArtifactIntent,
 	normalizeArtifactKind,
 	parseFutureChatArtifactIntent,
 } = require("./lib/future-chat-artifact-intent");
@@ -34,7 +33,6 @@ const {
 } = require("./lib/future-chat-artifact-updates");
 const {
 	inferFutureChatArtifactKindFromContent,
-	inferFutureChatArtifactKindFromRequest,
 } = require("./lib/future-chat-artifact-kind");
 const {
 	resolveFutureChatActiveArtifact,
@@ -1604,36 +1602,12 @@ function resolveFutureChatArtifactKind({
 	action,
 	activeArtifact,
 	decisionKind,
-	latestUserMessage,
 }) {
-	const requestedKind = inferFutureChatArtifactKindFromRequest(
-		latestUserMessage,
-		action === "updateDocument" ? activeArtifact?.kind : decisionKind,
-	);
-	const normalizedKind =
-		action === "updateDocument"
-			? normalizeArtifactKind(decisionKind || requestedKind || activeArtifact?.kind)
-			: normalizeArtifactKind(decisionKind || requestedKind);
-
-	const normalizedMessage = getNonEmptyString(latestUserMessage)?.toLowerCase() || "";
-	const hasDocumentCue =
-		/\b(plan|brief|proposal|spec|summary|memo|report|essay|article|prd|document)\b/.test(
-			normalizedMessage,
-		);
-	const hasCodeCue =
-		/\b(code|component|tsx|jsx|react|javascript|typescript|python|sql|api|function|script)\b/.test(
-			normalizedMessage,
-		);
-	const hasWebArtifactCue =
-		/\b(page|web\s?page|website|site|landing\s?page|home\s?page|homepage|html|css|tailwind)\b/.test(
-			normalizedMessage,
-		);
-
-	if (normalizedKind === "code" && hasDocumentCue && !hasCodeCue && !hasWebArtifactCue) {
-		return "text";
+	if (action === "updateDocument") {
+		return normalizeArtifactKind(decisionKind || activeArtifact?.kind);
 	}
 
-	return normalizedKind;
+	return normalizeArtifactKind(decisionKind);
 }
 
 async function resolveFutureChatArtifactDecision({
@@ -1650,11 +1624,6 @@ async function resolveFutureChatArtifactDecision({
 		conversationHistory,
 		latestUserMessage,
 	});
-	const fallbackDecision = fallbackFutureChatArtifactIntent({
-		activeArtifact,
-		artifactSteering,
-		latestUserMessage,
-	});
 	const sameArtifactVersionRequest = isSameFutureChatArtifactVersionRequest({
 		activeArtifact,
 		latestUserMessage,
@@ -1662,59 +1631,35 @@ async function resolveFutureChatArtifactDecision({
 	const explicitlyRequestsNewArtifact = isExplicitNewFutureChatArtifactRequest({
 		latestUserMessage,
 	});
-	const normalizedLatestUserMessage = getNonEmptyString(latestUserMessage) || "";
-	const hasExplicitArtifactCommand =
-		fallbackDecision.action !== "chat" &&
-		/\b(write|draft|create|build|generate|make|compose|outline|summari[sz]e|plan|design|implement|refactor|turn|convert|update|edit|revise|rewrite|shorten|expand|polish|refine|change|format|improve|fix)\b/i.test(
-			normalizedLatestUserMessage,
-		);
 
-	if (hasExplicitArtifactCommand) {
-		return fallbackDecision;
+	const rawDecision = await generateTextViaGateway({
+		system: "You classify whether a request should stay in chat or become a document tool action. Return strict JSON only.",
+		prompt,
+		maxOutputTokens: 220,
+		temperature: 0.1,
+		provider,
+		signal,
+		allowFallback: true,
+	});
+	const parsedDecision = parseFutureChatArtifactIntent(rawDecision, {
+		activeArtifact,
+	});
+	if (!parsedDecision) {
+		throw new Error(
+			`[FUTURE-CHAT] Artifact intent classification returned unparseable result: ${JSON.stringify(rawDecision)}`,
+		);
 	}
 
-	try {
-		const rawDecision = await generateTextViaGateway({
-			system: "You classify whether a request should stay in chat or become a document tool action. Return strict JSON only.",
-			prompt,
-			maxOutputTokens: 220,
-			temperature: 0.1,
-			provider,
-			signal,
-			allowFallback: true,
-		});
-		const parsedDecision = parseFutureChatArtifactIntent(rawDecision, {
-			activeArtifact,
-		});
-		if (!parsedDecision) {
-			return fallbackDecision;
-		}
-
-		if (sameArtifactVersionRequest && !explicitlyRequestsNewArtifact) {
-			return {
-				action: "updateDocument",
-				title:
-					getNonEmptyString(parsedDecision.title) || getNonEmptyString(activeArtifact?.title),
-				kind: parsedDecision.kind || normalizeArtifactKind(activeArtifact?.kind),
-			};
-		}
-
-		if (
-			parsedDecision.action === "chat" &&
-			fallbackDecision.action !== "chat" &&
-			/\bartifact\b/i.test(latestUserMessage)
-		) {
-			return fallbackDecision;
-		}
-
-		return parsedDecision;
-	} catch (error) {
-		console.warn(
-			"[FUTURE-CHAT] Artifact intent classification failed, using fallback:",
-			error instanceof Error ? error.message : error,
-		);
-		return fallbackDecision;
+	if (sameArtifactVersionRequest && !explicitlyRequestsNewArtifact) {
+		return {
+			action: "updateDocument",
+			title:
+				getNonEmptyString(parsedDecision.title) || getNonEmptyString(activeArtifact?.title),
+			kind: parsedDecision.kind || normalizeArtifactKind(activeArtifact?.kind),
+		};
 	}
+
+	return parsedDecision;
 }
 
 function streamFutureChatArtifactToolResponse({
@@ -1851,6 +1796,18 @@ function streamFutureChatArtifactToolResponse({
 				data: null,
 				transient: true,
 			});
+			writer.write({
+				type: "data-artifact-result",
+				data: {
+					documentId: persistedArtifactDocument.id,
+					title: persistedArtifactDocument.title,
+					kind: persistedArtifactDocument.kind,
+					action:
+						artifactAction === "updateDocument"
+							? "update"
+							: "create",
+				},
+			});
 
 			const textId = `future-chat-artifact-summary-${Date.now()}`;
 			const summaryText =
@@ -1978,7 +1935,6 @@ async function handleFutureChatArtifactToolRequest({
 		action: decision.action,
 		activeArtifact,
 		decisionKind: decision.kind,
-		latestUserMessage,
 	});
 
 	let artifactDocument;
@@ -9922,6 +9878,25 @@ app.delete("/api/future-chat/threads", async (req, res) => {
 		await futureChatVoteManager.deleteAllVotes();
 		await futureChatDocumentManager.deleteAllDocuments();
 		await futureChatUploadManager.deleteAllUploads();
+
+		// Also clean up generated apps (files + registry)
+		try {
+			const fsPromises = require("node:fs/promises");
+			const generatedAppsDir = path.resolve(__dirname, "..", "components", "generated-apps");
+			const entries = await fsPromises.readdir(generatedAppsDir, { withFileTypes: true }).catch(() => []);
+			const deletions = entries
+				.filter((entry) => entry.isDirectory() && entry.name !== "_placeholder")
+				.map((entry) =>
+					fsPromises.rm(path.join(generatedAppsDir, entry.name), { recursive: true, force: true })
+						.then(() => console.log(`[FUTURE-CHAT] Deleted generated app: ${entry.name}`))
+						.catch((dirError) => console.warn(`[FUTURE-CHAT] Failed to delete generated app ${entry.name}:`, dirError.message))
+				);
+			await Promise.all(deletions);
+			await appRegistry.unregisterAllApps();
+		} catch (cleanupError) {
+			console.warn("[FUTURE-CHAT] Failed to clean up generated apps:", cleanupError.message);
+		}
+
 		return res.status(200).json({ deleted: true });
 	} catch (error) {
 		console.error("[FUTURE-CHAT] Failed to delete all threads:", error);

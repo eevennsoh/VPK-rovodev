@@ -84,6 +84,7 @@ export function FutureChatArtifactPanel({
 			<div className="flex flex-wrap items-start justify-between gap-3 border-border/80 border-b bg-background/90 p-3 backdrop-blur">
 				<div className="flex min-w-0 items-start gap-2">
 					<Button onClick={onClose} size="icon-sm" type="button" variant="ghost">
+						<span className="sr-only">Close artifact</span>
 						<XIcon className="size-4" />
 					</Button>
 					<div className="min-w-0">
@@ -103,7 +104,10 @@ export function FutureChatArtifactPanel({
 							onValueChange={(value) => onVersionChange(value)}
 							value={selectedVersion?.id ?? undefined}
 						>
-							<SelectTrigger className="h-8 min-w-[240px] max-w-[320px] bg-background">
+							<SelectTrigger
+								aria-label="Artifact version"
+								className="h-8 min-w-[240px] max-w-[320px] bg-background"
+							>
 								<SelectValue placeholder="Choose a version">
 									{selectedVersion
 										? formatFutureChatVersionLabel({
@@ -145,6 +149,7 @@ export function FutureChatArtifactPanel({
 						type="button"
 						variant="ghost"
 					>
+						<span className="sr-only">Copy artifact content</span>
 						<CopyIcon className="size-4" />
 					</Button>
 					<Button
@@ -154,6 +159,7 @@ export function FutureChatArtifactPanel({
 						type="button"
 						variant="ghost"
 					>
+						<span className="sr-only">Delete artifact</span>
 						<Trash2Icon className="size-4" />
 					</Button>
 				</div>

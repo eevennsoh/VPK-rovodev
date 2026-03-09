@@ -17,11 +17,13 @@ import {
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import type { FutureChatDocument, FutureChatVisibility } from "@/lib/future-chat-types";
+import { getMessageArtifactResult, type RovoUIMessage } from "@/lib/rovo-ui-messages";
 import { FileTextIcon, GlobeIcon, LockIcon, MessageSquarePlusIcon } from "lucide-react";
 
 interface FutureChatHeaderProps {
 	activeArtifactId: string | null;
 	artifacts: ReadonlyArray<FutureChatDocument>;
+	messages: ReadonlyArray<RovoUIMessage>;
 	onNewChat: () => void;
 	onOpenArtifact: (documentId: string) => void;
 	onSelectVisibility: (visibility: FutureChatVisibility) => void;
@@ -32,6 +34,7 @@ interface FutureChatHeaderProps {
 export function FutureChatHeader({
 	activeArtifactId,
 	artifacts,
+	messages,
 	onNewChat,
 	onOpenArtifact,
 	onSelectVisibility,
@@ -41,6 +44,30 @@ export function FutureChatHeader({
 	const { open } = useSidebar();
 	const primaryArtifact = getFutureChatPrimaryArtifact(artifacts, activeArtifactId);
 	const sortedArtifacts = sortFutureChatArtifacts(artifacts);
+	const artifactMenuItems = (() => {
+		const items = sortedArtifacts.map((artifact) => ({
+			id: artifact.id,
+			kind: artifact.kind,
+			title: artifact.title,
+		}));
+		const seenIds = new Set(items.map((item) => item.id));
+
+		for (let index = messages.length - 1; index >= 0; index--) {
+			const artifactResult = getMessageArtifactResult(messages[index]);
+			if (!artifactResult || seenIds.has(artifactResult.documentId)) {
+				continue;
+			}
+
+			seenIds.add(artifactResult.documentId);
+			items.push({
+				id: artifactResult.documentId,
+				kind: artifactResult.kind,
+				title: artifactResult.title,
+			});
+		}
+
+		return items;
+	})();
 
 	return (
 		<header className="sticky top-0 z-20 flex items-center gap-2 border-border/80 border-b bg-background/85 px-2 py-2 backdrop-blur md:px-4">
@@ -56,7 +83,7 @@ export function FutureChatHeader({
 			</div>
 
 			<div className="ml-auto flex items-center gap-2">
-				{primaryArtifact ? (
+				{primaryArtifact || artifactMenuItems.length > 0 ? (
 					<DropdownMenu>
 						<DropdownMenuTrigger
 							render={(
@@ -73,9 +100,9 @@ export function FutureChatHeader({
 						<DropdownMenuContent align="end">
 							<DropdownMenuGroup>
 								<DropdownMenuLabel>
-									{artifacts.length === 1 ? "Saved artifact" : `${artifacts.length} saved artifacts`}
+									{artifactMenuItems.length === 1 ? "Saved artifact" : `${artifactMenuItems.length} saved artifacts`}
 								</DropdownMenuLabel>
-								{sortedArtifacts.map((artifact) => (
+								{artifactMenuItems.map((artifact) => (
 									<DropdownMenuItem
 										onClick={() => onOpenArtifact(artifact.id)}
 										description={artifact.kind}

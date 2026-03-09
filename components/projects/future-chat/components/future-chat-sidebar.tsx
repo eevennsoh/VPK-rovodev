@@ -124,6 +124,12 @@ function FutureChatSidebarItem({
 					render={(
 						<SidebarMenuAction
 							className="mr-0.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+							onClick={(event) => {
+								event.stopPropagation();
+							}}
+							onPointerDown={(event) => {
+								event.stopPropagation();
+							}}
 							showOnHover={!isActive}
 						>
 							<MoreHorizontalIcon className="size-4" />
@@ -131,14 +137,14 @@ function FutureChatSidebarItem({
 						</SidebarMenuAction>
 					)}
 				/>
-				<DropdownMenuContent align="end" side="bottom">
-					<DropdownMenuItem
-						className="cursor-pointer text-destructive focus:bg-destructive/15 focus:text-destructive"
-						onSelect={() => void onDeleteThread(thread.id)}
-					>
-						<Trash2Icon className="mr-2 size-4" />
-						Delete
-					</DropdownMenuItem>
+					<DropdownMenuContent align="end" side="bottom">
+						<DropdownMenuItem
+							className="cursor-pointer text-destructive focus:bg-destructive/15 focus:text-destructive"
+							onClick={() => void onDeleteThread(thread.id)}
+						>
+							<Trash2Icon className="mr-2 size-4" />
+							Delete
+						</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</SidebarMenuItem>

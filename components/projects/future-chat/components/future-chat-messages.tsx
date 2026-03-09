@@ -19,6 +19,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { getFutureChatInterruptionLabel } from "@/lib/future-chat-interruptions";
+import {
+	resolveFutureChatMessageArtifactDisplay,
+	type FutureChatPendingArtifactResult,
+} from "@/components/projects/future-chat/lib/future-chat-message-artifacts";
 import { GenerativeWidgetCard } from "@/components/projects/shared/components/generative-widget-card";
 import LoadingWidget from "@/components/projects/shared/components/loading-widget";
 import {
@@ -44,7 +48,7 @@ import {
 import { useMemo, useState } from "react";
 
 interface FutureChatMessagesProps {
-	activeDocumentId: string | null;
+	visibleDocumentId: string | null;
 	activeThreadId: string | null;
 	activeThreadTitle?: string | null;
 	compact?: boolean;
@@ -54,10 +58,12 @@ interface FutureChatMessagesProps {
 	messages: ReadonlyArray<RovoUIMessage>;
 	onEditMessage: (messageId: string, nextText: string) => Promise<void>;
 	onOpenArtifactFromCard: (documentId: string, element: HTMLElement) => void;
+	onRegisterArtifactCard: (documentId: string, element: HTMLElement) => void;
 	onRegenerate: () => void;
 	onSelectSuggestion: (suggestion: string) => Promise<void>;
 	onSetEditingMessageId: (messageId: string | null) => void;
 	onVote: (messageId: string, value: "up" | "down" | null) => Promise<void>;
+	pendingArtifactResult: FutureChatPendingArtifactResult | null;
 	streamingArtifact: FutureChatStreamingArtifact | null;
 	streamingArtifactMessageId: string | null;
 	votes: Record<string, "up" | "down">;
@@ -412,8 +418,52 @@ function ThinkingMessage() {
 	);
 }
 
+function StreamingArtifactMessage({
+	documentId,
+	kind,
+	onOpenArtifactFromCard,
+	onRegisterArtifactCard,
+	streamingArtifact,
+	title,
+}: Readonly<{
+	documentId: string;
+	kind: "text" | "code" | "image" | "sheet";
+	onOpenArtifactFromCard: (documentId: string, element: HTMLElement) => void;
+	onRegisterArtifactCard: (documentId: string, element: HTMLElement) => void;
+	streamingArtifact: FutureChatStreamingArtifact;
+	title: string;
+}>) {
+	return (
+		<div
+			className="group/message fade-in w-full animate-in duration-200"
+			data-role="assistant"
+			data-testid="message-assistant-streaming-artifact"
+		>
+			<div className="flex w-full items-start gap-2 md:gap-3">
+				<div className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface-raised text-text-subtle">
+					<SparklesIcon className="size-4" />
+				</div>
+
+				<div className="flex min-w-0 flex-1 flex-col gap-3">
+					<FutureChatArtifactCard
+						action={null}
+						displayMode="preview"
+						documentId={documentId}
+						isStreaming={true}
+						kind={kind}
+						onOpen={onOpenArtifactFromCard}
+						onRegister={onRegisterArtifactCard}
+						previewContent={streamingArtifact.content}
+						title={title}
+					/>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export function FutureChatMessages({
-	activeDocumentId,
+	visibleDocumentId,
 	activeThreadId,
 	activeThreadTitle,
 	compact = false,
@@ -423,10 +473,12 @@ export function FutureChatMessages({
 	messages,
 	onEditMessage,
 	onOpenArtifactFromCard,
+	onRegisterArtifactCard,
 	onRegenerate,
 	onSelectSuggestion,
 	onSetEditingMessageId,
 	onVote,
+	pendingArtifactResult,
 	streamingArtifact,
 	streamingArtifactMessageId,
 	votes,
@@ -442,6 +494,10 @@ export function FutureChatMessages({
 	}, [visibleMessages]);
 	const shouldShowThinkingMessage =
 		isStreaming && visibleMessages.at(-1)?.role === "user";
+	const shouldShowStreamingArtifactPreview =
+		shouldShowThinkingMessage &&
+		Boolean(streamingArtifact?.documentId) &&
+		streamingArtifactMessageId === null;
 
 	return (
 		<Conversation className="relative flex-1 bg-background">
@@ -494,22 +550,29 @@ export function FutureChatMessages({
 							);
 						}
 
+						const artifactDisplay = resolveFutureChatMessageArtifactDisplay({
+							visibleDocumentId,
+							documents,
+							message,
+							pendingArtifactResult,
+							streamingArtifact,
+							streamingArtifactMessageId,
+						});
+
 						return (
 							<AssistantMessage
 								artifactCard={
-									streamingArtifactMessageId === message.id && streamingArtifact ? (
+									artifactDisplay ? (
 										<FutureChatArtifactCard
-											activeDocumentId={activeDocumentId}
-											document={null}
+											action={artifactDisplay.action}
+											displayMode={artifactDisplay.displayMode}
+											documentId={artifactDisplay.documentId}
+											isStreaming={artifactDisplay.isStreaming}
+											kind={artifactDisplay.kind}
 											onOpen={onOpenArtifactFromCard}
-											streamingArtifact={streamingArtifact}
-										/>
-									) : documents.find((d) => d.sourceMessageId === message.id) ? (
-										<FutureChatArtifactCard
-											activeDocumentId={activeDocumentId}
-											document={documents.find((d) => d.sourceMessageId === message.id) ?? null}
-											onOpen={onOpenArtifactFromCard}
-											streamingArtifact={null}
+											onRegister={onRegisterArtifactCard}
+											previewContent={artifactDisplay.previewContent}
+											title={artifactDisplay.title}
 										/>
 									) : null
 								}
@@ -526,7 +589,18 @@ export function FutureChatMessages({
 					})
 				)}
 
-				{shouldShowThinkingMessage ? <ThinkingMessage /> : null}
+				{shouldShowStreamingArtifactPreview && streamingArtifact?.documentId ? (
+					<StreamingArtifactMessage
+						documentId={streamingArtifact.documentId}
+						kind={streamingArtifact.kind}
+						onOpenArtifactFromCard={onOpenArtifactFromCard}
+						onRegisterArtifactCard={onRegisterArtifactCard}
+						streamingArtifact={streamingArtifact}
+						title={streamingArtifact.title}
+					/>
+				) : shouldShowThinkingMessage ? (
+					<ThinkingMessage />
+				) : null}
 			</ConversationContent>
 
 			<ConversationScrollButton className="bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border bg-background p-2 shadow-lg transition-all hover:bg-muted" />
