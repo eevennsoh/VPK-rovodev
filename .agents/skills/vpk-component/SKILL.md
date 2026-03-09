@@ -12,7 +12,7 @@ description: Enrich shadcn components with ADS visual styling (state tokens, int
   or references an ADS component name and wants to see how it maps to VPK.
 argument-hint: "[ADS component name]"
 prerequisites:
-  files: [.cursor/skills/vpk-design/references/tokens.md]
+  files: [.agents/skills/vpk-design/references/tokens.md]
 produces: []
 ---
 
@@ -104,7 +104,7 @@ Read the component source and fill in the **visual styling** audit template. The
 
 #### 2b. Produce Visual Styling Map
 
-For styling guidance, refer to `.cursor/skills/vpk-design/references/tokens.md` for the complete semantic token reference.
+For styling guidance, refer to `.agents/skills/vpk-design/references/tokens.md` for the complete semantic token reference.
 
 **API preservation rule:** The mapping tables below are for **documentation purposes only** — to record which ADS concept maps to which existing shadcn name. They do **not** authorize renaming shadcn props/variants/sizes.
 
@@ -210,7 +210,7 @@ For component-specific enrichment rules (ADS Toggle geometry, Sonner/Flag mappin
 
 #### State Classes Per Variant
 
-For each variant, add state classes using ADS token triplets (rest → hovered → pressed). For interactive state token triplets and selected state selectors, see `.cursor/skills/vpk-design/references/tokens.md`.
+For each variant, add state classes using ADS token triplets (rest → hovered → pressed). For interactive state token triplets and selected state selectors, see `.agents/skills/vpk-design/references/tokens.md`.
 
 **Bold variant example (Button `default`):**
 ```

@@ -2,17 +2,6 @@
 
 import type { ChatStatus, FileUIPart } from "ai";
 import {
-	ModelSelector,
-	ModelSelectorContent,
-	ModelSelectorGroup,
-	ModelSelectorInput,
-	ModelSelectorItem,
-	ModelSelectorList,
-	ModelSelectorLogo,
-	ModelSelectorName,
-	ModelSelectorTrigger,
-} from "@/components/ui-ai/model-selector";
-import {
 	PromptInput,
 	PromptInputFooter,
 	PromptInputProvider,
@@ -26,10 +15,9 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { VoiceButton } from "@/components/ui-audio/voice-button";
 import type { VoiceButtonState } from "@/components/ui-audio/voice-button";
-import type { FutureChatModelOption } from "@/lib/future-chat-types";
 import { cn } from "@/lib/utils";
-import { CheckIcon, MicIcon, PaperclipIcon } from "lucide-react";
-import { useCallback, useState } from "react";
+import { MicIcon, PaperclipIcon } from "lucide-react";
+import { useCallback } from "react";
 import { PendingAttachments } from "./pending-attachments";
 
 const SUGGESTED_ACTIONS = [
@@ -55,8 +43,6 @@ interface FutureChatComposerProps {
 	artifactTitle?: string | null;
 	compact?: boolean;
 	errorMessage?: string | null;
-	models: ReadonlyArray<FutureChatModelOption>;
-	onSelectModel: (modelId: string) => void;
 	onStop: () => Promise<void>;
 	onSubmit: (payload: {
 		text: string;
@@ -64,7 +50,6 @@ interface FutureChatComposerProps {
 	}) => Promise<void>;
 	onSuggestedAction: (text: string) => Promise<void>;
 	onToggleVoice?: () => void;
-	selectedModel: FutureChatModelOption;
 	showSuggestedActions?: boolean;
 	status: ChatStatus;
 	voiceState?: VoiceButtonState;
@@ -97,72 +82,14 @@ function SuggestedActions({
 	);
 }
 
-function CompactModelSelector({
-	models,
-	onSelectModel,
-	selectedModel,
-}: Readonly<{
-	models: ReadonlyArray<FutureChatModelOption>;
-	onSelectModel: (modelId: string) => void;
-	selectedModel: FutureChatModelOption;
-}>) {
-	const [open, setOpen] = useState(false);
-
-	return (
-		<ModelSelector onOpenChange={setOpen} open={open}>
-			<ModelSelectorTrigger
-				render={(
-					<Button className="h-8 w-[220px] justify-between rounded-full px-2" type="button" variant="ghost" />
-				)}
-			>
-				<div className="flex min-w-0 items-center gap-2">
-					<ModelSelectorLogo provider={selectedModel.provider} />
-					<ModelSelectorName className="truncate">{selectedModel.label}</ModelSelectorName>
-				</div>
-			</ModelSelectorTrigger>
-			<ModelSelectorContent>
-				<ModelSelectorInput placeholder="Search models..." />
-				<ModelSelectorList>
-					<ModelSelectorGroup heading="Available models">
-						{models.map((model) => (
-							<ModelSelectorItem
-								key={model.id}
-								onSelect={() => {
-									onSelectModel(model.id);
-									setOpen(false);
-								}}
-								value={model.id}
-							>
-								<ModelSelectorLogo provider={model.provider} />
-								<div className="min-w-0 flex flex-1 flex-col text-left">
-									<ModelSelectorName>{model.label}</ModelSelectorName>
-									<span className="truncate text-muted-foreground text-xs">
-										{model.description}
-									</span>
-								</div>
-								{model.id === selectedModel.id ? (
-									<CheckIcon className="ml-auto size-4" />
-								) : null}
-							</ModelSelectorItem>
-						))}
-					</ModelSelectorGroup>
-				</ModelSelectorList>
-			</ModelSelectorContent>
-		</ModelSelector>
-	);
-}
-
 function FutureChatComposerInner({
 	artifactTitle,
 	compact = false,
 	errorMessage,
-	models,
-	onSelectModel,
 	onStop,
 	onSubmit,
 	onSuggestedAction,
 	onToggleVoice,
-	selectedModel,
 	showSuggestedActions = false,
 	status,
 	voiceState = "idle",
@@ -237,12 +164,6 @@ function FutureChatComposerInner({
 								variant="ghost"
 							/>
 						) : null}
-
-						<CompactModelSelector
-							models={models}
-							onSelectModel={onSelectModel}
-							selectedModel={selectedModel}
-						/>
 					</PromptInputTools>
 
 					<PromptInputSubmit

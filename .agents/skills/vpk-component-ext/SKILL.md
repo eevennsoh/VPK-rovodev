@@ -474,7 +474,6 @@ Feature surfaces should copy the canonical pattern, not invent their own diverge
 
 | File | Role |
 |---|---|
-| `components/ui/message.tsx` | Generic reusable UI family example |
 | `components/ui-ai/message.tsx` | AI/chat message compound component |
 | `components/ui-ai/conversation.tsx` | AI/chat conversation container |
 | `components/ui-ai/prompt-input.tsx` | AI/chat composer primitive |

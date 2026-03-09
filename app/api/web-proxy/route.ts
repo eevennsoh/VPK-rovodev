@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getBackendUrl } from "@/app/api/_utils/backend-url";
+import { fetchBackend } from "@/app/api/_utils/backend-url";
 
 export async function GET(request: NextRequest) {
 	const url = request.nextUrl.searchParams.get("url");
@@ -10,12 +10,13 @@ export async function GET(request: NextRequest) {
 		);
 	}
 
-	const backendUrl = getBackendUrl();
-	const target = `${backendUrl}/api/web-proxy?url=${encodeURIComponent(url)}`;
-
 	let response: Response;
 	try {
-		response = await fetch(target, { method: "GET" });
+		response = (
+			await fetchBackend(`/api/web-proxy?url=${encodeURIComponent(url)}`, {
+				method: "GET",
+			})
+		).response;
 	} catch {
 		return NextResponse.json(
 			{ error: "Cannot connect to backend server" },

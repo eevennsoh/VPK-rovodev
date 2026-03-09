@@ -25,7 +25,6 @@ interface FutureChatHeaderProps {
 	onNewChat: () => void;
 	onOpenArtifact: (documentId: string) => void;
 	onSelectVisibility: (visibility: FutureChatVisibility) => void;
-	selectedModelLabel: string;
 	threadCount: number;
 	visibility: FutureChatVisibility;
 }
@@ -36,7 +35,6 @@ export function FutureChatHeader({
 	onNewChat,
 	onOpenArtifact,
 	onSelectVisibility,
-	selectedModelLabel,
 	threadCount,
 	visibility,
 }: Readonly<FutureChatHeaderProps>) {
@@ -51,8 +49,6 @@ export function FutureChatHeader({
 			<div className="min-w-0">
 				<p className="truncate font-medium text-sm">Future Chat</p>
 				<p className="hidden truncate text-text-subtle text-xs sm:block">
-					{selectedModelLabel}
-					{" • "}
 					{threadCount}
 					{" saved "}
 					{threadCount === 1 ? "thread" : "threads"}

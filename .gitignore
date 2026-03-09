@@ -19,6 +19,9 @@
 /screenshots
 /public/screenshots/
 
+# output
+/output
+
 # root-level screenshots/images (keep nested assets tracked)
 /*.png
 /*.jpg

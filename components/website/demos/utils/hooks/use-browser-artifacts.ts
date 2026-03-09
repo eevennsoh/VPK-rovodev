@@ -50,6 +50,10 @@ function isSnapshotTool(toolName: string): boolean {
 	return toolName.includes("browser_snapshot");
 }
 
+function isBashToolName(toolName: string): boolean {
+	return toolName.trim().toLowerCase() === "bash";
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Value extractors                                                           */
 /* -------------------------------------------------------------------------- */
@@ -124,6 +128,22 @@ function extractUrlFromGenericTool(summary: ThinkingToolCallSummary): string | n
 	if (summary.input && typeof summary.input === "object") {
 		const inputStr = JSON.stringify(summary.input);
 		const url = extractUrlFromString(inputStr);
+		if (url) return url;
+	}
+
+	// Check output/result for bash helpers that print current preview state JSON.
+	if (!isBashToolName(summary.toolName)) {
+		return null;
+	}
+
+	const output = summary.outputPreview ?? summary.output;
+	if (typeof output === "string") {
+		const url = extractUrlFromString(output);
+		if (url) return url;
+	}
+	if (output && typeof output === "object") {
+		const outputStr = JSON.stringify(output);
+		const url = extractUrlFromString(outputStr);
 		if (url) return url;
 	}
 	return null;

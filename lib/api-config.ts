@@ -92,6 +92,7 @@ export const API_ENDPOINTS = {
 		`${API_BASE_URL}/api/apps/${encodeURIComponent(slug)}`,
 	WEB_PROXY: `${API_BASE_URL}/api/web-proxy`,
 	CHROMIUM_PREVIEW: `${API_BASE_URL}/api/chromium-preview`,
+	CHROMIUM_PREVIEW_STREAM: `${API_BASE_URL}/api/chromium-preview/stream`,
 	webProxy: (url: string) =>
 		`${API_BASE_URL}/api/web-proxy?url=${encodeURIComponent(url)}`,
 	chromiumPreviewAction: (
@@ -101,6 +102,12 @@ export const API_ENDPOINTS = {
 			| "reload"
 			| "viewport"
 			| "click"
+			| "click-ref"
+			| "hover-ref"
+			| "fill-ref"
+			| "type-ref"
+			| "select-ref"
+			| "scroll"
 			| "wheel"
 			| "press"
 			| "type"

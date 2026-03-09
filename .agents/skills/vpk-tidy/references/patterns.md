@@ -108,7 +108,7 @@ interface TabsContextValue {
 const TabsContext = createContext<TabsContextValue | null>(null);
 
 function useTabsContext() {
-	const context = useContext(TabsContext);
+	const context = use(TabsContext);
 	if (!context) {
 		throw new Error("Tabs compound components must be used within Tabs");
 	}
@@ -133,7 +133,7 @@ function Tabs({ defaultValue, children, onChange }: Readonly<TabsProps>) {
 		[onChange]
 	);
 
-	return <TabsContext.Provider value={{ activeTab, setActiveTab: handleChange }}>{children}</TabsContext.Provider>;
+	return <TabsContext value={{ activeTab, setActiveTab: handleChange }}>{children}</TabsContext>;
 }
 
 // 3. Create child components
@@ -247,16 +247,16 @@ function WorkItemModalProvider({ children }: { children: React.ReactNode }) {
 	const close = useCallback(() => setWorkItem(null), []);
 
 	return (
-		<WorkItemModalContext.Provider value={{ isOpen: !!workItem, workItem, open, close }}>
+		<WorkItemModalContext value={{ isOpen: !!workItem, workItem, open, close }}>
 			{children}
 			{workItem && <WorkItemModal item={workItem} onClose={close} />}
-		</WorkItemModalContext.Provider>
+		</WorkItemModalContext>
 	);
 }
 
 // Hook for consumers
 function useWorkItemModal() {
-	const context = useContext(WorkItemModalContext);
+	const context = use(WorkItemModalContext);
 	if (!context) throw new Error("useWorkItemModal must be used within WorkItemModalProvider");
 	return context;
 }

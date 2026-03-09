@@ -1,7 +1,36 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const http = require("node:http");
 
-const { extractChunkFromEvent } = require("./rovodev-client");
+const {
+	extractChunkFromEvent,
+	sendMessageStreaming,
+} = require("./rovodev-client");
+
+function listen(server) {
+	return new Promise((resolve, reject) => {
+		server.listen(0, "127.0.0.1", () => {
+			const address = server.address();
+			if (!address || typeof address !== "object") {
+				reject(new Error("Failed to read test server address"));
+				return;
+			}
+			resolve(address.port);
+		});
+	});
+}
+
+function close(server) {
+	return new Promise((resolve, reject) => {
+		server.close((error) => {
+			if (error) {
+				reject(error);
+				return;
+			}
+			resolve();
+		});
+	});
+}
 
 test("extractChunkFromEvent bounds large retry-prompt payloads", () => {
 	const largePayload = {
@@ -107,4 +136,78 @@ test("extractChunkFromEvent treats structured error JSON output as tool_error", 
 	assert.equal(chunk.toolName, "mcp__integrations__invoke_tool");
 	assert.equal(chunk.toolCallId, "call-5");
 	assert.match(chunk.outputPreview, /restricted_action/i);
+});
+
+test("sendMessageStreaming aborts silent SSE streams and cancels the server turn", async () => {
+	let cancelSeenResolve;
+	const cancelSeen = new Promise((resolve) => {
+		cancelSeenResolve = resolve;
+	});
+
+	const server = http.createServer((req, res) => {
+		if (req.url === "/v3/set_chat_message" && req.method === "POST") {
+			req.resume();
+			res.writeHead(200, { "Content-Type": "application/json" });
+			res.end(JSON.stringify({ ok: true }));
+			return;
+		}
+
+		if (req.url?.startsWith("/v3/stream_chat") && req.method === "GET") {
+			res.writeHead(200, {
+				"Content-Type": "text/event-stream",
+				"Cache-Control": "no-cache",
+				Connection: "keep-alive",
+			});
+			return;
+		}
+
+		if (req.url === "/v3/cancel" && req.method === "POST") {
+			req.resume();
+			res.writeHead(200, { "Content-Type": "application/json" });
+			res.end(JSON.stringify({ cancelled: true }));
+			cancelSeenResolve();
+			return;
+		}
+
+		res.writeHead(404);
+		res.end();
+	});
+
+	const port = await listen(server);
+
+	try {
+		const error = await new Promise((resolve, reject) => {
+			const fallbackTimer = setTimeout(() => {
+				reject(new Error("Timed out waiting for silent stream failure"));
+			}, 1_000);
+
+			sendMessageStreaming(
+				"navigate to theverge.com",
+				{
+					onChunk: () => {},
+					onDone: () => {
+						clearTimeout(fallbackTimer);
+						reject(new Error("Expected silent stream to fail"));
+					},
+					onError: (streamError) => {
+						clearTimeout(fallbackTimer);
+						resolve(streamError);
+					},
+				},
+				port,
+				{
+					firstEventTimeoutMs: 25,
+					idleTimeoutMs: 25,
+				}
+			);
+		});
+
+		await cancelSeen;
+
+		assert.equal(error.code, "ROVODEV_STREAM_IDLE_TIMEOUT");
+		assert.match(error.message, /never produced any sse activity/i);
+		assert.equal(error.hadActivity, false);
+	} finally {
+		await close(server);
+	}
 });

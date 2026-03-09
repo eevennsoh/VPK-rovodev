@@ -10,7 +10,7 @@ description: This skill should be used when the user asks to "implement this Fig
   invoked via the Task tool with the appropriate subagent_type.
 argument-hint: "[Figma URL]"
 prerequisites:
-  files: [.cursor/skills/vpk-design/references/tokens.md]
+  files: [.agents/skills/vpk-design/references/tokens.md]
 produces: []
 ---
 

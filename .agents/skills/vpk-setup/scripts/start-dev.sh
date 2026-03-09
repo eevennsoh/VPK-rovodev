@@ -23,7 +23,7 @@ echo "======================================"
 # Stop only services started by this script
 echo "🛑 Cleaning up existing processes..."
 if [ -f .dev-pids ]; then
-    ./.cursor/skills/vpk-setup/scripts/stop-dev.sh
+    ./.agents/skills/vpk-setup/scripts/stop-dev.sh
 else
     echo "   ℹ️  No PID file found; leaving existing services running."
 fi
@@ -55,8 +55,8 @@ if [ -f .next/dev/lock ]; then
     if [ "$NEXT_RUNNING" = true ]; then
         echo "⚠️  Next.js dev lock detected and a dev server is already running."
         echo "   Options:"
-        echo "   1. Stop it first: ./.cursor/skills/vpk-setup/scripts/stop-dev.sh"
-        echo "   2. Force kill: ./.cursor/skills/vpk-setup/scripts/start-dev.sh --force-kill"
+        echo "   1. Stop it first: ./.agents/skills/vpk-setup/scripts/stop-dev.sh"
+        echo "   2. Force kill: ./.agents/skills/vpk-setup/scripts/start-dev.sh --force-kill"
         echo "   3. Let auto-port-finding use next available port (continuing...)"
         echo ""
         # Don't exit - let the port-finding logic handle it
@@ -110,7 +110,7 @@ echo "   - Express Backend: http://localhost:${BACKEND_PORT}"
 echo "   - Frontend: http://localhost:${FRONTEND_PORT}"
 echo ""
 echo "💡 Port auto-discovery: If default ports are in use, servers automatically find available ports."
-echo "💡 To stop all services: ./.cursor/skills/vpk-setup/scripts/stop-dev.sh"
+echo "💡 To stop all services: ./.agents/skills/vpk-setup/scripts/stop-dev.sh"
 
 # Save PIDs for cleanup script
 echo "$STACK_PID" > .dev-pids

@@ -182,7 +182,7 @@ If conflicts occur:
 4. **Execute sync**
 
    ```bash
-   ./.cursor/skills/vpk-sync/scripts/sync-pull.sh [--rebase] [--allow-unrelated-histories] [--dry-run]
+   ./.agents/skills/vpk-sync/scripts/sync-pull.sh [--rebase] [--allow-unrelated-histories] [--dry-run]
    ```
 
 5. **Report results** - summarize what was updated or any conflicts
@@ -234,7 +234,7 @@ Same exclusions as pull (credentials, deployment config, personal settings).
 4. **Execute push**
 
    ```bash
-   ./.cursor/skills/vpk-sync/scripts/sync-push.sh --title "Title" [--paths "..."] [--dry-run]
+   ./.agents/skills/vpk-sync/scripts/sync-push.sh --title "Title" [--paths "..."] [--dry-run]
    ```
 
 5. **Report PR URL** - provide link for user to review
@@ -395,7 +395,7 @@ git cherry-pick --skip
 4. **Execute init**
 
    ```bash
-   ./.cursor/skills/vpk-sync/scripts/sync-init.sh <upstream-url> [--strategy merge|rebase]
+   ./.agents/skills/vpk-sync/scripts/sync-init.sh <upstream-url> [--strategy merge|rebase]
    ```
 
 5. **Verify connection**

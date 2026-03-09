@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBackendUrl } from "@/app/api/_utils/backend-url";
+import {
+	BackendConnectionError,
+	fetchBackend,
+	getBackendUrlCandidates,
+} from "@/app/api/_utils/backend-url";
 import { readJsonBody } from "@/app/api/_utils/read-json-body";
 
 /**
@@ -15,10 +19,7 @@ export async function POST(request: NextRequest) {
 			return errorResponse;
 		}
 
-		const backendUrl = getBackendUrl();
-		const url = `${backendUrl}/api/sound-generation`;
-
-		const response = await fetch(url, {
+		const { response } = await fetchBackend("/api/sound-generation", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -74,11 +75,23 @@ export async function POST(request: NextRequest) {
 			headers,
 		});
 	} catch (error) {
+		if (error instanceof BackendConnectionError) {
+			return NextResponse.json(
+				{
+					error: "Cannot connect to backend server",
+					details: error.cause instanceof Error ? error.cause.message : String(error.cause),
+					backendUrls: error.backendUrls,
+				},
+				{ status: 503 }
+			);
+		}
+
 		console.error("Sound generation proxy error:", error);
 		return NextResponse.json(
 			{
 				error: "Internal server error",
 				details: error instanceof Error ? error.message : String(error),
+				backendUrls: getBackendUrlCandidates(),
 			},
 			{ status: 500 }
 		);

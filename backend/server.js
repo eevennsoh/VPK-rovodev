@@ -40,6 +40,7 @@ const {
 	WAIT_FOR_TURN_TIMEOUT_MS,
 } = require("./lib/rovodev-gateway");
 const { createAIGatewayProvider } = require("./lib/ai-gateway-provider");
+const { isLocalModelRequest, streamLocalModel } = require("./lib/local-model-provider");
 const { getGenuiSystemPrompt } = require("./lib/genui-system-prompt");
 const { analyzeGeneratedText, pickBestSpec } = require("./lib/genui-spec-utils");
 const { buildFallbackGenuiSpecFromText, buildMinimalTextCardSpec } = require("./lib/genui-fallback-spec");
@@ -3817,6 +3818,40 @@ Once ready, call POST /api/plan/${creationMode}s to persist it.
 
 		if (!latestUserMessage) {
 			return res.status(400).json({ error: "A user message is required" });
+		}
+
+		// ── Local model shortcut (bypasses RovoDev and all smart routing) ──
+		if (isLocalModelRequest(provider, rawModel)) {
+			console.info("[CHAT-SDK] Routing through local MLX model", { provider, model: rawModel });
+			const stream = createUIMessageStream({
+				execute: async ({ writer }) => {
+					try {
+						await streamLocalModel({
+							userMessage: latestUserMessage,
+							conversationHistory,
+							writer,
+						});
+					} catch (error) {
+						console.error("[LOCAL-MODEL] Stream error:", error);
+						const errorId = `local-error-${Date.now()}`;
+						writer.write({ type: "text-start", id: errorId });
+						writer.write({
+							type: "text-delta",
+							id: errorId,
+							delta: `Local model error: ${error instanceof Error ? error.message : String(error)}\n\nMake sure mlx_lm.server is running:\n\`\`\`\nmlx_lm.server --model mlx-community/Qwen3-0.6B-MLX-8bit --port 8800\n\`\`\``,
+						});
+						writer.write({ type: "text-end", id: errorId });
+						writer.write({
+							type: "data-turn-complete",
+							data: { timestamp: new Date().toISOString() },
+						});
+					}
+				},
+				onError: (error) =>
+					error instanceof Error ? error.message : "Local model request failed",
+			});
+			pipeUIMessageStreamToResponse({ response: res, stream });
+			return;
 		}
 
 		const latestVisiblePromptText =
@@ -9175,19 +9210,25 @@ app.post("/api/speech-transcription", async (req, res) => {
 	});
 
 	try {
-		const { audio, mimeType } = req.body || {};
+		const { audio, language, mimeType, model, provider } = req.body || {};
 		if (!audio || typeof audio !== "string") {
 			return res.status(400).json({ error: "Base64 audio data is required" });
 		}
 
 		console.info("[SPEECH-TRANSCRIPTION] Transcribing audio", {
+			language: language || null,
 			mimeType: mimeType || "audio/webm",
 			audioLength: audio.length,
+			model: model || null,
+			provider: provider || "google",
 		});
 
 		const text = await transcribeAudio({
 			audio,
+			language,
 			mimeType,
+			model,
+			provider,
 			signal: abortController.signal,
 		});
 		return res.status(200).json({ text });
@@ -9368,6 +9409,23 @@ app.get("/api/chromium-preview", async (_req, res) => {
 	}
 });
 
+app.get("/api/chromium-preview/stream", async (_req, res) => {
+	try {
+		return res.json({
+			enabled: true,
+			...chromiumPreviewManager.getStreamConfig(),
+		});
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Stream config error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to read Chromium preview stream config",
+		});
+	}
+});
+
 app.post("/api/chromium-preview", async (req, res) => {
 	try {
 		const url = getNonEmptyString(req.body?.url);
@@ -9463,6 +9521,162 @@ app.post("/api/chromium-preview/click", async (req, res) => {
 				error instanceof Error
 					? error.message
 					: "Failed to click inside Chromium preview",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/click-ref", async (req, res) => {
+	try {
+		const ref = getNonEmptyString(req.body?.ref);
+		if (!ref) {
+			return res.status(400).json({
+				error: "A non-empty ref field is required.",
+			});
+		}
+
+		const state = await chromiumPreviewManager.clickRef(ref);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Click ref error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to click Chromium preview ref",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/hover-ref", async (req, res) => {
+	try {
+		const ref = getNonEmptyString(req.body?.ref);
+		if (!ref) {
+			return res.status(400).json({
+				error: "A non-empty ref field is required.",
+			});
+		}
+
+		const state = await chromiumPreviewManager.hoverRef(ref);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Hover ref error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to hover Chromium preview ref",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/fill-ref", async (req, res) => {
+	try {
+		const ref = getNonEmptyString(req.body?.ref);
+		if (!ref) {
+			return res.status(400).json({
+				error: "A non-empty ref field is required.",
+			});
+		}
+
+		if (typeof req.body?.text !== "string") {
+			return res.status(400).json({
+				error: "A text string is required.",
+			});
+		}
+
+		const state = await chromiumPreviewManager.fillRef(ref, req.body.text);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Fill ref error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to fill Chromium preview ref",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/type-ref", async (req, res) => {
+	try {
+		const ref = getNonEmptyString(req.body?.ref);
+		if (!ref) {
+			return res.status(400).json({
+				error: "A non-empty ref field is required.",
+			});
+		}
+
+		if (typeof req.body?.text !== "string") {
+			return res.status(400).json({
+				error: "A text string is required.",
+			});
+		}
+
+		const state = await chromiumPreviewManager.typeRef(ref, req.body.text);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Type ref error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to type into Chromium preview ref",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/select-ref", async (req, res) => {
+	try {
+		const ref = getNonEmptyString(req.body?.ref);
+		if (!ref) {
+			return res.status(400).json({
+				error: "A non-empty ref field is required.",
+			});
+		}
+
+		const values = Array.isArray(req.body?.values)
+			? req.body.values.filter((value) => typeof value === "string")
+			: [];
+		if (values.length === 0) {
+			return res.status(400).json({
+				error: "A non-empty values array is required.",
+			});
+		}
+
+		const state = await chromiumPreviewManager.selectRef(ref, values);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Select ref error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to select Chromium preview ref value",
+		});
+	}
+});
+
+app.post("/api/chromium-preview/scroll", async (req, res) => {
+	try {
+		const direction = getNonEmptyString(req.body?.direction);
+		if (!direction) {
+			return res.status(400).json({
+				error: "A non-empty direction field is required.",
+			});
+		}
+
+		const state = await chromiumPreviewManager.scroll(
+			direction,
+			req.body?.pixels
+		);
+		return res.json(state);
+	} catch (error) {
+		console.error("[CHROMIUM-PREVIEW] Scroll error:", error);
+		return res.status(500).json({
+			error:
+				error instanceof Error
+					? error.message
+					: "Failed to scroll Chromium preview",
 		});
 	}
 });

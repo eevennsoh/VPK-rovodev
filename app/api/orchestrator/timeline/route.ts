@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBackendUrl } from "@/app/api/_utils/backend-url";
+import { fetchBackend } from "@/app/api/_utils/backend-url";
 
 /**
  * Dev proxy for the orchestrator timeline endpoint.
@@ -8,7 +8,6 @@ import { getBackendUrl } from "@/app/api/_utils/backend-url";
 
 export async function GET(request: NextRequest) {
 	try {
-		const backendUrl = getBackendUrl();
 		const { searchParams } = new URL(request.url);
 		const params = new URLSearchParams();
 
@@ -18,12 +17,15 @@ export async function GET(request: NextRequest) {
 		if (limit !== null) params.set("limit", limit);
 
 		const queryString = params.toString();
-		const url = `${backendUrl}/api/orchestrator/timeline${queryString ? `?${queryString}` : ""}`;
-
-		const response = await fetch(url, {
+		const response = (
+			await fetchBackend(
+				`/api/orchestrator/timeline${queryString ? `?${queryString}` : ""}`,
+				{
 			method: "GET",
 			headers: { "Content-Type": "application/json" },
-		});
+				},
+			)
+		).response;
 
 		const data = await response.json();
 		return NextResponse.json(data, { status: response.status });

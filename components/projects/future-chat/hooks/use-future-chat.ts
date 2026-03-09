@@ -13,7 +13,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { DEFAULT_FUTURE_CHAT_MODEL, FUTURE_CHAT_MODELS } from "@/components/projects/future-chat/data/model-options";
 import {
 	createFutureChatThread,
 	deleteAllFutureChatThreads,
@@ -33,7 +32,6 @@ import {
 import {
 	type FutureChatDocument,
 	type FutureChatDocumentKind,
-	type FutureChatModelOption,
 	type FutureChatThread,
 	type FutureChatVisibility,
 	type FutureChatVote,
@@ -69,16 +67,12 @@ function deriveThreadTitle(promptText: string): string {
 function buildThreadPersistKey(options: {
 	messages: ReadonlyArray<RovoUIMessage>;
 	visibility: FutureChatVisibility;
-	modelId: string;
-	provider: string;
 	activeDocumentId: string | null;
 	title: string;
 }): string {
 	return JSON.stringify({
 		messages: options.messages,
 		visibility: options.visibility,
-		modelId: options.modelId,
-		provider: options.provider,
 		activeDocumentId: options.activeDocumentId,
 		title: options.title,
 	});
@@ -116,16 +110,6 @@ function upsertDocumentRecord(
 	return [nextDocument, ...withoutPrevious].sort((left, right) => {
 		return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
 	});
-}
-
-function resolveModelOption(
-	modelId: string | null,
-	provider: string | null,
-): FutureChatModelOption {
-	const exactMatch = FUTURE_CHAT_MODELS.find((model) => {
-		return model.id === modelId || (provider && model.provider === provider && model.id === modelId);
-	});
-	return exactMatch ?? DEFAULT_FUTURE_CHAT_MODEL;
 }
 
 function buildVotesMap(votes: ReadonlyArray<FutureChatVote>): Record<string, "up" | "down"> {
@@ -221,13 +205,11 @@ export interface FutureChatHookResult {
 	regenerateLatest: () => void;
 	runtimeThreadId: string;
 	saveArtifactDraft: () => Promise<void>;
-	selectedModel: FutureChatModelOption;
 	selectedVersionId: string | null;
 	setActiveDocumentId: (documentId: string | null) => void;
 	setArtifactDraftContent: (value: string) => void;
 	setArtifactMode: (mode: "preview" | "edit") => void;
 	setEditingMessageId: (messageId: string | null) => void;
-	setSelectedModelId: (modelId: string) => void;
 	setSelectedVersionId: (versionId: string | null) => void;
 	setSidebarOpen: (isOpen: boolean) => void;
 	setThreadVisibility: (visibility: FutureChatVisibility) => void;
@@ -255,7 +237,6 @@ export function useFutureChat({
 	const [documents, setDocuments] = useState<FutureChatDocument[]>([]);
 	const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
 	const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
-	const [selectedModelId, setSelectedModelId] = useState(DEFAULT_FUTURE_CHAT_MODEL.id);
 	const [threadVisibility, setThreadVisibility] = useState<FutureChatVisibility>("private");
 	const [sidebarOpen, setSidebarOpen] = useState(() => !embedded);
 	const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -267,9 +248,6 @@ export function useFutureChat({
 	const [isLoadingThread, setIsLoadingThread] = useState(false);
 	const [isVoiceMode, setIsVoiceMode] = useState(false);
 	const toggleVoiceMode = useCallback(() => setIsVoiceMode((prev) => !prev), []);
-	const selectedModel = useMemo(() => {
-		return FUTURE_CHAT_MODELS.find((model) => model.id === selectedModelId) ?? DEFAULT_FUTURE_CHAT_MODEL;
-	}, [selectedModelId]);
 	const activeDocument = useMemo(() => {
 		return documents.find((document) => document.id === activeDocumentId) ?? null;
 	}, [activeDocumentId, documents]);
@@ -318,8 +296,6 @@ export function useFutureChat({
 							id: runtimeThreadId,
 							messages,
 							contextDescription: resolvedContextDescription,
-							provider: selectedModel.provider,
-							model: selectedModel.id,
 							visibility: threadVisibility,
 							artifactContext: activeDocument
 								? {
@@ -342,8 +318,6 @@ export function useFutureChat({
 			activeDocumentContent,
 			embedded,
 			runtimeThreadId,
-			selectedModel.id,
-			selectedModel.provider,
 			threadVisibility,
 			],
 	);
@@ -540,7 +514,6 @@ export function useFutureChat({
 			setMessages(thread.messages);
 			setStreamingArtifact(null);
 			setThreadVisibility(thread.visibility);
-			setSelectedModelId(resolveModelOption(thread.modelId, thread.provider).id);
 			setDocuments(nextDocuments);
 			setActiveDocumentId(thread.activeDocumentId);
 			setSelectedVersionId(
@@ -552,8 +525,6 @@ export function useFutureChat({
 			const persistedKey = buildThreadPersistKey({
 				messages: thread.messages,
 				visibility: thread.visibility,
-				modelId: thread.modelId ?? resolveModelOption(thread.modelId, thread.provider).id,
-				provider: thread.provider ?? resolveModelOption(thread.modelId, thread.provider).provider,
 				activeDocumentId: thread.activeDocumentId,
 				title: thread.title,
 			});
@@ -621,15 +592,12 @@ export function useFutureChat({
 		setSelectedVersionId(null);
 		setVotes({});
 		setThreadVisibility("private");
-		setSelectedModelId(DEFAULT_FUTURE_CHAT_MODEL.id);
 		setEditingMessageId(null);
 		setArtifactMode("preview");
 		setArtifactDraftContent("");
 		lastPersistedKeyRef.current = buildThreadPersistKey({
 			messages: [],
 			visibility: "private",
-			modelId: DEFAULT_FUTURE_CHAT_MODEL.id,
-			provider: DEFAULT_FUTURE_CHAT_MODEL.provider,
 			activeDocumentId: null,
 			title: "New chat",
 		});
@@ -654,8 +622,6 @@ export function useFutureChat({
 				title: deriveThreadTitle(seedText),
 				messages: [],
 				visibility: threadVisibility,
-				modelId: selectedModel.id,
-				provider: selectedModel.provider,
 				activeDocumentId,
 			});
 			setActiveThreadId(nextThread.id);
@@ -663,8 +629,6 @@ export function useFutureChat({
 			lastPersistedKeyRef.current = buildThreadPersistKey({
 				messages: nextThread.messages,
 				visibility: nextThread.visibility,
-				modelId: nextThread.modelId ?? selectedModel.id,
-				provider: nextThread.provider ?? selectedModel.provider,
 				activeDocumentId: nextThread.activeDocumentId,
 				title: nextThread.title,
 			});
@@ -681,8 +645,6 @@ export function useFutureChat({
 			draftThreadId,
 			embedded,
 			router,
-			selectedModel.id,
-			selectedModel.provider,
 			threadVisibility,
 		],
 	);
@@ -1023,8 +985,6 @@ export function useFutureChat({
 		const nextPersistKey = buildThreadPersistKey({
 			messages,
 			visibility: threadVisibility,
-			modelId: selectedModel.id,
-			provider: selectedModel.provider,
 			activeDocumentId,
 			title: nextTitle,
 		});
@@ -1037,8 +997,6 @@ export function useFutureChat({
 			title: nextTitle,
 			messages,
 			visibility: threadVisibility,
-			modelId: selectedModel.id,
-			provider: selectedModel.provider,
 			activeDocumentId,
 		})
 			.then((thread) => {
@@ -1049,8 +1007,6 @@ export function useFutureChat({
 				const persistedKey = buildThreadPersistKey({
 					messages: thread.messages,
 					visibility: thread.visibility,
-					modelId: thread.modelId ?? selectedModel.id,
-					provider: thread.provider ?? selectedModel.provider,
 					activeDocumentId: thread.activeDocumentId,
 					title: thread.title,
 				});
@@ -1079,8 +1035,6 @@ export function useFutureChat({
 		isLoadingThread,
 		isStreaming,
 		messages,
-		selectedModel.id,
-		selectedModel.provider,
 		setMessages,
 		threadVisibility,
 		threads,
@@ -1111,13 +1065,11 @@ export function useFutureChat({
 		regenerateLatest,
 		runtimeThreadId,
 		saveArtifactDraft,
-		selectedModel,
 		selectedVersionId,
 		setActiveDocumentId,
 		setArtifactDraftContent,
 		setArtifactMode,
 		setEditingMessageId,
-		setSelectedModelId,
 		setSelectedVersionId,
 		setSidebarOpen,
 		setThreadVisibility,

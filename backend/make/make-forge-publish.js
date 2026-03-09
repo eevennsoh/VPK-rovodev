@@ -104,7 +104,7 @@ function runForgeCommand(args, { cwd, timeoutMs = 120_000 } = {}) {
  */
 function runPythonScript(moduleName, args = [], { cwd, timeoutMs = 120_000 } = {}) {
 	const skillDir = path.resolve(
-		VPK_ROOT, ".cursor", "skills", "forge-app-create",
+		VPK_ROOT, ".cursor", "skills", "vpk-forge",
 	);
 	return new Promise((resolve, reject) => {
 		const proc = spawn("python3", ["-m", moduleName, ...args], {

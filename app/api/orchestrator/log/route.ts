@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBackendUrl } from "@/app/api/_utils/backend-url";
+import { fetchBackend } from "@/app/api/_utils/backend-url";
 
 /**
  * Dev proxy for the orchestrator log endpoint.
@@ -8,7 +8,6 @@ import { getBackendUrl } from "@/app/api/_utils/backend-url";
 
 export async function GET(request: NextRequest) {
 	try {
-		const backendUrl = getBackendUrl();
 		const { searchParams } = new URL(request.url);
 		const params = new URLSearchParams();
 
@@ -18,12 +17,12 @@ export async function GET(request: NextRequest) {
 		if (limit !== null) params.set("limit", limit);
 
 		const queryString = params.toString();
-		const url = `${backendUrl}/api/orchestrator/log${queryString ? `?${queryString}` : ""}`;
-
-		const response = await fetch(url, {
+		const response = (
+			await fetchBackend(`/api/orchestrator/log${queryString ? `?${queryString}` : ""}`, {
 			method: "GET",
 			headers: { "Content-Type": "application/json" },
-		});
+			})
+		).response;
 
 		const data = await response.json();
 		return NextResponse.json(data, { status: response.status });
@@ -38,11 +37,12 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE() {
 	try {
-		const backendUrl = getBackendUrl();
-		const response = await fetch(`${backendUrl}/api/orchestrator/log`, {
+		const response = (
+			await fetchBackend("/api/orchestrator/log", {
 			method: "DELETE",
 			headers: { "Content-Type": "application/json" },
-		});
+			})
+		).response;
 
 		const data = await response.json();
 		return NextResponse.json(data, { status: response.status });

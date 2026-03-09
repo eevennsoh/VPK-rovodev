@@ -90,7 +90,7 @@ Maintain `AGENTS-LESSONS.md`:
 - Append after every user correction
 - Record prevention rule, not just the symptom
 - Review at session start for relevant patterns
-- Promote recurring lessons into this `AGENTS.md`
+- Promote recurring lessons into the most specific canonical instruction file: `AGENTS.md` for broad repo-wide rules, `.agents/rules/*.md` for contextual gotchas and surface-specific conventions
 
 ## Local Overrides
 

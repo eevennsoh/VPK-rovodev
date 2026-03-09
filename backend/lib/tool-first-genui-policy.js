@@ -747,6 +747,13 @@ function resolveToolFirstPolicy({ prompt } = {}) {
 		"- Before finalizing your answer, execute at least one relevant MCP/integration tool call and use its result as primary context.",
 		"- Do not invent tool results. If a tool fails, report the specific failure and the exact input needed to retry.",
 	];
+	if (domains.includes("browser-automation")) {
+		instructionLines.push(
+			"- For this browser-automation surface, the bash tool plus `node scripts/chromium-preview-agent.js ...` counts as the relevant tool path because it controls the shared embedded Chromium session.",
+			"- Do not call `mcp_get_tool_schema` or external browser MCP tools unless the user explicitly asks for schema details.",
+			"- If the user asks you to click, type, select, or scroll, you must execute that interaction in the shared preview session before responding."
+		);
+	}
 	if (teamworkGraphTimeWindow.enabled) {
 		const resolvedRange =
 			teamworkGraphTimeWindow.startIso && teamworkGraphTimeWindow.endIso
@@ -803,6 +810,10 @@ function isToolNameRelevant({ toolName, domains } = {}) {
 		.trim();
 
 	return domains.some((domainId) => {
+		if (domainId === "browser-automation" && canonicalToolName === "bash") {
+			return true;
+		}
+
 		const domain = TOOL_FIRST_DOMAIN_MAP.get(domainId);
 		if (!domain || !Array.isArray(domain.toolPatterns)) {
 			return false;

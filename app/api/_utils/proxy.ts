@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getBackendUrl } from "@/app/api/_utils/backend-url";
+import {
+	BackendConnectionError,
+	fetchBackend,
+	getBackendUrlCandidates,
+} from "@/app/api/_utils/backend-url";
 
 interface ProxyRequestOptions {
 	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -42,9 +46,6 @@ function buildErrorMessage(rawText: string): string {
 export async function proxyToBackend(
 	options: Readonly<ProxyRequestOptions>
 ): Promise<NextResponse> {
-	const backendUrl = getBackendUrl();
-	const url = `${backendUrl}${options.path}`;
-
 	let response: Response;
 	try {
 		const resolvedContentType = options.contentType ?? "application/json";
@@ -61,24 +62,31 @@ export async function proxyToBackend(
 			}
 		}
 
-		response = await fetch(url, {
+		response = (
+			await fetchBackend(options.path, {
 			method: options.method,
 			headers: {
 				"Content-Type": resolvedContentType,
 			},
 			body: resolvedBody,
 			signal: options.signal,
-		});
+			})
+		).response;
 	} catch (error) {
 		if (error instanceof Error && error.name === "AbortError") {
 			return new NextResponse(null, { status: 204 });
 		}
 
+		const backendUrls =
+			error instanceof BackendConnectionError
+				? error.backendUrls
+				: getBackendUrlCandidates();
+
 		return NextResponse.json(
 			{
 				error: "Cannot connect to backend server",
 				details: error instanceof Error ? error.message : String(error),
-				backendUrl,
+				backendUrls,
 				path: options.path,
 			},
 			{ status: 503 }

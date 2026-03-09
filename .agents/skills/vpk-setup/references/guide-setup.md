@@ -36,14 +36,14 @@ The same code works in both environments! Next.js API routes (`/api/chat-sdk`, `
 ### Option 1: Automated Startup
 
 ```bash
-./.cursor/skills/vpk-setup/scripts/start-dev.sh
+./.agents/skills/vpk-setup/scripts/start-dev.sh
 ```
 
 This starts RovoDev Serve (:8000), Express backend (:8080), and Next.js frontend (:3000).
 
-**For AI/automated execution:** Use `./.cursor/skills/vpk-setup/scripts/start-dev.sh --no-wait` to prevent the script from blocking.
+**For AI/automated execution:** Use `./.agents/skills/vpk-setup/scripts/start-dev.sh --no-wait` to prevent the script from blocking.
 
-**To stop:** `./.cursor/skills/vpk-setup/scripts/stop-dev.sh`
+**To stop:** `./.agents/skills/vpk-setup/scripts/stop-dev.sh`
 
 ### Option 2: Manual 2-Terminal Setup
 
@@ -83,9 +83,9 @@ pkill -f 'next dev'
 **"Unable to acquire lock at .next/dev/lock":** Another Next.js dev server is already running for this repo.
 
 ```bash
-./.cursor/skills/vpk-setup/scripts/stop-dev.sh
+./.agents/skills/vpk-setup/scripts/stop-dev.sh
 rm -f .next/dev/lock
-./.cursor/skills/vpk-setup/scripts/start-dev.sh
+./.agents/skills/vpk-setup/scripts/start-dev.sh
 ```
 
 **Frontend 500 with "Can't resolve '@/components/providers'":** Ensure the file is named `components/providers.tsx` (lowercase) and matches the import casing.
@@ -231,6 +231,22 @@ AI_GATEWAY_URL_GOOGLE=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/googl
 
 Add this alongside `AI_GATEWAY_URL` to enable Google routing for features that request `provider: "google"` (image generation) and for voice synthesis route derivation (`/api/sound-generation` -> Google synth endpoint) without changing the default chat model. See `guide-model-switch.md` for details.
 
+**Speech-to-text preset switching (Future Chat live voice mode):**
+
+The current setup also writes a live-voice STT block into `.env.local`. Switch only `STT_PRESET` to choose between:
+
+- `whisper-tiny`
+- `whisper-large-v3`
+- `google`
+- `qwen3-0.6b`
+- `qwen3-asr`
+
+Notes:
+
+- `STT_PRESET=google` uses `GOOGLE_STT_MODEL` for the actual Google model.
+- Qwen presets target an OpenAI-compatible transcription endpoint. If `OPENAI_COMPATIBLE_STT_BASE_URL` is not set, the backend defaults to `http://localhost:8001/v1`.
+- Whisper presets require the `whisper` CLI on PATH.
+
 **Default RovoDev billing site (recommended):**
 
 ```
@@ -256,10 +272,10 @@ https://developer.atlassian.com/platform/ai-gateway/rest/v1/api-group-google/#ap
 - `ASAP_PRIVATE_KEY`: From your `.asap-config` file - **CRITICAL:** Must use escaped newlines `\n` and be quoted
 - `AI_GATEWAY_USER_ID`: Your Atlassian email address
 
-**Tip:** The helper script `./.cursor/skills/vpk-setup/scripts/create-env-local.js` uses `git config user.email` by default. You can pass an explicit email if needed:
+**Tip:** The helper script `./.agents/skills/vpk-setup/scripts/create-env-local.js` uses `git config user.email` by default. You can pass an explicit email if needed:
 
 ```bash
-node ./.cursor/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID your-email@atlassian.com
+node ./.agents/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID your-email@atlassian.com
 ```
 
 **⚠️ IMPORTANT - Private Key Format:**
@@ -326,7 +342,7 @@ Need help? Ask in #help-ai-gateway on Slack
 **Option 1 - Automated (Recommended):**
 
 ```bash
-./.cursor/skills/vpk-setup/scripts/start-dev.sh
+./.agents/skills/vpk-setup/scripts/start-dev.sh
 ```
 
 **Option 2 - Manual:**
@@ -366,7 +382,7 @@ pnpm run rovodev
 
 ## Deploy to Micros (Optional)
 
-For complete step-by-step deployment instructions, see the vpk-deploy skill at `.cursor/skills/vpk-deploy/` or run `/vpk-deploy`.
+For complete step-by-step deployment instructions, see the vpk-deploy skill at `.agents/skills/vpk-deploy/` or run `/vpk-deploy`.
 
 The deployment guide includes:
 

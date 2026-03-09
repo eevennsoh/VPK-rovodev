@@ -5,7 +5,8 @@ description: This skill should be used when the user says "log this", "add a les
   "save this for next time", "note this pattern", "track this correction",
   "I keep making this mistake", "add this to memory", "write this down",
   "log a correction", "I want you to remember",
-  "transfer lessons", "promote lessons", "distill lessons", "move lessons to CLAUDE.md",
+  "transfer lessons", "promote lessons", "distill lessons", "move lessons to AGENTS.md",
+  "move lessons into rules",
   or corrects the AI and wants the correction recorded in AGENTS-LESSONS.md.
 argument-hint: "[description] | --transfer"
 prerequisites: []
@@ -35,7 +36,7 @@ produces: [AGENTS-LESSONS.md]
 
 ## Routing
 
-If the argument is `--transfer` (or the user says "transfer lessons", "promote lessons", "distill lessons", or "move lessons to CLAUDE.md"), execute the **Transfer Workflow** below instead of the standard lesson-logging workflow.
+If the argument is `--transfer` (or the user says "transfer lessons", "promote lessons", "distill lessons", "move lessons to AGENTS.md", or "move lessons into rules"), execute the **Transfer Workflow** below instead of the standard lesson-logging workflow.
 
 Otherwise, proceed with the standard lesson-logging workflow in **Agent Instructions**.
 
@@ -46,7 +47,7 @@ Not every correction warrants a lesson. Skip logging for:
 - **Typos and one-off mistakes** — mistyped a filename, wrong line number
 - **Trivial misunderstandings** — user clarified a preference that doesn't generalize
 - **Context-specific errors** — mistakes that only apply to the current task and won't recur
-- **Already-documented rules** — the correction is already covered in CLAUDE.md or a `.claude/rules/` file
+- **Already-documented rules** — the correction is already covered in `AGENTS.md` or a `.agents/rules/` file
 
 **Do log when:**
 
@@ -94,7 +95,7 @@ Not every correction warrants a lesson. Skip logging for:
 
 5. **Check if distillation is needed** — after writing the entry, count the total number of non-promoted `###` entries in the file. If there are **5 or more** unpromoted entries, add a prompt to the user:
 
-   > "You now have X lessons logged. Consider running `/vpk-lesson --transfer` to evaluate and promote recurring patterns into permanent CLAUDE.md rules."
+   > "You now have X lessons logged. Consider running `/vpk-lesson --transfer` to evaluate and promote recurring patterns into permanent repo rules in `AGENTS.md` or `.agents/rules/*`."
 
    If there are entries with similar themes (e.g., 3+ about tokens, 2+ about file locations), call that out specifically:
 
@@ -146,7 +147,7 @@ Detects existing "Token class naming" entry and updates it:
 ### 2025-02-07 - Token class naming
 - **What happened:** Repeatedly used raw CSS variables in Tailwind arbitrary values
 - **Why:** Didn't follow the shadcn-theme semantic class convention
-- **Rule:** Use semantic Tailwind classes (bg-bg-neutral, bg-surface-raised) instead of arbitrary values (bg-[var(--ds-...)]). See .claude/rules/token-priority.md
+- **Rule:** Use semantic Tailwind classes (bg-bg-neutral, bg-surface-raised) instead of arbitrary values (bg-[var(--ds-...)]). See `.agents/rules/token-priority.md`
 ```
 
 ### Migration/deprecation lesson templates
@@ -221,7 +222,7 @@ The lessons file lives at `AGENTS-LESSONS.md` in the project root. If it doesn't
 # Lessons
 
 Running log of corrections and patterns learned during sessions.
-Distill recurring patterns into permanent rules in CLAUDE.md or .claude/rules/.
+Distill recurring patterns into permanent rules in AGENTS.md or .agents/rules/.
 Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for details.
 
 ---
@@ -234,12 +235,12 @@ When `AGENTS-LESSONS.md` accumulates 5+ unpromoted entries, the skill automatica
 **How distillation works:**
 
 1. User runs `/vpk-lesson --transfer` (triggered by the prompt from this skill)
-2. The transfer workflow reads `AGENTS-LESSONS.md` alongside existing CLAUDE.md and `.claude/rules/`
+2. The transfer workflow reads `AGENTS-LESSONS.md` alongside existing `AGENTS.md` and `.agents/rules/`
 3. Each entry is classified as `transfer`, `stale`, `duplicate`, or `skip`
-4. Valid entries get condensed and promoted into the appropriate CLAUDE.md section or rule file
+4. Valid entries get condensed and promoted into the appropriate `AGENTS.md` section or rule file
 5. Transferred, stale, and duplicate entries are removed from `AGENTS-LESSONS.md`
 
-For broader CLAUDE.md structure audits beyond lesson promotion, `/claude-md-improver` can be used as a complementary tool.
+For broader instruction-file structure audits beyond lesson promotion, `/claude-md-improver` can be used as a complementary tool.
 
 ## Transfer Workflow (--transfer)
 
@@ -262,14 +263,14 @@ Execute this workflow when the user runs `/vpk-lesson --transfer` or asks to tra
 ### Step 2 — Classify each entry
 
 Read the following files to build context for classification:
-- `CLAUDE.md` (project root)
-- All files in `.claude/rules/` (glob `.claude/rules/*.md`)
+- `AGENTS.md` (project root; canonical source even if `CLAUDE.md` is symlinked)
+- All files in `.agents/rules/` (glob `.agents/rules/*.md`)
 
 For each unpromoted entry, apply these checks **in order** and assign the first matching classification:
 
 | Check | Method | Classification |
 |---|---|---|
-| Already in CLAUDE.md or a rule file? | Compare the entry's Rule field against existing rules/gotchas in CLAUDE.md and `.claude/rules/*.md` — look for semantic overlap, not just exact text | `duplicate` |
+| Already in AGENTS.md or a rule file? | Compare the entry's Rule field against existing rules/gotchas in `AGENTS.md` and `.agents/rules/*.md` — look for semantic overlap, not just exact text | `duplicate` |
 | Referenced files still exist? | Use Glob/Read to verify file paths mentioned in the entry | `stale` if **all** referenced files are gone |
 | Referenced patterns still in codebase? | Use Grep to search for component names, API names, or pattern names mentioned in the entry | `stale` if the pattern/component no longer exists anywhere |
 | Git activity since lesson date? | Run `git log --oneline --since="LESSON_DATE" -- <referenced files>` to check for major refactors | Informs staleness — if the referenced area was heavily refactored, lean toward `stale` |
@@ -282,16 +283,20 @@ For each entry classified as `transfer`, determine where it belongs:
 
 | Topic type | Target location |
 |---|---|
-| Specific component/API pitfall | `## Gotchas` section in CLAUDE.md |
-| Code style, import, or token rule | `### Code Style` or `### UI and Token Standards` in CLAUDE.md |
-| Component architecture pattern | `### Component Architecture` in CLAUDE.md |
-| Agent workflow or behavioral rule | `### Behavioral Rules` in CLAUDE.md |
-| Motion/animation specific | `.claude/rules/motion-react.md` or `.claude/rules/motion-base-ui.md` |
-| Token selection specific | `.claude/rules/token-priority.md` |
+| Broad repo-wide workflow/default/style rule | Matching section in `AGENTS.md` (`### Non-negotiable Defaults`, `### Code Style`, `### UI and Token Standards`, `## Workflows`, or `## Behavioral Rules`) |
+| UI component or interaction gotcha | `.agents/rules/gotchas-ui.md` |
+| React state/render/CSS gotcha | `.agents/rules/gotchas-react.md` |
+| Chat / RovoDev / AI SDK gotcha | `.agents/rules/gotchas-chat.md` |
+| Component architecture pattern | `.agents/rules/component-architecture.md` |
+| Motion/animation specific | `.agents/rules/motion-react.md` or `.agents/rules/motion-base-ui.md` |
+| Token selection specific | `.agents/rules/token-priority.md` |
+| Chat architecture or API surface rule | `.agents/rules/chat-architecture.md` or `.agents/rules/api-surfaces.md` |
 
 **Condensation format:** Transform the entry's "Rule" field into a single bullet point (or short paragraph) that matches the existing style of the target section. The condensed rule should be self-contained — no references to "the lesson".
 
-**Date tagging for Gotchas:** When the target is `## Gotchas`, append the original lesson date as a trailing comment: `<!-- added: YYYY-MM-DD -->`. This lets maintainers assess staleness without cluttering the readable text. Example:
+If multiple homes fit, choose the most specific rule file that auto-loads for the affected surface. Do not append newly promoted gotchas to `AGENTS.md`'s `## Gotchas` section; that section is reserved for stable repo-level notes, while new gotchas belong in the dedicated `.agents/rules/gotchas-*.md` files.
+
+**Date tagging for gotcha rule files:** When the target is a `gotchas-*.md` file, append the original lesson date as a trailing comment: `<!-- added: YYYY-MM-DD -->`. This lets maintainers assess staleness without cluttering the readable text. Example:
 
 ```markdown
 - Always `await stop()` before calling `sendMessage()` in AI SDK `useChat` flows. <!-- added: 2026-02-10 -->
@@ -307,7 +312,7 @@ Before making any edits, present a summary table grouped by classification:
 ### To transfer (X entries)
 | Entry | Target | Condensed rule | Added |
 |---|---|---|---|
-| [Date] - [Title] | ## Gotchas | [one-line condensed rule] | YYYY-MM-DD |
+| [Date] - [Title] | `.agents/rules/gotchas-chat.md` | [one-line condensed rule] | YYYY-MM-DD |
 | ... | ... | ... | ... |
 
 ### Stale (X entries)
@@ -319,7 +324,7 @@ Before making any edits, present a summary table grouped by classification:
 ### Duplicate (X entries)
 | Entry | Existing rule |
 |---|---|
-| [Date] - [Title] | Already covered in ## Gotchas: "[existing rule text]" |
+| [Date] - [Title] | Already covered in `.agents/rules/gotchas-react.md`: "[existing rule text]" |
 | ... | ... |
 
 ### Skipped (X entries)
@@ -335,31 +340,26 @@ Before making any edits, present a summary table grouped by classification:
 | ... |
 ```
 
-Ask the user to confirm or adjust classifications before proceeding. Use AskUserQuestion:
+Ask the user to confirm or adjust classifications before proceeding. A short plain-text confirmation prompt is enough, for example:
 
-```yaml
-header: "Transfer"
-question: "Review the transfer summary above. Proceed with these classifications?"
-options:
-  - label: "Proceed"
-    description: "Transfer, remove stale/duplicate, keep skipped entries"
-  - label: "Adjust"
-    description: "I want to change some classifications first"
+```text
+Review the transfer summary above. Reply `proceed` to apply it, or tell me which entries to reclassify.
 ```
 
 ### Step 5 — Execute
 
 After user confirmation:
 
-1. **Edit CLAUDE.md** — for each `transfer` entry targeting a CLAUDE.md section, insert the condensed rule as a new bullet at the end of the target section
-2. **Edit `.claude/rules/*.md`** — for any entries targeting rule files, append the condensed rule in the appropriate location within the file
-3. **Clean `AGENTS-LESSONS.md`** — remove all entries classified as:
-   - `transfer` (now in CLAUDE.md or rule files)
+1. **Edit `AGENTS.md`** — for each `transfer` entry targeting a broad repo-level section, insert the condensed rule at the end of the matching section
+2. **Edit `.agents/rules/*.md`** — for contextual rules and all newly promoted gotchas, append the condensed rule in the appropriate location within the file
+3. **Do not add new gotchas to `AGENTS.md`** — route them to the most specific `.agents/rules/gotchas-*.md` file instead
+4. **Clean `AGENTS-LESSONS.md`** — remove all entries classified as:
+   - `transfer` (now in `AGENTS.md` or rule files)
    - `stale` (no longer relevant)
    - `duplicate` (already covered)
-   - `[Promoted]` prefix entries (legacy — already in CLAUDE.md from previous manual promotions)
+   - `[Promoted]` prefix entries (legacy — already promoted previously)
    - Keep only `skip` entries in the file
-4. **Verify** — read back each modified section to confirm the edits are correct and the file structure is intact
+5. **Verify** — read back each modified section to confirm the edits are correct and the file structure is intact
 
 ### Step 6 — Report results
 
@@ -367,7 +367,8 @@ After execution, report:
 
 ```
 Transfer complete:
-- X rules promoted to CLAUDE.md
+- X rules promoted to `AGENTS.md`
+- X rules promoted to `.agents/rules/*.md`
 - X stale entries removed
 - X duplicate entries removed
 - X entries skipped (still in AGENTS-LESSONS.md)

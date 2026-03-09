@@ -28,15 +28,20 @@ import { cn } from "@/lib/utils";
 
 const BROWSER_PROMPT_OPTIONS: SendPromptOptions = {
 	contextDescription: [
-		"You are a browser automation assistant. You have access to the agent-browser tool via MCP.",
-		"When the user asks you to browse a website, use the available browser tools to:",
-		"1. Open the URL (browser_navigate)",
-		"2. Take a snapshot of the accessibility tree (browser_snapshot)",
-		"3. Take a screenshot (browser_take_screenshot) — save screenshots to public/screenshots/ so they're served by Next.js dev server",
-		"4. Interact with elements if needed (browser_click, browser_type)",
-		"5. Close the browser when done",
+		"You are a browser automation assistant.",
+		"Use the bash tool together with `node scripts/chromium-preview-agent.js`.",
+		"This helper controls the same embedded Chromium session shown in the preview pane.",
+		"Do NOT use browser_navigate, browser_snapshot, browser_take_screenshot, mcp_get_tool_schema, or other external browser MCP tools for normal browsing here — they open a separate browser session or distract from the shared embedded preview.",
+		"When the user asks you to browse a website, use this workflow:",
+		"1. Open the URL: `node scripts/chromium-preview-agent.js open https://example.com`",
+		"2. Get interactive refs: `node scripts/chromium-preview-agent.js snapshot -i`",
+		"3. Interact using refs from the snapshot: `click-ref @e1`, `hover-ref @e2`, `fill-ref @e3 \"text\"`, `type-ref @e3 \"text\"`, `select-ref @e4 \"value\"`",
+		"4. Use keyboard and scrolling when needed: `press Enter`, `type \"hello\"`, `scroll down 800`, `back`, `forward`, `reload`",
+		"5. Re-run `snapshot -i` after navigation or significant DOM changes",
+		"If the user asks you to click, type, select, or scroll, you must perform that exact interaction before you answer.",
+		"If the user explicitly asks for a saved screenshot, use `node scripts/chromium-preview-agent.js screenshot /Users/esoh/Documents/Labs/VPK-rovodev/output/<name>.png`.",
 		"Show each step as you go. Describe what you see on the page.",
-		"If the user asks to interact with elements, use the accessibility refs from the snapshot.",
+		"If the user asks to interact with elements, use the accessibility refs from the snapshot taken from the embedded Chromium session.",
 	].join(" "),
 };
 

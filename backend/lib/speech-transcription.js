@@ -1,3 +1,8 @@
+const { spawn } = require("node:child_process");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+
 const {
 	getEnvVars,
 	getAuthToken,
@@ -5,7 +10,36 @@ const {
 	resolveGatewayUrl,
 } = require("./ai-gateway-helpers");
 
-const TRANSCRIPTION_TIMEOUT_MS = 15_000;
+const GOOGLE_TRANSCRIPTION_TIMEOUT_MS = 15_000;
+const LOCAL_WHISPER_TRANSCRIPTION_TIMEOUT_MS = 60_000;
+const OPENAI_COMPATIBLE_TRANSCRIPTION_TIMEOUT_MS = 60_000;
+const LOCAL_WHISPER_PROVIDER = "local-whisper";
+const OPENAI_COMPATIBLE_PROVIDER = "openai-compatible";
+const DEFAULT_LOCAL_WHISPER_BIN = "whisper";
+const DEFAULT_OPENAI_COMPATIBLE_STT_BASE_URL = "http://localhost:8001/v1";
+
+const STT_PRESET_ENV_MAP = Object.freeze({
+	"whisper-tiny": Object.freeze({
+		providerEnv: "STT_PRESET_WHISPER_TINY_PROVIDER",
+		modelEnv: "STT_PRESET_WHISPER_TINY_MODEL",
+	}),
+	"whisper-large-v3": Object.freeze({
+		providerEnv: "STT_PRESET_WHISPER_LARGE_V3_PROVIDER",
+		modelEnv: "STT_PRESET_WHISPER_LARGE_V3_MODEL",
+	}),
+	google: Object.freeze({
+		providerEnv: "STT_PRESET_GOOGLE_PROVIDER",
+	}),
+	"qwen3-0.6b": Object.freeze({
+		providerEnv: "STT_PRESET_QWEN3_0_6B_PROVIDER",
+		modelEnv: "STT_PRESET_QWEN3_0_6B_MODEL",
+	}),
+	"qwen3-asr": Object.freeze({
+		providerEnv: "STT_PRESET_QWEN3_ASR_PROVIDER",
+		modelEnv: "STT_PRESET_QWEN3_ASR_MODEL",
+	}),
+});
+
 const STRICT_TRANSCRIPTION_PROMPT = [
 	"Transcribe this audio verbatim.",
 	"Return only the spoken text, nothing else.",
@@ -27,7 +61,66 @@ function createAbortError(message = "Speech transcription aborted") {
 	return error;
 }
 
-function resolveTranscriptionModel(rawModel) {
+function getNonEmptyString(value) {
+	if (typeof value !== "string") {
+		return null;
+	}
+
+	const trimmedValue = value.trim();
+	return trimmedValue.length > 0 ? trimmedValue : null;
+}
+
+function getSpeechTranscriptionEnvVars() {
+	return {
+		STT_PRESET: process.env.STT_PRESET,
+		LOCAL_WHISPER_BIN: process.env.LOCAL_WHISPER_BIN,
+		LOCAL_WHISPER_MODEL: process.env.LOCAL_WHISPER_MODEL,
+		OPENAI_COMPATIBLE_STT_BASE_URL: process.env.OPENAI_COMPATIBLE_STT_BASE_URL,
+		OPENAI_COMPATIBLE_STT_API_KEY: process.env.OPENAI_COMPATIBLE_STT_API_KEY,
+		OPENAI_COMPATIBLE_STT_MODEL: process.env.OPENAI_COMPATIBLE_STT_MODEL,
+		...Object.fromEntries(
+			Object.values(STT_PRESET_ENV_MAP).flatMap(({ providerEnv, modelEnv }) => {
+				return [
+					[providerEnv, process.env[providerEnv]],
+					...(typeof modelEnv === "string"
+						? [[modelEnv, process.env[modelEnv]]]
+						: []),
+				];
+			}),
+		),
+	};
+}
+
+function resolvePresetKey(rawPreset) {
+	const normalizedPreset = getNonEmptyString(rawPreset)?.toLowerCase();
+	if (!normalizedPreset) {
+		return null;
+	}
+
+	return normalizedPreset in STT_PRESET_ENV_MAP ? normalizedPreset : null;
+}
+
+function readPresetConfig(sttEnvVars, presetKey) {
+	if (!presetKey) {
+		return null;
+	}
+
+	const presetEnv = STT_PRESET_ENV_MAP[presetKey];
+	if (!presetEnv) {
+		return null;
+	}
+
+	return {
+		presetKey,
+		provider: getNonEmptyString(sttEnvVars[presetEnv.providerEnv]),
+		model:
+			typeof presetEnv.modelEnv === "string"
+				? getNonEmptyString(sttEnvVars[presetEnv.modelEnv])
+				: null,
+	};
+}
+
+function resolveGoogleTranscriptionModel(rawModel) {
 	if (typeof rawModel !== "string" || !rawModel.trim()) {
 		throw createHttpError(
 			500,
@@ -36,6 +129,189 @@ function resolveTranscriptionModel(rawModel) {
 	}
 
 	return rawModel.trim();
+}
+
+function resolveLocalWhisperModel(rawModel) {
+	if (typeof rawModel !== "string" || !rawModel.trim()) {
+		throw createHttpError(
+			500,
+			"Server configuration error: LOCAL_WHISPER_MODEL must be set in .env.local",
+		);
+	}
+
+	return rawModel.trim();
+}
+
+function resolveOpenAiCompatibleTranscriptionModel(rawModel) {
+	if (typeof rawModel !== "string" || !rawModel.trim()) {
+		throw createHttpError(
+			500,
+			"Server configuration error: OPENAI_COMPATIBLE_STT_MODEL must be set in .env.local",
+		);
+	}
+
+	return rawModel.trim();
+}
+
+function hasConfiguredOpenAiCompatibleBaseUrl(sttEnvVars) {
+	return Boolean(getNonEmptyString(sttEnvVars.OPENAI_COMPATIBLE_STT_BASE_URL));
+}
+
+function resolveConfiguredTranscriptionProvider(rawProvider, envVars, sttEnvVars) {
+	const explicitProvider = getNonEmptyString(rawProvider);
+	if (explicitProvider) {
+		return explicitProvider;
+	}
+
+	const presetConfig = readPresetConfig(
+		sttEnvVars,
+		resolvePresetKey(sttEnvVars.STT_PRESET),
+	);
+	if (presetConfig?.provider) {
+		if (
+			presetConfig.provider === OPENAI_COMPATIBLE_PROVIDER &&
+			!hasConfiguredOpenAiCompatibleBaseUrl(sttEnvVars)
+		) {
+			if (getNonEmptyString(envVars.GOOGLE_STT_MODEL)) {
+				return "google";
+			}
+		}
+
+		return presetConfig.provider;
+	}
+
+	if (getNonEmptyString(envVars.GOOGLE_STT_MODEL)) {
+		return "google";
+	}
+
+	throw createHttpError(
+		500,
+		"Server configuration error: STT_PRESET (or explicit transcription provider) must be set in .env.local",
+	);
+}
+
+function resolveConfiguredTranscriptionModel({
+	envVars,
+	sttEnvVars,
+	provider,
+	rawModel,
+}) {
+	const explicitModel = getNonEmptyString(rawModel);
+	if (explicitModel) {
+		return explicitModel;
+	}
+
+	const presetConfig = readPresetConfig(
+		sttEnvVars,
+		resolvePresetKey(sttEnvVars.STT_PRESET),
+	);
+	if (presetConfig?.provider === provider && presetConfig.model) {
+		return presetConfig.model;
+	}
+
+	if (provider === "google") {
+		return resolveGoogleTranscriptionModel(envVars.GOOGLE_STT_MODEL);
+	}
+
+	if (provider === LOCAL_WHISPER_PROVIDER) {
+		return resolveLocalWhisperModel(sttEnvVars.LOCAL_WHISPER_MODEL);
+	}
+
+	if (provider === OPENAI_COMPATIBLE_PROVIDER) {
+		return resolveOpenAiCompatibleTranscriptionModel(
+			sttEnvVars.OPENAI_COMPATIBLE_STT_MODEL,
+		);
+	}
+
+	throw createHttpError(
+		400,
+		`Unsupported transcription provider: ${provider}`,
+	);
+}
+
+function resolveLocalWhisperBin(rawBin) {
+	return getNonEmptyString(rawBin) || DEFAULT_LOCAL_WHISPER_BIN;
+}
+
+function mimeTypeToFileExtension(rawMimeType) {
+	const normalizedMimeType = (rawMimeType || "audio/webm")
+		.trim()
+		.toLowerCase()
+		.split(";")[0]
+		.trim();
+
+	switch (normalizedMimeType) {
+		case "audio/wav":
+		case "audio/x-wav":
+			return "wav";
+		case "audio/mp4":
+		case "audio/m4a":
+			return "m4a";
+		case "audio/mpeg":
+			return "mp3";
+		case "audio/aiff":
+		case "audio/x-aiff":
+			return "aiff";
+		default:
+			return "webm";
+	}
+}
+
+function buildLocalWhisperArgs({ inputPath, outputDir, model, language }) {
+	const args = [
+		inputPath,
+		"--model",
+		model,
+		"--output_format",
+		"json",
+		"--output_dir",
+		outputDir,
+		"--task",
+		"transcribe",
+		"--verbose",
+		"False",
+		"--condition_on_previous_text",
+		"False",
+		"--temperature",
+		"0",
+		"--fp16",
+		"False",
+	];
+
+	if (getNonEmptyString(language)) {
+		args.push("--language", language.trim());
+	}
+
+	return args;
+}
+
+function buildOpenAiCompatibleTranscriptionUrl(baseUrl) {
+	const normalizedBaseUrl =
+		getNonEmptyString(baseUrl) || DEFAULT_OPENAI_COMPATIBLE_STT_BASE_URL;
+	if (!normalizedBaseUrl) {
+		return null;
+	}
+
+	try {
+		const parsedUrl = new URL(normalizedBaseUrl);
+		if (parsedUrl.pathname.endsWith("/audio/transcriptions")) {
+			return parsedUrl.toString();
+		}
+		if (parsedUrl.pathname.endsWith("/v1")) {
+			parsedUrl.pathname = `${parsedUrl.pathname}/audio/transcriptions`;
+			return parsedUrl.toString();
+		}
+
+		parsedUrl.pathname = `${parsedUrl.pathname.replace(/\/+$/u, "")}/v1/audio/transcriptions`;
+		return parsedUrl.toString();
+	} catch {
+		return null;
+	}
+}
+
+function appendLogChunk(currentValue, chunk, maxLength = 4096) {
+	const nextValue = `${currentValue}${chunk.toString("utf8")}`;
+	return nextValue.length > maxLength ? nextValue.slice(-maxLength) : nextValue;
 }
 
 /**
@@ -122,23 +398,253 @@ function combineAbortSignals(signal, timeoutMs) {
 	};
 }
 
-/**
- * Transcribe audio using Gemini via AI Gateway (native generateContent API).
- *
- * @param {object} options
- * @param {string} options.audio - Base64-encoded audio data
- * @param {string} [options.mimeType] - MIME type of the audio (default: "audio/webm")
- * @param {AbortSignal} [options.signal] - Optional abort signal
- * @returns {Promise<string>} The transcribed text
- */
-async function transcribeAudio({ audio, mimeType, signal } = {}) {
-	if (!audio || typeof audio !== "string") {
-		throw createHttpError(400, "Base64 audio data is required");
-	}
+async function runLocalWhisper({ args, signal, whisperBin }) {
+	await new Promise((resolve, reject) => {
+		let stderr = "";
+		let settled = false;
+		const child = spawn(whisperBin, args, {
+			stdio: ["ignore", "ignore", "pipe"],
+		});
 
+		const cleanup = () => {
+			if (signal) {
+				signal.removeEventListener("abort", handleAbort);
+			}
+		};
+
+		const rejectOnce = (error) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			cleanup();
+			reject(error);
+		};
+
+		const resolveOnce = () => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			cleanup();
+			resolve();
+		};
+
+		const handleAbort = () => {
+			child.kill("SIGTERM");
+		};
+
+		if (signal) {
+			if (signal.aborted) {
+				child.kill("SIGTERM");
+				rejectOnce(
+					signal.reason instanceof Error
+						? signal.reason
+						: createAbortError(),
+				);
+				return;
+			}
+
+			signal.addEventListener("abort", handleAbort, { once: true });
+		}
+
+		child.stderr.on("data", (chunk) => {
+			stderr = appendLogChunk(stderr, chunk);
+		});
+
+		child.on("error", (error) => {
+			if (error?.code === "ENOENT") {
+				rejectOnce(
+					createHttpError(
+						500,
+						`Local Whisper CLI "${whisperBin}" was not found on PATH`,
+					),
+				);
+				return;
+			}
+
+			rejectOnce(error);
+		});
+
+		child.on("close", (code) => {
+			if (signal?.aborted) {
+				rejectOnce(
+					signal.reason instanceof Error
+						? signal.reason
+						: createAbortError(),
+				);
+				return;
+			}
+
+			if (code !== 0) {
+				const stderrMessage = getNonEmptyString(stderr?.replace(/\s+/gu, " "));
+				rejectOnce(
+					createHttpError(
+						500,
+						stderrMessage
+							? `Local Whisper transcription failed: ${stderrMessage}`
+							: "Local Whisper transcription failed",
+					),
+				);
+				return;
+			}
+
+			resolveOnce();
+		});
+	});
+}
+
+async function transcribeViaLocalWhisper({
+	audio,
+	mimeType,
+	model,
+	language,
+	signal,
+	whisperBin,
+}) {
+	const normalizedMimeType = (mimeType || "audio/webm").trim();
+	const normalizedLanguage = getNonEmptyString(language);
+	const tempDir = await fs.mkdtemp(
+		path.join(os.tmpdir(), "speech-transcription-"),
+	);
+	const inputPath = path.join(
+		tempDir,
+		`input.${mimeTypeToFileExtension(normalizedMimeType)}`,
+	);
+	const outputPath = path.join(tempDir, "input.json");
+
+	const { signal: requestSignal, cleanup } = combineAbortSignals(
+		signal,
+		LOCAL_WHISPER_TRANSCRIPTION_TIMEOUT_MS,
+	);
+
+	try {
+		await fs.writeFile(inputPath, Buffer.from(audio, "base64"));
+
+		console.info("[SPEECH-TRANSCRIPTION] Running local Whisper", {
+			language: normalizedLanguage,
+			mimeType: normalizedMimeType,
+			model,
+			whisperBin,
+		});
+
+		await runLocalWhisper({
+			args: buildLocalWhisperArgs({
+				inputPath,
+				outputDir: tempDir,
+				model,
+				language: normalizedLanguage,
+			}),
+			signal: requestSignal,
+			whisperBin,
+		});
+
+		const result = JSON.parse(await fs.readFile(outputPath, "utf8"));
+		return getNonEmptyString(result?.text) || "";
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			throw error;
+		}
+
+		if (requestSignal.aborted) {
+			throw requestSignal.reason instanceof Error
+				? requestSignal.reason
+				: createAbortError();
+		}
+
+		throw error;
+	} finally {
+		cleanup();
+		await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+	}
+}
+
+async function transcribeViaOpenAiCompatible({
+	audio,
+	mimeType,
+	model,
+	language,
+	signal,
+	baseUrl,
+	apiKey,
+}) {
+	const normalizedMimeType = (mimeType || "audio/webm").trim();
+		const transcriptionUrl = buildOpenAiCompatibleTranscriptionUrl(baseUrl);
+		if (!transcriptionUrl) {
+			throw createHttpError(
+				500,
+				"Server configuration error: no OpenAI-compatible STT base URL is available",
+			);
+		}
+
+	const fileName = `input.${mimeTypeToFileExtension(normalizedMimeType)}`;
+	const audioBuffer = Buffer.from(audio, "base64");
+	const { signal: requestSignal, cleanup } = combineAbortSignals(
+		signal,
+		OPENAI_COMPATIBLE_TRANSCRIPTION_TIMEOUT_MS,
+	);
+
+	try {
+		const formData = new FormData();
+		formData.append(
+			"file",
+			new Blob([audioBuffer], { type: normalizedMimeType }),
+			fileName,
+		);
+		formData.append("model", model);
+		if (getNonEmptyString(language)) {
+			formData.append("language", language.trim());
+		}
+
+		const headers = {};
+		if (getNonEmptyString(apiKey)) {
+			headers.Authorization = `Bearer ${apiKey.trim()}`;
+		}
+
+		console.info("[SPEECH-TRANSCRIPTION] Sending to OpenAI-compatible STT endpoint", {
+			language: getNonEmptyString(language),
+			model,
+			transcriptionUrl,
+		});
+
+		const response = await fetch(transcriptionUrl, {
+			method: "POST",
+			headers,
+			body: formData,
+			signal: requestSignal,
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw createHttpError(
+				response.status,
+				getNonEmptyString(errorText) ||
+					`OpenAI-compatible transcription failed: ${response.status}`,
+			);
+		}
+
+		const result = await response.json();
+		return getNonEmptyString(result?.text) || "";
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			throw error;
+		}
+
+		if (requestSignal.aborted) {
+			throw requestSignal.reason instanceof Error
+				? requestSignal.reason
+				: createAbortError();
+		}
+
+		throw error;
+	} finally {
+		cleanup();
+	}
+}
+
+async function transcribeViaGoogleGenerateContent({ audio, mimeType, model, signal }) {
 	const normalizedMimeType = (mimeType || "audio/webm").trim();
 	const envVars = getEnvVars();
-	const model = resolveTranscriptionModel(envVars.GOOGLE_STT_MODEL);
 
 	const rawGatewayUrl = envVars.AI_GATEWAY_URL_GOOGLE || envVars.AI_GATEWAY_URL;
 	if (!rawGatewayUrl) {
@@ -184,7 +690,7 @@ async function transcribeAudio({ audio, mimeType, signal } = {}) {
 
 	const { signal: requestSignal, cleanup } = combineAbortSignals(
 		signal,
-		TRANSCRIPTION_TIMEOUT_MS,
+		GOOGLE_TRANSCRIPTION_TIMEOUT_MS,
 	);
 
 	try {
@@ -229,11 +735,100 @@ async function transcribeAudio({ audio, mimeType, signal } = {}) {
 	}
 }
 
+/**
+ * Transcribe audio using the requested speech-to-text provider.
+ *
+ * @param {object} options
+ * @param {string} options.audio - Base64-encoded audio data
+ * @param {string} [options.language] - Optional BCP-47 / Whisper language code
+ * @param {string} [options.mimeType] - MIME type of the audio (default: "audio/webm")
+ * @param {string} [options.model] - Optional provider-specific model identifier
+ * @param {string} [options.provider] - Optional provider override
+ * @param {AbortSignal} [options.signal] - Optional abort signal
+ * @returns {Promise<string>} The transcribed text
+ */
+async function transcribeAudio({
+	audio,
+	language,
+	mimeType,
+	model: rawModel,
+	provider: rawProvider,
+	signal,
+} = {}) {
+	if (!audio || typeof audio !== "string") {
+		throw createHttpError(400, "Base64 audio data is required");
+	}
+
+	const envVars = getEnvVars();
+	const sttEnvVars = getSpeechTranscriptionEnvVars();
+	const provider = resolveConfiguredTranscriptionProvider(
+		rawProvider,
+		envVars,
+		sttEnvVars,
+	);
+	const model = resolveConfiguredTranscriptionModel({
+		envVars,
+		sttEnvVars,
+		provider,
+		rawModel,
+	});
+
+	if (provider === LOCAL_WHISPER_PROVIDER) {
+		return transcribeViaLocalWhisper({
+			audio,
+			mimeType,
+			model,
+			language,
+			signal,
+			whisperBin: resolveLocalWhisperBin(sttEnvVars.LOCAL_WHISPER_BIN),
+		});
+	}
+
+	if (provider === OPENAI_COMPATIBLE_PROVIDER) {
+		return transcribeViaOpenAiCompatible({
+			audio,
+			mimeType,
+			model,
+			language,
+			signal,
+			baseUrl: sttEnvVars.OPENAI_COMPATIBLE_STT_BASE_URL,
+			apiKey: sttEnvVars.OPENAI_COMPATIBLE_STT_API_KEY,
+		});
+	}
+
+	if (provider === "google") {
+		return transcribeViaGoogleGenerateContent({
+			audio,
+			mimeType,
+			model,
+			signal,
+		});
+	}
+
+	throw createHttpError(
+		400,
+		`Unsupported transcription provider: ${provider}`,
+	);
+}
+
 module.exports = {
 	transcribeAudio,
 	__test__: {
 		buildGenerateContentUrl,
-		resolveTranscriptionModel,
+		buildLocalWhisperArgs,
+		buildOpenAiCompatibleTranscriptionUrl,
+		mimeTypeToFileExtension,
+		readPresetConfig,
+		resolveConfiguredTranscriptionModel,
+		resolveConfiguredTranscriptionProvider,
+		resolveGoogleTranscriptionModel,
+		hasConfiguredOpenAiCompatibleBaseUrl,
+		resolveLocalWhisperModel,
+		resolveOpenAiCompatibleTranscriptionModel,
+		resolvePresetKey,
+		STT_PRESET_ENV_MAP,
 		STRICT_TRANSCRIPTION_PROMPT,
+		LOCAL_WHISPER_PROVIDER,
+		OPENAI_COMPATIBLE_PROVIDER,
 	},
 };

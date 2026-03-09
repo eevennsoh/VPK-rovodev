@@ -30,3 +30,13 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **What happened:** The speech transcription helper hardcoded a default STT model in code even though `GOOGLE_STT_MODEL` was already defined in `.env.local`.
 - **Why:** The implementation mixed runtime fallback policy into a config-driven codepath instead of treating local env as authoritative.
 - **Rule:** When a model/provider is already configured in `.env.local`, do not hardcode a replacement default in code. Read the configured env value directly and fail loudly if the required env var is missing.
+
+### 2026-03-09 - Remove frontend model state when runtime selection is env-driven
+- **What happened:** Future Chat still carried frontend model constants and selector-era state even after chat was fixed to RovoDev and voice STT was meant to be controlled from `.env.local`.
+- **Why:** The cleanup stopped at hiding the selector instead of tracing and removing the underlying model-config dependency chain.
+- **Rule:** When a surface is locked to backend/env-driven model routing, remove the frontend model config/state entirely and let `.env.local` plus backend defaults be the only source of truth.
+
+### 2026-03-09 - Keep Google STT preset naming provider-generic
+- **What happened:** The Google STT preset was renamed to a model-specific env key even though the actual Google model is selected separately via `GOOGLE_STT_MODEL`.
+- **Why:** The preset naming conflated provider selection with model selection and drifted from the intended generic-provider env design.
+- **Rule:** For provider-routed presets, keep the preset/env key generic to the provider (`google`) and use provider-specific model vars like `GOOGLE_STT_MODEL` for the concrete model choice.

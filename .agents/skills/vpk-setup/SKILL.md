@@ -14,14 +14,14 @@ produces: [.env.local, .asap-config]
 
 # VPK Setup - Initial Repository Setup
 
-**Goal:** Get the prototype running locally with the default required runtime: RovoDev Serve as primary chat backend plus AI Gateway fallback (including Google gateway vars for image and voice generation).
+**Goal:** Get the prototype running locally with the default required runtime: RovoDev Serve as primary chat backend plus AI Gateway fallback, Google image/TTS routing, and the current env-driven STT preset block used by Future Chat live voice mode.
 
 ## Quick Workflow
 
 1. **Preflight cleanup** → If `node_modules` exists, clean Next.js cache (see below)
 2. **Install dependencies** → `pnpm install` (skip if `node_modules` already exists)
 3. **Collect AI Gateway credentials** → Ask for use case ID and Atlassian email
-4. **Configure AI Gateway** → Generate ASAP keys and create `.env.local` with fallback + Google endpoint values
+4. **Configure AI Gateway + Voice STT** → Generate ASAP keys and create `.env.local` with fallback, Google endpoint values, and the current STT preset block
 5. **Start servers** → Ask permission, then `pnpm run rovodev` (single RovoDev Serve + backend + frontend by default)
 6. **Verify** → http://localhost:3000 (or the port shown in terminal output)
 
@@ -137,10 +137,10 @@ atlas asap key save --key YOUR-USE-CASE-ID/$TIMESTAMP --service YOUR-USE-CASE-ID
 # Note: You'll need to authenticate when prompted (browser will open)
 
 # Create .env.local from .asap-config
-# Script location: .cursor/skills/vpk-setup/scripts/create-env-local.js
-node ./.cursor/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID
+# Script location: .agents/skills/vpk-setup/scripts/create-env-local.js
+node ./.agents/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID
 # Optional (explicit email override):
-# node ./.cursor/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID your-email@atlassian.com
+# node ./.agents/skills/vpk-setup/scripts/create-env-local.js YOUR-USE-CASE-ID your-email@atlassian.com
 ```
 
 ### What `.env.local` Looks Like (Default Mode)
@@ -151,6 +151,36 @@ AI_GATEWAY_URL=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/bedrock/mode
 AI_GATEWAY_URL_GOOGLE=https://ai-gateway.us-east-1.staging.atl-paas.net/v1/google/publishers/google/v1/chat/completions
 GOOGLE_IMAGE_MODEL=gemini-3-pro-image-preview
 GOOGLE_TTS_MODEL=tts-latest
+GOOGLE_STT_MODEL=gemini-3-flash-preview
+
+# Speech-to-text preset used by live voice mode and /api/speech-transcription
+STT_PRESET=qwen3-asr
+
+STT_PRESET_WHISPER_TINY_PROVIDER=local-whisper
+STT_PRESET_WHISPER_TINY_MODEL=tiny
+
+STT_PRESET_WHISPER_LARGE_V3_PROVIDER=local-whisper
+STT_PRESET_WHISPER_LARGE_V3_MODEL=large-v3
+
+STT_PRESET_GOOGLE_PROVIDER=google
+# Uses GOOGLE_STT_MODEL as the selected Google STT model.
+
+STT_PRESET_QWEN3_0_6B_PROVIDER=openai-compatible
+STT_PRESET_QWEN3_0_6B_MODEL=qwen3-0.6b
+
+STT_PRESET_QWEN3_ASR_PROVIDER=openai-compatible
+STT_PRESET_QWEN3_ASR_MODEL=qwen3-asr
+
+LOCAL_WHISPER_MODEL=tiny
+LOCAL_WHISPER_BIN=whisper
+# Optional fallback model for openai-compatible audio transcription endpoints
+# OPENAI_COMPATIBLE_STT_MODEL=qwen3-asr
+# Defaults to http://localhost:8001/v1 for qwen3-0.6b and qwen3-asr presets.
+# Uncomment to override:
+# OPENAI_COMPATIBLE_STT_BASE_URL=http://localhost:8001/v1
+# Optional auth for the openai-compatible STT endpoint:
+# OPENAI_COMPATIBLE_STT_API_KEY=
+
 AI_GATEWAY_USE_CASE_ID=your-use-case-id
 AI_GATEWAY_CLOUD_ID=local-testing
 AI_GATEWAY_USER_ID=your-email@atlassian.com
@@ -188,6 +218,22 @@ ROVODEV_BILLING_URL=https://product-fabric.atlassian.net
 | `OPENAI_MODEL` | Optional | GPT model ID (default: `gpt-5.2-2025-12-11`) |
 | `GOOGLE_IMAGE_MODEL` | Yes | Gemini image model (default: `gemini-3-pro-image-preview`) |
 | `GOOGLE_TTS_MODEL` | Yes | TTS model (default: `tts-latest`) |
+| `GOOGLE_STT_MODEL` | Yes | Google speech-to-text model used when `STT_PRESET=google` |
+| `STT_PRESET` | Yes | Active speech-to-text preset for live voice mode (`whisper-tiny`, `whisper-large-v3`, `google`, `qwen3-0.6b`, `qwen3-asr`) |
+| `STT_PRESET_GOOGLE_PROVIDER` | Yes | Provider marker for the Google STT preset (`google`) |
+| `STT_PRESET_WHISPER_TINY_PROVIDER` | Yes | Provider marker for the Whisper Tiny preset (`local-whisper`) |
+| `STT_PRESET_WHISPER_TINY_MODEL` | Yes | Whisper Tiny checkpoint (`tiny`) |
+| `STT_PRESET_WHISPER_LARGE_V3_PROVIDER` | Yes | Provider marker for the Whisper Large v3 preset (`local-whisper`) |
+| `STT_PRESET_WHISPER_LARGE_V3_MODEL` | Yes | Whisper Large v3 checkpoint (`large-v3`) |
+| `STT_PRESET_QWEN3_0_6B_PROVIDER` | Yes | Provider marker for the Qwen3 0.6B STT preset (`openai-compatible`) |
+| `STT_PRESET_QWEN3_0_6B_MODEL` | Yes | Model name sent to the OpenAI-compatible transcription endpoint for Qwen3 0.6B |
+| `STT_PRESET_QWEN3_ASR_PROVIDER` | Yes | Provider marker for the Qwen3 ASR preset (`openai-compatible`) |
+| `STT_PRESET_QWEN3_ASR_MODEL` | Yes | Model name sent to the OpenAI-compatible transcription endpoint for Qwen3 ASR |
+| `LOCAL_WHISPER_MODEL` | Yes | Default local Whisper checkpoint used by `local-whisper` presets |
+| `LOCAL_WHISPER_BIN` | Yes | Whisper CLI binary name/path (default: `whisper`) |
+| `OPENAI_COMPATIBLE_STT_MODEL` | Optional | Fallback model if an openai-compatible preset omits a model |
+| `OPENAI_COMPATIBLE_STT_BASE_URL` | Optional | Base URL for OpenAI-compatible STT backends (defaults in code to `http://localhost:8001/v1`) |
+| `OPENAI_COMPATIBLE_STT_API_KEY` | Optional | Bearer token for OpenAI-compatible STT backends |
 | `ASAP_PRIVATE_KEY` | Yes | RSA private key (quoted, `\n` escaped) |
 | `ASAP_KID` | Yes | Key ID from ASAP config |
 | `ASAP_ISSUER` | Yes | Issuer from ASAP config |
@@ -203,9 +249,30 @@ ROVODEV_BILLING_URL=https://product-fabric.atlassian.net
 | `BACKEND_URL` | Optional | Frontend → backend URL override (default: http://localhost:8080) |
 | `DEBUG` | Optional | Set `true` for verbose backend logging |
 
+## Speech-to-Text Preset Switching
+
+Future Chat chat model selection is no longer exposed in the frontend. Chat stays on RovoDev Serve, while live voice transcription is selected entirely through `.env.local`.
+
+Switch STT by updating only:
+
+```bash
+STT_PRESET=whisper-tiny
+STT_PRESET=whisper-large-v3
+STT_PRESET=google
+STT_PRESET=qwen3-0.6b
+STT_PRESET=qwen3-asr
+```
+
+Notes:
+
+- `STT_PRESET=google` uses `GOOGLE_STT_MODEL` for the actual Google model ID.
+- `STT_PRESET=qwen3-0.6b` and `STT_PRESET=qwen3-asr` target an OpenAI-compatible transcription endpoint. If `OPENAI_COMPATIBLE_STT_BASE_URL` is not set, the backend defaults to `http://localhost:8001/v1`.
+- Whisper presets require the `whisper` CLI on PATH.
+- Restart the backend/dev stack after changing `STT_PRESET`.
+
 ## Model Switching (AI Gateway Fallback Mode)
 
-Model switching via `.env.local` applies only when using AI Gateway (RovoDev manages its own model internally).
+Model switching via `.env.local` applies only when using AI Gateway fallback for chat/image/TTS. RovoDev Serve manages chat internally, and Future Chat live voice STT is controlled separately via `STT_PRESET`.
 
 | Provider | Model | Endpoint |
 | -------- | ----- | -------- |
@@ -229,6 +296,7 @@ For full model switching details, see [references/guide-model-switch.md](referen
 - [ ] `AUTO_FALLBACK_TO_AI_GATEWAY=true` enabled in `.env.local`
 - [ ] `ROVODEV_BILLING_URL` is set (default: `https://product-fabric.atlassian.net`)
 - [ ] Google endpoints enabled in `.env.local`
+- [ ] `GOOGLE_STT_MODEL` and `STT_PRESET` are set in `.env.local`
 - [ ] Dev servers started with `pnpm run rovodev`
 - [ ] Health check passes at http://localhost:8080/api/health
 - [ ] Chat responds at http://localhost:3000
@@ -239,7 +307,7 @@ For full model switching details, see [references/guide-model-switch.md](referen
 | ----- | --------- |
 | Chat returns 503 | RovoDev Serve not running — use `pnpm run rovodev` to start all processes |
 | Auth errors during ASAP save | `atlas upgrade` |
-| "EADDRINUSE" error | Servers auto-find available ports (3001+/8081+). If still failing, run with `--force-kill`: `./.cursor/skills/vpk-setup/scripts/start-dev.sh --force-kill` |
+| "EADDRINUSE" error | Servers auto-find available ports (3001+/8081+). If still failing, run with `--force-kill`: `./.agents/skills/vpk-setup/scripts/start-dev.sh --force-kill` |
 | Next.js lock error | Remove stale lock: `rm -f .next/dev/lock` then restart |
 | Turbopack cache corrupted | Clear cache: `rm -rf .next` then restart |
 | Zombie processes blocking ports | `ROVODEV_FORCE_CLEAN_START=true pnpm run rovodev` (graceful SIGTERM then SIGKILL fallback) |
@@ -252,6 +320,7 @@ For full model switching details, see [references/guide-model-switch.md](referen
 | "Model Id [X] not found" | Model not whitelisted. Run `atlas ml aigateway usecase view --id YOUR-USE-CASE-ID -e stg-west` |
 | Bedrock 403 while OpenAI works | Pull latest branch and confirm `backend/lib/ai-gateway-helpers.js` does **not** rewrite Bedrock URL; restart backend |
 | Want to switch models | See [Model Switching Guide](references/guide-model-switch.md) |
+| Future Chat voice mode 500 | Restart the backend so it picks up the latest `.env.local`. If using `STT_PRESET=qwen3-asr` or `qwen3-0.6b`, ensure an OpenAI-compatible transcription backend is available at `OPENAI_COMPATIBLE_STT_BASE_URL` (or the code default `http://localhost:8001/v1`) |
 | Stale AI context / wrong answers | RovoDev session may be corrupted — restart with `pnpm run rovodev` |
 | 409 "chat already in progress" | Background tasks may be using pinned panel ports — check that `PINNED_PORT_COUNT` matches your panel count. See [Port Isolation Guide](references/guide-ports.md) |
 | 409 on first prompt (tmux) | Ensure `ROVODEV_SUPERVISOR=tmux` is set in the backend pane — `dev-tmux.sh` sets this automatically |

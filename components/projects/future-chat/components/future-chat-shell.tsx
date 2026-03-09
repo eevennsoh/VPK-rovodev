@@ -8,7 +8,6 @@ import { FutureChatComposer } from "@/components/projects/future-chat/components
 import { FutureChatHeader } from "@/components/projects/future-chat/components/future-chat-header";
 import { FutureChatMessages } from "@/components/projects/future-chat/components/future-chat-messages";
 import { FutureChatSidebar } from "@/components/projects/future-chat/components/future-chat-sidebar";
-import { FUTURE_CHAT_MODELS } from "@/components/projects/future-chat/data/model-options";
 import { useFutureChat } from "@/components/projects/future-chat/hooks/use-future-chat";
 import { getFutureChatShellLayout } from "@/components/projects/future-chat/lib/future-chat-shell-layout";
 import { useLiveVoice } from "@/components/projects/future-chat/hooks/use-live-voice";
@@ -138,7 +137,7 @@ export function FutureChatShell({
 			},
 			[drainLatestVoiceTranscript],
 		),
-		preferBrowserRecognition: true,
+		preferBrowserRecognition: false,
 	});
 	stopSpeakingRef.current = voice.stopSpeaking;
 	const wasStreamingRef = useRef(false);
@@ -190,10 +189,14 @@ export function FutureChatShell({
 		if (voice.state === "idle") {
 			voice.start();
 		} else {
-			clearPendingVoiceWork("voice-mode-disabled");
+			// Clear any pending transcript without incrementing the drain epoch.
+			// This avoids aborting an in-flight drain mid-interrupt, which would
+			// leave the active generation stopped with no replacement prompt.
+			// voice.stop() disables the mic/VAD/TTS so no new transcripts arrive.
+			pendingVoiceTranscriptRef.current = null;
 			voice.stop();
 		}
-	}, [clearPendingVoiceWork, voice]);
+	}, [voice]);
 
 	const handleStop = useCallback(async () => {
 		const hadActiveTurn = chatRef.current.isStreaming;
@@ -307,7 +310,6 @@ export function FutureChatShell({
 				onNewChat={() => void chat.openNewChat()}
 				onOpenArtifact={(documentId) => void chat.openDocument(documentId)}
 				onSelectVisibility={chat.setThreadVisibility}
-				selectedModelLabel={chat.selectedModel.label}
 				threadCount={chat.threads.length}
 				visibility={chat.threadVisibility}
 			/>
@@ -340,13 +342,10 @@ export function FutureChatShell({
 					artifactTitle={workspaceDocument?.title ?? null}
 					compact={isArtifactOpen}
 					errorMessage={chat.inputError}
-					models={FUTURE_CHAT_MODELS}
-					onSelectModel={chat.setSelectedModelId}
 					onStop={handleStop}
 					onSubmit={chat.submitPrompt}
 					onSuggestedAction={chat.suggestedPrompt}
 					onToggleVoice={handleToggleVoice}
-					selectedModel={chat.selectedModel}
 					showSuggestedActions={!isArtifactOpen && visibleMessages.length === 0}
 					status={chat.status}
 					voiceState={voiceButtonState}

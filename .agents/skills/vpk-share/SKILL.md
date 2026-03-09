@@ -129,7 +129,7 @@ The behavior differs based on whether upstream sync is enabled:
 4. Run the script:
 
    ```bash
-   bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --create <name> [--public] [--no-upstream]
+   bash .agents/skills/vpk-share/scripts/build_vpk_boilerplate.sh --create <name> [--public] [--no-upstream]
    ```
 
 5. Report the resulting GitHub URL.
@@ -178,7 +178,7 @@ Exports a sanitized boilerplate copy without creating a GitHub repository.
 2. Run the script:
 
    ```bash
-   bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --export [--dest PATH] [--force]
+   bash .agents/skills/vpk-share/scripts/build_vpk_boilerplate.sh --export [--dest PATH] [--force]
    ```
 
 3. Report what was created.
@@ -223,7 +223,7 @@ After reset, the script checks `service-descriptor.yml` for placeholder values a
 2. Run the script:
 
    ```bash
-   bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --reset [--dry-run]
+   bash .agents/skills/vpk-share/scripts/build_vpk_boilerplate.sh --reset [--dry-run]
    ```
 
 3. Report what was cleaned.
@@ -335,7 +335,7 @@ gh auth login
 Run with `--dry-run` to see what would happen without making changes:
 
 ```bash
-bash .cursor/skills/vpk-share/scripts/build_vpk_boilerplate.sh --create my-app --dry-run
+bash .agents/skills/vpk-share/scripts/build_vpk_boilerplate.sh --create my-app --dry-run
 ```
 
 ---

@@ -8,10 +8,17 @@ const VAD_SAMPLE_RATE = 16000;
 
 export type LiveVoiceState = "idle" | "recording" | "processing" | "speaking";
 
+export interface LiveVoiceTranscriptionOptions {
+	language?: string;
+	model?: string;
+	provider?: string;
+}
+
 export interface UseLiveVoiceOptions {
 	onBargeInStart?: () => void | Promise<void>;
 	onTranscription: (text: string) => void | Promise<void>;
 	preferBrowserRecognition?: boolean;
+	transcriptionOptions?: LiveVoiceTranscriptionOptions;
 }
 
 export interface UseLiveVoiceResult {
@@ -81,17 +88,40 @@ function float32ToWavBase64(
 async function sendForTranscription(
 	audio: string,
 	mimeType: string,
+	options: LiveVoiceTranscriptionOptions = {},
 	signal?: AbortSignal,
 ): Promise<string> {
 	const response = await fetch(API_ENDPOINTS.SPEECH_TRANSCRIPTION, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ audio, mimeType }),
+		body: JSON.stringify({
+			audio,
+			mimeType,
+			...(options.language ? { language: options.language } : {}),
+			...(options.model ? { model: options.model } : {}),
+			...(options.provider ? { provider: options.provider } : {}),
+		}),
 		signal,
 	});
 
 	if (!response.ok) {
-		throw new Error(`Transcription failed: ${response.status}`);
+		let errorMessage = `Transcription failed: ${response.status}`;
+
+		try {
+			const payload = (await response.json()) as {
+				error?: unknown;
+				message?: unknown;
+			};
+			if (typeof payload.error === "string" && payload.error.trim()) {
+				errorMessage = payload.error.trim();
+			} else if (typeof payload.message === "string" && payload.message.trim()) {
+				errorMessage = payload.message.trim();
+			}
+		} catch {
+			// Keep the HTTP status fallback when the response body is empty or invalid.
+		}
+
+		throw new Error(errorMessage);
 	}
 
 	const result = (await response.json()) as { text: string };
@@ -132,6 +162,7 @@ export function useLiveVoice({
 	onBargeInStart,
 	onTranscription,
 	preferBrowserRecognition = false,
+	transcriptionOptions = {},
 }: UseLiveVoiceOptions): UseLiveVoiceResult {
 	const [state, setState] = useState<LiveVoiceState>("idle");
 	const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -140,6 +171,7 @@ export function useLiveVoice({
 	const stateRef = useRef<LiveVoiceState>("idle");
 	const onBargeInStartRef = useRef(onBargeInStart);
 	const onTranscriptionRef = useRef(onTranscription);
+	const transcriptionOptionsRef = useRef(transcriptionOptions);
 	const transcriptionAbortRef = useRef<AbortController | null>(null);
 	const ttsAbortRef = useRef<AbortController | null>(null);
 	const vadRef = useRef<MicVADInstance | null>(null);
@@ -154,6 +186,10 @@ export function useLiveVoice({
 	useEffect(() => {
 		onTranscriptionRef.current = onTranscription;
 	}, [onTranscription]);
+
+	useEffect(() => {
+		transcriptionOptionsRef.current = transcriptionOptions;
+	}, [transcriptionOptions]);
 
 	const setVoiceState = useCallback((nextState: LiveVoiceState) => {
 		stateRef.current = nextState;
@@ -419,6 +455,7 @@ export function useLiveVoice({
 					const text = await sendForTranscription(
 						base64,
 						"audio/wav",
+						transcriptionOptionsRef.current,
 						controller.signal,
 					);
 

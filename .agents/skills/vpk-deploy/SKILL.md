@@ -309,8 +309,8 @@ atlas micros stash list -s $SERVICE_NAME -e $ENV
 Run the pre-deployment check script from this skill's scripts directory:
 
 ```bash
-# Script location: .cursor/skills/vpk-deploy/scripts/deploy-check.sh
-./.cursor/skills/vpk-deploy/scripts/deploy-check.sh
+# Script location: .agents/skills/vpk-deploy/scripts/deploy-check.sh
+./.agents/skills/vpk-deploy/scripts/deploy-check.sh
 ```
 
 The script validates:
@@ -326,11 +326,11 @@ The script validates:
 Use the deploy script from this skill's scripts directory:
 
 ```bash
-# Script location: .cursor/skills/vpk-deploy/scripts/deploy.sh
-./.cursor/skills/vpk-deploy/scripts/deploy.sh <service-name> <version> [env]
+# Script location: .agents/skills/vpk-deploy/scripts/deploy.sh
+./.agents/skills/vpk-deploy/scripts/deploy.sh <service-name> <version> [env]
 
 # Example
-./.cursor/skills/vpk-deploy/scripts/deploy.sh my-prototype 1.0.1
+./.agents/skills/vpk-deploy/scripts/deploy.sh my-prototype 1.0.1
 
 # Default environment: pdev-west2
 ```

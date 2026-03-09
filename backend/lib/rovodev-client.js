@@ -20,6 +20,8 @@ const {
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const DEFAULT_PORT = 8000;
+const DEFAULT_STREAM_FIRST_EVENT_TIMEOUT_MS = 45_000;
+const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 60_000;
 
 function getPort() {
 	const envPort = process.env.ROVODEV_PORT;
@@ -415,6 +417,22 @@ function createAbortError(message = "RovoDev request aborted") {
 	return error;
 }
 
+function createStreamSilenceTimeoutError({
+	timeoutMs,
+	hadActivity,
+}) {
+	const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
+	const error = new Error(
+		hadActivity
+			? `RovoDev stream stalled after ${timeoutSeconds}s without SSE activity`
+			: `RovoDev stream never produced any SSE activity after ${timeoutSeconds}s`
+	);
+	error.code = "ROVODEV_STREAM_IDLE_TIMEOUT";
+	error.timeoutMs = timeoutMs;
+	error.hadActivity = hadActivity === true;
+	return error;
+}
+
 /**
  * Make a JSON request to the RovoDev serve API.
  */
@@ -549,12 +567,73 @@ async function getStatus(port) {
  * @param {function} callbacks.onDone - Called when complete with full text
  * @param {function} callbacks.onError - Called on error
  * @param {function} [callbacks.onEvent] - Optional raw SSE event callback
+ * @param {object} [options]
+ * @param {number} [options.firstEventTimeoutMs]
+ * @param {number} [options.idleTimeoutMs]
  * @returns {{ abort: () => void }}
  */
-function sendMessageStreaming(message, callbacks, port) {
+function sendMessageStreaming(message, callbacks, port, options = {}) {
 	let aborted = false;
 	let currentReq = null;
+	let currentRes = null;
 	const abortController = new AbortController();
+	const firstEventTimeoutMs =
+		typeof options.firstEventTimeoutMs === "number" && options.firstEventTimeoutMs > 0
+			? options.firstEventTimeoutMs
+			: DEFAULT_STREAM_FIRST_EVENT_TIMEOUT_MS;
+	const idleTimeoutMs =
+		typeof options.idleTimeoutMs === "number" && options.idleTimeoutMs > 0
+			? options.idleTimeoutMs
+			: DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+	let streamActivitySeen = false;
+	let streamSilenceTimer = null;
+	let streamSilenceTimedOut = false;
+	let rejectActiveStream = null;
+
+	const clearStreamSilenceTimer = () => {
+		if (streamSilenceTimer !== null) {
+			clearTimeout(streamSilenceTimer);
+			streamSilenceTimer = null;
+		}
+	};
+
+	const cancelTimedOutStream = () => {
+		const targetPort = typeof port === "number" && port > 0 ? port : undefined;
+		request("POST", "/v3/cancel", undefined, 5_000, targetPort).catch(() => {
+			// Ignore cancellation failures; this is best-effort cleanup.
+		});
+	};
+
+	const armStreamSilenceTimer = () => {
+		clearStreamSilenceTimer();
+		const timeoutMs = streamActivitySeen ? idleTimeoutMs : firstEventTimeoutMs;
+		streamSilenceTimer = setTimeout(() => {
+			if (aborted || streamSilenceTimedOut) {
+				return;
+			}
+			streamSilenceTimedOut = true;
+			clearStreamSilenceTimer();
+			const timeoutError = createStreamSilenceTimeoutError({
+				timeoutMs,
+				hadActivity: streamActivitySeen,
+			});
+			cancelTimedOutStream();
+			if (currentRes && !currentRes.destroyed) {
+				currentRes.destroy(timeoutError);
+			}
+			if (currentReq) {
+				currentReq.destroy(timeoutError);
+			}
+			if (typeof rejectActiveStream === "function") {
+				rejectActiveStream(timeoutError);
+			}
+		}, timeoutMs);
+	};
+
+	const noteStreamActivity = () => {
+		streamActivitySeen = true;
+		armStreamSilenceTimer();
+	};
 
 	const run = async () => {
 		try {
@@ -596,6 +675,7 @@ function sendMessageStreaming(message, callbacks, port) {
 			let fullText = "";
 
 			await new Promise((resolve, reject) => {
+				rejectActiveStream = reject;
 				const options = {
 					hostname: url.hostname,
 					port: url.port,
@@ -609,6 +689,7 @@ function sendMessageStreaming(message, callbacks, port) {
 				};
 
 				currentReq = http.request(options, (res) => {
+					currentRes = res;
 					// Disable socket timeout for the SSE stream
 					if (res.socket) {
 						res.socket.setTimeout(0);
@@ -630,11 +711,13 @@ function sendMessageStreaming(message, callbacks, port) {
 						return;
 					}
 					console.log("[rovodev] SSE stream connected, waiting for events...");
+					armStreamSilenceTimer();
 
 					let buffer = "";
 
 					res.on("data", (chunk) => {
 						if (aborted) return;
+						noteStreamActivity();
 
 						buffer += chunk.toString();
 
@@ -680,10 +763,14 @@ function sendMessageStreaming(message, callbacks, port) {
 					});
 
 					res.on("end", () => {
+						clearStreamSilenceTimer();
+						rejectActiveStream = null;
 						resolve();
 					});
 
 					res.on("error", (err) => {
+						clearStreamSilenceTimer();
+						rejectActiveStream = null;
 						reject(err);
 					});
 				});
@@ -692,17 +779,31 @@ function sendMessageStreaming(message, callbacks, port) {
 				currentReq.setTimeout(0);
 
 				currentReq.on("error", (err) => {
+					clearStreamSilenceTimer();
+					rejectActiveStream = null;
+					if (err?.code === "ROVODEV_STREAM_IDLE_TIMEOUT") {
+						reject(err);
+						return;
+					}
+					if (err?.name === "AbortError" || err?.code === "ABORT_ERR") {
+						reject(createAbortError());
+						return;
+					}
 					reject(new Error(`SSE connection failed: ${err.message}`));
 				});
 
+				armStreamSilenceTimer();
 				currentReq.end();
 			});
+			rejectActiveStream = null;
 
 			if (!aborted) {
 				console.log(`[rovodev] Stream complete. Response length: ${fullText.length}`);
 				callbacks.onDone(fullText);
 			}
 		} catch (err) {
+			rejectActiveStream = null;
+			clearStreamSilenceTimer();
 			if (!aborted) {
 				console.error("[rovodev] Stream error:", err);
 				callbacks.onError(err instanceof Error ? err : new Error(String(err)));
@@ -715,7 +816,11 @@ function sendMessageStreaming(message, callbacks, port) {
 	return {
 		abort: () => {
 			aborted = true;
+			clearStreamSilenceTimer();
 			abortController.abort();
+			if (currentRes && !currentRes.destroyed) {
+				currentRes.destroy();
+			}
 			if (currentReq) {
 				currentReq.destroy();
 			}

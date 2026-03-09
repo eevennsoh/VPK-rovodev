@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBackendUrl } from "@/app/api/_utils/backend-url";
+import {
+	BackendConnectionError,
+	fetchBackend,
+	getBackendUrlCandidates,
+} from "@/app/api/_utils/backend-url";
 
 /**
  * API proxy route that forwards chat cancel requests to the backend Express server.
@@ -9,11 +13,8 @@ import { getBackendUrl } from "@/app/api/_utils/backend-url";
  */
 export async function POST(request: NextRequest) {
 	try {
-		const backendUrl = getBackendUrl();
 		const query = request.nextUrl.search;
-		const url = `${backendUrl}/api/chat-cancel${query}`;
-
-		const response = await fetch(url, {
+		const { response } = await fetchBackend(`/api/chat-cancel${query}`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -23,11 +24,24 @@ export async function POST(request: NextRequest) {
 		const data = await response.json();
 		return NextResponse.json(data, { status: response.status });
 	} catch (error) {
+		if (error instanceof BackendConnectionError) {
+			return NextResponse.json(
+				{
+					cancelled: false,
+					error: "Cannot connect to backend server",
+					details: error.cause instanceof Error ? error.cause.message : String(error.cause),
+					backendUrls: error.backendUrls,
+				},
+				{ status: 503 }
+			);
+		}
+
 		console.error("Chat cancel proxy error:", error);
 		return NextResponse.json(
 			{
 				cancelled: false,
 				error: error instanceof Error ? error.message : String(error),
+				backendUrls: getBackendUrlCandidates(),
 			},
 			{ status: 500 }
 		);

@@ -122,6 +122,24 @@ test("isToolNameRelevant matches Atlassian Google Drive URL bridge tools", () =>
 	assert.equal(relevant, true);
 });
 
+test("browser automation treats bash helper calls as relevant", () => {
+	const policy = resolveToolFirstPolicy({
+		prompt: "Navigate to example.com and click the more information link",
+	});
+
+	assert.equal(policy.matched, true);
+	assert.ok(policy.domains.includes("browser-automation"));
+	assert.match(policy.instruction, /chromium-preview-agent/i);
+	assert.match(policy.instruction, /Do not call `mcp_get_tool_schema`/i);
+	assert.equal(
+		isToolNameRelevant({
+			toolName: "bash",
+			domains: ["browser-automation"],
+		}),
+		true
+	);
+});
+
 test("execution state tracks relevant tool success", () => {
 	const policy = resolveToolFirstPolicy({
 		prompt: "Find project context using Teamwork Graph and summarize updates",

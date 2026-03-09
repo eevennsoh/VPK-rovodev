@@ -39,13 +39,6 @@ export interface FutureChatDocument {
 	versions: FutureChatDocumentVersion[];
 }
 
-export interface FutureChatModelOption {
-	id: string;
-	label: string;
-	provider: string;
-	description: string;
-}
-
 export function createFutureChatId(prefix = "future-chat"): string {
 	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
 		return crypto.randomUUID();
