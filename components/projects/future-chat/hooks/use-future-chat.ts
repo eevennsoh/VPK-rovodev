@@ -221,7 +221,10 @@ export interface FutureChatHookResult {
 	activeDocument: FutureChatDocument | null;
 	activeDocumentContent: string;
 	activeThreadId: string | null;
-	applyVoiceSteer: (payload: { text: string }) => Promise<void>;
+	applyVoiceSteer: (payload: {
+		text: string;
+		contextDescription?: string;
+	}) => Promise<void>;
 	artifactMode: "preview" | "edit";
 	artifactDraftContent: string;
 	deleteAllThreads: () => Promise<void>;
@@ -1149,7 +1152,13 @@ export function useFutureChat({
 	);
 
 	const applyVoiceSteer = useCallback(
-		async ({ text }: { text: string }) => {
+		async ({
+			text,
+			contextDescription,
+		}: {
+			text: string;
+			contextDescription?: string;
+		}) => {
 			const trimmedText = text.trim();
 			if (!trimmedText) {
 				return;
@@ -1177,6 +1186,7 @@ export function useFutureChat({
 					{
 						body: {
 							id: threadId,
+							contextDescription,
 							artifactSteering: {
 								preferCurrentArtifact: true,
 								source: "voice",

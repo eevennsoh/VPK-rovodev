@@ -198,6 +198,11 @@ ROVODEV_BILLING_URL=https://product-fabric.atlassian.net
 
 # RovoDev pool size (plan parallel runs, default: 1)
 # ROVODEV_POOL_SIZE=1
+
+# OpenAI Realtime API (live voice conversation mode via AI Gateway)
+OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview
+OPENAI_REALTIME_WS_URL=wss://ai-gateway.us-east-1.staging.atl-paas.net/v1/openai/v1/realtime
+OPENAI_REALTIME_VOICE=alloy
 ```
 
 ## Environment Variables Reference
@@ -248,6 +253,10 @@ ROVODEV_BILLING_URL=https://product-fabric.atlassian.net
 | `PORT` | Optional | Backend port override (default: 8080) |
 | `BACKEND_URL` | Optional | Frontend → backend URL override (default: http://localhost:8080) |
 | `DEBUG` | Optional | Set `true` for verbose backend logging |
+| `OPENAI_REALTIME_API_KEY` | Optional | Direct OpenAI API key for Realtime — omit to use AI Gateway with ASAP credentials |
+| `OPENAI_REALTIME_MODEL` | Yes | Realtime voice model (default: `gpt-4o-realtime-preview`) |
+| `OPENAI_REALTIME_WS_URL` | Yes | Realtime WebSocket URL — defaults to AI Gateway staging endpoint when using ASAP auth, or direct OpenAI when API key is set |
+| `OPENAI_REALTIME_VOICE` | Yes | Realtime voice preset (default: `alloy`) |
 
 ## Speech-to-Text Preset Switching
 

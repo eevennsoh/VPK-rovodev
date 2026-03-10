@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { AgentState, BarVisualizerProps } from "@/components/ui-audio/bar-visualizer";
 import { BarVisualizer } from "@/components/ui-audio/bar-visualizer";
 import { MessageResponse } from "@/components/ui-ai/message";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LoaderCircleIcon, MicIcon, SparklesIcon, SquareIcon, Volume2Icon } from "lucide-react";
@@ -13,6 +14,8 @@ type RealtimeVoiceState = "idle" | "connecting" | "listening" | "speaking";
 type RealtimeGenerationState = "idle" | "delegating" | "generating" | "steering" | "complete";
 
 interface RealtimeVoiceBarProps {
+	annotationCount?: number;
+	annotationPreview?: string[];
 	className?: string;
 	currentTranscript?: string;
 	generationState?: RealtimeGenerationState;
@@ -22,6 +25,8 @@ interface RealtimeVoiceBarProps {
 	voiceState: RealtimeVoiceState;
 }
 
+const EMPTY_ANNOTATION_PREVIEW: string[] = [];
+
 const STATE_LABELS: Record<Exclude<RealtimeVoiceState, "idle">, string> = {
 	connecting: "Connecting...",
 	listening: "Listening...",
@@ -29,6 +34,8 @@ const STATE_LABELS: Record<Exclude<RealtimeVoiceState, "idle">, string> = {
 };
 
 export function RealtimeVoiceBar({
+	annotationCount = 0,
+	annotationPreview = EMPTY_ANNOTATION_PREVIEW,
 	className,
 	currentTranscript,
 	generationState,
@@ -117,6 +124,17 @@ export function RealtimeVoiceBar({
 								? "RovoDev is working..."
 								: "Applying changes..."}
 					</span>
+				</div>
+			) : null}
+
+			{annotationCount > 0 ? (
+				<div className="flex items-start gap-2 px-1">
+					<Badge variant="information">{annotationCount} annotations</Badge>
+					{annotationPreview.length > 0 ? (
+						<p className="line-clamp-2 text-text-subtle text-xs">
+							{annotationPreview.join(" • ")}
+						</p>
+					) : null}
 				</div>
 			) : null}
 

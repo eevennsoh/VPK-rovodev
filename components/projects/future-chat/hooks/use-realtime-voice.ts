@@ -27,6 +27,8 @@ export interface DelegationRequest {
 export interface UseRealtimeVoiceOptions {
 	/** Called when GPT calls delegate_to_rovo with a synthesized task. */
 	onDelegateToRovo: (request: DelegationRequest) => void;
+	/** Called when realtime VAD detects that the user started speaking. */
+	onSpeechStarted?: () => void;
 	/** Current chat messages for thread context. */
 	chatMessages: RovoUIMessage[];
 	/** Whether RovoDev is currently generating. */
@@ -45,7 +47,7 @@ export interface UseRealtimeVoiceResult {
 	micStream: MediaStream | null;
 	/** Push context updates into the Realtime session (artifact completions, thread messages). */
 	injectContext: (data: {
-		type: "thread_context" | "artifact_complete" | "thread_message";
+		type: "thread_context" | "artifact_complete" | "thread_message" | "artifact_annotations";
 		summary?: string;
 		role?: string;
 		content?: string;
@@ -84,7 +86,7 @@ interface ClientSessionUpdate {
 interface ClientContextInject {
 	type: "context_inject";
 	data: {
-		type: "thread_context" | "artifact_complete" | "thread_message";
+		type: "thread_context" | "artifact_complete" | "thread_message" | "artifact_annotations";
 		summary?: string;
 		role?: string;
 		content?: string;
@@ -135,7 +137,10 @@ interface ServerSpeechStopped {
 
 interface ServerError {
 	type: "error";
-	message: string;
+	error: {
+		message: string;
+		code?: string;
+	};
 }
 
 interface ServerFunctionCall {
@@ -332,6 +337,7 @@ function buildThreadSummary(messages: RovoUIMessage[]): string {
 
 export function useRealtimeVoice({
 	onDelegateToRovo,
+	onSpeechStarted,
 	chatMessages,
 	isGenerating = false,
 }: UseRealtimeVoiceOptions): UseRealtimeVoiceResult {
@@ -363,6 +369,11 @@ export function useRealtimeVoice({
 	useEffect(() => {
 		onDelegateToRovoRef.current = onDelegateToRovo;
 	}, [onDelegateToRovo]);
+
+	const onSpeechStartedRef = useRef(onSpeechStarted);
+	useEffect(() => {
+		onSpeechStartedRef.current = onSpeechStarted;
+	}, [onSpeechStarted]);
 
 	const chatMessagesRef = useRef(chatMessages);
 	useEffect(() => {
@@ -554,6 +565,7 @@ export function useRealtimeVoice({
 					if (voiceStateRef.current !== "listening") {
 						setVoice("listening");
 					}
+					onSpeechStartedRef.current?.();
 					break;
 
 				case "speech_stopped":
@@ -589,7 +601,7 @@ export function useRealtimeVoice({
 				case "error":
 					console.error(
 						"[RealtimeVoice] Server error:",
-						message.message,
+						message.error?.message ?? "unknown",
 					);
 					break;
 			}

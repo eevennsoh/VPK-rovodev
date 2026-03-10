@@ -507,10 +507,14 @@ async function streamGoogleGatewayManualSse({
 }
 
 function getRealtimeConfig() {
+	const apiKey = process.env.OPENAI_REALTIME_API_KEY || "";
+	const defaultWsUrl = apiKey
+		? "wss://api.openai.com/v1/realtime"
+		: "wss://ai-gateway.us-east-1.staging.atl-paas.net/v1/openai/v1/realtime";
 	return {
-		apiKey: process.env.OPENAI_REALTIME_API_KEY || "",
-		model: process.env.OPENAI_REALTIME_MODEL || "gpt-4o-realtime-preview-2025-07-29",
-		wsUrl: process.env.OPENAI_REALTIME_WS_URL || "wss://api.openai.com/v1/realtime",
+		apiKey,
+		model: process.env.OPENAI_REALTIME_MODEL || "gpt-4o-realtime-preview",
+		wsUrl: process.env.OPENAI_REALTIME_WS_URL || defaultWsUrl,
 		voice: process.env.OPENAI_REALTIME_VOICE || "alloy",
 	};
 }
