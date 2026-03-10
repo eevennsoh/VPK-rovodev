@@ -10,6 +10,7 @@ import { FutureChatMessages } from "@/components/projects/future-chat/components
 import { FutureChatSidebar } from "@/components/projects/future-chat/components/future-chat-sidebar";
 import { type FutureChatSteeringPhase } from "@/components/projects/future-chat/components/future-chat-steering-lane";
 import { RealtimeVoiceBar } from "@/components/projects/future-chat/components/realtime-voice-bar";
+import { useArtifactAnnotations } from "@/components/projects/future-chat/hooks/use-artifact-annotations";
 import { useFutureChat } from "@/components/projects/future-chat/hooks/use-future-chat";
 import { getFutureChatShellLayout } from "@/components/projects/future-chat/lib/future-chat-shell-layout";
 import { useLiveVoice } from "@/components/projects/future-chat/hooks/use-live-voice";
@@ -31,6 +32,16 @@ interface FutureChatShellProps {
 	initialThreadId?: string | null;
 }
 
+function mergeContextDescriptions(
+	...parts: Array<string | null | undefined>
+): string | undefined {
+	const mergedParts = parts
+		.map((part) => part?.trim())
+		.filter((part): part is string => Boolean(part));
+
+	return mergedParts.length > 0 ? mergedParts.join("\n\n") : undefined;
+}
+
 export function FutureChatShell({
 	embedded = false,
 	initialThreadId = null,
@@ -39,8 +50,16 @@ export function FutureChatShell({
 	const chat = useFutureChat({ embedded, initialThreadId });
 	const chatRef = useRef(chat);
 	chatRef.current = chat;
+	const artifactContentRef = useRef<HTMLDivElement | null>(null);
 	const stopSpeakingRef = useRef<() => void>(() => {});
 	const skipNextAutoSpeakRef = useRef(false);
+	const annotationContextRef = useRef<string | null>(null);
+	const realtimeInjectContextRef = useRef<((payload: {
+		type: "thread_context" | "artifact_complete" | "thread_message" | "artifact_annotations";
+		summary?: string;
+		role?: string;
+		content?: string;
+	}) => void) | null>(null);
 	const pendingVoiceTranscriptRef = useRef<{
 		id: number;
 		text: string;
@@ -55,6 +74,7 @@ export function FutureChatShell({
 		phase: "idle",
 		text: null,
 	});
+	const [cursorMode, setCursorMode] = useState(false);
 
 	const clearSteeringState = useCallback(() => {
 		setSteeringState({
@@ -114,8 +134,10 @@ export function FutureChatShell({
 						phase: shouldArtifactSteer ? "applying" : "idle",
 						text: shouldArtifactSteer ? pendingTranscript.text : null,
 					});
+					const annotationContext = annotationContextRef.current ?? undefined;
 					if (shouldArtifactSteer) {
 						void chatRef.current.applyVoiceSteer({
+							contextDescription: annotationContext,
 							text: pendingTranscript.text,
 						}).catch((error) => {
 							clearSteeringState();
@@ -123,6 +145,7 @@ export function FutureChatShell({
 						});
 					} else {
 						void chatRef.current.submitPrompt({
+							contextDescription: annotationContext,
 							text: pendingTranscript.text,
 							files: [],
 						}).catch((error) => {
@@ -338,13 +361,19 @@ export function FutureChatShell({
 		onDelegateToRovo: useCallback(
 			async (request: DelegationRequest) => {
 				const c = chatRef.current;
-				const contextDescription = request.conversationSummary
-					? `[Voice context] ${request.conversationSummary}`
-					: undefined;
+				const contextDescription = mergeContextDescriptions(
+					request.conversationSummary
+						? `[Voice context] ${request.conversationSummary}`
+						: undefined,
+					annotationContextRef.current,
+				);
 
 				if (c.isStreaming && c.isArtifactOpen) {
 					// Steer active artifact generation
-					await c.applyVoiceSteer({ text: request.prompt });
+					await c.applyVoiceSteer({
+						contextDescription,
+						text: request.prompt,
+					});
 				} else {
 					if (c.isStreaming) {
 						await c.interruptActiveTurn({ source: "voice-barge-in" });
@@ -358,12 +387,27 @@ export function FutureChatShell({
 			},
 			[],
 		),
+		onSpeechStarted: useCallback(() => {
+			const annotationContext = annotationContextRef.current;
+			if (!annotationContext) {
+				return;
+			}
+
+			realtimeInjectContextRef.current?.({
+				type: "artifact_annotations",
+				content: annotationContext,
+			});
+		}, []),
 		chatMessages: chat.messages,
 		isGenerating: chat.isStreaming,
 	});
 
 	const isRealtimeActive = realtime.voiceState !== "idle";
 	const wasRealtimeStreamingRef = useRef(false);
+
+	useEffect(() => {
+		realtimeInjectContextRef.current = realtime.injectContext;
+	}, [realtime.injectContext]);
 
 	// Inject RovoDev results back into GPT session for context continuity
 	useEffect(() => {
@@ -448,6 +492,36 @@ export function FutureChatShell({
 		?? workspaceDocument?.versions.at(-1)
 		?? null;
 	const isArtifactOpen = Boolean(workspaceDocument);
+	const canAnnotateWorkspaceDocument =
+		workspaceDocument?.kind === "text"
+		|| workspaceDocument?.kind === "code"
+		|| workspaceDocument?.kind === "image";
+	const annotationState = useArtifactAnnotations({
+		active:
+			cursorMode &&
+			isArtifactOpen &&
+			!chat.streamingArtifact &&
+			chat.artifactMode === "preview" &&
+			process.env.NODE_ENV === "development",
+		documentId: workspaceDocument?.id ?? null,
+		documentKind:
+			workspaceDocument?.kind === "text" ||
+			workspaceDocument?.kind === "code" ||
+			workspaceDocument?.kind === "image"
+				? workspaceDocument.kind
+				: null,
+		documentVersionId: selectedDocumentVersion?.id ?? null,
+		containerRef: artifactContentRef,
+	});
+	const {
+		annotations: artifactAnnotations,
+		addComment: addArtifactAnnotationComment,
+		clearAnnotations,
+		dismissSelection: dismissArtifactSelection,
+		formatContextForVoice,
+		pendingSelection: pendingArtifactSelection,
+		removeAnnotation: removeArtifactAnnotation,
+	} = annotationState;
 	const shellRef = useRef<HTMLDivElement | null>(null);
 	const composerDockRef = useRef<HTMLDivElement | null>(null);
 	const artifactCardOriginRef = useRef<DOMRect | null>(null);
@@ -462,6 +536,44 @@ export function FutureChatShell({
 	const artifactLayout = getFutureChatShellLayout(shellSize.width);
 	const shouldSplitArtifactPane =
 		isArtifactOpen && artifactLayout.mode === "split";
+
+	useEffect(() => {
+		const nextContext = formatContextForVoice().trim();
+		annotationContextRef.current = nextContext.length > 0 ? nextContext : null;
+	}, [artifactAnnotations, formatContextForVoice]);
+
+	useEffect(() => {
+		if (!isArtifactOpen) {
+			setCursorMode(false);
+		}
+	}, [isArtifactOpen]);
+
+	useEffect(() => {
+		if (chat.streamingArtifact) {
+			setCursorMode(false);
+		}
+	}, [chat.streamingArtifact]);
+
+	useEffect(() => {
+		if (!canAnnotateWorkspaceDocument) {
+			setCursorMode(false);
+		}
+	}, [canAnnotateWorkspaceDocument]);
+
+	useEffect(() => {
+		clearAnnotations();
+	}, [clearAnnotations, workspaceDocument?.id]);
+
+	useEffect(() => {
+		clearAnnotations();
+	}, [clearAnnotations, selectedDocumentVersion?.id]);
+
+	useEffect(() => {
+		if (chat.artifactMode !== "preview") {
+			setCursorMode(false);
+			clearAnnotations();
+		}
+	}, [chat.artifactMode, clearAnnotations]);
 
 	useEffect(() => {
 		const shellElement = shellRef.current;
@@ -621,6 +733,8 @@ export function FutureChatShell({
 							transition={{ type: "spring", stiffness: 400, damping: 30 }}
 						>
 							<RealtimeVoiceBar
+								annotationCount={artifactAnnotations.length}
+								annotationPreview={artifactAnnotations.slice(-2).map((annotation) => annotation.comment)}
 								currentTranscript={realtime.currentTranscript}
 								generationState={realtime.generationState}
 								micStream={realtime.micStream}
@@ -762,10 +876,14 @@ export function FutureChatShell({
 									}}
 								>
 									<FutureChatArtifactPanel
+										annotations={artifactAnnotations}
+										contentRef={artifactContentRef}
+										cursorMode={cursorMode}
 										document={workspaceDocument}
 										draftContent={chat.streamingArtifact?.content ?? chat.artifactDraftContent}
 										isStreamingArtifact={Boolean(chat.streamingArtifact)}
 										mode={chat.artifactMode}
+										onAddComment={addArtifactAnnotationComment}
 										onClose={() => {
 											if (chat.streamingArtifact?.documentId === workspaceDocument.id) {
 												chat.hideArtifactPane();
@@ -775,9 +893,14 @@ export function FutureChatShell({
 											chat.hideArtifactPane();
 											chat.setActiveDocumentId(null);
 										}}
+										onCursorModeChange={
+											canAnnotateWorkspaceDocument ? setCursorMode : undefined
+										}
 										onDelete={() => chat.deleteDocument(workspaceDocument.id)}
 										onDraftChange={chat.setArtifactDraftContent}
+										onDismissSelection={dismissArtifactSelection}
 										onModeChange={chat.setArtifactMode}
+										onRemoveAnnotation={removeArtifactAnnotation}
 										onSave={chat.saveArtifactDraft}
 										onVersionChange={(versionId) => {
 											chat.setSelectedVersionId(versionId);
@@ -786,6 +909,7 @@ export function FutureChatShell({
 												?? selectedDocumentVersion;
 											chat.setArtifactDraftContent(nextVersion?.content ?? "");
 										}}
+										pendingSelection={pendingArtifactSelection}
 										selectedVersionId={selectedDocumentVersion?.id ?? null}
 									/>
 								</motion.div>

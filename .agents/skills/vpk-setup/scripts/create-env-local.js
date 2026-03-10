@@ -94,6 +94,10 @@ const preservedPort = getEnvValueFromText(existingEnvText, 'PORT');
 const preservedBackendUrl = getEnvValueFromText(existingEnvText, 'BACKEND_URL');
 const preservedPublicApiUrl = getEnvValueFromText(existingEnvText, 'NEXT_PUBLIC_API_URL');
 const preservedRovodevSiteUrl = getEnvValueFromText(existingEnvText, 'ROVODEV_BILLING_URL');
+const preservedRealtimeModel = getEnvValueFromText(existingEnvText, 'OPENAI_REALTIME_MODEL');
+const preservedRealtimeWsUrl = getEnvValueFromText(existingEnvText, 'OPENAI_REALTIME_WS_URL');
+const preservedRealtimeVoice = getEnvValueFromText(existingEnvText, 'OPENAI_REALTIME_VOICE');
+const preservedRealtimeApiKey = getEnvValueFromText(existingEnvText, 'OPENAI_REALTIME_API_KEY');
 const resolvedGoogleGatewayUrl = isGoogleGatewayUrl(preservedGoogleUrl)
 	? preservedGoogleUrl
 	: DEFAULT_GOOGLE_GATEWAY_URL;
@@ -168,6 +172,12 @@ ROVODEV_BILLING_URL=${resolvedRovodevSiteUrl}
 
 # RovoDev Serve pool size (number of concurrent RovoDev instances for agents team, default: 1)${preservedRovodevPoolSize ? `\nROVODEV_POOL_SIZE=${preservedRovodevPoolSize}` : '\n# ROVODEV_POOL_SIZE=1'}
 
+# OpenAI Realtime API (live voice conversation mode via AI Gateway)
+${preservedRealtimeApiKey ? `OPENAI_REALTIME_API_KEY=${preservedRealtimeApiKey}` : '# OPENAI_REALTIME_API_KEY='}
+${preservedRealtimeModel ? `OPENAI_REALTIME_MODEL=${preservedRealtimeModel}` : 'OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview'}
+${preservedRealtimeWsUrl ? `OPENAI_REALTIME_WS_URL=${preservedRealtimeWsUrl}` : 'OPENAI_REALTIME_WS_URL=wss://ai-gateway.us-east-1.staging.atl-paas.net/v1/openai/v1/realtime'}
+${preservedRealtimeVoice ? `OPENAI_REALTIME_VOICE=${preservedRealtimeVoice}` : 'OPENAI_REALTIME_VOICE=alloy'}
+
 # Frontend configuration (for production builds)
 # NEXT_PUBLIC_API_URL=https://your-service-name.us-west-2.platdev.atl-paas.net${preservedPublicApiUrl ? `\nNEXT_PUBLIC_API_URL=${preservedPublicApiUrl}` : ''}
 ${preservedDebug ? `\nDEBUG=${preservedDebug}` : ''}${preservedPort ? `\nPORT=${preservedPort}` : ''}${preservedBackendUrl ? `\nBACKEND_URL=${preservedBackendUrl}` : ''}
@@ -181,6 +191,7 @@ console.log('   AUTO_FALLBACK_TO_AI_GATEWAY: enabled');
 console.log(`   ROVODEV_BILLING_URL: ${resolvedRovodevSiteUrl}`);
 console.log('   Google image + voice endpoints: enabled');
 console.log(`   STT_PRESET: ${preservedSttPreset || 'qwen3-asr'}`);
+console.log(`   OPENAI_REALTIME_WS_URL: ${preservedRealtimeWsUrl || 'wss://ai-gateway.us-east-1.staging.atl-paas.net/v1/openai/v1/realtime'} (via AI Gateway)`);
 if (preservedGoogleUrl && !isGoogleGatewayUrl(preservedGoogleUrl)) {
 	console.warn('⚠️  Existing AI_GATEWAY_URL_GOOGLE was not a Google endpoint and was reset to default.');
 }

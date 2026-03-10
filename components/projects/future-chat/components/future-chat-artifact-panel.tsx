@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, type RefObject } from "react";
 import { CodeBlock } from "@/components/ui-ai/code-block";
 import { MessageResponse } from "@/components/ui-ai/message";
 import { Button } from "@/components/ui/button";
@@ -11,27 +12,50 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type { PendingArtifactSelection } from "@/components/projects/future-chat/hooks/use-artifact-annotations";
+import type {
+	ArtifactAnnotation,
+	ArtifactAnnotationPosition,
+} from "@/components/projects/future-chat/lib/future-chat-artifact-annotations";
+import { cn } from "@/lib/utils";
 import {
 	formatFutureChatVersionLabel,
 	getFutureChatVersionTitle,
 } from "@/components/projects/future-chat/lib/future-chat-version-labels";
 import type { FutureChatDocument } from "@/lib/future-chat-types";
-import { CopyIcon, PencilLineIcon, SaveIcon, Trash2Icon, XIcon } from "lucide-react";
+import {
+	CopyIcon,
+	MessageSquarePlusIcon,
+	PencilLineIcon,
+	SaveIcon,
+	Trash2Icon,
+	XIcon,
+} from "lucide-react";
 import Image from "next/image";
 
 interface FutureChatArtifactPanelProps {
+	annotations?: ArtifactAnnotation[];
+	contentRef?: RefObject<HTMLDivElement | null>;
+	cursorMode?: boolean;
 	document: FutureChatDocument;
 	draftContent: string;
 	isStreamingArtifact?: boolean;
 	mode: "preview" | "edit";
+	onAddComment?: (comment: string) => void;
 	onClose: () => void;
+	onCursorModeChange?: (active: boolean) => void;
 	onDelete: () => Promise<void>;
 	onDraftChange: (value: string) => void;
+	onDismissSelection?: () => void;
 	onModeChange: (mode: "preview" | "edit") => void;
+	onRemoveAnnotation?: (id: string) => void;
 	onSave: () => Promise<void>;
 	onVersionChange: (versionId: string | null) => void;
+	pendingSelection?: PendingArtifactSelection | null;
 	selectedVersionId: string | null;
 }
+
+const EMPTY_ANNOTATIONS: ArtifactAnnotation[] = [];
 
 function inferFutureChatCodeLanguage(code: string): "html" | "css" | "tsx" {
 	if (/<!doctype html>|<html[\s>]|<head[\s>]|<body[\s>]|<style[\s>]/iu.test(code)) {
@@ -45,17 +69,129 @@ function inferFutureChatCodeLanguage(code: string): "html" | "css" | "tsx" {
 	return "tsx";
 }
 
+function getAnnotationPinStyle(position: ArtifactAnnotationPosition): {
+	left: string;
+	top: string;
+} {
+	const pinLeft = position.left + (position.width > 0 ? position.width - 14 : 0);
+	const pinTop = position.top - 10;
+
+	return {
+		left: `${Math.max(pinLeft, 8)}px`,
+		top: `${Math.max(pinTop, 8)}px`,
+	};
+}
+
+function getPendingSelectionStyle(
+	position: ArtifactAnnotationPosition,
+): {
+	left: string;
+	top: string;
+} {
+	return {
+		left: `${Math.max(position.left, 8)}px`,
+		top: `${Math.max(position.top + position.height + 12, 8)}px`,
+	};
+}
+
+function PendingAnnotationPopover({
+	onAddComment,
+	onDismissSelection,
+	pendingSelection,
+}: Readonly<{
+	onAddComment?: (comment: string) => void;
+	onDismissSelection?: () => void;
+	pendingSelection: PendingArtifactSelection;
+}>) {
+	const [commentDraft, setCommentDraft] = useState("");
+
+	const handleSubmitComment = () => {
+		const trimmedComment = commentDraft.trim();
+		if (!trimmedComment) {
+			return;
+		}
+
+		onAddComment?.(trimmedComment);
+		setCommentDraft("");
+	};
+
+	return (
+		<div
+			className="pointer-events-auto absolute w-80 max-w-[calc(100%-1rem)] rounded-xl border border-border bg-background p-3 shadow-lg"
+			data-artifact-annotation-ui=""
+			style={getPendingSelectionStyle(pendingSelection.position)}
+		>
+			<div className="mb-2 flex items-center justify-between gap-3">
+				<div>
+					<p className="font-medium text-sm">Add annotation</p>
+					<p className="text-text-subtle text-xs">
+						{pendingSelection.anchor.textExcerpt || "Selected viewer element"}
+					</p>
+				</div>
+				<Button
+					onClick={onDismissSelection}
+					size="icon-xs"
+					type="button"
+					variant="ghost"
+				>
+					<span className="sr-only">Dismiss annotation</span>
+					<XIcon className="size-3.5" />
+				</Button>
+			</div>
+			<Textarea
+				className="min-h-20 resize-none"
+				onChange={(event) => setCommentDraft(event.currentTarget.value)}
+				placeholder="Describe what should change"
+				value={commentDraft}
+			/>
+			<div className="mt-3 flex items-center justify-between gap-2">
+				<p className="line-clamp-2 text-text-subtle text-xs">
+					{pendingSelection.source.filePath
+						? `${pendingSelection.source.filePath}${pendingSelection.source.lineNumber ? `:${pendingSelection.source.lineNumber}` : ""}`
+						: "Viewer-surface annotation"}
+				</p>
+				<div className="flex items-center gap-2">
+					<Button
+						onClick={onDismissSelection}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						Cancel
+					</Button>
+					<Button
+						disabled={commentDraft.trim().length === 0}
+						onClick={handleSubmitComment}
+						size="sm"
+						type="button"
+					>
+						Add note
+					</Button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export function FutureChatArtifactPanel({
+	annotations = EMPTY_ANNOTATIONS,
+	contentRef,
+	cursorMode = false,
 	document,
 	draftContent,
 	isStreamingArtifact = false,
 	mode,
+	onAddComment,
 	onClose,
+	onCursorModeChange,
 	onDelete,
 	onDraftChange,
+	onDismissSelection,
 	onModeChange,
+	onRemoveAnnotation,
 	onSave,
 	onVersionChange,
+	pendingSelection = null,
 	selectedVersionId,
 }: Readonly<FutureChatArtifactPanelProps>) {
 	const selectedVersion =
@@ -78,6 +214,12 @@ export function FutureChatArtifactPanel({
 			version: selectedVersion,
 		})
 		: `${document.kind} artifact`;
+	const showAnnotateToggle = process.env.NODE_ENV === "development";
+	const isAnnotateDisabled =
+		!showAnnotateToggle
+		|| isStreamingArtifact
+		|| mode !== "preview"
+		|| onCursorModeChange === undefined;
 
 	return (
 		<div className="flex h-full min-h-0 w-full min-w-0 flex-col bg-background">
@@ -143,6 +285,25 @@ export function FutureChatArtifactPanel({
 						<PencilLineIcon className="size-4" />
 						{mode === "preview" ? "Edit" : "Preview"}
 					</Button>
+					{showAnnotateToggle ? (
+						<Button
+							aria-pressed={cursorMode}
+							disabled={isAnnotateDisabled}
+							onClick={() => onCursorModeChange?.(!cursorMode)}
+							size="sm"
+							title="Dev-only annotation mode for the current artifact viewer surface."
+							type="button"
+							variant={cursorMode ? "default" : "outline"}
+						>
+							<MessageSquarePlusIcon className="size-4" />
+							Annotate
+							{annotations.length > 0 ? (
+								<span className="rounded-full bg-bg-neutral px-1.5 py-0 text-[11px] leading-5 text-current">
+									{annotations.length}
+								</span>
+							) : null}
+						</Button>
+					) : null}
 					<Button
 						onClick={() => void navigator.clipboard.writeText(previewContent)}
 						size="icon-sm"
@@ -186,11 +347,15 @@ export function FutureChatArtifactPanel({
 								</div>
 							</>
 						) : (
-							<div className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
+							<div
+								ref={contentRef}
+								className="relative min-h-0 flex-1 overflow-auto p-4 md:p-6"
+							>
 								{document.kind === "code" ? (
 									<CodeBlock
 										code={previewContent}
 										language={inferFutureChatCodeLanguage(previewContent)}
+										showLineNumbers
 									/>
 								) : document.kind === "image" && /^https?:|^data:image\//u.test(previewContent) ? (
 									<div className="flex h-full min-h-[320px] items-center justify-center rounded-2xl border border-border bg-surface-raised p-4">
@@ -208,6 +373,39 @@ export function FutureChatArtifactPanel({
 										{previewContent}
 									</MessageResponse>
 								)}
+
+								{mode === "preview" ? (
+									<div
+										className="pointer-events-none absolute inset-0 z-10"
+										data-artifact-annotation-ui=""
+									>
+										{annotations.map((annotation) => (
+											<Button
+												key={annotation.id}
+												className={cn(
+													"pointer-events-auto absolute size-7 rounded-full border border-border-selected bg-background px-0 text-[11px] font-semibold text-text shadow-sm",
+												)}
+												onClick={() => onRemoveAnnotation?.(annotation.id)}
+												size="icon-sm"
+												style={getAnnotationPinStyle(annotation.position)}
+												title={`Remove annotation #${annotation.index}: ${annotation.comment}`}
+												type="button"
+												variant="outline"
+											>
+												{annotation.index}
+											</Button>
+										))}
+
+										{pendingSelection ? (
+											<PendingAnnotationPopover
+												key={`${pendingSelection.position.left}-${pendingSelection.position.top}-${pendingSelection.anchor.selector ?? "selection"}`}
+												onAddComment={onAddComment}
+												onDismissSelection={onDismissSelection}
+												pendingSelection={pendingSelection}
+											/>
+										) : null}
+									</div>
+								) : null}
 							</div>
 						)}
 					</div>

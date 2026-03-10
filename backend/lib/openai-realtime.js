@@ -17,6 +17,13 @@ const { getRealtimeConfig, getAuthToken, getEnvVars } = require("./ai-gateway-he
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
+const ARTIFACT_ANNOTATION_CONTEXT_INSTRUCTIONS = [
+	"When artifact annotations are provided as system context, treat them as viewer-selected notes from the user.",
+	"Reference annotation numbers when helpful.",
+	"Use the annotation text together with the artifact context and the user's spoken request.",
+	"If steering an active artifact, preserve the annotation intent while applying the new changes.",
+].join(" ");
+
 const ROVO_SYSTEM_INSTRUCTIONS = `You are Rovo, a collaborative AI voice assistant that bridges voice conversation with RovoDev, Atlassian's AI workspace assistant.
 
 ## Your role
@@ -47,7 +54,17 @@ When results are being generated and the user gives modification instructions ("
 ## Ending the session
 When the user wants to end the voice conversation (e.g. "stop", "goodbye", "end call", "shut down", "that's all", "I'm done"), say a brief goodbye and call the end_voice_session function.
 
-Keep responses concise and natural — you're in a voice conversation, not writing an essay.`;
+Keep responses concise and natural — you're in a voice conversation, not writing an essay.
+
+${ARTIFACT_ANNOTATION_CONTEXT_INSTRUCTIONS}`;
+
+const SUPPORTED_CONTEXT_TYPES = new Set([
+	"initial_context",
+	"thread_context",
+	"artifact_complete",
+	"thread_message",
+	"artifact_annotations",
+]);
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
 
@@ -392,34 +409,30 @@ class RealtimeSession {
 		const contextType = data.type || data.contextType;
 		const content = data.content || data.summary;
 
-		switch (contextType) {
-			case "artifact_complete":
-			case "thread_message":
-			case "initial_context": {
-				const text =
-					typeof content === "string"
-						? content
-						: JSON.stringify(content);
-
-				this._sendToOpenAI({
-					type: OPENAI_EVENT.CONVERSATION_ITEM_CREATE,
-					item: {
-						type: "message",
-						role: "system",
-						content: [
-							{
-								type: "input_text",
-								text,
-							},
-						],
-					},
-				});
-				this._log("REALTIME", `Context injected: ${contextType}`);
-				break;
-			}
-			default:
-				this._log("REALTIME", `Unknown context_inject contextType: ${contextType}`);
+		if (!SUPPORTED_CONTEXT_TYPES.has(contextType)) {
+			this._log("REALTIME", `Unknown context_inject contextType: ${contextType}`);
+			return;
 		}
+
+		const text =
+			typeof content === "string"
+				? content
+				: JSON.stringify(content);
+
+		this._sendToOpenAI({
+			type: OPENAI_EVENT.CONVERSATION_ITEM_CREATE,
+			item: {
+				type: "message",
+				role: "system",
+				content: [
+					{
+						type: "input_text",
+						text,
+					},
+				],
+			},
+		});
+		this._log("REALTIME", `Context injected: ${contextType}`);
 	}
 
 	// ── Response creation ─────────────────────────────────────────────────
