@@ -25,7 +25,6 @@ interface PlanPreviewModalProps {
 	title: string;
 	description: string;
 	tasks: PlanTask[];
-	agents: string[];
 	onBuild?: () => void;
 }
 
@@ -35,7 +34,6 @@ export function PlanPreviewModal({
 	title,
 	description,
 	tasks,
-	agents,
 	onBuild,
 }: Readonly<PlanPreviewModalProps>) {
 	const { agentCount } = useMakeState();
@@ -61,7 +59,6 @@ export function PlanPreviewModal({
 					<PlanTabContent
 						description={description}
 						tasks={tasks}
-						agents={agents}
 						revealedCount={visibleTasks.length}
 						tabsListClassName="mx-0"
 						summaryTabContentClassName="px-0 pb-0"
@@ -80,7 +77,7 @@ export function PlanPreviewModal({
 						<div className="flex flex-col gap-0.5">
 							<span className="text-xs leading-4 text-text-subtlest">{getAgentBuildLabel(agentCount)}</span>
 							<Select value={agentMultiplierDisplay} onValueChange={(value) => setAgentCount(parseAgentMultiplier(value ?? "1x"))}>
-								<SelectTrigger variant="none" size="sm" className="!h-auto gap-1 !p-0 text-xs leading-4 font-medium text-text">
+								<SelectTrigger aria-label="Select agent count" variant="none" size="sm" className="!h-auto gap-1 !p-0 text-xs leading-4 font-medium text-text">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent alignItemWithTrigger={false} align="start" className="min-w-0">

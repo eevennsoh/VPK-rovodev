@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	Plan,
 	PlanAvatar,
@@ -10,7 +9,7 @@ import {
 	PlanDescription,
 	PlanFooter,
 	PlanHeader,
-	PlanSummary,
+	PlanTabContent,
 	PlanTaskItem,
 	PlanTaskList,
 	PlanTitle,
@@ -52,25 +51,6 @@ function resolveBlockedByLabels(task: PlanTask): string[] {
 		.filter((label): label is string => label !== null);
 }
 
-function resolveBlockedByText(task: PlanTask): string | undefined {
-	if (task.blockedBy.length === 0) {
-		return undefined;
-	}
-
-	const blockedTags = task.blockedBy
-		.map((blockedById) => {
-			const taskIndex = PLAN_TASKS.findIndex((t) => t.id === blockedById);
-			return taskIndex >= 0 ? `#${taskIndex + 1}` : null;
-		})
-		.filter((tag): tag is string => tag !== null);
-
-	if (blockedTags.length === 0) {
-		return undefined;
-	}
-
-	return `Blocked by ${blockedTags.join(", ")}`;
-}
-
 function PlanDemoHeader() {
 	return (
 		<PlanHeader
@@ -104,7 +84,7 @@ function PlanDemoFooter() {
 				<div className="flex flex-col gap-0.5">
 					<span className="text-xs leading-4 text-text-subtlest">{`Build with ${agentCount} ${agentCount === "1" ? "agent" : "agents"}`}</span>
 					<Select value={agentCount} onValueChange={(v) => { if (v) setAgentCount(v); }}>
-						<SelectTrigger variant="none" size="sm" className="!h-auto gap-1 !p-0 text-xs leading-4 font-medium text-text">
+						<SelectTrigger aria-label="Select agent count" variant="none" size="sm" className="!h-auto gap-1 !p-0 text-xs leading-4 font-medium text-text">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent alignItemWithTrigger={false} align="start" className="min-w-0">
@@ -156,24 +136,10 @@ export function PlanDemoSummaryAndTasks() {
 			<PlanDemoHeader />
 
 			<PlanContent className="px-0 pb-0 pt-4">
-				<Tabs defaultValue="summary" className="gap-4">
-					<TabsList variant="line" className="h-10 w-auto justify-start mx-4">
-						<TabsTrigger value="summary" className="flex-none">Summary</TabsTrigger>
-						<TabsTrigger value="tasks" className="flex-none">Tasks ({PLAN_TASKS.length})</TabsTrigger>
-					</TabsList>
-
-					<TabsContent value="summary" className="px-4 pb-4">
-						<PlanSummary summary={PLAN_SUMMARY} />
-					</TabsContent>
-
-					<TabsContent value="tasks" className="px-3 pb-4">
-						<PlanTaskList showMoreLabel="Show more">
-							{PLAN_TASKS.map((task, index) => (
-								<PlanTaskItem key={task.id} index={index + 1} label={task.label} blockedByText={resolveBlockedByText(task)} />
-							))}
-						</PlanTaskList>
-					</TabsContent>
-				</Tabs>
+				<PlanTabContent
+					description={PLAN_SUMMARY}
+					tasks={PLAN_TASKS}
+				/>
 
 				<PlanDemoFooter />
 			</PlanContent>
@@ -182,5 +148,5 @@ export function PlanDemoSummaryAndTasks() {
 }
 
 export default function PlanDemo() {
-	return <PlanDemoTasksOnly />;
+	return <PlanDemoSummaryAndTasks />;
 }

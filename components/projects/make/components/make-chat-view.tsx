@@ -320,7 +320,6 @@ export default function MakeChatView() {
 						enrichedTitle={isLatest ? enrichedPlanTitle?.title : undefined}
 						enrichedDescription={isLatest ? enrichedPlanTitle?.description : undefined}
 						tasks={parsedPlanWidget.tasks}
-						agents={parsedPlanWidget.agents}
 						isStreaming={isPlanWidgetStreaming}
 						collapsed={isCollapsed}
 						onBuild={() => onBuildPlan(parsedPlanWidget)}
@@ -446,7 +445,6 @@ export default function MakeChatView() {
 				title={previewModal.title}
 				description={previewModal.description}
 				tasks={previewModal.tasks}
-				agents={previewModal.agents}
 				onBuild={() => {
 					onBuildPlan({
 						title: previewModal.title,

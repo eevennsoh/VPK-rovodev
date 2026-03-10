@@ -506,6 +506,15 @@ async function streamGoogleGatewayManualSse({
 	return { text: fullText };
 }
 
+function getRealtimeConfig() {
+	return {
+		apiKey: process.env.OPENAI_REALTIME_API_KEY || "",
+		model: process.env.OPENAI_REALTIME_MODEL || "gpt-4o-realtime-preview-2025-07-29",
+		wsUrl: process.env.OPENAI_REALTIME_WS_URL || "wss://api.openai.com/v1/realtime",
+		voice: process.env.OPENAI_REALTIME_VOICE || "alloy",
+	};
+}
+
 module.exports = {
 	getEnvVars,
 	getAuthToken,
@@ -518,4 +527,5 @@ module.exports = {
 	extractGatewayTextDelta,
 	streamBedrockGatewayManualSse,
 	streamGoogleGatewayManualSse,
+	getRealtimeConfig,
 };

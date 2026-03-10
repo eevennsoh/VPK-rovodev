@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { VoiceButton } from "@/components/ui-audio/voice-button";
 import type { VoiceButtonState } from "@/components/ui-audio/voice-button";
 import { cn } from "@/lib/utils";
-import { MicIcon, PaperclipIcon } from "lucide-react";
+import { AudioWaveformIcon, MicIcon, PaperclipIcon } from "lucide-react";
 import { useCallback } from "react";
 import { PendingAttachments } from "./pending-attachments";
 
@@ -49,7 +49,9 @@ interface FutureChatComposerProps {
 		files: FileUIPart[];
 	}) => Promise<void>;
 	onSuggestedAction: (text: string) => Promise<void>;
+	onToggleRealtimeVoice?: () => void;
 	onToggleVoice?: () => void;
+	realtimeVoiceActive?: boolean;
 	showSuggestedActions?: boolean;
 	status: ChatStatus;
 	voiceState?: VoiceButtonState;
@@ -89,7 +91,9 @@ function FutureChatComposerInner({
 	onStop,
 	onSubmit,
 	onSuggestedAction,
+	onToggleRealtimeVoice,
 	onToggleVoice,
+	realtimeVoiceActive = false,
 	showSuggestedActions = false,
 	status,
 	voiceState = "idle",
@@ -163,6 +167,24 @@ function FutureChatComposerInner({
 								state={voiceState}
 								variant="ghost"
 							/>
+						) : null}
+
+						{onToggleRealtimeVoice ? (
+							<Button
+								aria-label="Live voice conversation"
+								aria-pressed={realtimeVoiceActive}
+								className={cn(
+									"aspect-square h-8 rounded-full p-1 transition-colors",
+									realtimeVoiceActive
+										? "bg-bg-selected text-text-selected hover:bg-bg-selected-hovered"
+										: "hover:bg-accent",
+								)}
+								onClick={onToggleRealtimeVoice}
+								type="button"
+								variant="ghost"
+							>
+								<AudioWaveformIcon className="size-4" />
+							</Button>
 						) : null}
 					</PromptInputTools>
 

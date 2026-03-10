@@ -256,7 +256,7 @@ export interface FutureChatHookResult {
 	sidebarOpen: boolean;
 	status: ChatStatus;
 	stop: () => Promise<void>;
-	submitPrompt: (payload: { text: string; files: FileUIPart[] }) => Promise<void>;
+	submitPrompt: (payload: { text: string; files: FileUIPart[]; contextDescription?: string }) => Promise<void>;
 	suggestedPrompt: (text: string) => Promise<void>;
 	toggleVoiceMode: () => void;
 	pendingArtifactResult: FutureChatPendingArtifactResult | null;
@@ -992,9 +992,11 @@ export function useFutureChat({
 		async ({
 			text,
 			files,
+			contextDescription,
 		}: {
 			text: string;
 			files: FileUIPart[];
+			contextDescription?: string;
 		}) => {
 			setInputError(null);
 			const trimmedText = text.trim();
@@ -1020,6 +1022,7 @@ export function useFutureChat({
 					body: {
 						id: threadId,
 						artifactContext: resolvedArtifactContext ?? undefined,
+						contextDescription,
 					},
 				});
 			} catch (error) {

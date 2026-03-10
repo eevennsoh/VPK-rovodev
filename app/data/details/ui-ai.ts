@@ -748,14 +748,10 @@ import {
   PlanTitle,
   PlanDescription,
   PlanContent,
-  PlanSummary,
-  PlanAgentBar,
-  PlanTaskList,
-  PlanTaskItem,
+  PlanTabContent,
   PlanFooter,
 } from "@/components/ui-ai/plan";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 <Plan open={isOpen} onOpenChange={setIsOpen}>
   <PlanHeader
@@ -772,22 +768,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
     }
   />
   <PlanContent className="pb-0">
-    <Tabs defaultValue="summary" className="gap-0">
-      <TabsList variant="line" className="h-10 w-full justify-center border-b border-border px-4">
-        <TabsTrigger value="summary">Summary</TabsTrigger>
-        <TabsTrigger value="tasks">Tasks (4)</TabsTrigger>
-      </TabsList>
-      <TabsContent value="summary" className="px-4 pt-4 pb-5">
-        <PlanSummary summary={planSummaryMarkdown} />
-      </TabsContent>
-      <TabsContent value="tasks" className="px-3 pt-4 pb-5">
-        <PlanAgentBar agents={["Strategist", "Copywriter"]} className="mb-2" />
-        <PlanTaskList>
-          <PlanTaskItem index={1} label="Set up the database schema" agent="Strategist" />
-          <PlanTaskItem index={2} label="Implement the API endpoints" blockedByText="Blocked by #1" agent="Copywriter" />
-        </PlanTaskList>
-      </TabsContent>
-    </Tabs>
+    <PlanTabContent
+      description={planSummaryMarkdown}
+      tasks={[
+        { id: "task-1", label: "Set up the database schema", blockedBy: [], agent: "Strategist" },
+        { id: "task-2", label: "Implement the API endpoints", blockedBy: ["task-1"], agent: "Copywriter" },
+      ]}
+    />
     <PlanFooter className="justify-end gap-2">
       <Button variant="outline">Open preview</Button>
       <Button>Build</Button>
@@ -815,6 +802,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 				{ name: "PlanAction", description: "Legacy action slot used by custom headers." },
 				{ name: "PlanChevronTrigger", description: "Legacy chevron toggle button for custom plan headers." },
 				{ name: "PlanContent", description: "Collapsible content area." },
+				{ name: "PlanTabContent", description: "Built-in make-style tabbed plan body with Summary and Tasks navigation. Accepts `description`, `tasks`, and optional layout overrides." },
 				{ name: "PlanSummary", description: "Markdown summary renderer with collapsed overflow treatment. Accepts `summary`, optional `emptyMessage`, and optional `showMoreLabel` props." },
 				{ name: "PlanAgentBar", description: "Agent count row with people icon. Accepts `agents` string array." },
 				{ name: "PlanTaskList", description: "Ordered list with overflow detection and \"Show more\" button. Accepts optional `showMoreLabel`; expansion state is shared with `PlanSummary`." },
@@ -823,8 +811,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 				{ name: "PlanFooter", description: "Bottom section for actions." },
 			],
 			examples: [
-				{ title: "Tasks only", description: "Classic plan card with task list content only.", demoSlug: "plan-demo-tasks-only" },
 				{ title: "Summary + tasks", description: "Tabbed plan card variant with markdown summary and task list tabs.", demoSlug: "plan-demo-summary-and-tasks" },
+				{ title: "Tasks only", description: "Classic plan card with task list content only.", demoSlug: "plan-demo-tasks-only" },
 			],
 		},
 

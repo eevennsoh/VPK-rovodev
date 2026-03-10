@@ -341,9 +341,146 @@ function resolveSmartAudioVoiceInput({
 	};
 }
 
+// ─── Voice intent classification (realtime live voice mode) ───────────────────
+
+const VOICE_INTENT = {
+	CHAT: "CHAT",
+	NEW_TASK: "NEW_TASK",
+	STEER: "STEER",
+};
+
+const VOICE_INTENT_CLASSIFIER_SYSTEM = `You classify user voice utterances into exactly one intent.
+
+Respond with a JSON object: { "intent": "<INTENT>" }
+
+Intents:
+- CHAT — casual conversation, greetings, questions about general knowledge, small talk, or anything that does NOT request the AI to build, create, generate, modify, update, fix, or change a software artifact or work product.
+- NEW_TASK — the user is requesting the AI to build, create, generate, design, plan, write, make, or produce something actionable (a component, dashboard, page, feature, artifact, code, document, etc.).
+- STEER — the user wants to amend, modify, redirect, or change something that is CURRENTLY being generated. This ONLY applies when generation is in progress. If nothing is being generated, classify as NEW_TASK instead.
+
+Rules:
+- If the user says something like "make it darker", "add a chart", "change the color" while generation is in progress, that is STEER.
+- If the user says "build me a dashboard", "create a login page", "make a kanban board", that is NEW_TASK.
+- If the user says "hello", "what time is it?", "tell me a joke", "thanks", that is CHAT.
+- When in doubt between CHAT and NEW_TASK, prefer NEW_TASK for anything that sounds like a work request.
+- When in doubt between NEW_TASK and STEER, prefer STEER only if generation is currently in progress AND the utterance clearly references or modifies the current work.`;
+
+function buildVoiceIntentClassifierPrompt({
+	transcript,
+	isGenerating,
+	currentGenerationContext,
+	recentThreadSummary,
+}) {
+	const parts = [];
+
+	parts.push(`User utterance: "${transcript}"`);
+	parts.push(`Generation in progress: ${isGenerating ? "YES" : "NO"}`);
+
+	if (isGenerating && currentGenerationContext) {
+		parts.push(`Currently generating: ${currentGenerationContext}`);
+	}
+
+	if (recentThreadSummary) {
+		parts.push(`Recent thread context: ${recentThreadSummary}`);
+	}
+
+	parts.push("");
+	parts.push("Classify the intent. Respond with JSON only: { \"intent\": \"CHAT\" | \"NEW_TASK\" | \"STEER\" }");
+
+	return parts.join("\n");
+}
+
+function parseVoiceIntentResult(text) {
+	const trimmed = (text || "").trim();
+
+	// Try to parse JSON directly
+	try {
+		const parsed = JSON.parse(trimmed);
+		if (parsed && typeof parsed.intent === "string") {
+			const intent = parsed.intent.toUpperCase();
+			if (intent in VOICE_INTENT) {
+				return { intent };
+			}
+		}
+	} catch {
+		// Fall through to regex extraction
+	}
+
+	// Extract from markdown code blocks or partial JSON
+	const jsonMatch = trimmed.match(/\{[^}]*"intent"\s*:\s*"([^"]+)"[^}]*\}/);
+	if (jsonMatch && jsonMatch[1]) {
+		const intent = jsonMatch[1].toUpperCase();
+		if (intent in VOICE_INTENT) {
+			return { intent };
+		}
+	}
+
+	// Last resort: look for bare intent keywords
+	const upperText = trimmed.toUpperCase();
+	if (upperText.includes("STEER")) {
+		return { intent: VOICE_INTENT.STEER };
+	}
+	if (upperText.includes("NEW_TASK")) {
+		return { intent: VOICE_INTENT.NEW_TASK };
+	}
+
+	// Default to CHAT for safety (no action taken)
+	return { intent: VOICE_INTENT.CHAT };
+}
+
+/**
+ * Classify a voice utterance into CHAT, NEW_TASK, or STEER.
+ *
+ * @param {object} params
+ * @param {string} params.transcript — the user's speech transcript
+ * @param {boolean} params.isGenerating — whether RovoDev is currently generating
+ * @param {string} [params.currentGenerationContext] — what's being generated
+ * @param {string} [params.recentThreadSummary] — recent thread messages
+ * @param {Function} params.generateText — LLM text generation function
+ * @param {AbortSignal} [params.signal] — abort signal
+ * @returns {Promise<{ intent: "CHAT" | "NEW_TASK" | "STEER" }>}
+ */
+async function classifyVoiceIntent({
+	transcript,
+	isGenerating = false,
+	currentGenerationContext,
+	recentThreadSummary,
+	generateText,
+	signal,
+}) {
+	if (!transcript || typeof transcript !== "string" || !transcript.trim()) {
+		return { intent: VOICE_INTENT.CHAT };
+	}
+
+	const prompt = buildVoiceIntentClassifierPrompt({
+		transcript,
+		isGenerating,
+		currentGenerationContext,
+		recentThreadSummary,
+	});
+
+	try {
+		const text = await generateText({
+			system: VOICE_INTENT_CLASSIFIER_SYSTEM,
+			prompt,
+			maxOutputTokens: 50,
+			temperature: 0.1,
+			signal,
+		});
+
+		return parseVoiceIntentResult(text);
+	} catch (err) {
+		console.warn("[classifyVoiceIntent] Classification failed, defaulting to CHAT:", err?.message);
+		return { intent: VOICE_INTENT.CHAT };
+	}
+}
+
 module.exports = {
 	isAudioRequestPrompt,
 	resolveSmartAudioVoiceInput,
 	stripConversationalFiller,
 	toSpeechInputText,
+	classifyVoiceIntent,
+	parseVoiceIntentResult,
+	VOICE_INTENT,
 };

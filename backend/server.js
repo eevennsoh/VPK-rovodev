@@ -14,6 +14,7 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const { Readable } = require("node:stream");
+const WebSocket = require("ws");
 const { createUIMessageStream, pipeUIMessageStreamToResponse } = require("ai");
 const { createRunManager: createMakeRunManager } = require("./make/make-runs");
 const { createFutureChatThreadManager } = require("./lib/future-chat-threads");
@@ -121,6 +122,7 @@ const {
 	resolveGatewayUrl,
 	streamBedrockGatewayManualSse,
 	streamGoogleGatewayManualSse,
+	getRealtimeConfig,
 } = require("./lib/ai-gateway-helpers");
 const { synthesizeSound } = require("./lib/sound-generation");
 const { transcribeAudio } = require("./lib/speech-transcription");
@@ -135,7 +137,9 @@ const {
 	isAudioRequestPrompt,
 	resolveSmartAudioVoiceInput,
 	stripConversationalFiller,
+	classifyVoiceIntent,
 } = require("./lib/smart-audio-routing");
+const { RealtimeSession } = require("./lib/openai-realtime");
 const {
 	isAudioContextClarificationSession,
 	resolveAudioContextVoiceInputFromClarification,
@@ -9280,6 +9284,47 @@ app.post("/api/speech-transcription", async (req, res) => {
 	}
 });
 
+app.post("/api/realtime/classify-intent", async (req, res) => {
+	console.warn("[REALTIME] DEPRECATED: /api/realtime/classify-intent — use delegate_to_rovo function calling instead");
+	try {
+		const {
+			transcript,
+			isGenerating,
+			currentGenerationContext,
+			recentThreadSummary,
+		} = req.body || {};
+
+		if (!transcript || typeof transcript !== "string" || !transcript.trim()) {
+			return res.status(400).json({ error: "A transcript string is required" });
+		}
+
+		debugLog("REALTIME", `Classifying voice intent: "${transcript.slice(0, 100)}"`);
+
+		const result = await classifyVoiceIntent({
+			transcript,
+			isGenerating: Boolean(isGenerating),
+			currentGenerationContext:
+				typeof currentGenerationContext === "string"
+					? currentGenerationContext
+					: undefined,
+			recentThreadSummary:
+				typeof recentThreadSummary === "string"
+					? recentThreadSummary
+					: undefined,
+			generateText: (opts) => aiGatewayProvider.generateText(opts),
+		});
+
+		debugLog("REALTIME", `Voice intent classified: ${result.intent}`);
+		return res.json(result);
+	} catch (error) {
+		console.error("[REALTIME] classify-intent error:", error);
+		return res.status(500).json({
+			error: "Failed to classify voice intent",
+			intent: "CHAT",
+		});
+	}
+});
+
 app.get("/api/image-proxy", async (req, res) => {
 	const rawSrc = Array.isArray(req.query.src) ? req.query.src[0] : req.query.src;
 	const { targetUrl, error } = parseImageProxyTarget(rawSrc);
@@ -11166,6 +11211,18 @@ const server = app.listen(port, "0.0.0.0", async () => {
 	console.log(
 		`  AI_GATEWAY_ALLOWED_USE_CASES: ${AI_GATEWAY_ALLOWED_USE_CASES.join(", ")}`
 	);
+
+	const realtimeConfig = getRealtimeConfig();
+	const realtimeDirectKey = Boolean(realtimeConfig.apiKey);
+	const realtimeViaGateway = !realtimeDirectKey && Boolean(process.env.ASAP_PRIVATE_KEY);
+	const realtimeConfigured = realtimeDirectKey || realtimeViaGateway;
+	console.log(`\n🎙️ OpenAI Realtime: ${realtimeConfigured ? "CONFIGURED" : "NOT CONFIGURED"}${realtimeViaGateway ? " (via AI Gateway)" : ""}`);
+	if (realtimeConfigured) {
+		console.log(`  OPENAI_REALTIME_MODEL: ${realtimeConfig.model}`);
+		console.log(`  OPENAI_REALTIME_WS_URL: ${realtimeConfig.wsUrl}`);
+		console.log(`  OPENAI_REALTIME_VOICE: ${realtimeConfig.voice}`);
+	}
+
 	console.log(`${"=".repeat(60)}\n`);
 
 	if (DEBUG) {
@@ -11179,6 +11236,52 @@ const server = app.listen(port, "0.0.0.0", async () => {
 server.on("error", (err) => {
 	console.error("Server error:", err);
 	process.exit(1);
+});
+
+// ─── WebSocket upgrade handler for OpenAI Realtime relay ─────────────────────
+
+const realtimeWss = new WebSocket.Server({ noServer: true });
+
+server.on("upgrade", (request, socket, head) => {
+	const { url } = request;
+	if (url !== "/api/realtime/audio-conversation") {
+		socket.destroy();
+		return;
+	}
+
+	realtimeWss.handleUpgrade(request, socket, head, (ws) => {
+		realtimeWss.emit("connection", ws, request);
+	});
+});
+
+realtimeWss.on("connection", (ws) => {
+	console.log("[REALTIME] Client connected to /api/realtime/audio-conversation");
+
+	const session = new RealtimeSession(ws, {
+		onLog: (section, message) => {
+			if (DEBUG) {
+				console.log(`[DEBUG][${section}] ${message}`);
+			} else {
+				console.log(`[${section}] ${message}`);
+			}
+		},
+	});
+
+	session.connect();
+
+	ws.on("message", (data) => {
+		session.handleClientMessage(data.toString());
+	});
+
+	ws.on("close", () => {
+		console.log("[REALTIME] Client disconnected");
+		session.close();
+	});
+
+	ws.on("error", (err) => {
+		console.error("[REALTIME] Client WS error:", err.message);
+		session.close();
+	});
 });
 
 // Handle uncaught exceptions

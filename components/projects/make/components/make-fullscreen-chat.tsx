@@ -401,7 +401,6 @@ export function MakeFullscreenChat() {
 						enrichedTitle={isLatest ? enrichedPlanTitle?.title : undefined}
 						enrichedDescription={isLatest ? enrichedPlanTitle?.description : undefined}
 						tasks={parsedPlanWidget.tasks}
-						agents={parsedPlanWidget.agents}
 						isStreaming={isPlanWidgetStreaming}
 						collapsed={isCollapsed}
 						onBuild={() => handleBuild(parsedPlanWidget, "chat")}
@@ -693,7 +692,6 @@ export function MakeFullscreenChat() {
 				title={previewModal.title}
 				description={previewModal.description}
 				tasks={previewModal.tasks}
-				agents={previewModal.agents}
 				onBuild={() => {
 					handleBuild(
 						{
