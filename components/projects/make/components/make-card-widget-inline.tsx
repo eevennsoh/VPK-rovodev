@@ -63,7 +63,6 @@ function CollapsedPlanBubble({ title, emoji, onExpand }: Readonly<CollapsedPlanB
 interface MakeCardWidgetInlineProps {
 	title: string;
 	tasks: PlanTask[];
-	agents?: string[];
 	description?: string;
 	enrichedTitle?: string;
 	enrichedDescription?: string;
@@ -76,7 +75,6 @@ interface MakeCardWidgetInlineProps {
 export function MakeCardWidgetInline({
 	title,
 	tasks,
-	agents = [],
 	description,
 	enrichedTitle,
 	enrichedDescription,
@@ -143,7 +141,6 @@ export function MakeCardWidgetInline({
 					<PlanTabContent
 						description={description ?? ""}
 						tasks={tasks}
-						agents={agents}
 						revealedCount={revealedCount}
 					/>
 
@@ -159,7 +156,7 @@ export function MakeCardWidgetInline({
 							<div className="flex flex-col gap-0.5">
 								<span className="text-xs leading-4 text-text-subtlest">{getAgentBuildLabel(agentCount)}</span>
 								<Select value={agentMultiplierDisplay} onValueChange={(value) => setAgentCount(parseAgentMultiplier(value ?? "1x"))}>
-									<SelectTrigger variant="none" size="sm" className="!h-auto gap-1 !p-0 text-xs leading-4 font-medium text-text">
+									<SelectTrigger aria-label="Select agent count" variant="none" size="sm" className="!h-auto gap-1 !p-0 text-xs leading-4 font-medium text-text">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent alignItemWithTrigger={false} align="start" className="min-w-0">

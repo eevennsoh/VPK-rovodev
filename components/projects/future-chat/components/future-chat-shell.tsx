@@ -8,13 +8,15 @@ import { FutureChatComposer } from "@/components/projects/future-chat/components
 import { FutureChatHeader } from "@/components/projects/future-chat/components/future-chat-header";
 import { FutureChatMessages } from "@/components/projects/future-chat/components/future-chat-messages";
 import { FutureChatSidebar } from "@/components/projects/future-chat/components/future-chat-sidebar";
-import {
-	FutureChatSteeringLane,
-	type FutureChatSteeringPhase,
-} from "@/components/projects/future-chat/components/future-chat-steering-lane";
+import { type FutureChatSteeringPhase } from "@/components/projects/future-chat/components/future-chat-steering-lane";
+import { RealtimeVoiceBar } from "@/components/projects/future-chat/components/realtime-voice-bar";
 import { useFutureChat } from "@/components/projects/future-chat/hooks/use-future-chat";
 import { getFutureChatShellLayout } from "@/components/projects/future-chat/lib/future-chat-shell-layout";
 import { useLiveVoice } from "@/components/projects/future-chat/hooks/use-live-voice";
+import {
+	type DelegationRequest,
+	useRealtimeVoice,
+} from "@/components/projects/future-chat/hooks/use-realtime-voice";
 import type { VoiceButtonState } from "@/components/ui-audio/voice-button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
@@ -331,6 +333,84 @@ export function FutureChatShell({
 	const voiceButtonState: VoiceButtonState =
 		voice.state === "speaking" ? "processing" : voice.state;
 
+	// --- Realtime voice (live conversation mode) ---
+	const realtime = useRealtimeVoice({
+		onDelegateToRovo: useCallback(
+			async (request: DelegationRequest) => {
+				const c = chatRef.current;
+				const contextDescription = request.conversationSummary
+					? `[Voice context] ${request.conversationSummary}`
+					: undefined;
+
+				if (c.isStreaming && c.isArtifactOpen) {
+					// Steer active artifact generation
+					await c.applyVoiceSteer({ text: request.prompt });
+				} else {
+					if (c.isStreaming) {
+						await c.interruptActiveTurn({ source: "voice-barge-in" });
+					}
+					await c.submitPrompt({
+						text: request.prompt,
+						files: [],
+						contextDescription,
+					});
+				}
+			},
+			[],
+		),
+		chatMessages: chat.messages,
+		isGenerating: chat.isStreaming,
+	});
+
+	const isRealtimeActive = realtime.voiceState !== "idle";
+	const wasRealtimeStreamingRef = useRef(false);
+
+	// Inject RovoDev results back into GPT session for context continuity
+	useEffect(() => {
+		if (wasRealtimeStreamingRef.current && !chat.isStreaming && isRealtimeActive) {
+			const lastAssistantMessage = [...chat.messages]
+				.reverse()
+				.find((m) => m.role === "assistant");
+			if (lastAssistantMessage) {
+				const text = getMessageText(lastAssistantMessage);
+				const artifact = getMessageArtifactResult(lastAssistantMessage);
+				const summary = artifact
+					? `RovoDev ${artifact.action === "update" ? "updated" : "created"} artifact "${artifact.title}". ${text || ""}`
+					: text || "RovoDev completed the task.";
+				realtime.injectContext({
+					type: "thread_message",
+					content: summary.slice(0, 500),
+				});
+			}
+		}
+		wasRealtimeStreamingRef.current = chat.isStreaming;
+	}, [chat.isStreaming, chat.messages, isRealtimeActive, realtime]);
+
+	// Sync realtime voice mode with the chat hook's voice mode flag
+	useEffect(() => {
+		if (isRealtimeActive !== chat.isVoiceMode && !isVoiceActive) {
+			chat.toggleVoiceMode();
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- only sync when isRealtimeActive changes
+	}, [isRealtimeActive]);
+
+	const handleToggleRealtimeVoice = useCallback(() => {
+		if (realtime.voiceState === "idle") {
+			// Stop legacy voice if active
+			if (voice.state !== "idle") {
+				pendingVoiceTranscriptRef.current = null;
+				clearSteeringState();
+				voice.stop();
+			}
+			clearSteeringState();
+			realtime.connect();
+		} else {
+			pendingVoiceTranscriptRef.current = null;
+			clearSteeringState();
+			realtime.disconnect();
+		}
+	}, [clearSteeringState, realtime, voice]);
+
 	const activeThread =
 		chat.activeThreadId
 			? chat.threads.find((thread) => thread.id === chat.activeThreadId) ?? null
@@ -532,12 +612,25 @@ export function FutureChatShell({
 					isArtifactOpen ? "max-w-none" : "max-w-4xl",
 				)}
 			>
-				{steeringState.phase !== "idle" ? (
-					<FutureChatSteeringLane
-						phase={steeringState.phase}
-						text={steeringState.text}
-					/>
-				) : null}
+				<AnimatePresence>
+					{isRealtimeActive ? (
+						<motion.div
+							animate={{ opacity: 1, height: "auto" }}
+							exit={{ opacity: 0, height: 0 }}
+							initial={{ opacity: 0, height: 0 }}
+							transition={{ type: "spring", stiffness: 400, damping: 30 }}
+						>
+							<RealtimeVoiceBar
+								currentTranscript={realtime.currentTranscript}
+								generationState={realtime.generationState}
+								micStream={realtime.micStream}
+								modelTranscript={realtime.modelTranscript}
+								onDisconnect={handleToggleRealtimeVoice}
+								voiceState={realtime.voiceState}
+							/>
+						</motion.div>
+					) : null}
+				</AnimatePresence>
 				<FutureChatComposer
 					key={chat.runtimeThreadId}
 					artifactTitle={workspaceDocument?.title ?? null}
@@ -546,7 +639,9 @@ export function FutureChatShell({
 					onStop={handleStop}
 					onSubmit={chat.submitPrompt}
 					onSuggestedAction={chat.suggestedPrompt}
+					onToggleRealtimeVoice={handleToggleRealtimeVoice}
 					onToggleVoice={handleToggleVoice}
+					realtimeVoiceActive={isRealtimeActive}
 					showSuggestedActions={!isArtifactOpen && visibleMessages.length === 0}
 					status={chat.status}
 					voiceState={voiceButtonState}

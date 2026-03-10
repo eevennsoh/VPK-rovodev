@@ -146,12 +146,25 @@ const startNext = async (port, attempt = 0, existingPortHint = null) => {
 	const nextBin = require.resolve("next/dist/bin/next");
 	let stderr = "";
 
+	// Read backend port so the frontend can connect WebSockets directly
+	const backendPortFile = path.join(process.cwd(), ".dev-backend-port");
+	let backendPort = "";
+	try {
+		backendPort = fs.readFileSync(backendPortFile, "utf8").trim();
+	} catch {
+		// Backend port file may not exist yet; will fall back to same-origin
+	}
+
 	const child = spawn(
 		process.execPath,
 		[nextBin, "dev", "--turbopack", "--port", String(port), "--hostname", "localhost"],
 		{
 			stdio: ["inherit", "inherit", "pipe"],
-			env: { ...process.env, PORT: String(port) },
+			env: {
+				...process.env,
+				PORT: String(port),
+				...(backendPort ? { NEXT_PUBLIC_BACKEND_PORT: backendPort } : {}),
+			},
 		}
 	);
 
