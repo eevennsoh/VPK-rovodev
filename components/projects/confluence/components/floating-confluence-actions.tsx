@@ -9,13 +9,19 @@ import CommentIcon from "@atlaskit/icon/core/comment";
 import InformationCircleIcon from "@atlaskit/icon/core/information-circle";
 import VideoIcon from "@atlaskit/icon/core/video";
 
-export default function FloatingConfluenceActions() {
+interface FloatingConfluenceActionsProps {
+	embedded?: boolean;
+}
+
+export default function FloatingConfluenceActions({
+	embedded = false,
+}: Readonly<FloatingConfluenceActionsProps>) {
 	const { isOpen } = useRovoChat();
 
 	return (
 		<div
 			style={{
-				position: "fixed",
+				position: embedded ? "absolute" : "fixed",
 				bottom: isOpen ? "24px" : "80px", // 24px when chat is open, otherwise 80px (24px + 48px button + 8px gap)
 				right: isOpen ? "424px" : "24px", // Move left by 400px (chat panel width) when open
 				width: "48px",

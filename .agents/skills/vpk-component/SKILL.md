@@ -51,19 +51,20 @@ For the canonical ADS-to-shadcn prop-name mapping, see `references/common-mappin
 
 Gather the ADS component's visual specs and identify the target shadcn component.
 
-1. **ADS visual reference** — Use `ads_get_components` or `ads_plan` to understand the ADS component's visual states, colors, and interaction patterns. Focus on **styling information only** — ignore ADS prop/variant naming.
-2. **shadcn source** — Use `search_items_in_registries` / `view_items_in_registries` to understand the shadcn component's existing API surface. This API is the source of truth for naming.
-3. **Library docs** — Use `resolve-library-id` + `query-docs` (context7) for latest library docs if needed.
-4. **VPK source** — Read the existing VPK component:
+1. **ADS component + token research** — Use `ads_plan` first to understand the ADS component's visual states, colors, icons, and interaction patterns. Populate every field you know with at least 2 likely search terms (for example `components: ["button", "icon button"]`, `icons: ["add", "search"]`, `tokens: ["background neutral", "space 200"]`). If the ADS component name is explicit, set `exactName: true`. Use `ads_get_components` only to confirm ambiguous component/package matches, reserve `ads_get_all_tokens` / `ads_get_all_icons` for exhaustive fallback lookups when `ads_plan` still leaves ambiguity, and use `ads_migration_guides` when the target falls into the legacy spotlight/onboarding family so parity expectations come from the official migration path. Focus on **styling information only** — ignore ADS prop/variant naming.
+2. **ADS accessibility baseline** — For any interactive or form control, fetch `ads_get_a11y_guidelines` for the closest topic (`buttons`, `forms`, `focus`, `keyboard`, `screenReaders`, or `general`) before coding. If the change adds or rewrites user-facing literal strings in an intl-aware surface, run `ads_i18n_conversion_guide` before leaving hardcoded JSX/content behind. Treat those guidelines as implementation constraints, not optional cleanup.
+3. **shadcn source** — Use `search_items_in_registries` / `view_items_in_registries` to understand the shadcn component's existing API surface. This API is the source of truth for naming.
+4. **Library docs** — Use `resolve-library-id` + `query-docs` (context7) for latest library docs if needed.
+5. **VPK source** — Read the existing VPK component:
    - UI: `components/ui/[slug].tsx`
    - AI: `components/ui-ai/[slug].tsx`
-5. **Visual specs (mandatory)** — Extract exact computed styles from the ADS component using `/agent-browser` on the live `atlassian.design` examples page. Navigate to the page, then use `npx agent-browser eval` to run `getComputedStyle()`. **Never guess values from token name lookups** — token names like `radius.small` do not reliably map to computed pixel values. See `references/visual-spec-extraction.md` for the full methodology (computed styles, inner layout extraction, typography parity). For container/layout components (ButtonGroup, FieldGroup, etc.), also extract parent-level properties: `gap`, `display`, `flexDirection`, `alignItems`.
-6. **Identity gate (required)** — Confirm which shadcn component maps to the ADS component:
+6. **Visual specs (mandatory)** — Extract exact computed styles from the ADS component using `/agent-browser` on the live `atlassian.design` examples page. Navigate to the page, then use `npx agent-browser eval` to run `getComputedStyle()`. **Never guess values from token name lookups** — token names like `radius.small` do not reliably map to computed pixel values. See `references/visual-spec-extraction.md` for the full methodology (computed styles, inner layout extraction, typography parity). For container/layout components (ButtonGroup, FieldGroup, etc.), also extract parent-level properties: `gap`, `display`, `flexDirection`, `alignItems`.
+7. **Identity gate (required)** — Confirm which shadcn component maps to the ADS component:
    - ADS Toggle (`@atlaskit/toggle`) maps to VPK `Switch` (`components/ui/switch.tsx`)
    - VPK `Toggle` (`components/ui/toggle.tsx`) is a pressed toolbar button pattern, not ADS Toggle
    - ADS InlineDialog (`@atlaskit/inline-dialog`) maps to VPK `HoverCard` (`components/ui/hover-card.tsx`) — not a separate `inline-dialog` component
    - ADS InlineMessage (`@atlaskit/inline-message`) is covered by VPK `Alert` (component) and `HoverCard` (demos) — not a separate `inline-message` component
-7. **No-equivalent gate (required)** — If there is no direct shadcn component, choose the closest shadcn/Radix API shape and enforce the canonical prop-name mapping from `references/common-mappings.md`.
+8. **No-equivalent gate (required)** — If there is no direct shadcn component, choose the closest shadcn/Radix API shape and enforce the canonical prop-name mapping from `references/common-mappings.md`.
 
 **Scope reminder:** The ADS research is for **visual styling data** (colors, radii, spacing, state tokens). The existing shadcn prop names, variant names, and size names are never replaced. For no-equivalent components, normalize API naming to shadcn conventions using the canonical mapping table.
 
@@ -405,7 +406,9 @@ For demo registration, metadata wiring, ADS equivalents setup, and component con
    - Still require `pnpm tsc --noEmit`
 3. **Scoped runtime + a11y checks (required for UI behavior changes)**:
    - Verify affected route(s) in browser snapshots
-   - Run code-level and localhost a11y checks
+   - Run `ads_analyze_a11y` on the changed component source
+   - Run `ads_analyze_localhost_a11y` on the narrowest stable docs/demo selector you can target
+   - For each material violation, run `ads_suggest_a11y_fixes` with the violation text before choosing a remediation
    - Classify findings as either regression or pre-existing/tooling noise
 
 ---
@@ -435,10 +438,16 @@ See `references/common-mappings.md` for pre-built mapping tables covering Button
 
 | Tool | Purpose |
 |---|---|
-| `ads_get_components` | List all ADS components |
-| `ads_plan` | Search component docs, props, tokens, icons |
-| `ads_get_all_tokens` | Look up design token names |
-| `ads_get_all_icons` | Find icon names for examples |
+| `ads_plan` | Primary ADS lookup for component docs, props, tokens, and icons; use 2+ search terms per populated field and `exactName` when the target is explicit |
+| `ads_get_components` | Exhaustive ADS component/package inventory when `ads_plan` returns multiple plausible matches |
+| `ads_get_a11y_guidelines` | Fetch ADS accessibility rules and examples for the relevant topic before implementation |
+| `ads_analyze_a11y` | Analyze changed component source for accessibility before browser validation |
+| `ads_analyze_localhost_a11y` | Analyze the rendered demo/docs surface at the narrowest stable selector you can target |
+| `ads_suggest_a11y_fixes` | Turn a concrete a11y violation into actionable before/after remediations |
+| `ads_migration_guides` | Use official ADS migration playbooks for spotlight/onboarding family mappings before inferring parity requirements |
+| `ads_i18n_conversion_guide` | Use when new user-facing literals land in intl-aware codepaths or lint flags hardcoded JSX strings |
+| `ads_get_all_tokens` | Exhaustive token lookup fallback when `ads_plan` is insufficient |
+| `ads_get_all_icons` | Exhaustive icon lookup fallback when `ads_plan` is insufficient |
 | `search_items_in_registries` | Find shadcn component |
 | `view_items_in_registries` | Get shadcn component details |
 | `get_item_examples_from_registries` | Get shadcn example code |
@@ -467,6 +476,9 @@ See `references/common-mappings.md` for pre-built mapping tables covering Button
 For the full 35-item checklist, see `references/checklist-full.md`.
 
 - [ ] ADS visual states researched and visual specs extracted via computed styles
+- [ ] Relevant `ads_get_a11y_guidelines` topic reviewed before coding interactive behavior
+- [ ] `ads_migration_guides` consulted when the mapping touches ADS spotlight/onboarding family components
+- [ ] `ads_i18n_conversion_guide` used when new literal UI copy lands in an intl-aware surface
 - [ ] **Computed styles extracted from live `atlassian.design` page via `/agent-browser`** — never guessed from token names
 - [ ] shadcn component identified, source read, audit template filled
 - [ ] Each variant has rest, `hover:`, `active:`, `disabled:` states with ADS tokens
@@ -478,5 +490,6 @@ For the full 35-item checklist, see `references/checklist-full.md`.
 - [ ] **No prop names, variant values, size values, or sub-component names were renamed**
 - [ ] Demo files created, registered in registry, and examples added to detail entry
 - [ ] `adsUrl` and ADS equivalents entry set
+- [ ] Material a11y findings validated with `ads_suggest_a11y_fixes` and resolved or explicitly classified as noise
 - [ ] `pnpm run lint` passes (0 new errors)
 - [ ] `pnpm tsc --noEmit` passes (0 new errors)

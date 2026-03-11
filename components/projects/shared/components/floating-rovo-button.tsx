@@ -3,13 +3,21 @@
 import React from "react";
 import { token } from "@/lib/tokens";
 import { useRovoChat } from "@/app/contexts";
-import { usePathname } from "next/navigation";
 
-export default function FloatingRovoButton() {
+type Product = "home" | "jira" | "confluence" | "rovo" | "search";
+
+interface FloatingRovoButtonProps {
+	product: Product;
+	embedded?: boolean;
+}
+
+export default function FloatingRovoButton({
+	product,
+	embedded = false,
+}: Readonly<FloatingRovoButtonProps>) {
 	const { isOpen, toggleChat } = useRovoChat();
-	const pathname = usePathname();
 
-	if (isOpen || pathname === "/fullscreen-chat") {
+	if (embedded || isOpen || product === "rovo") {
 		return null;
 	}
 

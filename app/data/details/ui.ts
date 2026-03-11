@@ -157,7 +157,7 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 		props: [
 			{
 				name: "name",
-				type: '"home" | "search" | "jira" | "confluence" | "rovo" | "bitbucket" | "loom" | "goals" | "teams" | "jira-service-management" | "jira-product-discovery" | "assets" | "projects" | "focus" | "compass"',
+				type: '"admin" | "align" | "analytics" | "assets" | "atlassian" | "bamboo" | "bitbucket" | "chat" | "compass" | "confluence" | "customer-service-management" | "focus" | "goals" | "guard" | "home" | "hub" | "jira" | "jira-product-discovery" | "jira-service-management" | "loom" | "opsgenie" | "projects" | "rovo" | "rovo-dev" | "rovo-dev-agent" | "search" | "statuspage" | "studio" | "talent" | "teams" | "trello"',
 				description: "Atlassian logo key (required for AtlassianLogo).",
 			},
 			{
@@ -186,7 +186,8 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 			{
 				name: "shouldUseNewLogoDesign",
 				type: "boolean",
-				description: "Opt into latest logo designs where supported.",
+				default: "true",
+				description: "Uses the latest logo designs. Set to false for legacy logos.",
 			},
 			{
 				name: "shouldUseHexLogo",
@@ -210,6 +211,7 @@ export const UI_DETAILS: Record<string, ComponentDetail> = {
 			{ title: "Sizes", description: "All six size options for icon and lockup.", demoSlug: "logo-demo-sizes" },
 			{ title: "Appearances", description: "Brand, neutral, and inverse appearances.", demoSlug: "logo-demo-appearances" },
 			{ title: "Custom Logo", description: "Render a custom SVG with optional wordmark.", demoSlug: "logo-demo-custom" },
+			{ title: "Named Exports", description: "All convenience named exports for direct usage.", demoSlug: "logo-demo-named-exports" },
 		],
 	},
 
@@ -784,6 +786,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 	popover: {
 		description: "A floating popover component built on Base UI with configurable positioning and arrow.",
+		adsUrl: "https://atlassian.design/components/popup/",
 		usage: `import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 <Popover>
@@ -2746,57 +2749,6 @@ import BugIcon from "@atlaskit/icon/core/bug";
 			{ title: "With actions", demoSlug: "page-header-demo-with-actions" },
 			{ title: "With breadcrumbs", demoSlug: "page-header-demo-with-breadcrumbs" },
 			{ title: "Title only", demoSlug: "page-header-demo-title-only" },
-		],
-	},
-
-	popup: {
-		description: "A positioned popup container component for displaying contextual content near a trigger element. Re-exports the Popover primitive with popup-specific naming for ADS compatibility.",
-		usage: `import { Popup, PopupContent, PopupTrigger, PopupTitle } from "@/components/ui/popup";
-
-<Popup>
-  <PopupTrigger render={<Button />}>Open</PopupTrigger>
-  <PopupContent>
-    <PopupTitle>Title</PopupTitle>
-  </PopupContent>
-</Popup>`,
-		props: [
-			{
-				name: "side",
-				type: '"top" | "bottom" | "left" | "right" | "inline-start" | "inline-end"',
-				default: '"bottom"',
-				description: "Which side of the trigger to position the popup.",
-			},
-			{
-				name: "align",
-				type: '"start" | "center" | "end"',
-				default: '"center"',
-				description: "Alignment along the side axis.",
-			},
-			{
-				name: "sideOffset",
-				type: "number",
-				default: "4",
-				description: "Distance from the trigger in pixels.",
-			},
-			{
-				name: "alignOffset",
-				type: "number",
-				default: "0",
-				description: "Offset along the alignment axis.",
-			},
-		],
-		subComponents: [
-			{ name: "PopupTrigger", description: "Element that toggles the popup." },
-			{ name: "PopupContent", description: "The popup container with positioning." },
-			{ name: "PopupHeader", description: "Header section for title and description." },
-			{ name: "PopupTitle", description: "Primary heading of the popup." },
-			{ name: "PopupDescription", description: "Secondary descriptive text." },
-		],
-		examples: [
-			{ title: "Default", demoSlug: "popup-demo-default" },
-			{ title: "Placements", demoSlug: "popup-demo-placements" },
-			{ title: "Alignments", demoSlug: "popup-demo-alignments" },
-			{ title: "With content", demoSlug: "popup-demo-with-content" },
 		],
 	},
 

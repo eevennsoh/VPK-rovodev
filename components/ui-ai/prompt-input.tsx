@@ -1239,8 +1239,8 @@ export const PromptInputSubmit = ({
     status === "submitted" || status === "streaming" || status === "error";
   const resolvedVariant = canStopGeneration ? "outline" : variant;
   const stateClassName = canStopGeneration
-    ? "rounded-full border-border bg-surface-raised text-icon-danger hover:bg-bg-neutral-hovered active:bg-bg-neutral-pressed"
-    : "rounded-full";
+    ? "border-border bg-surface-raised text-icon-danger hover:bg-bg-neutral-hovered active:bg-bg-neutral-pressed"
+    : undefined;
 
   let Icon = <CornerDownLeftIcon className="size-4" />;
 

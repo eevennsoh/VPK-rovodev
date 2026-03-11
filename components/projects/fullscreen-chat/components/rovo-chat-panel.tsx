@@ -14,9 +14,14 @@ import type { Product } from "../types";
 interface RovoChatPanelProps {
 	onClose: () => void;
 	product: Product;
+	embedded?: boolean;
 }
 
-export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPanelProps>) {
+export default function RovoChatPanel({
+	onClose,
+	product,
+	embedded = false,
+}: Readonly<RovoChatPanelProps>) {
 	const {
 		prompt,
 		setPrompt,
@@ -54,7 +59,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 	const isFloating = variant === "floating";
 	const panelHeight = isFloating
 		? (hasChatStarted ? "640px" : "340px")
-		: "calc(100vh - 48px)";
+		: "var(--vpk-project-shell-content-height, calc(100vh - 48px))";
 
 	return (
 		<div
@@ -70,6 +75,7 @@ export default function RovoChatPanel({ onClose, product }: Readonly<RovoChatPan
 				height: panelHeight,
 				transitionDuration: "var(--duration-slow)",
 				transitionTimingFunction: "var(--ease-in-out)",
+				maxHeight: embedded ? "100%" : undefined,
 			}}
 		>
 			<RovoChatHeader

@@ -6,6 +6,7 @@ const {
 		buildGenerateContentUrl,
 		buildLocalWhisperArgs,
 		buildOpenAiCompatibleTranscriptionUrl,
+		getTranscriptionErrorDetails,
 		mimeTypeToFileExtension,
 		readPresetConfig,
 		resolveConfiguredTranscriptionModel,
@@ -15,6 +16,7 @@ const {
 		resolveLocalWhisperModel,
 		resolveOpenAiCompatibleTranscriptionModel,
 		resolvePresetKey,
+		shouldFallbackOpenAiCompatibleToGoogle,
 		STT_PRESET_ENV_MAP,
 		STRICT_TRANSCRIPTION_PROMPT,
 	},
@@ -220,6 +222,64 @@ test("hasConfiguredOpenAiCompatibleBaseUrl requires an explicit base URL", () =>
 	assert.equal(
 		hasConfiguredOpenAiCompatibleBaseUrl({
 			OPENAI_COMPATIBLE_STT_BASE_URL: "",
+		}),
+		false,
+	);
+});
+
+test("getTranscriptionErrorDetails includes fetch causes for diagnostics", () => {
+	const error = new TypeError("fetch failed");
+	error.cause = Object.assign(
+		new Error("connect ECONNREFUSED 127.0.0.1:8801"),
+		{ code: "ECONNREFUSED" },
+	);
+
+	assert.match(getTranscriptionErrorDetails(error), /ECONNREFUSED/);
+});
+
+test("shouldFallbackOpenAiCompatibleToGoogle falls back for the implicit local STT server", () => {
+	const error = new TypeError("fetch failed");
+	error.cause = Object.assign(
+		new Error("connect ECONNREFUSED 127.0.0.1:8801"),
+		{ code: "ECONNREFUSED" },
+	);
+
+	assert.equal(
+		shouldFallbackOpenAiCompatibleToGoogle({
+			error,
+			envVars: { GOOGLE_STT_MODEL: "gemini-3-flash-preview" },
+			rawBaseUrl: "",
+		}),
+		true,
+	);
+});
+
+test("shouldFallbackOpenAiCompatibleToGoogle does not override an explicit STT endpoint", () => {
+	const error = new TypeError("fetch failed");
+	error.cause = Object.assign(
+		new Error("connect ECONNREFUSED 127.0.0.1:8801"),
+		{ code: "ECONNREFUSED" },
+	);
+
+	assert.equal(
+		shouldFallbackOpenAiCompatibleToGoogle({
+			error,
+			envVars: { GOOGLE_STT_MODEL: "gemini-3-flash-preview" },
+			rawBaseUrl: "http://localhost:9901/v1",
+		}),
+		false,
+	);
+});
+
+test("shouldFallbackOpenAiCompatibleToGoogle does not mask client errors", () => {
+	const error = new Error("Unsupported audio format");
+	error.statusCode = 400;
+
+	assert.equal(
+		shouldFallbackOpenAiCompatibleToGoogle({
+			error,
+			envVars: { GOOGLE_STT_MODEL: "gemini-3-flash-preview" },
+			rawBaseUrl: "",
 		}),
 		false,
 	);

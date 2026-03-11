@@ -189,7 +189,7 @@ const rows: AnswerCardRow[] = [
 		description: "Data table with sortable columns, status indicators, and reviewer assignments.",
 	},
 	"top-navigation": {
-		description: "ADS-inspired top navigation bar with app switcher, search workflows, and contextual actions.",
+		description: "ADS-inspired top navigation bar with app switcher and contextual actions.",
 	},
 	"prompt-gallery": {
 		description: "ADS prompt gallery block with quick chips, hover previews, and discover-more examples.",

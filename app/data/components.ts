@@ -224,7 +224,6 @@ export const UI_COMPONENTS: ComponentEntry[] = [
 	uiComponent("page-header", "Page Header"),
 	uiComponent("pagination"),
 	uiComponent("popover"),
-	uiComponent("popup"),
 	uiComponent("progress"),
 	uiComponent("progress-indicator", "Progress Indicator"),
 	uiComponent("progress-tracker", "Progress Tracker"),

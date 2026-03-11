@@ -3,6 +3,8 @@
 import type { ChatStatus, FileUIPart } from "ai";
 import {
 	PromptInput,
+	PromptInputBody,
+	PromptInputButton,
 	PromptInputFooter,
 	PromptInputProvider,
 	PromptInputSubmit,
@@ -11,195 +13,531 @@ import {
 	usePromptInputAttachments,
 	usePromptInputController,
 } from "@/components/ui-ai/prompt-input";
+import {
+	composerPromptInputClassName,
+	composerTextareaClassName,
+	composerUpwardShadow,
+	textareaCSS,
+} from "@/components/blocks/shared-ui/composer-styles";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { VoiceButton } from "@/components/ui-audio/voice-button";
 import type { VoiceButtonState } from "@/components/ui-audio/voice-button";
+import { LiveWaveform } from "@/components/ui-audio/live-waveform";
+import { resolveFutureChatComposerWaveformState } from "@/components/projects/future-chat/lib/future-chat-composer-waveform-state";
 import { cn } from "@/lib/utils";
-import { AudioWaveformIcon, MicIcon, PaperclipIcon } from "lucide-react";
-import { useCallback } from "react";
+import { resolveFutureChatComposerPreviewHeight } from "@/components/projects/future-chat/lib/future-chat-composer-preview";
+import ArrowUpIcon from "@atlaskit/icon/core/arrow-up";
+import CrossIcon from "@atlaskit/icon/core/cross";
+import AudioWaveformIcon from "@atlaskit/icon-lab/core/audio-waveform";
+import AddIcon from "@atlaskit/icon/core/add";
+import { AnimatePresence, motion } from "motion/react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PendingAttachments } from "./pending-attachments";
 
-const SUGGESTED_ACTIONS = [
-	{
-		label: "Plan a migration",
-		prompt: "Draft a migration plan for replacing a legacy chatbot UI with a Vercel-style chat surface while keeping the backend contract unchanged.",
-	},
-	{
-		label: "Turn an answer into an artifact",
-		prompt: "Compare two approaches for a chat redesign, then turn the recommendation into an editable implementation brief.",
-	},
-	{
-		label: "Summarize source material",
-		prompt: "Summarize the uploaded material and extract the key risks, assumptions, and follow-up actions.",
-	},
-	{
-		label: "Generate working code",
-		prompt: "Generate a production-ready React component with a clear explanation of the tradeoffs and edge cases.",
-	},
-];
+const FUTURE_CHAT_WAVEFORM_COLORS = [
+	"var(--color-blue-600)",
+	"var(--color-orange-300)",
+	"var(--color-purple-500)",
+	"var(--color-lime-400)",
+] as const;
+
+const FUTURE_CHAT_WAVEFORM_INTRO_MS = 500;
 
 interface FutureChatComposerProps {
 	artifactTitle?: string | null;
 	compact?: boolean;
 	errorMessage?: string | null;
+	micStream?: MediaStream | null;
 	onStop: () => Promise<void>;
 	onSubmit: (payload: {
 		text: string;
 		files: FileUIPart[];
 	}) => Promise<void>;
-	onSuggestedAction: (text: string) => Promise<void>;
 	onToggleRealtimeVoice?: () => void;
 	onToggleVoice?: () => void;
+	galleryExpanded?: boolean;
+	placeholder?: string;
+	prefillText?: string | null;
+	previewPrompt?: string | null;
 	realtimeVoiceActive?: boolean;
-	showSuggestedActions?: boolean;
+	realtimeVoiceState?: "idle" | "connecting" | "listening" | "speaking";
 	status: ChatStatus;
 	voiceState?: VoiceButtonState;
-}
-
-function SuggestedActions({
-	onSuggestedAction,
-}: Readonly<{
-	onSuggestedAction: (text: string) => Promise<void>;
-}>) {
-	return (
-		<div className="grid w-full gap-2 sm:grid-cols-2">
-			{SUGGESTED_ACTIONS.map((suggestion) => (
-				<Button
-					className="h-auto min-h-20 justify-start rounded-2xl border-border bg-surface px-4 py-3 text-left text-text shadow-none hover:bg-surface-hovered"
-					key={suggestion.label}
-					onClick={() => void onSuggestedAction(suggestion.prompt)}
-					type="button"
-					variant="outline"
-				>
-					<div className="flex flex-col items-start gap-1">
-						<span className="font-medium text-sm">{suggestion.label}</span>
-						<span className="whitespace-normal text-text-subtle text-xs leading-5">
-							{suggestion.prompt}
-						</span>
-					</div>
-				</Button>
-			))}
-		</div>
-	);
 }
 
 function FutureChatComposerInner({
 	artifactTitle,
 	compact = false,
 	errorMessage,
+	galleryExpanded = false,
+	micStream,
 	onStop,
 	onSubmit,
-	onSuggestedAction,
 	onToggleRealtimeVoice,
-	onToggleVoice,
+	placeholder = "Ask, @mention, or / for skills",
+	prefillText,
+	previewPrompt = null,
 	realtimeVoiceActive = false,
-	showSuggestedActions = false,
 	status,
-	voiceState = "idle",
 }: Readonly<FutureChatComposerProps>) {
 	const attachments = usePromptInputAttachments();
 	const controller = usePromptInputController();
+	const composerRef = useRef<HTMLDivElement | null>(null);
+	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+	const previewMeasureRef = useRef<HTMLTextAreaElement | null>(null);
+	const previewPromptRef = useRef<string | null>(previewPrompt);
+	const textInputValueRef = useRef(controller.textInput.value);
+	const galleryExpandedRef = useRef(galleryExpanded);
+	const isPreviewPlaceholderActiveRef = useRef(false);
+	const realtimeWaveformIntroTimeoutRef = useRef<number | null>(null);
+	const [baseComposerHeight, setBaseComposerHeight] = useState(0);
+	const [baseTextareaHeight, setBaseTextareaHeight] = useState(0);
+	const [stableBaseHeight, setStableBaseHeight] = useState(0);
+	const [previewPromptHeight, setPreviewPromptHeight] = useState(0);
+	const [isRealtimeWaveformIntroActive, setIsRealtimeWaveformIntroActive] = useState(false);
+	const isPreviewPlaceholderActive =
+		Boolean(previewPrompt) && controller.textInput.value.trim().length === 0;
 	const canSubmit =
 		controller.textInput.value.trim().length > 0 || attachments.files.length > 0;
+	const realtimeWaveformState = resolveFutureChatComposerWaveformState({
+		hasMicStream: micStream !== null,
+		isIntroActive: isRealtimeWaveformIntroActive,
+		realtimeVoiceActive,
+	});
+	const isRealtimeWaveformProcessing = realtimeWaveformState.processing;
 	const handlePromptSubmit = useCallback(
 		(payload: { text: string; files: FileUIPart[] }) => {
 			void onSubmit(payload);
 		},
 		[onSubmit],
 	);
+	const supportsFieldSizing =
+		typeof window !== "undefined"
+		&& typeof window.CSS?.supports === "function"
+		&& window.CSS.supports("field-sizing", "content");
+
+	useLayoutEffect(() => {
+		previewPromptRef.current = previewPrompt;
+		textInputValueRef.current = controller.textInput.value;
+		galleryExpandedRef.current = galleryExpanded;
+		isPreviewPlaceholderActiveRef.current = isPreviewPlaceholderActive;
+	}, [controller.textInput.value, galleryExpanded, isPreviewPlaceholderActive, previewPrompt]);
+
+	const clearRealtimeWaveformIntro = useCallback(() => {
+		if (realtimeWaveformIntroTimeoutRef.current !== null) {
+			window.clearTimeout(realtimeWaveformIntroTimeoutRef.current);
+			realtimeWaveformIntroTimeoutRef.current = null;
+		}
+	}, []);
+
+	const handleToggleRealtimeVoice = useCallback(() => {
+		if (!onToggleRealtimeVoice) {
+			return;
+		}
+
+		clearRealtimeWaveformIntro();
+
+		if (!realtimeVoiceActive) {
+			setIsRealtimeWaveformIntroActive(true);
+			realtimeWaveformIntroTimeoutRef.current = window.setTimeout(() => {
+				realtimeWaveformIntroTimeoutRef.current = null;
+				setIsRealtimeWaveformIntroActive(false);
+			}, FUTURE_CHAT_WAVEFORM_INTRO_MS);
+		} else {
+			setIsRealtimeWaveformIntroActive(false);
+		}
+
+		onToggleRealtimeVoice();
+	}, [clearRealtimeWaveformIntro, onToggleRealtimeVoice, realtimeVoiceActive]);
+
+	useEffect(() => {
+		return () => {
+			clearRealtimeWaveformIntro();
+		};
+	}, [clearRealtimeWaveformIntro]);
+
+	const measurePreviewPromptHeight = useCallback((nextPreviewPrompt: string | null) => {
+		const textareaElement = textareaRef.current;
+		const previewMeasureElement = previewMeasureRef.current;
+		if (
+			!nextPreviewPrompt
+			|| !textareaElement
+			|| !previewMeasureElement
+			|| textInputValueRef.current.trim().length > 0
+		) {
+			setPreviewPromptHeight(0);
+			return;
+		}
+
+		const computedStyle = window.getComputedStyle(textareaElement);
+		previewMeasureElement.style.width = `${textareaElement.clientWidth}px`;
+		previewMeasureElement.style.font = computedStyle.font;
+		previewMeasureElement.style.fontSize = computedStyle.fontSize;
+		previewMeasureElement.style.fontWeight = computedStyle.fontWeight;
+		previewMeasureElement.style.letterSpacing = computedStyle.letterSpacing;
+		previewMeasureElement.style.lineHeight = computedStyle.lineHeight;
+		previewMeasureElement.style.padding = "0";
+		previewMeasureElement.style.border = "0";
+		previewMeasureElement.value = nextPreviewPrompt;
+		setPreviewPromptHeight(previewMeasureElement.scrollHeight);
+	}, []);
+
+	const captureBaseMeasurements = useCallback(() => {
+		const composerElement = composerRef.current;
+		const textareaElement = textareaRef.current;
+		if (!composerElement || !textareaElement) {
+			return;
+		}
+
+		const height = composerElement.getBoundingClientRect().height;
+		setBaseComposerHeight(height);
+		setBaseTextareaHeight(textareaElement.getBoundingClientRect().height);
+
+		// Capture stable base height once for smooth transition fallback.
+		// Subsequent calls may read mid-transition values, so only the first
+		// measurement (when the composer is at its natural height) is trusted.
+		setStableBaseHeight((prev) => (prev === 0 && height > 0 ? height : prev));
+	}, []);
+
+	// Apply prefilled text from gallery click and auto-resize the textarea
+	const appliedPrefillRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (prefillText && prefillText !== appliedPrefillRef.current) {
+			appliedPrefillRef.current = prefillText;
+			controller.textInput.setInput(prefillText);
+
+			if (supportsFieldSizing) {
+				requestAnimationFrame(() => {
+					const el = textareaRef.current;
+					if (!el) return;
+					el.style.height = "";
+					el.style.overflowY = "";
+				});
+				return;
+			}
+
+			// Ensure the textarea resizes to fit the prefilled content.
+			// Wait two frames so React commits the value to the DOM first.
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					const el = textareaRef.current;
+					if (!el) return;
+					el.style.height = "0px";
+					const styles = window.getComputedStyle(el);
+					const maxH = parseFloat(styles.maxHeight);
+					const maxHeight = Number.isFinite(maxH) ? maxH : 120;
+					const nextHeight = Math.min(maxHeight, el.scrollHeight);
+					el.style.height = `${nextHeight}px`;
+					el.style.overflowY =
+						el.scrollHeight > nextHeight ? "auto" : "hidden";
+				});
+			});
+		}
+	}, [prefillText, controller.textInput, supportsFieldSizing]);
+
+	useEffect(() => {
+		if (!isPreviewPlaceholderActive) {
+			return;
+		}
+
+		const animationFrameId = window.requestAnimationFrame(() => {
+			measurePreviewPromptHeight(previewPrompt);
+		});
+
+		return () => {
+			window.cancelAnimationFrame(animationFrameId);
+		};
+	}, [isPreviewPlaceholderActive, measurePreviewPromptHeight, previewPrompt]);
+
+	useEffect(() => {
+		if (
+			controller.textInput.value.trim().length > 0
+			|| previewPrompt
+			|| galleryExpanded
+		) {
+			return;
+		}
+
+		captureBaseMeasurements();
+	}, [captureBaseMeasurements, controller.textInput.value, galleryExpanded, previewPrompt]);
+
+	useEffect(() => {
+		const composerElement = composerRef.current;
+		const textareaElement = textareaRef.current;
+		if (!composerElement || !textareaElement) {
+			return;
+		}
+
+		const resizeObserver = new ResizeObserver(() => {
+			if (isPreviewPlaceholderActiveRef.current) {
+				measurePreviewPromptHeight(previewPromptRef.current);
+				return;
+			}
+			if (
+				galleryExpandedRef.current
+				|| textInputValueRef.current.trim().length > 0
+			) {
+				return;
+			}
+
+			captureBaseMeasurements();
+		});
+
+		resizeObserver.observe(composerElement);
+		resizeObserver.observe(textareaElement);
+
+		return () => {
+			resizeObserver.disconnect();
+		};
+	}, [
+		captureBaseMeasurements,
+		measurePreviewPromptHeight,
+	]);
+
+	const previewComposerHeight = isPreviewPlaceholderActive
+		? resolveFutureChatComposerPreviewHeight({
+			baseComposerHeight,
+			baseTextareaHeight,
+			previewPromptHeight,
+		})
+		: null;
+	const expandedGalleryComposerHeight = galleryExpanded
+		? resolveFutureChatComposerPreviewHeight({
+			baseComposerHeight,
+			baseTextareaHeight,
+			previewPromptHeight: baseTextareaHeight * 2,
+		})
+		: null;
+	const composerHeight = (() => {
+		// When user has typed text, release the fixed height so the textarea auto-resizes
+		if (controller.textInput.value.trim().length > 0) return null;
+
+		const combined =
+			previewComposerHeight && expandedGalleryComposerHeight
+				? Math.max(previewComposerHeight, expandedGalleryComposerHeight)
+				: previewComposerHeight ?? expandedGalleryComposerHeight;
+
+		if (combined) return combined;
+
+		// Keep a stable base height so the CSS transition animates smoothly
+		// when hovering across gallery pills (prevents snap on gap-crossing).
+		// Uses the once-captured stableBaseHeight to avoid feedback loops
+		// from the ResizeObserver reading mid-transition values.
+		return stableBaseHeight > 0 ? Math.ceil(stableBaseHeight) : null;
+	})();
 
 	return (
-		<div className={cn("relative flex w-full flex-col gap-4", compact && "gap-3")}>
-			{showSuggestedActions && attachments.files.length === 0 ? (
-				<SuggestedActions onSuggestedAction={onSuggestedAction} />
-			) : null}
-
-			{errorMessage ? (
-				<Alert variant="danger">
-					{errorMessage}
-				</Alert>
-			) : null}
-
-			<PromptInput
-				className="rounded-[28px] border border-border bg-background/95 p-3 shadow-xs transition-all duration-200 hover:border-muted-foreground/50 focus-within:border-border"
-				onSubmit={handlePromptSubmit}
-			>
-				{artifactTitle ? (
-					<div className="mb-3 rounded-2xl border border-border bg-bg-neutral px-3 py-2 text-text-subtle text-xs">
-						Editing artifact context from{" "}
-						<span className="font-medium text-text">{artifactTitle}</span>
-					</div>
+		<div className="relative">
+			<div className={cn("flex w-full flex-col gap-4", compact && "gap-3")}>
+				{errorMessage ? (
+					<Alert variant="danger">
+						{errorMessage}
+					</Alert>
 				) : null}
 
-				<PendingAttachments />
-
-				<div className="flex flex-row items-start gap-1 sm:gap-2">
-					<PromptInputTextarea
-						className="min-h-11 max-h-[220px] grow resize-none border-0! border-none! bg-transparent p-2 text-base leading-7 outline-none ring-0 [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-text-subtle focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden"
-						placeholder="Ask anything or attach material to work from..."
-					/>
-				</div>
-
-				<PromptInputFooter className="mt-1 justify-between gap-2 border-border/70 border-t pt-2">
-					<PromptInputTools className="gap-0 sm:gap-0.5">
-						<Button
-							aria-label="Add attachment"
-							className="aspect-square h-8 rounded-full p-1 transition-colors hover:bg-accent"
-							onClick={(event) => {
-								event.preventDefault();
-								attachments.openFileDialog();
-							}}
-							type="button"
-							variant="ghost"
-						>
-							<PaperclipIcon className="size-4" />
-						</Button>
-
-						{onToggleVoice ? (
-							<VoiceButton
-								allowPressWhileProcessing
-								aria-label="Voice mode"
-								className="h-8 w-8 rounded-full"
-								icon={<MicIcon className="size-4" />}
-								onPress={onToggleVoice}
-								size="icon"
-								state={voiceState}
-								variant="ghost"
-							/>
+				<div
+					ref={composerRef}
+					className={cn(
+						"relative z-10 rounded-xl border border-border bg-surface px-3 pb-3 pt-3",
+						composerHeight ? "flex flex-col" : undefined,
+						compact ? "px-3.5 pb-2.5 pt-3.5" : undefined,
+					)}
+					style={{
+						boxShadow: composerUpwardShadow,
+						...(composerHeight
+							? {
+								height: `${composerHeight}px`,
+								transition: "height var(--duration-normal) var(--ease-out)",
+							}
+							: {}),
+					}}
+				>
+					<PromptInput
+						allowOverflow
+						className={cn(
+							composerPromptInputClassName,
+							"relative z-10",
+							composerHeight
+								? "flex h-full flex-col [&>[data-slot=input-group]]:h-full"
+								: undefined,
+						)}
+						onSubmit={handlePromptSubmit}
+					>
+						{artifactTitle ? (
+							<div className="mb-3 rounded-xl border border-border bg-bg-neutral px-3 py-2 text-text-subtle text-xs">
+								Editing artifact context from{" "}
+								<span className="font-medium text-text">{artifactTitle}</span>
+							</div>
 						) : null}
 
-						{onToggleRealtimeVoice ? (
-							<Button
-								aria-label="Live voice conversation"
-								aria-pressed={realtimeVoiceActive}
+						<PendingAttachments />
+
+						<PromptInputBody className={composerHeight ? "flex-1" : undefined}>
+							<PromptInputTextarea
+								ref={textareaRef}
+								autoResize={!composerHeight}
 								className={cn(
-									"aspect-square h-8 rounded-full p-1 transition-colors",
-									realtimeVoiceActive
-										? "bg-bg-selected text-text-selected hover:bg-bg-selected-hovered"
-										: "hover:bg-accent",
+									composerTextareaClassName,
+									composerHeight ? "h-full max-h-none min-h-0" : undefined,
+									isPreviewPlaceholderActive
+										? "chat-composer-textarea-preview-active"
+										: undefined,
 								)}
-								onClick={onToggleRealtimeVoice}
-								type="button"
-								variant="ghost"
-							>
-								<AudioWaveformIcon className="size-4" />
-							</Button>
-						) : null}
-					</PromptInputTools>
+								placeholder={placeholder}
+								rows={1}
+							/>
+						</PromptInputBody>
 
-					<PromptInputSubmit
-						className="size-8 rounded-full bg-primary text-primary-foreground transition-colors duration-200 hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
-						disabled={!canSubmit && status !== "submitted" && status !== "streaming"}
-						onStop={() => void onStop()}
-						status={status}
-					/>
-				</PromptInputFooter>
-			</PromptInput>
+						<PromptInputFooter className="mt-3 justify-between px-0 pb-0">
+							<PromptInputTools>
+								<PromptInputButton
+									aria-label="Add attachment"
+									className="size-8 text-icon-subtle transition-colors hover:bg-bg-neutral-hovered active:bg-bg-neutral-pressed"
+									onClick={(event) => {
+										event.preventDefault();
+										attachments.openFileDialog();
+									}}
+								>
+									<AddIcon label="" color="currentColor" />
+								</PromptInputButton>
+							</PromptInputTools>
 
-			<div className="px-2 text-[11px] text-text-subtle">
-				Threads, attachments, and generated artifacts stay inside the current local session.
+							<div className="flex min-w-0 flex-1 items-center justify-end">
+								<AnimatePresence mode="popLayout" initial={false}>
+									{status === "submitted" || status === "streaming" ? (
+										<motion.div
+											key="stop"
+											layoutId="composer-action"
+											style={{ willChange: "transform, opacity" }}
+											animate={{ opacity: 1 }}
+											exit={{ opacity: 0 }}
+											initial={{ opacity: 0 }}
+											transition={{ type: "spring", stiffness: 800, damping: 35, opacity: { duration: 0.08 } }}
+										>
+											<PromptInputSubmit
+												aria-label="Stop"
+												onStop={() => void onStop()}
+												size="icon-sm"
+												status={status}
+											>
+												<ArrowUpIcon label="" />
+											</PromptInputSubmit>
+										</motion.div>
+									) : realtimeVoiceActive && !canSubmit ? (
+										<motion.div
+											key="waveform"
+											layoutId="composer-action"
+											style={{ willChange: "transform, opacity" }}
+											animate={{ opacity: 1 }}
+											exit={{ opacity: 0 }}
+											initial={{ opacity: 0 }}
+											transition={{ type: "spring", stiffness: 800, damping: 35, opacity: { duration: 0.08 } }}
+										>
+												<button
+													aria-label="Stop live voice"
+													className="inline-flex h-8 w-20 cursor-pointer items-center gap-1.5 overflow-hidden rounded-md border border-border bg-background pl-2 pr-2 text-icon-subtle transition-colors hover:bg-bg-neutral-hovered active:bg-bg-neutral-pressed"
+													onClick={handleToggleRealtimeVoice}
+													type="button"
+												>
+													<span className="flex h-full min-w-0 flex-1 items-center">
+														<LiveWaveform
+															active={realtimeWaveformState.active}
+															barColor="currentColor"
+															barColors={[...FUTURE_CHAT_WAVEFORM_COLORS]}
+															barGap={2}
+															barHeightScale={isRealtimeWaveformProcessing ? 1.15 : 1}
+															barOpacityMax={1}
+															barOpacityMin={1}
+															barWidth={2}
+															barRadius={0}
+															className="min-h-0 min-w-0 flex-1 animate-in fade-in duration-300"
+															entranceAnimation="stagger"
+															entranceDurationMs={180}
+															entranceStaggerMs={14}
+															fadeEdges={false}
+															height="100%"
+															mediaStream={micStream}
+															mode="static"
+															processing={isRealtimeWaveformProcessing}
+														/>
+													</span>
+													<span
+														aria-hidden="true"
+														className="flex shrink-0 items-center justify-center"
+													>
+														<CrossIcon label="" size="small" />
+													</span>
+											</button>
+										</motion.div>
+									) : canSubmit ? (
+										<motion.div
+											key="submit"
+											layoutId="composer-action"
+											style={{ willChange: "transform, opacity" }}
+											animate={{ opacity: 1 }}
+											exit={{ opacity: 0 }}
+											initial={{ opacity: 0 }}
+											transition={{ type: "spring", stiffness: 800, damping: 35, opacity: { duration: 0.08 } }}
+										>
+											<PromptInputSubmit
+												aria-label="Submit"
+												onStop={() => void onStop()}
+												size="icon-sm"
+												status={status}
+											>
+												<ArrowUpIcon label="" />
+											</PromptInputSubmit>
+										</motion.div>
+									) : onToggleRealtimeVoice ? (
+										<motion.div
+											key="voice-start"
+											layoutId="composer-action"
+											style={{ willChange: "transform, opacity" }}
+											animate={{ opacity: 1 }}
+											exit={{ opacity: 0 }}
+											initial={{ opacity: 0 }}
+											transition={{ type: "spring", stiffness: 800, damping: 35, opacity: { duration: 0.08 } }}
+										>
+											<PromptInputButton
+												aria-label="Start live voice"
+												className="size-8 bg-bg-selected-bold text-white transition-colors hover:bg-bg-selected-bold-hovered active:bg-bg-selected-bold-pressed [&_svg]:text-white"
+												onClick={handleToggleRealtimeVoice}
+											>
+												<AudioWaveformIcon label="" />
+											</PromptInputButton>
+										</motion.div>
+									) : null}
+								</AnimatePresence>
+							</div>
+						</PromptInputFooter>
+					</PromptInput>
+				</div>
 			</div>
+
+			<style>{textareaCSS}</style>
+			<style>{`
+				.chat-composer-textarea.chat-composer-textarea-preview-active:placeholder-shown {
+					field-sizing: content;
+					white-space: pre-wrap;
+					text-overflow: clip;
+				}
+				.chat-composer-textarea.chat-composer-textarea-preview-active::placeholder {
+					white-space: pre-wrap;
+					overflow: visible;
+					text-overflow: clip;
+				}
+			`}</style>
+			<textarea
+				ref={previewMeasureRef}
+				aria-hidden
+				readOnly
+				tabIndex={-1}
+				className="pointer-events-none absolute -z-10 m-0 h-0 w-0 overflow-hidden opacity-0"
+				style={{
+					whiteSpace: "pre-wrap",
+					overflowWrap: "break-word",
+					wordBreak: "break-word",
+				}}
+			/>
 		</div>
 	);
 }

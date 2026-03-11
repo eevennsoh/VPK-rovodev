@@ -7,7 +7,6 @@ import {
 } from "@/components/ui-ai/attachments";
 import {
 	Conversation,
-	ConversationContent,
 	ConversationScrollButton,
 } from "@/components/ui-ai/conversation";
 import { MessageResponse } from "@/components/ui-ai/message";
@@ -45,12 +44,12 @@ import {
 	ThumbsDownIcon,
 	ThumbsUpIcon,
 } from "lucide-react";
+import Image from "next/image";
 import { useMemo, useState } from "react";
+import Heading from "@/components/blocks/shared-ui/heading";
 
 interface FutureChatMessagesProps {
 	visibleDocumentId: string | null;
-	activeThreadId: string | null;
-	activeThreadTitle?: string | null;
 	compact?: boolean;
 	documents: ReadonlyArray<FutureChatDocument>;
 	editingMessageId: string | null;
@@ -464,8 +463,6 @@ function StreamingArtifactMessage({
 
 export function FutureChatMessages({
 	visibleDocumentId,
-	activeThreadId,
-	activeThreadTitle,
 	compact = false,
 	documents,
 	editingMessageId,
@@ -500,44 +497,37 @@ export function FutureChatMessages({
 		streamingArtifactMessageId === null;
 
 	return (
-		<Conversation className="relative flex-1 bg-background">
-			<ConversationContent
+		<Conversation className={cn("relative bg-background", visibleMessages.length === 0 && "!flex-none overflow-visible")}>
+			{visibleMessages.length === 0 ? (
+				<div className="flex flex-col items-center gap-2 py-6">
+					<Image
+						alt="Chat"
+						className="h-auto w-auto object-contain dark:hidden"
+						height={67}
+						loading="eager"
+						src="/illustration-ai/chat/light.svg"
+						width={74}
+					/>
+					<Image
+						alt="Chat"
+						className="hidden h-auto w-auto object-contain dark:block"
+						height={67}
+						loading="eager"
+						src="/illustration-ai/chat/dark.svg"
+						width={74}
+					/>
+					<Heading size="xlarge">How can I help?</Heading>
+				</div>
+			) : null}
+
+			<div
 				className={cn(
 					"mx-auto flex min-w-0 flex-col gap-4 px-2 py-4 md:gap-6 md:px-4",
 					compact ? "max-w-none" : "max-w-4xl",
+					visibleMessages.length === 0 && "hidden",
 				)}
 			>
-				{visibleMessages.length === 0 ? (
-					<div
-						className={cn(
-							"mx-auto flex size-full flex-col justify-center px-4",
-							compact ? "mt-8 max-w-full" : "mt-4 max-w-3xl md:mt-16 md:px-8",
-						)}
-						key="overview"
-					>
-						<div className="animate-in slide-in-from-bottom-1 fade-in-0">
-							<div className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-text-subtle text-xs">
-								Future Chat
-								<span aria-hidden="true">•</span>
-								Vercel-style UI
-							</div>
-						</div>
-						<h1 className="animate-in slide-in-from-bottom-1 fade-in-0 mt-5 max-w-2xl font-semibold text-3xl leading-tight tracking-tight duration-300 md:text-5xl">
-							Ask for an answer, then turn it into a living artifact.
-						</h1>
-						<div className="animate-in slide-in-from-bottom-1 fade-in-0 mt-3 max-w-2xl text-text-subtle text-base duration-300 md:text-lg">
-							This surface keeps the existing VPK backend, streaming, and local persistence, but adopts a tighter Vercel-chatbot interaction model.
-						</div>
-						{activeThreadId ? (
-							<p className="animate-in slide-in-from-bottom-1 fade-in-0 mt-4 max-w-xl text-text-subtle text-sm duration-300">
-								{activeThreadTitle
-									? `This conversation is empty so far. Continue "${activeThreadTitle}" below.`
-									: "This conversation is empty so far. Continue it below."}
-							</p>
-						) : null}
-					</div>
-				) : (
-					visibleMessages.map((message) => {
+				{visibleMessages.map((message) => {
 						if (message.role === "user") {
 							return (
 								<UserMessage
@@ -586,8 +576,7 @@ export function FutureChatMessages({
 								voteValue={votes[message.id]}
 							/>
 						);
-					})
-				)}
+					})}
 
 				{shouldShowStreamingArtifactPreview && streamingArtifact?.documentId ? (
 					<StreamingArtifactMessage
@@ -601,7 +590,7 @@ export function FutureChatMessages({
 				) : shouldShowThinkingMessage ? (
 					<ThinkingMessage />
 				) : null}
-			</ConversationContent>
+			</div>
 
 			<ConversationScrollButton className="bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border bg-background p-2 shadow-lg transition-all hover:bg-muted" />
 		</Conversation>

@@ -1,7 +1,7 @@
 "use client";
 
-import type { StickToBottomContext } from "use-stick-to-bottom";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
+import type { ConversationContextValue } from "@/components/ui-ai/conversation";
 import { ChatMessages } from "@/components/projects/shared/components/chat-messages";
 import { GenerativeWidgetCard } from "@/components/projects/shared/components/generative-widget-card";
 import type { GenerativeWidgetPrimaryActionPayload } from "@/components/projects/shared/lib/generative-widget";
@@ -14,7 +14,7 @@ interface RovoChatMessagesProps {
 	variant: PanelVariant;
 	onSuggestedQuestionClick?: (question: string) => void;
 	userName?: string;
-	conversationContextRef: React.RefObject<StickToBottomContext | null>;
+	conversationContextRef: React.RefObject<ConversationContextValue | null>;
 	scrollSpacerRef?: React.RefObject<HTMLDivElement | null>;
 	contentTopPadding?: string;
 	contentBottomPadding?: string;

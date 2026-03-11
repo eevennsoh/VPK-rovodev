@@ -73,6 +73,13 @@ Not every Figma design requires the full 3-agent pipeline. Choose the approach b
 5. Re-read current component interfaces before implementation (`Props`, callback names, exported APIs). Do not rely on stale assumptions.
 6. Check local workspace state (`git status --short`) and avoid touching unrelated modified files.
 7. Capture runtime ports with `pnpm ports` so validator hits the correct worktree URL.
+8. Run an ADS MCP pre-pass for Atlassian-like primitives:
+   - Use `ads_plan` as the primary lookup, with at least 2 likely search terms per populated field (`components`, `icons`, `tokens`)
+   - Set `exactName: true` when the Figma layer name makes the ADS component explicit
+   - Fetch `ads_get_a11y_guidelines` for the closest topic (`buttons`, `forms`, `focus`, `keyboard`, or `general`)
+   - Use `ads_get_all_tokens` / `ads_get_all_icons` only as exhaustive fallback lookups when `ads_plan` still leaves token/icon ambiguity
+   - Treat `ads_get_components` as an exhaustive fallback, not the default search path
+   - If the design reflects legacy Atlaskit spotlight/onboarding patterns, consult `ads_migration_guides` before implementation
 
 **Scope rules:**
 - When the user provides a Figma URL, the Figma spec is the source of truth for ALL differences — not just the ones the user mentions in their text. User notes are supplementary constraints on top of the full Figma spec. Every difference between the current code and the Figma spec must be implemented.
@@ -101,6 +108,13 @@ Task({
     - alignment model for each row (edge-pinned, centered cluster, distributed)
     - center invariants (what must remain mathematically centered)
     - grouping frames: which elements are grouped in a parent frame and what gap/padding that frame has
+
+    ADS MCP rules:
+    - Use `ads_plan` as the primary ADS lookup and provide at least 2 likely search terms for every populated field (`components`, `icons`, `tokens`)
+    - Set `exactName: true` when a Figma layer name makes the target explicit
+    - Use `ads_get_a11y_guidelines` for the most relevant topics and include the applicable rules in the output
+    - Use `ads_get_all_tokens` / `ads_get_all_icons` only as exhaustive fallbacks when token/icon matching is still ambiguous
+    - If ADS mapping remains ambiguous, record the ambiguity instead of guessing
   `
 })
 ```
@@ -115,6 +129,7 @@ Task({
 - Alignment/anchoring model per axis (not just gaps and widths)
 - Explicit geometry invariants and acceptable tolerance (default ±1px)
 - Grouping frames: which elements share a parent frame and the frame's gap/padding
+- Relevant ADS accessibility topics and constraints for the identified controls
 
 ### Phase 2: Implement Component (Agent 2)
 
@@ -137,6 +152,11 @@ Task({
     variant/appearance props, spacing/gap structure, and grouping wrappers.
 
     Use ONLY the tokens specified in the spec.
+    Use `ads_get_a11y_guidelines` for the relevant control types before finalizing.
+    Run `ads_analyze_a11y`, then use `ads_suggest_a11y_fixes` for any material
+    violation instead of improvising a remediation.
+    If the target file is intl-aware or lint flags literal JSX strings, use
+    `ads_i18n_conversion_guide` before leaving Figma copy hardcoded in code.
     Preserve layout invariants from spec. If center content must stay centered,
     implement it so side controls cannot shift it.
     Run lint and typecheck before completing.
@@ -171,8 +191,10 @@ Task({
     When setting dark mode programmatically, update all 3:
     1) html class, 2) html data-theme, 3) html style.colorScheme.
 
-    Run accessibility checks scoped to the component root selector
-    (not only full-page scans).
+    Run `ads_analyze_localhost_a11y` scoped to the component root selector
+    (not only full-page scans). If it reports material issues, use
+    `ads_get_a11y_guidelines` and `ads_suggest_a11y_fixes` to turn them into
+    concrete follow-up actions.
     Verify geometry parity (sizes/offsets/centering), not just visual similarity.
     Compare against Figma and report discrepancies.
   `
@@ -222,12 +244,13 @@ Report both outcomes clearly:
 
 Use `/agent-browser` (`npx agent-browser`) for all browser-driven validation — navigation, snapshots, screenshots, and interaction.
 
-1. Standard: `/agent-browser` snapshot/screenshot flow.
+1. Standard: `/agent-browser` snapshot/screenshot flow plus `ads_analyze_localhost_a11y` scoped to the component root.
 2. If agent-browser launch fails, fallback to:
    - server-render sanity checks for expected text/structure at the route
    - component-level a11y analysis (`ads_analyze_a11y`)
    - targeted localhost a11y (`ads_analyze_localhost_a11y`) with component selector
-3. Explicitly mark validation as degraded when browser automation is blocked.
+3. Use `ads_get_a11y_guidelines` and `ads_suggest_a11y_fixes` to separate real issues from noise and turn them into concrete fixes.
+4. Explicitly mark validation as degraded when browser automation is blocked.
 
 ### Geometry Parity Checks (Critical)
 
@@ -248,6 +271,7 @@ If geometry checks fail, return `MINOR_FIXES` or `MAJOR_FIXES` even when UI look
 
 - Scope checks to the component selector whenever possible.
 - Full-page a11y scans may include unrelated overlays/toolbars (for example feedback tooling). Treat those as external noise unless the task is explicitly page-wide.
+- When a violation appears material, corroborate it with `ads_get_a11y_guidelines` and convert it into a concrete fix with `ads_suggest_a11y_fixes` instead of leaving a vague note.
 
 ### Common Figma-to-Code Pitfalls (Learned)
 
@@ -316,6 +340,16 @@ This codebase uses **Tailwind classes** that map to ADS CSS variables. The expan
 
 ---
 
+## ADS MCP Coverage
+
+- `ads_plan` is the primary ADS lookup; `ads_get_components` is the package/component fallback inventory.
+- `ads_get_all_tokens` and `ads_get_all_icons` are exhaustive fallbacks only when `ads_plan` still leaves concrete token or icon ambiguity.
+- `ads_get_a11y_guidelines`, `ads_analyze_a11y`, `ads_analyze_localhost_a11y`, and `ads_suggest_a11y_fixes` form the required accessibility loop.
+- `ads_migration_guides` applies when the Figma work reflects legacy spotlight/onboarding patterns.
+- `ads_i18n_conversion_guide` applies when Figma copy lands in intl-aware code or lint flags literal strings.
+
+---
+
 ## Agent Files
 
 The agent definitions are in `.claude/agents/`:
@@ -345,12 +379,14 @@ Before presenting to user:
 - [ ] **Preflight: current code was read** and diffed against the Figma screenshot
 - [ ] **Scope verified:** Only implementing what's visible in the Figma node — no extra structural components
 - [ ] **Parent node checked** for full page layout context (no duplicate headers/chrome)
+- [ ] ADS MCP pre-pass covered primary lookup, exhaustive fallbacks, and legacy migration guidance where applicable
 - [ ] Extractor produced complete spec with all tokens AND Tailwind mappings
 - [ ] Extractor captured **exact text content** (headings, placeholders, button labels) verbatim from Figma
 - [ ] Extractor identified **component types and variant props** (Button vs IconButton, appearance, etc.)
 - [ ] Implementer applied **ALL differences** between current code and Figma spec — not just user-mentioned ones
 - [ ] Implementer used VPK primitives (Button, etc.) with style overrides — not raw HTML elements
 - [ ] Implementer used Tailwind classes (not token()) where possible
+- [ ] `ads_i18n_conversion_guide` was used when Figma copy landed in an intl-aware surface
 - [ ] Implementer passed `pnpm tsc --noEmit`
 - [ ] Full lint attempted; scoped lint on changed files reported if baseline lint debt exists
 - [ ] Validator captured light and dark mode screenshots (class + `data-theme` + `colorScheme`)

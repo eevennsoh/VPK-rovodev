@@ -3,7 +3,6 @@
 import { token } from "@/lib/tokens";
 import { Button } from "@/components/ui/button";
 import { HomeIcon, JiraIcon, ConfluenceIcon, RovoIcon, SearchIcon as SearchLogo } from "@/components/ui/logo";
-import { MenuGroup } from "@/components/ui/menu-group";
 
 interface AppSwitcherMenuProps {
 	onNavigate: (path: string) => void;
@@ -29,7 +28,7 @@ export function AppSwitcherMenu({ onNavigate }: Readonly<AppSwitcherMenuProps>) 
 				maxWidth: "320px",
 			}}
 		>
-			<MenuGroup className="p-2">
+			<div className="space-y-0.5 p-2">
 				{appSwitcherItems.map((item) => {
 					const ItemIcon = item.icon;
 					return (
@@ -45,7 +44,7 @@ export function AppSwitcherMenu({ onNavigate }: Readonly<AppSwitcherMenuProps>) 
 						</Button>
 					);
 				})}
-			</MenuGroup>
+			</div>
 		</div>
 	);
 }

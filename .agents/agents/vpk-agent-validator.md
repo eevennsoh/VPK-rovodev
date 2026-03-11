@@ -8,6 +8,10 @@ tools:
     "Glob",
     "Grep",
     "Bash",
+    "mcp__ads-mcp__ads_analyze_a11y",
+    "mcp__ads-mcp__ads_analyze_localhost_a11y",
+    "mcp__ads-mcp__ads_get_a11y_guidelines",
+    "mcp__ads-mcp__ads_suggest_a11y_fixes",
   ]
 description: |
   Figma visual validation specialist. Compares implemented UI against Figma screenshots. Use as part of parallel Figma-to-code workflow.
@@ -136,14 +140,21 @@ Then screenshot:
 npx agent-browser screenshot output/implementation-dark.png
 ```
 
+### Step 3.2: Run Scoped Accessibility Scan
+
+Run `ads_analyze_localhost_a11y` against the narrowest stable selector available for the implemented component. Prefer the component root selector or `data-testid`; only fall back to a broader container when there is no stable local root.
+
+If the scan reports a material issue, fetch the relevant topic from `ads_get_a11y_guidelines` and use `ads_suggest_a11y_fixes` to turn the violation into a concrete recommended fix.
+
 ### Step 3.5: Fallback If Browser Automation Fails
 
 If agent-browser launch/navigation fails:
 
 1. Mark validation as **DEGRADED**.
 2. Run server-render sanity checks at the route (confirm expected text/structure is present).
-3. Continue comparison using available evidence and clearly state the limitation in the report.
-4. Do not claim full visual parity when browser evidence is incomplete.
+3. Run `ads_analyze_a11y` on the component source if you can read the relevant file.
+4. Continue comparison using available evidence and clearly state the limitation in the report.
+5. Do not claim full visual parity when browser evidence is incomplete.
 
 ### Step 4: Compare Against Figma
 
@@ -223,6 +234,12 @@ Output in this EXACT format:
 - Status: [PASS | FAIL]
 - Issues:
   - [List any dark mode specific issues]
+
+## Accessibility
+- Status: [PASS | FAIL]
+- Issues:
+  - [List scoped accessibility findings]
+  - [Reference guideline topic or suggested fix when relevant]
 
 ## Fixes Required
 1. [Specific fix with file and line if known]

@@ -70,7 +70,6 @@ const UI_DEMO: Record<string, ComponentType> = {
 	"menu-group": dynamic(() => import("./demos/ui/menu-group-demo"), { ssr: false }),
 	"object-tile": dynamic(() => import("./demos/ui/object-tile-demo"), { ssr: false }),
 	"page-header": dynamic(() => import("./demos/ui/page-header-demo"), { ssr: false }),
-	popup: dynamic(() => import("./demos/ui/popup-demo"), { ssr: false }),
 	"progress-indicator": dynamic(() => import("./demos/ui/progress-indicator-demo"), { ssr: false }),
 	"progress-tracker": dynamic(() => import("./demos/ui/progress-tracker-demo"), { ssr: false }),
 	radio: dynamic(() => import("./demos/ui/radio-group-demo"), { ssr: false }),
@@ -836,6 +835,7 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"logo-demo-sizes": dynamic(() => import("./demos/ui/logo-demo").then((mod) => ({ default: mod.LogoDemoSizes })), { ssr: false }),
 	"logo-demo-appearances": dynamic(() => import("./demos/ui/logo-demo").then((mod) => ({ default: mod.LogoDemoAppearances })), { ssr: false }),
 	"logo-demo-custom": dynamic(() => import("./demos/ui/logo-demo").then((mod) => ({ default: mod.LogoDemoCustom })), { ssr: false }),
+	"logo-demo-named-exports": dynamic(() => import("./demos/ui/logo-demo").then((mod) => ({ default: mod.LogoDemoNamedExports })), { ssr: false }),
 	// Lozenge
 	"lozenge-demo-default": dynamic(() => import("./demos/ui/lozenge-demo").then((mod) => ({ default: mod.LozengeDemoDefault })), { ssr: false }),
 	"lozenge-demo-appearances": dynamic(() => import("./demos/ui/lozenge-demo").then((mod) => ({ default: mod.LozengeDemoAppearances })), { ssr: false }),
@@ -871,11 +871,6 @@ const UI_VARIANT_DEMOS: Record<string, ComponentType> = {
 	"page-header-demo-with-actions": dynamic(() => import("./demos/ui/page-header-demo").then((mod) => ({ default: mod.PageHeaderDemoWithActions })), { ssr: false }),
 	"page-header-demo-with-breadcrumbs": dynamic(() => import("./demos/ui/page-header-demo").then((mod) => ({ default: mod.PageHeaderDemoWithBreadcrumbs })), { ssr: false }),
 	"page-header-demo-title-only": dynamic(() => import("./demos/ui/page-header-demo").then((mod) => ({ default: mod.PageHeaderDemoTitleOnly })), { ssr: false }),
-	// Popup
-	"popup-demo-default": dynamic(() => import("./demos/ui/popup-demo").then((mod) => ({ default: mod.PopupDemoDefault })), { ssr: false }),
-	"popup-demo-placements": dynamic(() => import("./demos/ui/popup-demo").then((mod) => ({ default: mod.PopupDemoPlacements })), { ssr: false }),
-	"popup-demo-alignments": dynamic(() => import("./demos/ui/popup-demo").then((mod) => ({ default: mod.PopupDemoAlignments })), { ssr: false }),
-	"popup-demo-with-content": dynamic(() => import("./demos/ui/popup-demo").then((mod) => ({ default: mod.PopupDemoWithContent })), { ssr: false }),
 	// Progress Indicator
 	"progress-indicator-demo-default": dynamic(() => import("./demos/ui/progress-indicator-demo").then((mod) => ({ default: mod.ProgressIndicatorDemoDefault })), { ssr: false }),
 	"progress-indicator-demo-appearances": dynamic(() => import("./demos/ui/progress-indicator-demo").then((mod) => ({ default: mod.ProgressIndicatorDemoAppearances })), { ssr: false }),

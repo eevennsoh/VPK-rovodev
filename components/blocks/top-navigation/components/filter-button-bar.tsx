@@ -7,7 +7,7 @@ import CustomizeIcon from "@atlaskit/icon/core/customize";
 import FolderClosedIcon from "@atlaskit/icon/core/folder-closed";
 import PersonIcon from "@atlaskit/icon/core/person";
 
-export default function FilterButtonBar(): React.ReactElement {
+export default function FilterButtonBar(): JSX.Element {
 	return (
 		<div
 			style={{
@@ -18,7 +18,6 @@ export default function FilterButtonBar(): React.ReactElement {
 				gap: "100px",
 			}}
 		>
-			{/* Left group */}
 			<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
 				<Button className="gap-2" variant="secondary">
 					<FolderClosedIcon label="" size="small" />
@@ -35,16 +34,15 @@ export default function FilterButtonBar(): React.ReactElement {
 				</Button>
 			</div>
 
-			{/* Right group */}
 			<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-					<Button className="gap-2" variant="secondary">
-						<Image src="/3p/google-drive/20.svg" alt="" aria-hidden width={20} height={20} />
-						<span>Google Drive</span>
-					</Button>
-					<Button className="gap-2" variant="secondary">
-						<Image src="/3p/slack/20.svg" alt="" aria-hidden width={20} height={20} />
-						<span>Slack</span>
-					</Button>
+				<Button className="gap-2" variant="secondary">
+					<Image src="/3p/google-drive/20.svg" alt="" aria-hidden width={20} height={20} />
+					<span>Google Drive</span>
+				</Button>
+				<Button className="gap-2" variant="secondary">
+					<Image src="/3p/slack/20.svg" alt="" aria-hidden width={20} height={20} />
+					<span>Slack</span>
+				</Button>
 				<Button variant="secondary">+47</Button>
 			</div>
 		</div>

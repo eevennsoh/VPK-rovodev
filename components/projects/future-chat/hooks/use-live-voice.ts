@@ -30,6 +30,14 @@ export interface UseLiveVoiceResult {
 	speak: (text: string) => void;
 }
 
+function isGenericTranscriptionErrorMessage(message: string): boolean {
+	const normalizedMessage = message.trim().toLowerCase();
+	return (
+		normalizedMessage === "internal server error" ||
+		normalizedMessage === "request failed"
+	);
+}
+
 /**
  * Convert a Float32Array of PCM samples to a base64-encoded WAV string.
  */
@@ -109,13 +117,27 @@ async function sendForTranscription(
 
 		try {
 			const payload = (await response.json()) as {
+				details?: unknown;
 				error?: unknown;
 				message?: unknown;
 			};
-			if (typeof payload.error === "string" && payload.error.trim()) {
-				errorMessage = payload.error.trim();
-			} else if (typeof payload.message === "string" && payload.message.trim()) {
-				errorMessage = payload.message.trim();
+			const primaryMessage =
+				typeof payload.error === "string" && payload.error.trim()
+					? payload.error.trim()
+					: typeof payload.message === "string" && payload.message.trim()
+						? payload.message.trim()
+						: null;
+			const detailsMessage =
+				typeof payload.details === "string" && payload.details.trim()
+					? payload.details.trim()
+					: null;
+
+			if (primaryMessage && !isGenericTranscriptionErrorMessage(primaryMessage)) {
+				errorMessage = primaryMessage;
+			} else if (detailsMessage) {
+				errorMessage = detailsMessage;
+			} else if (primaryMessage) {
+				errorMessage = primaryMessage;
 			}
 		} catch {
 			// Keep the HTTP status fallback when the response body is empty or invalid.

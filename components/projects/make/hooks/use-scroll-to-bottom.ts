@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { StickToBottomContext } from "use-stick-to-bottom";
+import type { ConversationContextValue } from "@/components/ui-ai/conversation";
 
 const SCROLL_BUTTON_THRESHOLD_PX = 100;
 
 interface UseScrollToBottomOptions {
-	conversationContextRef: React.RefObject<StickToBottomContext | null>;
+	conversationContextRef: React.RefObject<ConversationContextValue | null>;
 }
 
 interface UseScrollToBottomReturn {

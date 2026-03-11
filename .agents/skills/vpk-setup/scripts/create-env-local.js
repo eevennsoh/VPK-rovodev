@@ -149,9 +149,9 @@ ${preservedLocalWhisperModel ? `LOCAL_WHISPER_MODEL=${preservedLocalWhisperModel
 ${preservedLocalWhisperBin ? `LOCAL_WHISPER_BIN=${preservedLocalWhisperBin}` : 'LOCAL_WHISPER_BIN=whisper'}
 # Optional fallback model for openai-compatible audio transcription endpoints
 ${preservedOpenAiCompatibleSttModel ? `OPENAI_COMPATIBLE_STT_MODEL=${preservedOpenAiCompatibleSttModel}` : '# OPENAI_COMPATIBLE_STT_MODEL=qwen3-asr'}
-# Defaults to http://localhost:8001/v1 for qwen3-0.6b and qwen3-asr presets.
+# Defaults to http://localhost:8801/v1 for qwen3-0.6b and qwen3-asr presets.
 # Uncomment to override:
-${preservedOpenAiCompatibleSttBaseUrl ? `OPENAI_COMPATIBLE_STT_BASE_URL=${preservedOpenAiCompatibleSttBaseUrl}` : '# OPENAI_COMPATIBLE_STT_BASE_URL=http://localhost:8001/v1'}
+${preservedOpenAiCompatibleSttBaseUrl ? `OPENAI_COMPATIBLE_STT_BASE_URL=${preservedOpenAiCompatibleSttBaseUrl}` : '# OPENAI_COMPATIBLE_STT_BASE_URL=http://localhost:8801/v1'}
 # Optional auth for the openai-compatible STT endpoint:
 ${preservedOpenAiCompatibleSttApiKey ? `OPENAI_COMPATIBLE_STT_API_KEY=${preservedOpenAiCompatibleSttApiKey}` : '# OPENAI_COMPATIBLE_STT_API_KEY='}
 

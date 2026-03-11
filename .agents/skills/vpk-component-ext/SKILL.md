@@ -24,6 +24,7 @@ This skill covers four source types:
 - Target `components/ui-ai/*` for chat, assistant, reasoning, prompt-composer, and AI-SDK-centric UI
 - Target `components/ui-audio/*` for voice, waveform, transcript, playback, microphone, and voice-picker UI
 - Target `components/ui/*` for generic reusable UI that is not specifically AI/voice oriented
+- Use ADS MCP as the normalization layer for generic UI and shared interaction patterns: `ads_plan` first, then topic-specific a11y guidance before final polish
 - Preserve VPK styling and docs conventions
 - Do not vendor ElevenLabs output into `components/ui/*`
 - Do not replace VPK primitives with raw upstream shadcn/base styles
@@ -62,11 +63,13 @@ This skill covers four source types:
    - `components/ui/*` for generic UI targets
    - `components/ui-ai/*` for assistant/chat targets
    - `components/ui-audio/*` for voice/audio targets
-5. **Read upstream reference when needed**:
+5. **ADS alignment for reusable UI** — When the surface is generic UI or clearly matches an Atlassian interaction pattern, run `ads_plan` before implementation. Provide at least 2 likely search terms for every populated field (`components`, `icons`, `tokens`) and set `exactName: true` when the ADS component name is explicit. Use `ads_get_components` only for exhaustive candidate sweeps when `ads_plan` is still ambiguous, and escalate to `ads_get_all_tokens` / `ads_get_all_icons` only when you still need exhaustive token or icon lookup coverage.
+6. **Read upstream reference when needed**:
    - ai-elements: `~/.agents/skills/ai-elements/references/[slug].md`
    - ElevenLabs: upstream docs or registry payload only if the local VPK port is missing or incomplete
    - Other third-party library: official docs, source examples, or registry payloads from the source library
-6. **Trace data flow** — follow providers, callbacks, message schemas, playback state, transcript state, or controlled props through the target surface.
+7. **Accessibility baseline** — Before finalizing interactive surfaces, fetch `ads_get_a11y_guidelines` for the closest topic (`buttons`, `forms`, `focus`, `keyboard`, `screenReaders`, or `general`). If the source uses legacy Atlaskit spotlight/onboarding patterns, use `ads_migration_guides` instead of improvising the migration shape. If the migration introduces or rewrites user-facing literals in an intl-aware file, run `ads_i18n_conversion_guide` before leaving hardcoded JSX/content behind.
+8. **Trace data flow** — follow providers, callbacks, message schemas, playback state, transcript state, or controlled props through the target surface.
 
 ## Family Resolver
 
@@ -341,8 +344,10 @@ Create docs artifacts in the correct family.
    - No new console/hydration errors
    - At least one stateful interaction per migrated surface
 5. **Accessibility**:
+   - `ads_get_a11y_guidelines` for the relevant topic when the surface introduces controls, forms, or focus management
    - `ads_analyze_a11y` on migrated source
-   - `ads_analyze_localhost_a11y` scoped to `main article` for docs pages
+   - `ads_analyze_localhost_a11y` scoped to the narrowest stable component/demo selector available (`main article` only when no better root exists)
+   - `ads_suggest_a11y_fixes` for each material violation before choosing the final remediation
 6. **Residual import gate**:
    - `rg -n "OldComponentName|old-component-path" components app`
    - Remove dead wrappers only after consumers are migrated
@@ -366,7 +371,8 @@ When the source library is neither ai-elements nor ElevenLabs:
    - `ui-audio`
 3. Map upstream props into VPK naming only when you are creating a thin adapter.
 4. If VPK already has a direct primitive, migrate consumers to the VPK primitive instead of vendoring the source library.
-5. If VPK does not have a direct primitive, create the smallest possible wrapper and wire docs/examples immediately.
+5. If the source is legacy Atlaskit spotlight/onboarding, use `ads_migration_guides` before translating the result into VPK structure.
+6. If VPK does not have a direct primitive, create the smallest possible wrapper and wire docs/examples immediately.
 
 ---
 
@@ -505,8 +511,15 @@ Feature surfaces should copy the canonical pattern, not invent their own diverge
 
 | Tool | Purpose |
 |---|---|
-| `ads_plan` | Search ADS component docs, props, tokens |
+| `ads_plan` | Primary ADS lookup for matching components, icons, and tokens; use 2+ search terms per populated field and `exactName` when the target is explicit |
+| `ads_get_components` | Exhaustive ADS component/package lookup when `ads_plan` leaves multiple candidates |
+| `ads_get_all_tokens` | Exhaustive token lookup fallback when `ads_plan` is still insufficient |
+| `ads_get_all_icons` | Exhaustive icon lookup fallback when `ads_plan` is still insufficient |
+| `ads_get_a11y_guidelines` | Fetch topic-specific ADS accessibility rules before finalizing interactive surfaces |
 | `ads_analyze_a11y` | Analyze component code for accessibility |
 | `ads_analyze_localhost_a11y` | Analyze live page for accessibility |
+| `ads_suggest_a11y_fixes` | Convert concrete a11y violations into actionable before/after fixes |
+| `ads_migration_guides` | Use official ADS migration playbooks for spotlight/onboarding migrations instead of guessing |
+| `ads_i18n_conversion_guide` | Use when migration work introduces new literal UI strings in intl-aware codepaths |
 | `resolve-library-id` + `query-docs` | Fetch library docs when primary references are needed |
 | `/agent-browser` | Visual comparison in browser |

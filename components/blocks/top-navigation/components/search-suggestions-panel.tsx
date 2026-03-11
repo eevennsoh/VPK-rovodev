@@ -1,22 +1,21 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent, type Ref } from "react";
 import { token } from "@/lib/tokens";
-import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { RECENT_SEARCHES, RECENT_ITEMS } from "../data/search-data";
 import FilterButtonBar from "./filter-button-bar";
 import RecentSearchItem from "./recent-search-item";
 import RecentItemCard from "./recent-item-card";
 import SearchAllAppsFooter from "./search-all-apps-footer";
-import styles from "./search-suggestions-panel.module.css";
 import SearchIcon from "@atlaskit/icon/core/search";
 
 interface SearchSuggestionsPanelProps {
-	ref?: React.Ref<HTMLDivElement>;
+	ref?: Ref<HTMLDivElement>;
 	isVisible: boolean;
 	searchValue: string;
 	onSearchChange: (value: string) => void;
-	onSearchKeyDown: (e: React.KeyboardEvent) => void;
+	onSearchKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 	onClose?: () => void;
 	onSearchAllApps?: () => void;
 	onRecentItemClick?: (title: string) => void;
@@ -36,14 +35,20 @@ export default function SearchSuggestionsPanel({
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
-		if (isVisible) {
-			setTimeout(() => {
-				inputRef.current?.focus();
-			}, 10);
+		if (!isVisible) {
+			return undefined;
 		}
+
+		const timeoutId = window.setTimeout(() => {
+			inputRef.current?.focus();
+		}, 10);
+
+		return () => window.clearTimeout(timeoutId);
 	}, [isVisible]);
 
-	if (!isVisible) return null;
+	if (!isVisible) {
+		return null;
+	}
 
 	return (
 		<div
@@ -56,7 +61,6 @@ export default function SearchSuggestionsPanel({
 				zIndex: 1000,
 			}}
 		>
-			{/* Focused Search Box */}
 			<div
 				style={{
 					width: "780px",
@@ -69,23 +73,28 @@ export default function SearchSuggestionsPanel({
 					marginBottom: "8px",
 				}}
 			>
-				<div className={styles.focusedSearchBox} style={{ flex: 1, position: "relative" }}>
-					<span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-icon">
-						<SearchIcon label="" size="small" />
-					</span>
-					<Input
+				<InputGroup
+					className="h-9 flex-1 border-0 bg-transparent shadow-none has-[[data-slot=input-group-control]:focus-visible]:border-0 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+				>
+					<InputGroupAddon align="inline-start">
+						<span className="size-4 shrink-0 text-icon-subtle">
+							<SearchIcon label="" spacing="none" />
+						</span>
+					</InputGroupAddon>
+					<InputGroupInput
 						ref={inputRef}
+						type="search"
+						aria-label="Search"
 						value={searchValue}
-						onChange={(e) => onSearchChange((e.target as HTMLInputElement).value)}
+						onChange={(event) => onSearchChange(event.currentTarget.value)}
 						onKeyDown={onSearchKeyDown}
 						placeholder="Search"
 						autoFocus
-						className="h-8 pl-7 text-sm placeholder:text-sm"
+						className="h-full text-sm placeholder:text-sm [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden [&::-webkit-search-results-button]:hidden [&::-webkit-search-results-decoration]:hidden"
 					/>
-				</div>
+				</InputGroup>
 			</div>
 
-			{/* Suggestions Panel */}
 			<div
 				style={{
 					width: "780px",
@@ -99,18 +108,16 @@ export default function SearchSuggestionsPanel({
 			>
 				<FilterButtonBar />
 
-				{/* Recent Search Items */}
 				<div style={{ padding: "0 8px" }}>
-					{RECENT_SEARCHES.map((search, index) => (
+					{RECENT_SEARCHES.map((search) => (
 						<RecentSearchItem
-							key={index}
+							key={search}
 							query={search}
 							onClick={() => onRecentSearchClick?.(search)}
 						/>
 					))}
 				</div>
 
-				{/* RECENT Section */}
 				<div style={{ marginTop: "8px", padding: "0 8px" }}>
 					<div
 						style={{
@@ -124,9 +131,9 @@ export default function SearchSuggestionsPanel({
 						RECENT
 					</div>
 
-					{RECENT_ITEMS.map((item, index) => (
+					{RECENT_ITEMS.map((item) => (
 						<RecentItemCard
-							key={index}
+							key={`${item.title}-${item.timestamp}`}
 							title={item.title}
 							metadata={item.metadata}
 							timestamp={item.timestamp}

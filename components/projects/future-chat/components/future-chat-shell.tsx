@@ -2,16 +2,20 @@
 
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { FileTextIcon, MessageSquarePlusIcon } from "lucide-react";
 import { FutureChatArtifactPanel } from "@/components/projects/future-chat/components/future-chat-artifact-panel";
 import { FutureChatComposer } from "@/components/projects/future-chat/components/future-chat-composer";
-import { FutureChatHeader } from "@/components/projects/future-chat/components/future-chat-header";
 import { FutureChatMessages } from "@/components/projects/future-chat/components/future-chat-messages";
 import { FutureChatSidebar } from "@/components/projects/future-chat/components/future-chat-sidebar";
 import { type FutureChatSteeringPhase } from "@/components/projects/future-chat/components/future-chat-steering-lane";
 import { RealtimeVoiceBar } from "@/components/projects/future-chat/components/realtime-voice-bar";
 import { useArtifactAnnotations } from "@/components/projects/future-chat/hooks/use-artifact-annotations";
 import { useFutureChat } from "@/components/projects/future-chat/hooks/use-future-chat";
+import {
+	getFutureChatPrimaryArtifact,
+	sortFutureChatArtifacts,
+} from "@/components/projects/future-chat/lib/future-chat-artifacts";
 import { getFutureChatShellLayout } from "@/components/projects/future-chat/lib/future-chat-shell-layout";
 import { useLiveVoice } from "@/components/projects/future-chat/hooks/use-live-voice";
 import {
@@ -19,8 +23,26 @@ import {
 	useRealtimeVoice,
 } from "@/components/projects/future-chat/hooks/use-realtime-voice";
 import type { VoiceButtonState } from "@/components/ui-audio/voice-button";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { useSidebar as useGlobalSidebar } from "@/app/contexts/context-sidebar";
+import PromptGallery from "@/components/blocks/prompt-gallery/page";
+import { DEFAULT_PROMPT_GALLERY_SUGGESTIONS } from "@/components/blocks/prompt-gallery/data/suggestions";
+import { LeftNavigation } from "@/components/blocks/top-navigation/components/left-navigation";
+import { RightNavigation } from "@/components/blocks/top-navigation/components/right-navigation";
+import { useTopNavigation } from "@/components/blocks/top-navigation/hooks/use-top-navigation";
+import { FUTURE_CHAT_SEPARATOR_LINE_OFFSET_PX } from "@/components/blocks/top-navigation/layout-constants";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Footer } from "@/components/ui/footer";
 import { cn } from "@/lib/utils";
+import { token } from "@/lib/tokens";
 import {
 	getMessageArtifactResult,
 	getMessageInterruption,
@@ -31,6 +53,11 @@ interface FutureChatShellProps {
 	embedded?: boolean;
 	initialThreadId?: string | null;
 }
+
+const FUTURE_CHAT_LEFT_NAV_PADDING_PX = 12;
+
+const HOME_SUGGESTIONS = DEFAULT_PROMPT_GALLERY_SUGGESTIONS.slice(0, 3);
+const DEFAULT_COMPOSER_PLACEHOLDER = "Ask, @mention, or / for skills";
 
 function mergeContextDescriptions(
 	...parts: Array<string | null | undefined>
@@ -47,9 +74,32 @@ export function FutureChatShell({
 	initialThreadId = null,
 }: Readonly<FutureChatShellProps>) {
 	const router = useRouter();
+	const nav = useTopNavigation();
 	const chat = useFutureChat({ embedded, initialThreadId });
 	const chatRef = useRef(chat);
 	chatRef.current = chat;
+
+	// Bridge the global sidebar context (TopNavigation toggle) with the local
+	// shadcn SidebarProvider so the nav bar button controls the thread sidebar.
+	const globalSidebar = useGlobalSidebar();
+	const globalSidebarVisibleRef = useRef(globalSidebar.isVisible);
+
+	useEffect(() => {
+		if (globalSidebar.isVisible !== globalSidebarVisibleRef.current) {
+			globalSidebarVisibleRef.current = globalSidebar.isVisible;
+			chat.setSidebarOpen(globalSidebar.isVisible);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- only react to global sidebar changes
+	}, [globalSidebar.isVisible]);
+
+	useEffect(() => {
+		if (chat.sidebarOpen !== globalSidebarVisibleRef.current) {
+			globalSidebarVisibleRef.current = chat.sidebarOpen;
+			globalSidebar.toggleSidebar();
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- only react to local sidebar changes
+	}, [chat.sidebarOpen]);
+
 	const artifactContentRef = useRef<HTMLDivElement | null>(null);
 	const stopSpeakingRef = useRef<() => void>(() => {});
 	const skipNextAutoSpeakRef = useRef(false);
@@ -67,6 +117,9 @@ export function FutureChatShell({
 	const voiceTranscriptIdRef = useRef(0);
 	const voiceDrainEpochRef = useRef(0);
 	const isDrainingVoiceRef = useRef(false);
+	const futureChatSidebarStyle = {
+		"--sidebar-width": `${FUTURE_CHAT_SEPARATOR_LINE_OFFSET_PX}px`,
+	} as CSSProperties;
 	const [steeringState, setSteeringState] = useState<{
 		phase: FutureChatSteeringPhase;
 		text: string | null;
@@ -75,6 +128,24 @@ export function FutureChatShell({
 		text: null,
 	});
 	const [cursorMode, setCursorMode] = useState(false);
+	const [galleryExpanded, setGalleryExpanded] = useState(false);
+	const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
+	const [prefillText, setPrefillText] = useState<string | null>(null);
+
+	const handleGalleryPreviewStart = useCallback((prompt: string) => {
+		setPreviewPrompt(prompt);
+	}, []);
+
+	const handleGalleryPreviewEnd = useCallback(() => {
+		setPreviewPrompt(null);
+	}, []);
+
+	const handleGallerySelect = useCallback((prompt: string) => {
+		setPrefillText(prompt);
+		setPreviewPrompt(null);
+	}, []);
+
+	const composerPlaceholder = previewPrompt ?? DEFAULT_COMPOSER_PLACEHOLDER;
 
 	const clearSteeringState = useCallback(() => {
 		setSteeringState({
@@ -455,10 +526,6 @@ export function FutureChatShell({
 		}
 	}, [clearSteeringState, realtime, voice]);
 
-	const activeThread =
-		chat.activeThreadId
-			? chat.threads.find((thread) => thread.id === chat.activeThreadId) ?? null
-			: null;
 	const visibleMessages = chat.messages.filter((message) => {
 		return message.role === "user" || message.role === "assistant";
 	});
@@ -536,6 +603,12 @@ export function FutureChatShell({
 	const artifactLayout = getFutureChatShellLayout(shellSize.width);
 	const shouldSplitArtifactPane =
 		isArtifactOpen && artifactLayout.mode === "split";
+
+	useEffect(() => {
+		if (isArtifactOpen || visibleMessages.length > 0) {
+			setGalleryExpanded(false);
+		}
+	}, [isArtifactOpen, visibleMessages.length]);
 
 	useEffect(() => {
 		const nextContext = formatContextForVoice().trim();
@@ -682,23 +755,37 @@ export function FutureChatShell({
 		});
 	}, [isArtifactOpen, workspaceDocument?.id]);
 
+	const primaryArtifact = getFutureChatPrimaryArtifact(chat.documents, chat.activeDocument?.id ?? null);
+	const sortedArtifacts = sortFutureChatArtifacts(chat.documents);
+	const artifactMenuItems = (() => {
+		const items = sortedArtifacts.map((artifact) => ({
+			id: artifact.id,
+			kind: artifact.kind,
+			title: artifact.title,
+		}));
+		const seenIds = new Set(items.map((item) => item.id));
+
+		for (let index = chat.messages.length - 1; index >= 0; index--) {
+			const artifactResult = getMessageArtifactResult(chat.messages[index]);
+			if (!artifactResult || seenIds.has(artifactResult.documentId)) {
+				continue;
+			}
+
+			seenIds.add(artifactResult.documentId);
+			items.push({
+				id: artifactResult.documentId,
+				kind: artifactResult.kind,
+				title: artifactResult.title,
+			});
+		}
+
+		return items;
+	})();
+
 	const chatPane = (
 		<>
-			<FutureChatHeader
-				activeArtifactId={chat.activeDocument?.id ?? null}
-				artifacts={chat.documents}
-				messages={chat.messages}
-				onNewChat={() => void chat.openNewChat()}
-				onOpenArtifact={(documentId) => void chat.openDocument(documentId)}
-				onSelectVisibility={chat.setThreadVisibility}
-				threadCount={chat.threads.length}
-				visibility={chat.threadVisibility}
-			/>
-
 			<FutureChatMessages
 				visibleDocumentId={chat.visibleArtifactDocumentId}
-				activeThreadId={chat.activeThreadId}
-				activeThreadTitle={activeThread?.title ?? null}
 				compact={isArtifactOpen}
 				documents={chat.documents}
 				editingMessageId={chat.editingMessageId}
@@ -720,8 +807,9 @@ export function FutureChatShell({
 			<div
 				ref={composerDockRef}
 				className={cn(
-					"sticky bottom-0 z-10 mx-auto flex w-full flex-col gap-3 border-border/80 border-t bg-background/90 px-2 pb-3 pt-3 backdrop-blur md:px-4 md:pb-4",
-					isArtifactOpen ? "max-w-none" : "max-w-4xl",
+					"z-10 mx-auto flex w-full flex-col gap-3 pt-3",
+					visibleMessages.length > 0 && "sticky bottom-0 bg-background/90 backdrop-blur",
+					isArtifactOpen ? "max-w-none" : "max-w-[800px]",
 				)}
 			>
 				<AnimatePresence>
@@ -745,36 +833,54 @@ export function FutureChatShell({
 						</motion.div>
 					) : null}
 				</AnimatePresence>
-				<FutureChatComposer
-					key={chat.runtimeThreadId}
-					artifactTitle={workspaceDocument?.title ?? null}
-					compact={isArtifactOpen}
-					errorMessage={chat.inputError}
-					onStop={handleStop}
-					onSubmit={chat.submitPrompt}
-					onSuggestedAction={chat.suggestedPrompt}
-					onToggleRealtimeVoice={handleToggleRealtimeVoice}
-					onToggleVoice={handleToggleVoice}
-					realtimeVoiceActive={isRealtimeActive}
-					showSuggestedActions={!isArtifactOpen && visibleMessages.length === 0}
-					status={chat.status}
-					voiceState={voiceButtonState}
-				/>
+				<div>
+					<FutureChatComposer
+						key={chat.runtimeThreadId}
+						artifactTitle={workspaceDocument?.title ?? null}
+						compact={isArtifactOpen}
+						errorMessage={chat.inputError}
+						galleryExpanded={galleryExpanded}
+						micStream={realtime.micStream}
+						onStop={handleStop}
+						onSubmit={chat.submitPrompt}
+						onToggleRealtimeVoice={handleToggleRealtimeVoice}
+						onToggleVoice={handleToggleVoice}
+						placeholder={composerPlaceholder}
+						prefillText={prefillText}
+						previewPrompt={previewPrompt}
+						realtimeVoiceActive={isRealtimeActive}
+						realtimeVoiceState={realtime.voiceState}
+						status={chat.status}
+						voiceState={voiceButtonState}
+					/>
+					{visibleMessages.length > 0 ? <Footer /> : null}
+				</div>
+
+				{!isArtifactOpen && visibleMessages.length === 0 ? (
+					<PromptGallery
+						className="mt-5"
+						items={HOME_SUGGESTIONS}
+						onSelect={handleGallerySelect}
+						onExpandChange={setGalleryExpanded}
+						onPreviewStart={handleGalleryPreviewStart}
+						onPreviewEnd={handleGalleryPreviewEnd}
+					/>
+				) : null}
 			</div>
 		</>
 	);
 
 	return (
 		<SidebarProvider
+			className="h-svh overflow-hidden"
 			defaultOpen={!embedded}
 			onOpenChange={chat.setSidebarOpen}
 			open={chat.sidebarOpen}
+			style={futureChatSidebarStyle}
 		>
 			<FutureChatSidebar
 				activeThreadId={chat.activeThreadId}
-				onDeleteAll={() => chat.deleteAllThreads()}
 				onDeleteThread={(threadId) => chat.deleteThread(threadId)}
-				onNewChat={() => chat.openNewChat()}
 				onSelectThread={async (threadId) => {
 					await chat.loadThread(threadId);
 					if (embedded) {
@@ -783,141 +889,242 @@ export function FutureChatShell({
 					router.push(`/future-chat/${encodeURIComponent(threadId)}`);
 				}}
 				threads={chat.threads}
+				topOffset={!embedded}
 			/>
 
-			<SidebarInset className="h-svh overflow-hidden rounded-none bg-sidebar/20 shadow-none md:rounded-none md:shadow-none">
-				<div ref={shellRef} className="relative flex h-full min-w-0 bg-background text-foreground">
-					<motion.div
-						layout
-						transition={{
-							type: "spring",
-							stiffness: 300,
-							damping: 30,
-						}}
-						style={
-							shouldSplitArtifactPane
-								? { width: `${artifactLayout.chatPaneWidth ?? shellSize.width}px` }
-								: undefined
+			{!embedded ? (
+				<div
+					className={cn(
+						"fixed top-0 left-0 z-20 flex h-12 items-center overflow-x-clip px-3 transition-[width,border-color] duration-medium ease-in-out",
+						chat.sidebarOpen
+							? "w-(--sidebar-width) border-r border-border"
+							: "w-auto border-b border-border",
+					)}
+					style={{ backgroundColor: token("elevation.surface") }}
+				>
+					<LeftNavigation
+						product="rovo"
+						windowWidth={nav.windowWidth}
+						isVisible={nav.isVisible}
+						isAppSwitcherOpen={nav.isAppSwitcherOpen}
+						hideAppSwitcher
+						separatorLineOffsetPx={
+							FUTURE_CHAT_SEPARATOR_LINE_OFFSET_PX - FUTURE_CHAT_LEFT_NAV_PADDING_PX
 						}
-						className={cn(
-							"overscroll-behavior-contain relative z-10 flex min-w-0 touch-pan-y flex-1 flex-col bg-background",
-							shouldSplitArtifactPane ? "w-full shrink-0 flex-none" : "flex-1",
-						)}
-					>
-						{chatPane}
-					</motion.div>
+						onToggleSidebar={nav.toggleSidebar}
+						onToggleAppSwitcher={nav.handleToggleAppSwitcher}
+						onCloseAppSwitcher={nav.handleCloseAppSwitcher}
+						onNavigate={(path) => nav.handleNavigate(path === "/" ? "/future-chat" : path)}
+						onHoverEnter={nav.handleHoverEnter}
+						onHoverLeave={nav.handleHoverLeave}
+					/>
+				</div>
+				) : null}
 
-					<AnimatePresence>
-						{workspaceDocument ? (
-							<>
-								{shouldSplitArtifactPane ? (
-									<motion.div
-										animate={{ width: shellSize.width, right: 0 }}
-										className="pointer-events-none absolute top-0 z-0 h-full bg-background"
-										exit={{
-											opacity: 0,
-											transition: { delay: 0.2 },
-										}}
-										initial={{ opacity: 1, width: shellSize.width, right: 0 }}
-										style={{ left: 0 }}
-									/>
+				<div className="flex min-w-0 flex-1 flex-col">
+					{!embedded ? (
+						<div
+							className="flex h-12 shrink-0 items-center gap-2 border-b px-3"
+							style={{
+								borderColor: token("color.border"),
+								backgroundColor: token("elevation.surface"),
+							}}
+						>
+							<div className="mr-auto flex items-center gap-2">
+								<Button
+									className="h-8 gap-2 px-3"
+									onClick={() => void chat.openNewChat()}
+									type="button"
+									variant="outline"
+								>
+									<MessageSquarePlusIcon className="size-4" />
+									<span>New chat</span>
+								</Button>
+								{primaryArtifact || artifactMenuItems.length > 0 ? (
+									<DropdownMenu>
+										<DropdownMenuTrigger
+											render={(
+												<Button
+													className="h-8 max-w-[13rem] gap-2 px-2 sm:max-w-[16rem]"
+													type="button"
+													variant="outline"
+												/>
+											)}
+										>
+											<FileTextIcon className="size-4" />
+											<span className="truncate">Artifacts</span>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="start">
+											<DropdownMenuGroup>
+												<DropdownMenuLabel>
+													{artifactMenuItems.length === 1 ? "Saved artifact" : `${artifactMenuItems.length} saved artifacts`}
+												</DropdownMenuLabel>
+												{artifactMenuItems.map((artifact) => (
+													<DropdownMenuItem
+														onClick={() => void chat.openDocument(artifact.id)}
+														description={artifact.kind}
+														key={artifact.id}
+													>
+														{artifact.title}
+													</DropdownMenuItem>
+												))}
+											</DropdownMenuGroup>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								) : null}
+							</div>
+							<RightNavigation
+								product="rovo"
+								windowWidth={nav.windowWidth}
+								onToggleChat={nav.toggleChat}
+								onToggleTheme={nav.toggleTheme}
+							/>
+						</div>
+					) : null}
+					<main
+						ref={shellRef}
+						className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-foreground"
+					>
+						<motion.div
+							layout
+							transition={{
+								type: "spring",
+								stiffness: 300,
+								damping: 30,
+							}}
+							style={
+								shouldSplitArtifactPane
+									? { width: `${artifactLayout.chatPaneWidth ?? shellSize.width}px` }
+									: undefined
+							}
+							className={cn(
+								"overscroll-behavior-contain relative z-10 flex min-w-0 touch-pan-y flex-1 flex-col bg-background",
+								shouldSplitArtifactPane ? "w-full shrink-0 flex-none" : "flex-1",
+							)}
+						>
+							{visibleMessages.length === 0 && !shouldSplitArtifactPane ? (
+								<div className="min-h-[40px] flex-1 shrink" />
+							) : null}
+							{chatPane}
+							{visibleMessages.length === 0 && !shouldSplitArtifactPane ? (
+								<>
+									<div className="flex-1 shrink" />
+									<Footer className="shrink-0" />
+								</>
+							) : null}
+						</motion.div>
 
+				<AnimatePresence>
+					{workspaceDocument ? (
+						<>
+							{shouldSplitArtifactPane ? (
 								<motion.div
-									animate={
-										!shouldSplitArtifactPane
-											? {
-													opacity: 1,
-													x: 0,
-													y: 0,
-													width: shellSize.width || "100%",
-													height: shellSize.height || "100%",
-													borderRadius: 0,
-													transition: {
-														delay: 0,
-														type: "spring",
-														stiffness: 300,
-														damping: 30,
-													},
-											  }
-											: {
-													opacity: 1,
-													x: artifactLayout.artifactPaneX,
-													y: 0,
-													width: artifactLayout.artifactPaneWidth,
-													height: shellSize.height || "100%",
-													borderRadius: 0,
-													transition: {
-														delay: 0,
-														type: "spring",
-														stiffness: 300,
-														damping: 30,
-													},
-											  }
-									}
-									className="absolute top-0 left-0 z-40 flex h-full flex-col overflow-hidden border-border bg-background md:border-l"
+									animate={{ width: shellSize.width, right: 0 }}
+									className="pointer-events-none absolute top-0 z-0 h-full bg-background"
 									exit={{
 										opacity: 0,
-										scale: 0.5,
-										transition: {
-											delay: 0.1,
-											type: "spring",
-											stiffness: 600,
-											damping: 30,
-										},
+										transition: { delay: 0.2 },
 									}}
-									initial={{
-										opacity: 1,
-										x: artifactOrigin.left,
-										y: artifactOrigin.top,
-										width: artifactOrigin.width,
-										height: artifactOrigin.height,
-										borderRadius: 32,
-									}}
-								>
-									<FutureChatArtifactPanel
-										annotations={artifactAnnotations}
-										contentRef={artifactContentRef}
-										cursorMode={cursorMode}
-										document={workspaceDocument}
-										draftContent={chat.streamingArtifact?.content ?? chat.artifactDraftContent}
-										isStreamingArtifact={Boolean(chat.streamingArtifact)}
-										mode={chat.artifactMode}
-										onAddComment={addArtifactAnnotationComment}
-										onClose={() => {
-											if (chat.streamingArtifact?.documentId === workspaceDocument.id) {
-												chat.hideArtifactPane();
-												return;
-											}
+									initial={{ opacity: 1, width: shellSize.width, right: 0 }}
+									style={{ left: 0 }}
+								/>
+							) : null}
 
+							<motion.div
+								animate={
+									!shouldSplitArtifactPane
+										? {
+												opacity: 1,
+												x: 0,
+												y: 0,
+												width: shellSize.width || "100%",
+												height: shellSize.height || "100%",
+												borderRadius: 0,
+												transition: {
+													delay: 0,
+													type: "spring",
+													stiffness: 300,
+													damping: 30,
+												},
+										  }
+										: {
+												opacity: 1,
+												x: artifactLayout.artifactPaneX,
+												y: 0,
+												width: artifactLayout.artifactPaneWidth,
+												height: shellSize.height || "100%",
+												borderRadius: 0,
+												transition: {
+													delay: 0,
+													type: "spring",
+													stiffness: 300,
+													damping: 30,
+												},
+										  }
+								}
+								className="absolute top-0 left-0 z-40 flex h-full flex-col overflow-hidden border-border bg-background md:border-l"
+								exit={{
+									opacity: 0,
+									scale: 0.5,
+									transition: {
+										delay: 0.1,
+										type: "spring",
+										stiffness: 600,
+										damping: 30,
+									},
+								}}
+								initial={{
+									opacity: 1,
+									x: artifactOrigin.left,
+									y: artifactOrigin.top,
+									width: artifactOrigin.width,
+									height: artifactOrigin.height,
+									borderRadius: 32,
+								}}
+							>
+								<FutureChatArtifactPanel
+									annotations={artifactAnnotations}
+									contentRef={artifactContentRef}
+									cursorMode={cursorMode}
+									document={workspaceDocument}
+									draftContent={chat.streamingArtifact?.content ?? chat.artifactDraftContent}
+									isStreamingArtifact={Boolean(chat.streamingArtifact)}
+									mode={chat.artifactMode}
+									onAddComment={addArtifactAnnotationComment}
+									onClose={() => {
+										if (chat.streamingArtifact?.documentId === workspaceDocument.id) {
 											chat.hideArtifactPane();
-											chat.setActiveDocumentId(null);
-										}}
-										onCursorModeChange={
-											canAnnotateWorkspaceDocument ? setCursorMode : undefined
+											return;
 										}
-										onDelete={() => chat.deleteDocument(workspaceDocument.id)}
-										onDraftChange={chat.setArtifactDraftContent}
-										onDismissSelection={dismissArtifactSelection}
-										onModeChange={chat.setArtifactMode}
-										onRemoveAnnotation={removeArtifactAnnotation}
-										onSave={chat.saveArtifactDraft}
-										onVersionChange={(versionId) => {
-											chat.setSelectedVersionId(versionId);
-											const nextVersion =
-												workspaceDocument?.versions.find((version) => version.id === versionId)
-												?? selectedDocumentVersion;
-											chat.setArtifactDraftContent(nextVersion?.content ?? "");
-										}}
-										pendingSelection={pendingArtifactSelection}
-										selectedVersionId={selectedDocumentVersion?.id ?? null}
-									/>
-								</motion.div>
-							</>
-						) : null}
-					</AnimatePresence>
-				</div>
-			</SidebarInset>
+
+										chat.hideArtifactPane();
+										chat.setActiveDocumentId(null);
+									}}
+									onCursorModeChange={
+										canAnnotateWorkspaceDocument ? setCursorMode : undefined
+									}
+									onDelete={() => chat.deleteDocument(workspaceDocument.id)}
+									onDraftChange={chat.setArtifactDraftContent}
+									onDismissSelection={dismissArtifactSelection}
+									onModeChange={chat.setArtifactMode}
+									onRemoveAnnotation={removeArtifactAnnotation}
+									onSave={chat.saveArtifactDraft}
+									onVersionChange={(versionId) => {
+										chat.setSelectedVersionId(versionId);
+										const nextVersion =
+											workspaceDocument?.versions.find((version) => version.id === versionId)
+											?? selectedDocumentVersion;
+										chat.setArtifactDraftContent(nextVersion?.content ?? "");
+									}}
+									pendingSelection={pendingArtifactSelection}
+									selectedVersionId={selectedDocumentVersion?.id ?? null}
+								/>
+							</motion.div>
+						</>
+					) : null}
+				</AnimatePresence>
+			</main>
+			</div>
 		</SidebarProvider>
 	);
 }

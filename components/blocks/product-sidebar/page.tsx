@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { token } from "@/lib/tokens";
-import { usePathname } from "next/navigation";
 
 import { useSidebar } from "@/app/contexts/context-sidebar";
 import { JiraSidebar } from "./variants/jira";
@@ -12,28 +11,13 @@ type Product = "home" | "jira" | "confluence" | "rovo" | "search";
 
 interface SidebarProps {
 	product: Product;
+	embedded?: boolean;
 }
 
-export default function Sidebar({ product }: Readonly<SidebarProps>) {
+export default function Sidebar({ product, embedded = false }: Readonly<SidebarProps>) {
 	const [selectedItem, setSelectedItem] = useState(product === "confluence" ? "Demo Live page" : "Vitafleet Q4 Launch");
-	const { isVisible, isHovered, setHovered, setCurrentRoute } = useSidebar();
+	const { isVisible, isHovered, setHovered } = useSidebar();
 	const shouldShow = isVisible || isHovered;
-	const pathname = usePathname();
-
-	// Update route when pathname changes
-	useEffect(() => {
-		if (pathname.startsWith("/jira") || pathname.startsWith("/sprint-board")) {
-			setCurrentRoute("jira");
-		} else if (pathname.startsWith("/confluence")) {
-			setCurrentRoute("confluence");
-		} else if (pathname.startsWith("/fullscreen-chat")) {
-			setCurrentRoute("rovo");
-		} else if (pathname.startsWith("/search")) {
-			setCurrentRoute("search");
-		} else {
-			setCurrentRoute("home");
-		}
-	}, [pathname, setCurrentRoute]);
 
 	// Render the appropriate sidebar based on product
 	const renderSidebarContent = () => {
@@ -52,12 +36,12 @@ export default function Sidebar({ product }: Readonly<SidebarProps>) {
 			<div
 				style={{
 					width: "230px",
-					height: isVisible ? "100vh" : "calc(100vh - 48px)",
+					height: embedded ? "100%" : (isVisible ? "100vh" : "calc(100vh - 48px)"),
 					backgroundColor: token("elevation.surface"),
 					borderRight: `1px solid ${token("color.border")}`,
-					position: "fixed",
+					position: embedded ? "absolute" : "fixed",
 					left: 0,
-					top: isVisible ? "0" : "48px",
+					top: embedded ? 0 : (isVisible ? "0" : "48px"),
 					transform: shouldShow ? "translateX(0)" : "translateX(-100%)",
 					transition: "transform var(--duration-medium) var(--ease-in-out)",
 					overflow: "auto",
@@ -72,7 +56,7 @@ export default function Sidebar({ product }: Readonly<SidebarProps>) {
 				<div
 					style={{
 						padding: token("space.150"),
-						paddingTop: isVisible ? "calc(48px + 12px)" : token("space.150"),
+						paddingTop: embedded ? token("space.150") : (isVisible ? "calc(48px + 12px)" : token("space.150")),
 						display: "flex",
 						flexDirection: "column",
 					}}
@@ -82,7 +66,7 @@ export default function Sidebar({ product }: Readonly<SidebarProps>) {
 			</div>
 
 			{/* Border overlay that sits above top nav when sidebar is visible */}
-			{isVisible && (
+			{isVisible && !embedded && (
 				<div
 					style={{
 						position: "fixed",

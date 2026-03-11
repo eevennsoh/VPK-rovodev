@@ -7,7 +7,9 @@ interface SearchAllAppsFooterProps {
 	onClick?: () => void;
 }
 
-export default function SearchAllAppsFooter({ onClick }: Readonly<SearchAllAppsFooterProps>) {
+export default function SearchAllAppsFooter({
+	onClick,
+}: Readonly<SearchAllAppsFooterProps>) {
 	return (
 		<div className="mt-2 border-t border-border px-2 py-2">
 			<button
@@ -17,7 +19,9 @@ export default function SearchAllAppsFooter({ onClick }: Readonly<SearchAllAppsF
 			>
 				<SearchIcon label="" color={token("color.icon")} />
 				<div className="flex-1">
-					<div className="text-text" style={{ font: token("font.body") }}>Search all apps</div>
+					<div className="text-text" style={{ font: token("font.body") }}>
+						Search all apps
+					</div>
 				</div>
 			</button>
 		</div>

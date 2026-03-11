@@ -8,7 +8,10 @@ interface RecentSearchItemProps {
 	onClick?: () => void;
 }
 
-export default function RecentSearchItem({ query, onClick }: Readonly<RecentSearchItemProps>) {
+export default function RecentSearchItem({
+	query,
+	onClick,
+}: Readonly<RecentSearchItemProps>) {
 	return (
 		<button
 			type="button"
@@ -17,7 +20,9 @@ export default function RecentSearchItem({ query, onClick }: Readonly<RecentSear
 		>
 			<ClockIcon label="" color={token("color.icon.subtle")} />
 			<div className="flex-1">
-				<div className="text-text" style={{ font: token("font.body") }}>{query}</div>
+				<div className="text-text" style={{ font: token("font.body") }}>
+					{query}
+				</div>
 			</div>
 			<div
 				className="shrink-0 whitespace-nowrap text-text-subtlest"

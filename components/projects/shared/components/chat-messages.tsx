@@ -2,8 +2,11 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useMemo } from "react";
-import type { StickToBottomContext } from "use-stick-to-bottom";
-import { Conversation, ConversationContent } from "@/components/ui-ai/conversation";
+import {
+	Conversation,
+	ConversationContent,
+	type ConversationContextValue,
+} from "@/components/ui-ai/conversation";
 import { Message } from "@/components/ui-ai/message";
 import {
 	AdsReasoningTrigger,
@@ -30,7 +33,7 @@ export interface ChatMessagesProps {
 	uiMessages: RovoUIMessage[];
 	onSuggestedQuestionClick?: (question: string) => void;
 	onDeleteMessage?: (messageId: string) => void;
-	conversationContextRef: React.RefObject<StickToBottomContext | null>;
+	conversationContextRef: React.RefObject<ConversationContextValue | null>;
 	scrollSpacerRef?: React.RefObject<HTMLDivElement | null>;
 	contentTopPadding?: string;
 	contentBottomPadding?: string;

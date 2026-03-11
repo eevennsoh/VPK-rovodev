@@ -23,7 +23,13 @@ export default function SearchResultsView() {
 	const filteredResults = selectedFilter === "all" ? MOCK_RESULTS : MOCK_RESULTS.filter((result) => result.type === selectedFilter);
 
 	return (
-		<div style={{ height: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
+		<div
+			style={{
+				height: "var(--vpk-project-shell-content-height, calc(100vh - 48px))",
+				display: "flex",
+				flexDirection: "column",
+			}}
+		>
 			{/* Filter Buttons Section */}
 			<div
 				style={{

@@ -12,6 +12,8 @@ tools:
     "mcp__plugin_figma_figma__get_metadata",
     "mcp__plugin_figma_figma__get_variable_defs",
     "mcp__ads-mcp__ads_plan",
+    "mcp__ads-mcp__ads_get_components",
+    "mcp__ads-mcp__ads_get_a11y_guidelines",
   ]
 description: |
   Figma design extraction specialist. Extracts design specifications from Figma and maps them to ADS tokens. Use as part of parallel Figma-to-code workflow.
@@ -78,9 +80,9 @@ Save the screenshot reference for the Validator agent.
 mcp__plugin_figma_figma__get_variable_defs(fileKey, nodeId)
 ```
 
-### Step 4: Map to ADS Tokens
+### Step 4: Map to ADS Tokens, Components, and Accessibility Constraints
 
-Use `ads_plan` to find matching ADS tokens for each design value:
+Use `ads_plan` as the primary ADS lookup. Provide at least 2 likely search terms for every populated field and set `exactName: true` when the Figma naming makes the target explicit:
 
 ```json
 {
@@ -89,6 +91,10 @@ Use `ads_plan` to find matching ADS tokens for each design value:
 	"components": ["button", "textfield"]
 }
 ```
+
+If `ads_plan` returns multiple plausible matches, use `ads_get_components` to confirm the package/component name rather than guessing.
+
+Fetch `ads_get_a11y_guidelines` for the most relevant topics (`buttons`, `forms`, `focus`, `keyboard`, or `general`) and include only the rules that materially affect the design.
 
 ### Step 5: Output Structured Spec
 
@@ -179,6 +185,12 @@ Output a structured specification in this EXACT format. **Include Tailwind class
 - Focus: [description]
   - tailwind: focus:ring-ring
   - token: color.border.focused
+
+## Accessibility
+- Topics: [buttons | forms | focus | keyboard | general]
+- Rules:
+  - [Applicable ADS accessibility rule]
+  - [Applicable ADS accessibility rule]
 
 ## Notes
 - [Any special considerations]
