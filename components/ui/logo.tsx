@@ -61,6 +61,7 @@ export function AtlassianLogo({
 	appearance,
 	size = "small",
 	variant = "icon",
+	shouldUseNewLogoDesign = true,
 	color,
 	...props
 }: Readonly<AtlassianLogoProps>) {
@@ -76,10 +77,10 @@ export function AtlassianLogo({
 
 	if (!isMounted) {
 		return (
-			<span className={cn(needsDarkFix && "ads-logo-inverse")}>
+			<span className={cn("inline-flex shrink-0 items-center", needsDarkFix && "ads-logo-inverse")}>
 				<span
 					aria-hidden
-					className="inline-block shrink-0 align-middle"
+					className="inline-block shrink-0"
 					style={{ width: placeholderSize, height: placeholderSize }}
 				/>
 			</span>
@@ -87,11 +88,12 @@ export function AtlassianLogo({
 	}
 
 	return (
-		<span className={cn(needsDarkFix && "ads-logo-inverse")}>
+		<span className={cn("inline-flex shrink-0 items-center", needsDarkFix && "ads-logo-inverse")}>
 			<Component
 				{...props}
 				size={size}
 				appearance={resolvedAppearance}
+				shouldUseNewLogoDesign={shouldUseNewLogoDesign}
 			/>
 		</span>
 	);
@@ -154,34 +156,66 @@ function createLogo(name: AtlassianLogoName) {
 	};
 }
 
-export const HomeIcon = createLogo("home");
-export const SearchIcon = createLogo("search");
-export const JiraIcon = createLogo("jira");
-export const ConfluenceIcon = createLogo("confluence");
-export const RovoIcon = createLogo("rovo");
-export const LoomIcon = createLogo("loom");
-export const GoalsIcon = createLogo("goals");
-export const TeamsIcon = createLogo("teams");
-export const BitbucketIcon = createLogo("bitbucket");
-export const CompassIcon = createLogo("compass");
-export const JiraServiceManagementIcon = createLogo("jira-service-management");
-export const JiraProductDiscoveryIcon = createLogo("jira-product-discovery");
+export const AdminIcon = createLogo("admin");
+export const AlignIcon = createLogo("align");
+export const AnalyticsIcon = createLogo("analytics");
 export const AssetsIcon = createLogo("assets");
-export const ProjectsIcon = createLogo("projects");
+export const AtlassianBrandIcon = createLogo("atlassian");
+export const BambooIcon = createLogo("bamboo");
+export const BitbucketIcon = createLogo("bitbucket");
+export const ChatIcon = createLogo("chat");
+export const CompassIcon = createLogo("compass");
+export const ConfluenceIcon = createLogo("confluence");
+export const CustomerServiceManagementIcon = createLogo("customer-service-management");
 export const FocusIcon = createLogo("focus");
+export const GoalsIcon = createLogo("goals");
+export const GuardIcon = createLogo("guard");
+export const HomeIcon = createLogo("home");
+export const HubIcon = createLogo("hub");
+export const JiraIcon = createLogo("jira");
+export const JiraProductDiscoveryIcon = createLogo("jira-product-discovery");
+export const JiraServiceManagementIcon = createLogo("jira-service-management");
+export const LoomIcon = createLogo("loom");
+export const OpsgenieIcon = createLogo("opsgenie");
+export const ProjectsIcon = createLogo("projects");
+export const RovoIcon = createLogo("rovo");
+export const RovoDevIcon = createLogo("rovo-dev");
+export const RovoDevAgentIcon = createLogo("rovo-dev-agent");
+export const SearchIcon = createLogo("search");
+export const StatuspageIcon = createLogo("statuspage");
+export const StudioIcon = createLogo("studio");
+export const TalentIcon = createLogo("talent");
+export const TeamsIcon = createLogo("teams");
+export const TrelloIcon = createLogo("trello");
 
-export const HomeLogo = HomeIcon;
-export const SearchLogo = SearchIcon;
-export const JiraLogo = JiraIcon;
-export const ConfluenceLogo = ConfluenceIcon;
-export const RovoLogo = RovoIcon;
-export const LoomLogo = LoomIcon;
-export const GoalsLogo = GoalsIcon;
-export const TeamsLogo = TeamsIcon;
-export const BitbucketLogo = BitbucketIcon;
-export const CompassLogo = CompassIcon;
-export const JiraServiceManagementLogo = JiraServiceManagementIcon;
-export const JiraProductDiscoveryLogo = JiraProductDiscoveryIcon;
+export const AdminLogo = AdminIcon;
+export const AlignLogo = AlignIcon;
+export const AnalyticsLogo = AnalyticsIcon;
 export const AssetsLogo = AssetsIcon;
-export const ProjectsLogo = ProjectsIcon;
+export const AtlassianBrandLogo = AtlassianBrandIcon;
+export const BambooLogo = BambooIcon;
+export const BitbucketLogo = BitbucketIcon;
+export const ChatLogo = ChatIcon;
+export const CompassLogo = CompassIcon;
+export const ConfluenceLogo = ConfluenceIcon;
+export const CustomerServiceManagementLogo = CustomerServiceManagementIcon;
 export const FocusLogo = FocusIcon;
+export const GoalsLogo = GoalsIcon;
+export const GuardLogo = GuardIcon;
+export const HomeLogo = HomeIcon;
+export const HubLogo = HubIcon;
+export const JiraLogo = JiraIcon;
+export const JiraProductDiscoveryLogo = JiraProductDiscoveryIcon;
+export const JiraServiceManagementLogo = JiraServiceManagementIcon;
+export const LoomLogo = LoomIcon;
+export const OpsgenieLogo = OpsgenieIcon;
+export const ProjectsLogo = ProjectsIcon;
+export const RovoLogo = RovoIcon;
+export const RovoDevLogo = RovoDevIcon;
+export const RovoDevAgentLogo = RovoDevAgentIcon;
+export const SearchLogo = SearchIcon;
+export const StatuspageLogo = StatuspageIcon;
+export const StudioLogo = StudioIcon;
+export const TalentLogo = TalentIcon;
+export const TeamsLogo = TeamsIcon;
+export const TrelloLogo = TrelloIcon;

@@ -175,9 +175,9 @@ LOCAL_WHISPER_MODEL=tiny
 LOCAL_WHISPER_BIN=whisper
 # Optional fallback model for openai-compatible audio transcription endpoints
 # OPENAI_COMPATIBLE_STT_MODEL=qwen3-asr
-# Defaults to http://localhost:8001/v1 for qwen3-0.6b and qwen3-asr presets.
+# Defaults to http://localhost:8801/v1 for qwen3-0.6b and qwen3-asr presets.
 # Uncomment to override:
-# OPENAI_COMPATIBLE_STT_BASE_URL=http://localhost:8001/v1
+# OPENAI_COMPATIBLE_STT_BASE_URL=http://localhost:8801/v1
 # Optional auth for the openai-compatible STT endpoint:
 # OPENAI_COMPATIBLE_STT_API_KEY=
 

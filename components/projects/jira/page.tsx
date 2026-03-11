@@ -96,7 +96,13 @@ export default function JiraView() {
 	};
 
 	return (
-		<div style={{ height: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
+		<div
+			style={{
+				height: "var(--vpk-project-shell-content-height, calc(100vh - 48px))",
+				display: "flex",
+				flexDirection: "column",
+			}}
+		>
 			{/* Header Section */}
 			<JiraHeader selectedTab={selectedTab} onTabChange={setSelectedTab} />
 

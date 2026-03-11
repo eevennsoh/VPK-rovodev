@@ -9,34 +9,34 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="input-group"
-      role="group"
-      className={cn(
-        "group/input-group border-input relative flex w-full min-w-0 items-center rounded-lg border transition-colors outline-none",
-        "h-8 has-[>textarea]:h-auto",
-        // Alignment variants.
-        "has-[>[data-align=inline-start]]:[&>input]:pl-2 has-[>[data-align=inline-end]]:[&>input]:pr-2",
-        "has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-start]]:[&>input]:pb-3",
-        "has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3",
-        // Focus state.
-        "has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50 has-[[data-slot=input-group-control]:focus-visible]:ring-3",
-        // Error state.
-        "has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-3",
-        // Disabled state.
-        "has-disabled:bg-input/50 has-disabled:opacity-50",
-        // Combobox integration.
-        "in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0",
-        className
-      )}
-      {...props}
-    />
-  )
+	return (
+		<div
+			data-slot="input-group"
+			role="group"
+			className={cn(
+				"group/input-group border-input relative flex w-full min-w-0 items-center rounded-lg border transition-colors outline-none",
+				"h-8 has-[>textarea]:h-auto has-[>[data-slot=input-group-control-container]]:h-auto",
+				// Alignment variants.
+				"has-[>[data-align=inline-start]]:[&>input]:pl-2 has-[>[data-align=inline-end]]:[&>input]:pr-2",
+				"has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-start]]:[&>input]:pb-3",
+				"has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3",
+				// Focus state.
+				"has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50 has-[[data-slot=input-group-control]:focus-visible]:ring-3",
+				// Error state.
+				"has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-3",
+				// Disabled state.
+				"has-disabled:bg-input/50 has-disabled:opacity-50",
+				// Combobox integration.
+				"in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0",
+				className
+			)}
+			{...props}
+		/>
+	)
 }
 
 const inputGroupAddonVariants = cva(
-  "text-muted-foreground flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-sm font-medium select-none [&>svg:not([class*='size-'])]:size-4 [&>kbd]:rounded-[calc(var(--radius)-5px)] group-data-[disabled=true]/input-group:opacity-50",
+  "text-muted-foreground flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-sm font-medium select-none [&>svg:not([class*='size-'])]:size-4 [&_svg]:text-icon-subtle [&>kbd]:rounded-[calc(var(--radius)-5px)] group-data-[disabled=true]/input-group:opacity-50",
   {
     variants: {
       align: {
@@ -61,21 +61,24 @@ function InputGroupAddon({
   align = "inline-start",
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>) {
-  return (
-    <div
-      role="group"
-      data-slot="input-group-addon"
-      data-align={align}
-      className={cn(inputGroupAddonVariants({ align }), className)}
-      onClick={(e) => {
-        if ((e.target as HTMLElement).closest("button")) {
-          return
-        }
-        e.currentTarget.parentElement?.querySelector("input")?.focus()
-      }}
-      {...props}
-    />
-  )
+	return (
+		<div
+			role="group"
+			data-slot="input-group-addon"
+			data-align={align}
+			className={cn(inputGroupAddonVariants({ align }), className)}
+			onClick={(e) => {
+				if ((e.target as HTMLElement).closest("button")) {
+					return
+				}
+
+				e.currentTarget.parentElement
+					?.querySelector<HTMLElement>("[data-slot=input-group-control]")
+					?.focus()
+			}}
+			{...props}
+		/>
+	)
 }
 
 const inputGroupButtonVariants = cva(
@@ -149,17 +152,27 @@ function InputGroupTextarea({
   className,
   ...props
 }: React.ComponentProps<"textarea">) {
-  return (
-    <Textarea
-      data-slot="input-group-control"
-      variant="none"
-      className={cn(
-        "flex-1 resize-none rounded-none border-0 bg-transparent py-2 shadow-none focus-visible:ring-0",
-        className
-      )}
-      {...props}
-    />
-  )
+	return (
+		<div
+			data-slot="input-group-control-container"
+			className="flex min-w-0 flex-1 self-stretch cursor-text px-1.5 has-disabled:cursor-not-allowed"
+			onClick={(event) => {
+				event.currentTarget
+					.querySelector<HTMLElement>("[data-slot=input-group-control]")
+					?.focus()
+			}}
+		>
+			<Textarea
+				data-slot="input-group-control"
+				variant="none"
+				className={cn(
+					"min-w-0 w-full resize-none rounded-none border-0 bg-transparent px-0 py-2 shadow-none focus-visible:ring-0",
+					className
+				)}
+				{...props}
+			/>
+		</div>
+	)
 }
 
 export {

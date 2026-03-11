@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useMemo } from "react";
-import type { StickToBottomContext } from "use-stick-to-bottom";
+import type { ConversationContextValue } from "@/components/ui-ai/conversation";
 import { getLatestUserMessageId } from "@/lib/rovo-ui-messages";
 import type { RovoUIMessage } from "@/lib/rovo-ui-messages";
 
@@ -17,7 +17,7 @@ interface UseScrollAnchoringOptions {
 }
 
 interface UseScrollAnchoringReturn {
-	conversationContextRef: React.RefObject<StickToBottomContext | null>;
+	conversationContextRef: React.RefObject<ConversationContextValue | null>;
 	scrollSpacerRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -25,7 +25,7 @@ export function useScrollAnchoring({
 	uiMessages,
 	enabled = true,
 }: Readonly<UseScrollAnchoringOptions>): UseScrollAnchoringReturn {
-	const conversationContextRef = useRef<StickToBottomContext | null>(null);
+	const conversationContextRef = useRef<ConversationContextValue | null>(null);
 	const scrollSpacerRef = useRef<HTMLDivElement>(null);
 	const hasInitializedScrollRef = useRef(false);
 	const previousLatestUserMessageIdRef = useRef<string | null>(null);

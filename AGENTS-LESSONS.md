@@ -45,3 +45,18 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **What happened:** A Future Chat streaming bug was initially treated as a generic rendering issue even though the user had already identified it as a regression.
 - **Why:** The investigation started from current behavior instead of first comparing the working tree and recent file history to the last known-good implementation.
 - **Rule:** When the user reports a regression, check recent git history and the current working-tree diff on the affected files before broadening the fix. Treat uncommitted local refactors as prime suspects.
+
+### 2026-03-11 - Match live VPK primitives, not stale markup, when restoring regressions
+- **What happened:** The top-navigation search regression was "fixed" by restoring an older plain `Input` implementation even though the current repo standard for search fields is `InputGroup`, which changed the DOM structure and icon treatment.
+- **Why:** The regression recovery over-weighted historical markup and under-weighted the current design-system primitives already used elsewhere in the repo.
+- **Rule:** When restoring a regressed UI, compare the last known-good behavior against the current VPK component patterns before reintroducing old markup. If the repo now standardizes on `InputGroup`, use it and match the repo's current icon/addon pattern instead of restoring raw `Input` wrappers.
+
+### 2026-03-12 - Audit the full ADS MCP surface before claiming skill coverage
+- **What happened:** ADS MCP coverage was reported as updated even though newly available tools like `ads_i18n_conversion_guide`, `ads_get_all_tokens`, `ads_get_all_icons`, and some cross-skill fallback paths were not fully wired into the affected skill docs.
+- **Why:** The check focused on the tools already mentioned in the edited prompts instead of reconciling the skills against the complete current ADS MCP tool list.
+- **Rule:** When updating skill docs for an MCP integration, compare each affected skill against the full current tool inventory and patch every relevant workflow, fallback, and tool-reference section before calling coverage complete.
+
+### 2026-03-12 - Make async UI intros visibly durable
+- **What happened:** A live-voice waveform entrance fix relied on a transient `processing` state, but the mic stream often became ready too quickly for the user to perceive the intro.
+- **Why:** The implementation assumed async setup latency would naturally create a visible animation window instead of enforcing one in the UI state.
+- **Rule:** When a first-appearance animation depends on async readiness, hold the intro state for a short minimum duration so the motion is visibly perceptible even on fast paths.

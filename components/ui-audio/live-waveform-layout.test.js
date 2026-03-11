@@ -1,0 +1,185 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const {
+	STATIC_ACTIVE_HANDOFF_DURATION_MS,
+	STATIC_PROCESSING_TRAVEL_DURATION_MS,
+	getStaticBarDataIndex,
+	getStaticProcessingBarValue,
+	getStaticProcessingTravelHead,
+	getWaveformEaseOutProgress,
+	getWaveformSeriesValue,
+	getScrollingBarX,
+} = require("./live-waveform-layout.ts");
+
+test("positions the newest scrolling waveform bar flush against the right edge", () => {
+	const width = 124;
+	const barWidth = 2;
+	const barGap = 2;
+	const x = getScrollingBarX({
+		barGap,
+		barWidth,
+		index: 0,
+		width,
+	});
+
+	assert.equal(x + barWidth, width);
+});
+
+test("keeps the configured gap between scrolling waveform bars", () => {
+	const width = 124;
+	const barWidth = 2;
+	const barGap = 2;
+	const newestBarX = getScrollingBarX({
+		barGap,
+		barWidth,
+		index: 0,
+		width,
+	});
+	const nextBarX = getScrollingBarX({
+		barGap,
+		barWidth,
+		index: 1,
+		width,
+	});
+
+	assert.equal(newestBarX - (nextBarX + barWidth), barGap);
+});
+
+test("covers the full requested bar count for odd static waveform layouts", () => {
+	const barCount = 5;
+	const dataLength = 10;
+	const indexes = Array.from({ length: barCount }, (_, index) =>
+		getStaticBarDataIndex({
+			barCount,
+			dataLength,
+			index,
+		}),
+	);
+
+	assert.deepEqual(indexes, [6, 3, 0, 3, 6]);
+});
+
+test("mirrors even static waveform layouts around the center seam", () => {
+	const barCount = 4;
+	const dataLength = 10;
+	const indexes = Array.from({ length: barCount }, (_, index) =>
+		getStaticBarDataIndex({
+			barCount,
+			dataLength,
+			index,
+		}),
+	);
+
+	assert.deepEqual(indexes, [5, 0, 0, 5]);
+});
+
+test("animates the static processing waveform over time", () => {
+	const valueAtStart = getStaticProcessingBarValue({
+		barCount: 15,
+		elapsedMs: 0,
+		index: 7,
+	});
+	const valueLater = getStaticProcessingBarValue({
+		barCount: 15,
+		elapsedMs: 250,
+		index: 7,
+	});
+
+	assert.notEqual(valueAtStart, valueLater);
+});
+
+test("moves the static processing crest from right to left across the fixed bar grid", () => {
+	const barCount = 15;
+	const valuesAtStart = Array.from({ length: barCount }, (_, index) =>
+		getStaticProcessingBarValue({
+			barCount,
+			elapsedMs: 0,
+			index,
+		}),
+	);
+	const valuesLater = Array.from({ length: barCount }, (_, index) =>
+		getStaticProcessingBarValue({
+			barCount,
+			elapsedMs: STATIC_PROCESSING_TRAVEL_DURATION_MS / 2,
+			index,
+		}),
+	);
+
+	const crestIndexAtStart = valuesAtStart.indexOf(Math.max(...valuesAtStart));
+	const crestIndexLater = valuesLater.indexOf(Math.max(...valuesLater));
+
+	assert.ok(crestIndexLater < crestIndexAtStart);
+});
+
+test("completes a full static processing sweep within 500ms", () => {
+	const barCount = 15;
+	const headAtStart = getStaticProcessingTravelHead({
+		barCount,
+		elapsedMs: 0,
+	});
+	const headNearEnd = getStaticProcessingTravelHead({
+		barCount,
+		elapsedMs: STATIC_PROCESSING_TRAVEL_DURATION_MS - 1,
+	});
+
+	assert.ok(headAtStart > barCount);
+	assert.ok(headNearEnd < 0);
+});
+
+test("caps the static processing waveform below the previous tall peak range", () => {
+	const barCount = 15;
+	let maxValue = 0;
+
+	for (let elapsedMs = 0; elapsedMs <= STATIC_PROCESSING_TRAVEL_DURATION_MS; elapsedMs += 25) {
+		for (let index = 0; index < barCount; index += 1) {
+			maxValue = Math.max(
+				maxValue,
+				getStaticProcessingBarValue({
+					barCount,
+					elapsedMs,
+					index,
+				}),
+			);
+		}
+	}
+
+	assert.ok(maxValue <= 0.8);
+});
+
+test("uses an ease-out curve for the active handoff progress", () => {
+	const midpoint = getWaveformEaseOutProgress({
+		durationMs: STATIC_ACTIVE_HANDOFF_DURATION_MS,
+		elapsedMs: STATIC_ACTIVE_HANDOFF_DURATION_MS / 2,
+	});
+
+	assert.ok(midpoint > 0.5);
+	assert.equal(
+		getWaveformEaseOutProgress({
+			durationMs: STATIC_ACTIVE_HANDOFF_DURATION_MS,
+			elapsedMs: STATIC_ACTIVE_HANDOFF_DURATION_MS,
+		}),
+		1,
+	);
+});
+
+test("samples transition source bars across the full destination width", () => {
+	const bars = [0.2, 0.5, 0.8];
+
+	assert.equal(
+		getWaveformSeriesValue({
+			bars,
+			index: 0,
+			totalCount: 5,
+		}),
+		0.2,
+	);
+	assert.equal(
+		getWaveformSeriesValue({
+			bars,
+			index: 4,
+			totalCount: 5,
+		}),
+		0.8,
+	);
+});

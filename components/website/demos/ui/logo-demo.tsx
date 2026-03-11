@@ -4,26 +4,43 @@ import { type ImgHTMLAttributes } from "react";
 import {
 	AtlassianLogo,
 	CustomLogo,
+	AdminIcon,
+	AlignIcon,
+	AnalyticsIcon,
 	AssetsIcon,
+	AtlassianBrandIcon,
+	BambooIcon,
 	BitbucketIcon,
+	ChatIcon,
 	CompassIcon,
 	ConfluenceIcon,
+	CustomerServiceManagementIcon,
 	FocusIcon,
 	GoalsIcon,
+	GuardIcon,
 	HomeIcon,
+	HubIcon,
 	JiraIcon,
 	JiraProductDiscoveryIcon,
 	JiraServiceManagementIcon,
 	LoomIcon,
+	OpsgenieIcon,
 	ProjectsIcon,
 	RovoIcon,
+	RovoDevIcon,
+	RovoDevAgentIcon,
 	SearchIcon,
+	StatuspageIcon,
+	StudioIcon,
+	TalentIcon,
 	TeamsIcon,
+	TrelloIcon,
 	type AtlassianLogoName,
 	type LogoProps,
 } from "@/components/ui/logo";
 
 const logoEntries: ReadonlyArray<{ name: AtlassianLogoName; label: string }> = [
+	{ name: "atlassian", label: "Atlassian" },
 	{ name: "home", label: "Home" },
 	{ name: "search", label: "Search" },
 	{ name: "jira", label: "Jira" },
@@ -39,6 +56,21 @@ const logoEntries: ReadonlyArray<{ name: AtlassianLogoName; label: string }> = [
 	{ name: "assets", label: "Assets" },
 	{ name: "projects", label: "Projects" },
 	{ name: "focus", label: "Focus" },
+	{ name: "admin", label: "Admin" },
+	{ name: "align", label: "Align" },
+	{ name: "analytics", label: "Analytics" },
+	{ name: "bamboo", label: "Bamboo" },
+	{ name: "chat", label: "Chat" },
+	{ name: "customer-service-management", label: "CSM" },
+	{ name: "guard", label: "Guard" },
+	{ name: "hub", label: "Hub" },
+	{ name: "opsgenie", label: "Opsgenie" },
+	{ name: "rovo-dev", label: "RovoDev" },
+	{ name: "rovo-dev-agent", label: "RovoDev Agent" },
+	{ name: "statuspage", label: "Statuspage" },
+	{ name: "studio", label: "Studio" },
+	{ name: "talent", label: "Talent" },
+	{ name: "trello", label: "Trello" },
 ];
 
 /* ── Overview demo (default export) ──────────────────────────────── */
@@ -53,24 +85,6 @@ export default function LogoDemo() {
 						<span className="text-sm text-text">{entry.label}</span>
 					</div>
 				))}
-			</div>
-
-			<div className="flex flex-wrap items-center gap-4">
-				<HomeIcon label="Home" size="small" />
-				<SearchIcon label="Search" size="small" />
-				<JiraIcon label="Jira" size="small" />
-				<ConfluenceIcon label="Confluence" size="small" />
-				<RovoIcon label="Rovo" size="small" />
-				<BitbucketIcon label="Bitbucket" size="small" />
-				<LoomIcon label="Loom" size="small" />
-				<GoalsIcon label="Goals" size="small" />
-				<TeamsIcon label="Teams" size="small" />
-				<CompassIcon label="Compass" size="small" />
-				<JiraServiceManagementIcon label="JSM" size="small" />
-				<JiraProductDiscoveryIcon label="JPD" size="small" />
-				<AssetsIcon label="Assets" size="small" />
-				<ProjectsIcon label="Projects" size="small" />
-				<FocusIcon label="Focus" size="small" />
 			</div>
 		</div>
 	);
@@ -94,6 +108,7 @@ export function LogoDemoIcons() {
 /* ── Demo: Lockups (icon + wordmark) ──────────────────────────── */
 
 const lockupEntries: ReadonlyArray<{ name: AtlassianLogoName; label: string }> = [
+	{ name: "atlassian", label: "Atlassian" },
 	{ name: "jira", label: "Jira" },
 	{ name: "confluence", label: "Confluence" },
 	{ name: "bitbucket", label: "Bitbucket" },
@@ -104,6 +119,16 @@ const lockupEntries: ReadonlyArray<{ name: AtlassianLogoName; label: string }> =
 	{ name: "teams", label: "Teams" },
 	{ name: "compass", label: "Compass" },
 	{ name: "focus", label: "Focus" },
+	{ name: "admin", label: "Admin" },
+	{ name: "guard", label: "Guard" },
+	{ name: "studio", label: "Studio" },
+	{ name: "trello", label: "Trello" },
+	{ name: "chat", label: "Chat" },
+	{ name: "hub", label: "Hub" },
+	{ name: "rovo-dev", label: "RovoDev" },
+	{ name: "bamboo", label: "Bamboo" },
+	{ name: "opsgenie", label: "Opsgenie" },
+	{ name: "statuspage", label: "Statuspage" },
 ];
 
 export function LogoDemoLockups() {
@@ -235,6 +260,46 @@ export function LogoDemoCustom() {
 			<p className="text-xs text-text-subtle">
 				Pass any SVG element via the <code className="rounded bg-bg-neutral px-1 py-0.5">svg</code> prop. Add an optional <code className="rounded bg-bg-neutral px-1 py-0.5">wordmark</code> for a lockup layout.
 			</p>
+		</div>
+	);
+}
+
+/* ── Demo: Named exports ──────────────────────────────────────── */
+
+export function LogoDemoNamedExports() {
+	return (
+		<div className="flex flex-wrap items-center gap-4">
+			<AdminIcon label="Admin" size="small" />
+			<AlignIcon label="Align" size="small" />
+			<AnalyticsIcon label="Analytics" size="small" />
+			<AssetsIcon label="Assets" size="small" />
+			<AtlassianBrandIcon label="Atlassian" size="small" />
+			<BambooIcon label="Bamboo" size="small" />
+			<BitbucketIcon label="Bitbucket" size="small" />
+			<ChatIcon label="Chat" size="small" />
+			<CompassIcon label="Compass" size="small" />
+			<ConfluenceIcon label="Confluence" size="small" />
+			<CustomerServiceManagementIcon label="CSM" size="small" />
+			<FocusIcon label="Focus" size="small" />
+			<GoalsIcon label="Goals" size="small" />
+			<GuardIcon label="Guard" size="small" />
+			<HomeIcon label="Home" size="small" />
+			<HubIcon label="Hub" size="small" />
+			<JiraIcon label="Jira" size="small" />
+			<JiraProductDiscoveryIcon label="JPD" size="small" />
+			<JiraServiceManagementIcon label="JSM" size="small" />
+			<LoomIcon label="Loom" size="small" />
+			<OpsgenieIcon label="Opsgenie" size="small" />
+			<ProjectsIcon label="Projects" size="small" />
+			<RovoIcon label="Rovo" size="small" />
+			<RovoDevIcon label="RovoDev" size="small" />
+			<RovoDevAgentIcon label="RovoDev Agent" size="small" />
+			<SearchIcon label="Search" size="small" />
+			<StatuspageIcon label="Statuspage" size="small" />
+			<StudioIcon label="Studio" size="small" />
+			<TalentIcon label="Talent" size="small" />
+			<TeamsIcon label="Teams" size="small" />
+			<TrelloIcon label="Trello" size="small" />
 		</div>
 	);
 }

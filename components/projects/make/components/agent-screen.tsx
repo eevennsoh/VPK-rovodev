@@ -7,19 +7,19 @@ import {
 	Conversation,
 	ConversationContent,
 	ConversationScrollButton,
+	useConversationContext,
 } from "@/components/ui-ai/conversation";
-import { useStickToBottomContext } from "use-stick-to-bottom";
 import { Message, MessageContent } from "@/components/ui-ai/message";
 import { AdsReasoningTrigger, Reasoning } from "@/components/ui-ai/reasoning";
 import { REASONING_LABELS } from "@/components/projects/shared/lib/reasoning-labels";
 import type { TaskExecution } from "../lib/execution-data";
 
 /**
- * Watches StickToBottom's internal scroll container and reports scrollTop > 0.
- * Must be rendered inside a <Conversation> (StickToBottom provider).
+ * Watches the conversation scroll container and reports scrollTop > 0.
+ * Must be rendered inside a <Conversation>.
  */
 function ScrollWatcher({ onChange }: { onChange: (scrolled: boolean) => void }) {
-	const { scrollRef } = useStickToBottomContext();
+	const { scrollRef } = useConversationContext();
 
 	useEffect(() => {
 		const el = scrollRef.current;

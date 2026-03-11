@@ -15,7 +15,13 @@ import ChevronDownIcon from "@atlaskit/icon/core/chevron-down";
 import LockUnlockedIcon from "@atlaskit/icon/core/lock-unlocked";
 import ShowMoreHorizontalIcon from "@atlaskit/icon/core/show-more-horizontal";
 
-export default function ConfluenceHeader() {
+interface ConfluenceHeaderProps {
+	embedded?: boolean;
+}
+
+export default function ConfluenceHeader({
+	embedded = false,
+}: Readonly<ConfluenceHeaderProps>) {
 	const { isVisible, isHovered } = useSidebar();
 	const { isOpen: isRovoChatOpen } = useRovoChat();
 	const isSidebarOpen = isVisible || isHovered;
@@ -57,8 +63,8 @@ export default function ConfluenceHeader() {
 				backgroundColor: token("elevation.surface"),
 				minHeight: "56px",
 				gap: token("space.100"),
-				position: "fixed",
-				top: "48px",
+				position: embedded ? "absolute" : "fixed",
+				top: "var(--vpk-project-shell-top-offset, 48px)",
 				left: sidebarWidth,
 				right: rovoChatWidth,
 				zIndex: 50,

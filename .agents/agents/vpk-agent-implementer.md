@@ -2,7 +2,7 @@
 name: vpk-agent-implementer
 model: opus
 color: green
-tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "mcp__ads-mcp__ads_plan", "mcp__ads-mcp__ads_get_components", "mcp__ads-mcp__ads_analyze_a11y"]
+tools: ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "mcp__ads-mcp__ads_plan", "mcp__ads-mcp__ads_get_components", "mcp__ads-mcp__ads_get_a11y_guidelines", "mcp__ads-mcp__ads_analyze_a11y", "mcp__ads-mcp__ads_suggest_a11y_fixes"]
 description: |
   Figma implementation specialist. Takes extracted design specs and implements production-ready VPK components. Use as part of parallel Figma-to-code workflow.
 
@@ -47,6 +47,7 @@ You receive a structured design spec from the Extractor agent in YAML format con
 - Border/shadow tokens
 - Component list
 - Icon list
+- Accessibility topics and rules from ADS MCP
 
 ## Workflow
 
@@ -129,6 +130,8 @@ Fix any errors in changed files before completing, and explicitly distinguish pr
 
 ### Step 7: Run Accessibility Analysis
 
+Start with the relevant guideline topics from the spec. If the spec is missing them and the surface is interactive, fetch `ads_get_a11y_guidelines` for the closest topics (`buttons`, `forms`, `focus`, `keyboard`, or `general`) before evaluating fixes.
+
 ```
 mcp__ads-mcp__ads_analyze_a11y({
   code: [component code],
@@ -136,7 +139,9 @@ mcp__ads-mcp__ads_analyze_a11y({
 })
 ```
 
-Fix any accessibility issues.
+If the analysis reports a material issue, do not improvise the repair. Run `ads_suggest_a11y_fixes` with the violation text and the current code, then adapt the suggested remediation to VPK conventions.
+
+Fix any accessibility issues that are within scope of the component change.
 
 ## Implementation Rules
 

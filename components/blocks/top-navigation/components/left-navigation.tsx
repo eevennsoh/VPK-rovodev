@@ -1,12 +1,18 @@
 "use client";
 
 import { useRef, useMemo, RefObject } from "react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { token } from "@/lib/tokens";
 import { useClickOutside } from "@/components/hooks/use-click-outside";
 import { AppSwitcherMenu } from "./app-switcher-menu";
 import { PRODUCT_CONFIG } from "../data/product-config";
+import {
+	TOP_NAV_COLLAPSED_CONTROL_STEP_PX,
+	TOP_NAV_CONTROL_GAP_PX,
+	TOP_NAV_ICON_BUTTON_SIZE_PX,
+	TOP_NAV_LEFT_SECTION_WIDTH_PX,
+	TOP_NAV_SIDEBAR_TOGGLE_SEPARATOR_GAP_PX,
+} from "../layout-constants";
 import AppSwitcherIcon from "@atlaskit/icon/core/app-switcher";
 import SidebarCollapseIcon from "@atlaskit/icon/core/sidebar-collapse";
 import SidebarExpandIcon from "@atlaskit/icon/core/sidebar-expand";
@@ -18,6 +24,8 @@ interface LeftNavigationProps {
 	windowWidth: number;
 	isVisible: boolean;
 	isAppSwitcherOpen: boolean;
+	hideAppSwitcher?: boolean;
+	separatorLineOffsetPx?: number;
 	onToggleSidebar: () => void;
 	onToggleAppSwitcher: () => void;
 	onCloseAppSwitcher: () => void;
@@ -31,6 +39,8 @@ export function LeftNavigation({
 	windowWidth,
 	isVisible,
 	isAppSwitcherOpen,
+	hideAppSwitcher = false,
+	separatorLineOffsetPx = TOP_NAV_LEFT_SECTION_WIDTH_PX,
 	onToggleSidebar,
 	onToggleAppSwitcher,
 	onCloseAppSwitcher,
@@ -49,14 +59,18 @@ export function LeftNavigation({
 	useClickOutside(appSwitcherRefs, onCloseAppSwitcher, isAppSwitcherOpen);
 
 	const { Icon, name } = PRODUCT_CONFIG[product];
-	const isRovoProduct = product === "rovo";
+	const sidebarToggleOffsetPx =
+		separatorLineOffsetPx -
+		TOP_NAV_SIDEBAR_TOGGLE_SEPARATOR_GAP_PX -
+		TOP_NAV_ICON_BUTTON_SIZE_PX;
+	const expandedNavMinWidthPx = sidebarToggleOffsetPx + TOP_NAV_ICON_BUTTON_SIZE_PX;
 
 	const containerStyle = useMemo(() => {
 		const base = {
 			display: "flex",
 			alignItems: "center",
-			gap: token("space.050"),
-			flex: 1,
+			gap: TOP_NAV_CONTROL_GAP_PX,
+			flex: "0 0 auto" as const,
 			position: "relative" as const,
 			zIndex: 101,
 			height: "100%",
@@ -66,18 +80,19 @@ export function LeftNavigation({
 			return { ...base, flex: "0 0 330px", width: "330px" };
 		}
 		if (windowWidth < 1028 && !isVisible) {
-			return { ...base, flex: "0 0 auto", minWidth: "120px" };
+			return { ...base, minWidth: "120px" };
 		}
 		if (windowWidth < 1028 && isVisible) {
-			return { ...base, flex: "0 0 260px", width: "260px" };
+			return { ...base, minWidth: `${expandedNavMinWidthPx}px` };
 		}
 		return base;
-	}, [windowWidth, isVisible]);
+	}, [expandedNavMinWidthPx, windowWidth, isVisible]);
 
 	return (
 		<div style={containerStyle}>
 			<SidebarToggle
 				isVisible={isVisible}
+				offsetPx={sidebarToggleOffsetPx}
 				onToggle={onToggleSidebar}
 				onHoverEnter={onHoverEnter}
 				onHoverLeave={onHoverLeave}
@@ -86,6 +101,7 @@ export function LeftNavigation({
 			<AppSwitcher
 				isOpen={isAppSwitcherOpen}
 				isVisible={isVisible}
+				hideMenu={hideAppSwitcher}
 				buttonRef={appSwitcherButtonRef}
 				menuRef={appSwitcherMenuRef}
 				onToggle={onToggleAppSwitcher}
@@ -95,28 +111,34 @@ export function LeftNavigation({
 			<div
 				style={{
 					position: "absolute",
-					left: isVisible ? "40px" : "80px",
+					left: isVisible
+						? `${TOP_NAV_COLLAPSED_CONTROL_STEP_PX}px`
+						: `${TOP_NAV_COLLAPSED_CONTROL_STEP_PX * 2}px`,
 					transition: "left var(--duration-medium) var(--ease-in-out)",
-					marginLeft: token("space.050"),
 					display: "flex",
 					alignItems: "center",
 					height: "100%",
 				}}
 			>
-				<div style={{ display: "flex", alignItems: "center", gap: token("space.100") }}>
-					{isRovoProduct ? (
-						<Image
-							src="/1p/rovo.svg"
-							alt=""
-							width={20}
-							height={20}
-							aria-hidden
-						/>
-					) : (
-						<Icon size="small" />
-					)}
-					{windowWidth >= 1028 && <span style={{ font: token("font.heading.xsmall") }}>{name}</span>}
-				</div>
+				<Button
+					aria-label={`Open ${name}`}
+					variant="ghost"
+					className="flex items-center gap-1.5"
+					style={{ height: 32, padding: token("space.050") }}
+					onClick={() => onNavigate("/")}
+				>
+					<span className="inline-flex shrink-0 [&_svg]:!size-6">
+						<Icon variant="icon" size="small" />
+					</span>
+					{windowWidth >= 1028 ? (
+						<span
+							className="max-w-[280px] truncate text-sm font-bold text-text"
+							style={{ paddingRight: token("space.025") }}
+						>
+							{name}
+						</span>
+					) : null}
+				</Button>
 			</div>
 		</div>
 	);
@@ -124,17 +146,24 @@ export function LeftNavigation({
 
 interface SidebarToggleProps {
 	isVisible: boolean;
+	offsetPx: number;
 	onToggle: () => void;
 	onHoverEnter: () => void;
 	onHoverLeave: () => void;
 }
 
-function SidebarToggle({ isVisible, onToggle, onHoverEnter, onHoverLeave }: Readonly<SidebarToggleProps>) {
+function SidebarToggle({
+	isVisible,
+	offsetPx,
+	onToggle,
+	onHoverEnter,
+	onHoverLeave,
+}: Readonly<SidebarToggleProps>) {
 	return (
 		<div
 			style={{
 				position: "absolute",
-				left: isVisible ? "180px" : "0",
+				left: isVisible ? `${offsetPx}px` : "0",
 				transition: "left var(--duration-medium) var(--ease-in-out)",
 				display: "flex",
 				alignItems: "center",
@@ -149,7 +178,7 @@ function SidebarToggle({ isVisible, onToggle, onHoverEnter, onHoverLeave }: Read
 				onMouseEnter={onHoverEnter}
 				onMouseLeave={onHoverLeave}
 			>
-				{isVisible ? <SidebarCollapseIcon label="" /> : <SidebarExpandIcon label="" />}
+				{isVisible ? <SidebarCollapseIcon label="" color={token("color.icon.subtle")} /> : <SidebarExpandIcon label="" color={token("color.icon.subtle")} />}
 			</Button>
 		</div>
 	);
@@ -158,18 +187,19 @@ function SidebarToggle({ isVisible, onToggle, onHoverEnter, onHoverLeave }: Read
 interface AppSwitcherProps {
 	isOpen: boolean;
 	isVisible: boolean;
+	hideMenu?: boolean;
 	buttonRef: React.RefObject<HTMLButtonElement | null>;
 	menuRef: React.RefObject<HTMLDivElement | null>;
 	onToggle: () => void;
 	onNavigate: (path: string) => void;
 }
 
-function AppSwitcher({ isOpen, isVisible, buttonRef, menuRef, onToggle, onNavigate }: Readonly<AppSwitcherProps>) {
+function AppSwitcher({ isOpen, isVisible, hideMenu = false, buttonRef, menuRef, onToggle, onNavigate }: Readonly<AppSwitcherProps>) {
 	return (
 		<div
 			style={{
 				position: "absolute",
-				left: isVisible ? "0" : "40px",
+				left: isVisible ? "0" : `${TOP_NAV_COLLAPSED_CONTROL_STEP_PX}px`,
 				transition: "left var(--duration-medium) var(--ease-in-out)",
 				display: "flex",
 				alignItems: "center",
@@ -184,9 +214,9 @@ function AppSwitcher({ isOpen, isVisible, buttonRef, menuRef, onToggle, onNaviga
 					variant={isOpen ? "secondary" : "ghost"}
 					onClick={onToggle}
 				>
-					<AppSwitcherIcon label="" />
+					<AppSwitcherIcon label="" color={token("color.icon.subtle")} />
 				</Button>
-				{isOpen && (
+				{isOpen && !hideMenu ? (
 					<div
 						ref={menuRef}
 						style={{
@@ -199,7 +229,7 @@ function AppSwitcher({ isOpen, isVisible, buttonRef, menuRef, onToggle, onNaviga
 					>
 						<AppSwitcherMenu onNavigate={onNavigate} />
 					</div>
-				)}
+				) : null}
 			</div>
 		</div>
 	);

@@ -1,11 +1,12 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { RovoIcon } from "@/components/ui/logo";
 import { token } from "@/lib/tokens";
 import NotificationIcon from "@atlaskit/icon/core/notification";
 import QuestionCircleIcon from "@atlaskit/icon/core/question-circle";
+import SettingsIcon from "@atlaskit/icon/core/settings";
 import ThemeIcon from "@atlaskit/icon/core/theme";
 
 type Product = "home" | "jira" | "confluence" | "rovo" | "search";
@@ -26,7 +27,7 @@ export function RightNavigation({
 	const containerStyle = {
 		display: "flex",
 		alignItems: "center",
-		gap: token("space.100"),
+		gap: token("space.050"),
 		flex: 1,
 		justifyContent: "flex-end",
 		marginLeft: "8px",
@@ -39,15 +40,13 @@ export function RightNavigation({
 			{product !== "rovo" && (
 				<>
 					{windowWidth >= 768 ? (
-						<Button variant="secondary" onClick={onToggleChat}>
-							<div style={{ display: "flex", alignItems: "center", gap: token("space.100") }}>
-								<RovoIcon label="Rovo" size="xsmall" />
-								Ask Rovo
-							</div>
+						<Button variant="outline" className="text-text-subtle" onClick={onToggleChat}>
+							<Image src="/1p/rovo.svg" alt="" width={16} height={16} data-icon="inline-start" />
+							Ask Rovo
 						</Button>
 					) : (
-						<Button aria-label="Ask Rovo" size="icon" variant="secondary" onClick={onToggleChat}>
-							<RovoIcon label="Rovo" size="xsmall" />
+						<Button aria-label="Ask Rovo" size="icon" variant="outline" className="text-text-subtle" onClick={onToggleChat}>
+							<Image src="/1p/rovo.svg" alt="" width={16} height={16} />
 						</Button>
 					)}
 				</>
@@ -55,27 +54,34 @@ export function RightNavigation({
 
 			{/* Notifications */}
 			<Button aria-label="Notifications" size="icon" variant="ghost">
-				<NotificationIcon label="" />
+				<NotificationIcon label="" color={token("color.icon.subtle")} />
 			</Button>
 
 			{/* Help */}
 			<Button aria-label="Help" size="icon" variant="ghost">
-				<QuestionCircleIcon label="" />
+				<QuestionCircleIcon label="" color={token("color.icon.subtle")} />
+			</Button>
+
+			{/* Settings */}
+			<Button aria-label="Settings" size="icon" variant="ghost">
+				<SettingsIcon label="" color={token("color.icon.subtle")} />
 			</Button>
 
 			{/* Theme Toggle */}
 			<Button aria-label="Toggle theme" size="icon" variant="ghost" onClick={onToggleTheme}>
-				<ThemeIcon label="" />
+				<ThemeIcon label="" color={token("color.icon.subtle")} />
 			</Button>
 
-			{/* Profile - Dynamic import handles hydration with loading fallback */}
-			<Avatar size="sm">
-				<AvatarImage
-					src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face"
-					alt="User Profile"
-				/>
-				<AvatarFallback>UP</AvatarFallback>
-			</Avatar>
+			{/* Profile */}
+			<div className="flex size-8 items-center justify-center">
+				<Avatar size="sm">
+					<AvatarImage
+						src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face"
+						alt="User Profile"
+					/>
+					<AvatarFallback>UP</AvatarFallback>
+				</Avatar>
+			</div>
 		</div>
 	);
 }

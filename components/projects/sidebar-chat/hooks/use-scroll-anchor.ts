@@ -2,9 +2,9 @@
 
 import { useRef, useEffect, useMemo } from "react";
 import type {
+	ConversationContextValue,
 	GetTargetScrollTop,
-	StickToBottomContext,
-} from "use-stick-to-bottom";
+} from "@/components/ui-ai/conversation";
 import {
 	getLatestUserMessageId,
 } from "@/lib/rovo-ui-messages";
@@ -22,7 +22,7 @@ interface UseScrollAnchorOptions {
 }
 
 interface UseScrollAnchorReturn {
-	conversationContextRef: React.RefObject<StickToBottomContext | null>;
+	conversationContextRef: React.RefObject<ConversationContextValue | null>;
 	scrollSpacerRef: React.RefObject<HTMLDivElement | null>;
 	getLatestTurnTargetTop: GetTargetScrollTop;
 }
@@ -30,7 +30,7 @@ interface UseScrollAnchorReturn {
 export function useScrollAnchor({
 	uiMessages,
 }: Readonly<UseScrollAnchorOptions>): UseScrollAnchorReturn {
-	const conversationContextRef = useRef<StickToBottomContext | null>(null);
+	const conversationContextRef = useRef<ConversationContextValue | null>(null);
 	const scrollSpacerRef = useRef<HTMLDivElement>(null);
 	const hasInitializedScrollRef = useRef(false);
 	const previousLatestUserMessageIdRef = useRef<string | null>(null);

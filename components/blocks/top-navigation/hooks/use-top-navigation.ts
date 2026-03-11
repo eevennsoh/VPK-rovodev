@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useMemo, useCallback } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useWindowWidth } from "@/components/hooks/use-window-width";
 import { useClickOutside } from "@/components/hooks/use-click-outside";
 import { useSidebar } from "@/app/contexts/context-sidebar";
@@ -43,12 +43,12 @@ export function useTopNavigation() {
 	);
 
 	const handleSearchKeyDown = useCallback(
-		(e: React.KeyboardEvent) => {
-			if (e.key === "Enter") {
+		(event: KeyboardEvent<HTMLInputElement>) => {
+			if (event.key === "Enter") {
 				router.push("/search");
 				setIsSearchFocused(false);
 			}
-			if (e.key === "Escape") {
+			if (event.key === "Escape") {
 				setIsSearchFocused(false);
 			}
 		},
@@ -57,7 +57,6 @@ export function useTopNavigation() {
 
 	const handleSearchAllApps = useCallback(() => {
 		router.push("/search");
-		setIsSearchFocused(false);
 	}, [router]);
 
 	const handleRecentItemClick = useCallback(() => {
@@ -86,15 +85,20 @@ export function useTopNavigation() {
 			alignItems: "center",
 			gap: token("space.100"),
 			width: "100%",
+			minWidth: 0,
+			maxWidth: "762px",
+			flex: 1,
+			paddingLeft: token("space.150"),
+			paddingRight: token("space.150"),
 		};
 
 		if (windowWidth >= 1516) {
-			return { ...base, maxWidth: "762px" };
+			return base;
 		}
 		if (windowWidth >= 1028) {
-			return { ...base, minWidth: "292px", maxWidth: "762px" };
+			return { ...base, minWidth: "292px" };
 		}
-		return { ...base, maxWidth: "none" };
+		return { ...base, maxWidth: "none", paddingLeft: token("space.100"), paddingRight: token("space.100") };
 	}, [windowWidth]);
 
 	return {
@@ -109,7 +113,6 @@ export function useTopNavigation() {
 		toggleTheme,
 		searchContainerRef,
 		searchPanelRef,
-		router,
 		centerSectionStyle,
 		handleNavigate,
 		handleSearchKeyDown,

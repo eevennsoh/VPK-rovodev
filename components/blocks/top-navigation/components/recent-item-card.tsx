@@ -29,7 +29,9 @@ export default function RecentItemCard({
 				<div className="mb-0.5 text-text" style={{ font: token("font.body") }}>
 					{title}
 				</div>
-				<div className="text-text-subtlest" style={{ font: token("font.body.small") }}>{metadata}</div>
+				<div className="text-text-subtlest" style={{ font: token("font.body.small") }}>
+					{metadata}
+				</div>
 			</div>
 			<div
 				className="shrink-0 whitespace-nowrap text-text-subtlest"

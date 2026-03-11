@@ -6,18 +6,25 @@ import ConfluenceHeader from "./components/confluence-header";
 import DocumentEditor from "./components/document-editor";
 import FloatingConfluenceActions from "./components/floating-confluence-actions";
 
-export default function ConfluenceView() {
+interface ConfluenceViewProps {
+	embedded?: boolean;
+}
+
+export default function ConfluenceView({
+	embedded = false,
+}: Readonly<ConfluenceViewProps>) {
 	return (
 		<div
 			style={{
-				height: "calc(100vh - 48px)", // Full viewport minus TopNavigation height
+				height: "var(--vpk-project-shell-content-height, calc(100vh - 48px))",
 				display: "flex",
 				flexDirection: "column",
 				overflow: "hidden",
+				position: "relative",
 			}}
 		>
 			{/* Fixed Header */}
-			<ConfluenceHeader />
+			<ConfluenceHeader embedded={embedded} />
 
 			{/* Scrollable Content Area */}
 			<div
@@ -41,7 +48,7 @@ export default function ConfluenceView() {
 			</div>
 
 			{/* Floating Confluence Actions */}
-			<FloatingConfluenceActions />
+			<FloatingConfluenceActions embedded={embedded} />
 		</div>
 	);
 }

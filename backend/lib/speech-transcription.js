@@ -149,6 +149,49 @@ function hasConfiguredOpenAiCompatibleBaseUrl(sttEnvVars) {
 	return Boolean(getNonEmptyString(sttEnvVars.OPENAI_COMPATIBLE_STT_BASE_URL));
 }
 
+function getTranscriptionErrorDetails(error) {
+	if (!(error instanceof Error)) {
+		return "";
+	}
+
+	const cause = error.cause;
+	const parts = [
+		error.message,
+		typeof cause?.message === "string" ? cause.message : "",
+		typeof cause?.code === "string" ? cause.code : "",
+	];
+
+	return parts.filter((part) => typeof part === "string" && part.trim()).join(" ");
+}
+
+function shouldFallbackOpenAiCompatibleToGoogle({
+	error,
+	envVars,
+	rawBaseUrl,
+}) {
+	if (error instanceof Error && error.name === "AbortError") {
+		return false;
+	}
+
+	if (getNonEmptyString(rawBaseUrl)) {
+		return false;
+	}
+
+	if (!getNonEmptyString(envVars.GOOGLE_STT_MODEL)) {
+		return false;
+	}
+
+	const statusCode =
+		typeof error?.statusCode === "number" ? error.statusCode : null;
+	if (statusCode !== null) {
+		return statusCode >= 500;
+	}
+
+	return /fetch failed|ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ETIMEDOUT|ECONNRESET|UND_ERR/i.test(
+		getTranscriptionErrorDetails(error),
+	);
+}
+
 function resolveConfiguredTranscriptionProvider(rawProvider, envVars, sttEnvVars) {
 	const explicitProvider = getNonEmptyString(rawProvider);
 	if (explicitProvider) {
@@ -768,15 +811,47 @@ async function transcribeAudio({
 	}
 
 	if (provider === OPENAI_COMPATIBLE_PROVIDER) {
-		return transcribeViaOpenAiCompatible({
-			audio,
-			mimeType,
-			model,
-			language,
-			signal,
-			baseUrl: sttEnvVars.OPENAI_COMPATIBLE_STT_BASE_URL,
-			apiKey: sttEnvVars.OPENAI_COMPATIBLE_STT_API_KEY,
-		});
+		try {
+			return await transcribeViaOpenAiCompatible({
+				audio,
+				mimeType,
+				model,
+				language,
+				signal,
+				baseUrl: sttEnvVars.OPENAI_COMPATIBLE_STT_BASE_URL,
+				apiKey: sttEnvVars.OPENAI_COMPATIBLE_STT_API_KEY,
+			});
+		} catch (error) {
+			if (
+				!shouldFallbackOpenAiCompatibleToGoogle({
+					error,
+					envVars,
+					rawBaseUrl: sttEnvVars.OPENAI_COMPATIBLE_STT_BASE_URL,
+				})
+			) {
+				throw error;
+			}
+
+			const googleModel = resolveGoogleTranscriptionModel(envVars.GOOGLE_STT_MODEL);
+			console.warn(
+				"[SPEECH-TRANSCRIPTION] OpenAI-compatible STT failed; falling back to Google STT",
+				{
+					error:
+						error instanceof Error ? error.message : String(error ?? "Unknown error"),
+					fallbackModel: googleModel,
+					transcriptionUrl: buildOpenAiCompatibleTranscriptionUrl(
+						sttEnvVars.OPENAI_COMPATIBLE_STT_BASE_URL,
+					),
+				},
+			);
+
+			return transcribeViaGoogleGenerateContent({
+				audio,
+				mimeType,
+				model: googleModel,
+				signal,
+			});
+		}
 	}
 
 	if (provider === "google") {
@@ -800,6 +875,7 @@ module.exports = {
 		buildGenerateContentUrl,
 		buildLocalWhisperArgs,
 		buildOpenAiCompatibleTranscriptionUrl,
+		getTranscriptionErrorDetails,
 		mimeTypeToFileExtension,
 		readPresetConfig,
 		resolveConfiguredTranscriptionModel,
@@ -809,6 +885,7 @@ module.exports = {
 		resolveLocalWhisperModel,
 		resolveOpenAiCompatibleTranscriptionModel,
 		resolvePresetKey,
+		shouldFallbackOpenAiCompatibleToGoogle,
 		STT_PRESET_ENV_MAP,
 		STRICT_TRANSCRIPTION_PROMPT,
 		LOCAL_WHISPER_PROVIDER,
