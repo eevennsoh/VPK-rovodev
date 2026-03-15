@@ -1,0 +1,1354 @@
+const fs = require("node:fs/promises")
+const os = require("node:os")
+const path = require("node:path")
+const { randomUUID } = require("node:crypto")
+
+const { normalizeChromiumPreviewUrl } = require("./chromium-preview")
+const {
+	AgentBrowserRuntime,
+	DEFAULT_DEVICE_SCALE_FACTOR,
+	DEFAULT_VIEWPORT,
+	} = require("./browser-workspace-runtime")
+const { BrowserPreviewSession } = require("./browser-preview-session")
+
+const DEFAULT_URL = "about:blank"
+const SCREENSHOT_ROOT_DIR = path.join(os.tmpdir(), "vpk-browser-workspaces")
+const WORKSPACE_IDLE_TIMEOUT_MS = 30 * 60 * 1000
+const WORKSPACE_CLEANUP_INTERVAL_MS = 60 * 1000
+const PREVIEW_SETTLE_DELAY_MS = 750
+const SCROLL_DIRECTIONS = new Set(["up", "down", "left", "right"])
+
+function delay(milliseconds) {
+	return new Promise((resolve) => {
+		setTimeout(resolve, milliseconds)
+	})
+}
+
+function clampViewportDimension(value, fallback) {
+	const parsed = Number.parseInt(String(value), 10)
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return fallback
+	}
+
+	return Math.min(Math.max(parsed, 320), 3840)
+}
+
+function clampDeviceScaleFactor(value) {
+	const parsed = Number.parseFloat(String(value))
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return DEFAULT_DEVICE_SCALE_FACTOR
+	}
+
+	return Math.min(Math.max(parsed, 1), 3)
+}
+
+function requireNonEmptyString(value, message) {
+	if (typeof value !== "string" || !value.trim()) {
+		throw new Error(message)
+	}
+
+	return value.trim()
+}
+
+function requireNonEmptyMultilineString(value, message) {
+	if (typeof value !== "string" || !value.trim()) {
+		throw new Error(message)
+	}
+
+	return value
+}
+
+function normalizeScrollDirection(direction) {
+	const normalizedDirection = requireNonEmptyString(
+		direction,
+		'A non-empty scroll direction is required.',
+	).toLowerCase()
+
+	if (!SCROLL_DIRECTIONS.has(normalizedDirection)) {
+		throw new Error('Scroll direction must be one of: "up", "down", "left", "right".')
+	}
+
+	return normalizedDirection
+}
+
+function normalizeScrollDistance(value, fallback = 300) {
+	const parsed = Number.parseInt(String(value), 10)
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return fallback
+	}
+
+	return Math.min(Math.max(parsed, 1), 5000)
+}
+
+function normalizeTabIndex(index) {
+	const parsed = Number.parseInt(String(index), 10)
+	if (!Number.isFinite(parsed) || parsed < 0) {
+		throw new Error("A non-negative tab index is required.")
+	}
+
+	return parsed
+}
+
+function tabsAreEqual(currentTabs, nextTabs) {
+	if (!Array.isArray(currentTabs) || !Array.isArray(nextTabs)) {
+		return false
+	}
+
+	if (currentTabs.length !== nextTabs.length) {
+		return false
+	}
+
+	for (let index = 0; index < currentTabs.length; index += 1) {
+		const currentTab = currentTabs[index]
+		const nextTab = nextTabs[index]
+		if (
+			currentTab?.index !== nextTab?.index ||
+			currentTab?.url !== nextTab?.url ||
+			currentTab?.title !== nextTab?.title ||
+			currentTab?.active !== nextTab?.active
+		) {
+			return false
+		}
+	}
+
+	return true
+}
+
+class BrowserWorkspace {
+	constructor({
+		workspaceId,
+		sessionId,
+		delayFn = delay,
+		nowFn = Date.now,
+		runtimeFactory,
+		previewSessionFactory,
+		screenshotRootDir = SCREENSHOT_ROOT_DIR,
+	} = {}) {
+		this._workspaceId = workspaceId
+		this._sessionId = sessionId
+		this._delay = delayFn
+		this._now = nowFn
+		this._previewSessionFactory = previewSessionFactory
+		this._runtime = typeof runtimeFactory === "function"
+			? runtimeFactory({
+				workspaceId,
+				sessionId,
+				viewport: DEFAULT_VIEWPORT,
+				deviceScaleFactor: DEFAULT_DEVICE_SCALE_FACTOR,
+			})
+			: new AgentBrowserRuntime({
+				sessionId,
+				viewport: DEFAULT_VIEWPORT,
+				deviceScaleFactor: DEFAULT_DEVICE_SCALE_FACTOR,
+			})
+		this._queue = Promise.resolve()
+		this._isBrowserReady = false
+		this._title = ""
+		this._currentUrl = DEFAULT_URL
+		this._viewport = { ...DEFAULT_VIEWPORT }
+		this._deviceScaleFactor = DEFAULT_DEVICE_SCALE_FACTOR
+		this._tabs = [
+			{
+				index: 0,
+				title: "",
+				url: DEFAULT_URL,
+				active: true,
+			},
+		]
+		this._activeTabIndex = 0
+		this._tabHistories = new Map([
+			[
+				0,
+				{
+					entries: [DEFAULT_URL],
+					index: 0,
+				},
+			],
+		])
+		this._pendingHistoryAction = null
+		this._pendingHistoryTabIndex = null
+		this._latestScreenshotBuffer = null
+		this._latestScreenshotContentType = "image/png"
+		this._screenshotDirty = true
+		this._screenshotPromise = null
+		this._lastUsedAt = this._now()
+		this._updatedAt = this._now()
+		this._screenshotDir = path.join(screenshotRootDir, this._workspaceId)
+		this._previewSessions = new Map()
+		this._previewClients = new Set()
+		this._previewStreamPromise = null
+		this._previewSettleTimer = null
+		this._previewSettledScreenshotRevision = 0
+		this._previewStatus = "steady"
+		this._lastPreviewMetadata = null
+	}
+
+	_touch() {
+		this._lastUsedAt = this._now()
+	}
+
+	_markUpdated() {
+		this._touch()
+		this._updatedAt = this._now()
+	}
+
+	_markScreenshotDirty() {
+		this._screenshotDirty = true
+	}
+
+	_enqueue(task) {
+		const nextTask = this._queue.then(task, task)
+		this._queue = nextTask.catch(() => {})
+		return nextTask
+	}
+
+	_clearPreviewSettleTimer() {
+		if (this._previewSettleTimer !== null) {
+			clearTimeout(this._previewSettleTimer)
+			this._previewSettleTimer = null
+		}
+	}
+
+	_getHistoryState(tabIndex) {
+		const history = this._tabHistories.get(tabIndex)
+		if (history) {
+			return history
+		}
+
+		const nextHistory = {
+			entries: [DEFAULT_URL],
+			index: 0,
+		}
+		this._tabHistories.set(tabIndex, nextHistory)
+		return nextHistory
+	}
+
+	_shiftHistoriesAfterClose(closedIndex) {
+		const nextHistories = new Map()
+		for (const [tabIndex, history] of this._tabHistories.entries()) {
+			if (tabIndex === closedIndex) {
+				continue
+			}
+
+			nextHistories.set(tabIndex > closedIndex ? tabIndex - 1 : tabIndex, history)
+		}
+
+		this._tabHistories = nextHistories
+		if (this._activeTabIndex > closedIndex) {
+			this._activeTabIndex -= 1
+		} else if (this._activeTabIndex === closedIndex) {
+			this._activeTabIndex = Math.max(0, this._activeTabIndex - 1)
+		}
+	}
+
+	_recordActiveTabHistory(activeTab) {
+		if (!activeTab) {
+			this._pendingHistoryAction = null
+			this._pendingHistoryTabIndex = null
+			return
+		}
+
+		const nextUrl =
+			typeof activeTab.url === "string" && activeTab.url.trim()
+				? activeTab.url.trim()
+				: DEFAULT_URL
+
+		const history = this._getHistoryState(activeTab.index)
+		if (this._pendingHistoryTabIndex === activeTab.index) {
+			if (this._pendingHistoryAction === "back") {
+				history.index = Math.max(0, history.index - 1)
+			} else if (this._pendingHistoryAction === "forward") {
+				history.index = Math.min(history.entries.length - 1, history.index + 1)
+			} else if (history.entries[history.index] !== nextUrl) {
+				history.entries = history.entries.slice(0, history.index + 1)
+				history.entries.push(nextUrl)
+				history.index = history.entries.length - 1
+			}
+
+			if (history.entries[history.index] !== nextUrl) {
+				history.entries[history.index] = nextUrl
+			}
+		} else if (history.entries[history.index] !== nextUrl) {
+			history.entries = history.entries.slice(0, history.index + 1)
+			history.entries.push(nextUrl)
+			history.index = history.entries.length - 1
+		}
+
+		this._tabHistories.set(activeTab.index, history)
+		this._pendingHistoryAction = null
+		this._pendingHistoryTabIndex = null
+	}
+
+	_getStateSnapshot() {
+		const activeHistory = this._getHistoryState(this._activeTabIndex)
+
+		return {
+			workspaceId: this._workspaceId,
+			ready: this._isBrowserReady,
+			activeTabIndex: this._activeTabIndex,
+			tabs: this._tabs,
+			title: this._title,
+			url: this._currentUrl,
+			viewportWidth: this._viewport.width,
+			viewportHeight: this._viewport.height,
+			canGoBack: activeHistory.index > 0,
+			canGoForward: activeHistory.index < activeHistory.entries.length - 1,
+			updatedAt: this._updatedAt,
+		}
+	}
+
+	_getPreviewStateMessage(status = this._previewStatus) {
+		const sourceWidth = this._lastPreviewMetadata?.deviceWidth ?? this._viewport.width
+		const sourceHeight = this._lastPreviewMetadata?.deviceHeight ?? this._viewport.height
+
+		return {
+			type: "preview-state",
+			status,
+			settledScreenshotRevision: this._previewSettledScreenshotRevision || null,
+			sourceWidth,
+			sourceHeight,
+			pageScaleFactor: this._lastPreviewMetadata?.pageScaleFactor ?? 1,
+		}
+	}
+
+	_broadcastPreviewState(status = this._previewStatus) {
+		if (this._previewSessions.size === 0 && this._previewClients.size === 0) {
+			return
+		}
+
+		const message = this._getPreviewStateMessage(status)
+		for (const session of this._previewSessions.values()) {
+			session.send(message)
+		}
+		const payload = JSON.stringify(message)
+		for (const client of this._previewClients) {
+			if (client.readyState !== 1) {
+				continue
+			}
+			client.send(payload)
+		}
+	}
+
+	_schedulePreviewSettle(delayMs = PREVIEW_SETTLE_DELAY_MS) {
+		this._clearPreviewSettleTimer()
+		if (this._previewSessions.size === 0) {
+			return
+		}
+
+			this._previewSettleTimer = setTimeout(() => {
+			this._previewSettleTimer = null
+			void this._enqueue(async () => {
+				if (this._previewSessions.size === 0) {
+					return
+				}
+
+				await this._captureScreenshot()
+				this._previewSettledScreenshotRevision += 1
+				this._previewStatus = "steady"
+				this._broadcastPreviewState("steady")
+			})
+		}, delayMs)
+		this._previewSettleTimer.unref?.()
+	}
+
+	_beginPreviewActivity() {
+		this._markScreenshotDirty()
+		if (this._previewSessions.size === 0 && this._previewClients.size === 0) {
+			return
+		}
+
+		this._previewStatus = "live"
+		this._broadcastPreviewState("live")
+		if (this._previewSessions.size > 0) {
+			this._schedulePreviewSettle()
+		}
+	}
+
+	async _captureScreenshot() {
+		if (!this._screenshotDirty && this._latestScreenshotBuffer) {
+			this._touch()
+			return {
+				buffer: this._latestScreenshotBuffer,
+				contentType: this._latestScreenshotContentType,
+				state: this._getStateSnapshot(),
+			}
+		}
+
+		if (!this._screenshotPromise) {
+			this._screenshotPromise = (async () => {
+				await fs.mkdir(this._screenshotDir, { recursive: true })
+				const buffer = await this._runtime.screenshotBuffer()
+				this._latestScreenshotBuffer = buffer
+				this._screenshotDirty = false
+				return buffer
+			})().finally(() => {
+				this._screenshotPromise = null
+			})
+		}
+
+		const buffer = await this._screenshotPromise
+		this._touch()
+		return {
+			buffer,
+			contentType: this._latestScreenshotContentType,
+			state: this._getStateSnapshot(),
+		}
+	}
+
+	async _refreshState(options = {}) {
+		const nextRuntimeState = await this._runtime.getState()
+		const nextTabs = Array.isArray(nextRuntimeState?.tabs)
+			? nextRuntimeState.tabs
+					.filter((tab) => typeof tab?.index === "number")
+					.map((tab) => ({
+						index: tab.index,
+						title: typeof tab.title === "string" ? tab.title : "",
+						url:
+							typeof tab.url === "string" && tab.url.trim()
+								? tab.url.trim()
+								: DEFAULT_URL,
+						active: tab.active === true,
+					}))
+			: []
+
+		const normalizedTabs =
+			nextTabs.length > 0
+				? nextTabs
+				: [
+					{
+						index: 0,
+						title: "",
+						url: DEFAULT_URL,
+						active: true,
+					},
+				]
+
+		const presentIndices = new Set(normalizedTabs.map((tab) => tab.index))
+		for (const tabIndex of this._tabHistories.keys()) {
+			if (!presentIndices.has(tabIndex)) {
+				this._tabHistories.delete(tabIndex)
+			}
+		}
+
+		for (const tab of normalizedTabs) {
+			if (!this._tabHistories.has(tab.index)) {
+				this._tabHistories.set(tab.index, {
+					entries: [tab.url || DEFAULT_URL],
+					index: 0,
+				})
+			}
+		}
+
+		const nextActiveTabIndex =
+			typeof nextRuntimeState?.activeTabIndex === "number"
+				? nextRuntimeState.activeTabIndex
+				: normalizedTabs.find((tab) => tab.active)?.index ?? 0
+		const finalTabs = normalizedTabs.map((tab) => ({
+			...tab,
+			active: tab.index === nextActiveTabIndex,
+		}))
+		const activeTab =
+			finalTabs.find((tab) => tab.index === nextActiveTabIndex) ?? finalTabs[0]
+		const resolvedActiveTabIndex = activeTab?.index ?? 0
+		const nextTitle = activeTab?.title || this._title
+		const nextUrl = activeTab?.url || this._currentUrl
+		const didStateChange =
+			options.forceUpdated === true ||
+			!tabsAreEqual(this._tabs, finalTabs) ||
+			this._activeTabIndex !== resolvedActiveTabIndex ||
+			this._title !== nextTitle ||
+			this._currentUrl !== nextUrl
+
+		this._tabs = finalTabs
+		this._activeTabIndex = resolvedActiveTabIndex
+		this._recordActiveTabHistory(activeTab)
+		this._title = nextTitle
+		this._currentUrl = nextUrl
+		this._touch()
+		if (didStateChange) {
+			this._updatedAt = this._now()
+		}
+
+		return this._getStateSnapshot()
+	}
+
+	async _ensurePreviewStreaming() {
+		if (this._previewSessions.size === 0 && this._previewClients.size === 0) {
+			return
+		}
+
+		if (this._previewStreamPromise) {
+			await this._previewStreamPromise
+			return
+		}
+
+		if (this._runtime.isScreencasting()) {
+			return
+		}
+
+		this._previewStreamPromise = this._runtime
+			.startScreencast((frame) => {
+				const metadata = frame?.metadata ?? null
+				const didMetadataChange =
+					!this._lastPreviewMetadata ||
+					this._lastPreviewMetadata.deviceWidth !== metadata?.deviceWidth ||
+					this._lastPreviewMetadata.deviceHeight !== metadata?.deviceHeight ||
+					this._lastPreviewMetadata.pageScaleFactor !== metadata?.pageScaleFactor
+
+				this._lastPreviewMetadata = metadata
+				const framePayload = JSON.stringify({
+					type: "frame",
+					data: frame?.data,
+					metadata,
+				})
+				for (const session of this._previewSessions.values()) {
+					session.pushFrame(frame)
+				}
+				for (const client of this._previewClients) {
+					if (client.readyState !== 1) {
+						continue
+					}
+					client.send(framePayload)
+				}
+				if (didMetadataChange) {
+					this._broadcastPreviewState("live")
+				}
+			})
+			.catch((error) => {
+				const payload = JSON.stringify({
+					type: "preview-error",
+					message:
+						error instanceof Error
+							? error.message
+							: "Failed to start browser preview stream.",
+				})
+				for (const session of this._previewSessions.values()) {
+					session.send({
+						type: "preview-error",
+						message:
+							error instanceof Error
+								? error.message
+								: "Failed to start browser preview stream.",
+					})
+				}
+				for (const client of this._previewClients) {
+					if (client.readyState !== 1) {
+						continue
+					}
+					client.send(payload)
+				}
+			})
+			.finally(() => {
+				this._previewStreamPromise = null
+			})
+
+		await this._previewStreamPromise
+	}
+
+	async _restartPreviewStreaming() {
+		if (this._previewSessions.size === 0 && this._previewClients.size === 0) {
+			return
+		}
+
+		await this._runtime.stopScreencast().catch(() => {})
+		await this._ensurePreviewStreaming()
+	}
+
+	async _handlePreviewSessionClose(sessionId) {
+		if (!this._previewSessions.has(sessionId)) {
+			return
+		}
+
+		this._previewSessions.delete(sessionId)
+		if (this._previewSessions.size > 0 || this._previewClients.size > 0) {
+			return
+		}
+
+		this._clearPreviewSettleTimer()
+		await this._runtime.stopScreencast().catch(() => {})
+	}
+
+	_handlePreviewControlMessage(message) {
+		if (!message || typeof message !== "object") {
+			return
+		}
+
+		switch (message.type) {
+			case "preview-click":
+				void this.previewClick(message.x, message.y)
+				return
+			case "preview-wheel":
+				void this.previewWheel(message.x, message.y, message.deltaX, message.deltaY)
+				return
+			case "preview-key":
+				void this.previewKeyEvent(
+					message.eventType,
+					message.key,
+					message.code,
+					message.text,
+				)
+				return
+			case "preview-paste":
+				void this.previewInsertText(message.text)
+				return
+			case "preview-sync":
+				this._broadcastPreviewState(this._previewStatus)
+				return
+			default:
+				return
+		}
+	}
+
+	peekState() {
+		return this._getStateSnapshot()
+	}
+
+	getLastUsedAt() {
+		return this._lastUsedAt
+	}
+
+	getStreamConfig() {
+		return {
+			enabled: true,
+			workspaceId: this._workspaceId,
+			session: this._sessionId,
+			port: 0,
+			wsUrl: `/api/browser-workspaces/${encodeURIComponent(this._workspaceId)}/live`,
+		}
+	}
+
+	initialize(defaultUrl = DEFAULT_URL) {
+		return this._enqueue(async () => {
+			this._currentUrl = normalizeChromiumPreviewUrl(defaultUrl)
+			const initialHistory = {
+				entries: [this._currentUrl],
+				index: 0,
+			}
+			this._tabs = [
+				{
+					index: 0,
+					title: "",
+					url: this._currentUrl,
+					active: true,
+				},
+			]
+			this._activeTabIndex = 0
+			this._tabHistories = new Map([[0, initialHistory]])
+			await this._runtime.initialize(this._currentUrl)
+			this._isBrowserReady = true
+			return this._refreshState({ forceUpdated: true })
+		})
+	}
+
+	getState() {
+		return this._enqueue(async () => {
+			return this._refreshState({ forceUpdated: true })
+		})
+	}
+
+	listTabs() {
+		return this._enqueue(async () => {
+			const state = await this._refreshState()
+			return {
+				workspaceId: this._workspaceId,
+				activeTabIndex: state.activeTabIndex,
+				tabs: state.tabs,
+				updatedAt: state.updatedAt,
+			}
+		})
+	}
+
+	navigate(url) {
+		return this._enqueue(async () => {
+			const normalizedUrl = normalizeChromiumPreviewUrl(url)
+			this._beginPreviewActivity()
+			this._pendingHistoryAction = "navigate"
+			this._pendingHistoryTabIndex = this._activeTabIndex
+			this._currentUrl = normalizedUrl
+			await this._runtime.navigate(normalizedUrl)
+			await this._delay(250)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	setViewport(width, height, deviceScaleFactor = this._deviceScaleFactor) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			this._viewport = {
+				width: clampViewportDimension(width, DEFAULT_VIEWPORT.width),
+				height: clampViewportDimension(height, DEFAULT_VIEWPORT.height),
+			}
+			this._deviceScaleFactor = clampDeviceScaleFactor(deviceScaleFactor)
+			await this._runtime.setViewport(
+				this._viewport.width,
+				this._viewport.height,
+				this._deviceScaleFactor,
+			)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._restartPreviewStreaming()
+			return state
+		})
+	}
+
+	goBack() {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			this._pendingHistoryAction = "back"
+			this._pendingHistoryTabIndex = this._activeTabIndex
+			await this._runtime.back()
+			await this._delay(250)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	goForward() {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			this._pendingHistoryAction = "forward"
+			this._pendingHistoryTabIndex = this._activeTabIndex
+			await this._runtime.forward()
+			await this._delay(250)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	reload() {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			this._pendingHistoryAction = "reload"
+			this._pendingHistoryTabIndex = this._activeTabIndex
+			await this._runtime.reload()
+			await this._delay(250)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	click(x, y) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			const resolvedX = Math.max(0, Math.round(Number(x) || 0))
+			const resolvedY = Math.max(0, Math.round(Number(y) || 0))
+			await this._runtime.click(resolvedX, resolvedY)
+			await this._delay(125)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	clickRef(ref) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			await this._runtime.clickRef(
+				requireNonEmptyString(ref, "A non-empty accessibility ref is required."),
+			)
+			await this._delay(125)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	hoverRef(ref) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			await this._runtime.hoverRef(
+				requireNonEmptyString(ref, "A non-empty accessibility ref is required."),
+			)
+			await this._delay(100)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	fillRef(ref, text) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			if (typeof text !== "string") {
+				throw new Error("A text string is required.")
+			}
+
+			await this._runtime.fillRef(
+				requireNonEmptyString(ref, "A non-empty accessibility ref is required."),
+				text,
+			)
+			await this._delay(100)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	typeRef(ref, text) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			if (typeof text !== "string") {
+				throw new Error("A text string is required.")
+			}
+
+			await this._runtime.typeRef(
+				requireNonEmptyString(ref, "A non-empty accessibility ref is required."),
+				text,
+			)
+			await this._delay(100)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	selectRef(ref, values) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			const resolvedValues = Array.isArray(values)
+				? values
+						.map((value) => (typeof value === "string" ? value.trim() : ""))
+						.filter(Boolean)
+				: []
+			if (resolvedValues.length === 0) {
+				throw new Error("At least one select value is required.")
+			}
+
+			await this._runtime.selectRef(
+				requireNonEmptyString(ref, "A non-empty accessibility ref is required."),
+				resolvedValues,
+			)
+			await this._delay(100)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	wheel(deltaX, deltaY) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			const resolvedDeltaX = Math.round(Number(deltaX) || 0)
+			const resolvedDeltaY = Math.round(Number(deltaY) || 0)
+			const targetX = Math.round(this._viewport.width / 2)
+			const targetY = Math.round(this._viewport.height / 2)
+			await this._runtime.wheel(targetX, targetY, resolvedDeltaX, resolvedDeltaY)
+			this._touch()
+			return this._getStateSnapshot()
+		})
+	}
+
+	scroll(direction, pixels) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			await this._runtime.scroll(
+				normalizeScrollDirection(direction),
+				normalizeScrollDistance(pixels),
+			)
+			await this._delay(75)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	press(key) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			await this._runtime.press(
+				requireNonEmptyString(key, "A keyboard key is required."),
+			)
+			await this._delay(75)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	insertText(text) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			if (typeof text !== "string" || !text) {
+				throw new Error("Text input is required.")
+			}
+
+			await this._runtime.insertText(text)
+			await this._delay(75)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+			return state
+		})
+	}
+
+	createTab(url) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			const normalizedUrl =
+				typeof url === "string" && url.trim()
+					? normalizeChromiumPreviewUrl(url)
+					: undefined
+			await this._runtime.createTab(normalizedUrl)
+			await this._delay(125)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._restartPreviewStreaming()
+			return state
+		})
+	}
+
+	activateTab(tabIndex) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			await this._runtime.activateTab(normalizeTabIndex(tabIndex))
+			await this._delay(75)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._restartPreviewStreaming()
+			return state
+		})
+	}
+
+	closeTab(tabIndex) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			const resolvedIndex = normalizeTabIndex(tabIndex)
+			await this._runtime.closeTab(resolvedIndex)
+			this._shiftHistoriesAfterClose(resolvedIndex)
+			await this._delay(75)
+			const state = await this._refreshState({ forceUpdated: true })
+			await this._restartPreviewStreaming()
+			return state
+		})
+	}
+
+	screenshot() {
+		return this._enqueue(async () => {
+			return this._captureScreenshot()
+		})
+	}
+
+	snapshot(options) {
+		return this._enqueue(async () => {
+			const snapshot = await this._runtime.snapshot(options)
+			const state = await this._refreshState()
+			return {
+				workspaceId: this._workspaceId,
+				activeTabIndex: state.activeTabIndex,
+				title: state.title,
+				url: state.url,
+				snapshot: snapshot.snapshot,
+				refs: snapshot.refs,
+				state,
+			}
+		})
+	}
+
+	createPreviewSession(offerSdp) {
+		return this._enqueue(async () => {
+			const resolvedOfferSdp = requireNonEmptyMultilineString(
+				offerSdp,
+				"A non-empty offer SDP is required.",
+			)
+			await this._refreshState({ forceUpdated: true })
+
+			const sessionId = randomUUID()
+			const previewSession =
+				typeof this._previewSessionFactory === "function"
+					? this._previewSessionFactory({
+						sessionId,
+						offerSdp: resolvedOfferSdp,
+						onControlMessage: (message) =>
+							this._handlePreviewControlMessage(message),
+						onClose: async () => {
+							await this._handlePreviewSessionClose(sessionId)
+						},
+					})
+					: new BrowserPreviewSession({
+						sessionId,
+						offerSdp: resolvedOfferSdp,
+						onControlMessage: (message) =>
+							this._handlePreviewControlMessage(message),
+						onClose: async () => {
+							await this._handlePreviewSessionClose(sessionId)
+						},
+					})
+
+			this._previewSessions.set(sessionId, previewSession)
+			const result = await previewSession.ready()
+			await this._ensurePreviewStreaming()
+			this._schedulePreviewSettle(50)
+			return result
+		})
+	}
+
+	deletePreviewSession(sessionId) {
+		return this._enqueue(async () => {
+			const resolvedSessionId = requireNonEmptyString(
+				sessionId,
+				"A non-empty preview session ID is required.",
+			)
+			const session = this._previewSessions.get(resolvedSessionId)
+			if (!session) {
+				return {
+					sessionId: resolvedSessionId,
+					closed: false,
+				}
+			}
+
+			await session.close()
+			return {
+				sessionId: resolvedSessionId,
+				closed: true,
+			}
+		})
+	}
+
+	previewClick(x, y) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			const resolvedX = Math.max(0, Math.round(Number(x) || 0))
+			const resolvedY = Math.max(0, Math.round(Number(y) || 0))
+			await this._runtime.click(resolvedX, resolvedY)
+			await this._delay(75)
+			await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+		})
+	}
+
+	previewWheel(x, y, deltaX, deltaY) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			const resolvedX = Math.max(0, Math.round(Number(x) || 0))
+			const resolvedY = Math.max(0, Math.round(Number(y) || 0))
+			const resolvedDeltaX = Math.round(Number(deltaX) || 0)
+			const resolvedDeltaY = Math.round(Number(deltaY) || 0)
+			await this._runtime.wheel(
+				resolvedX,
+				resolvedY,
+				resolvedDeltaX,
+				resolvedDeltaY,
+			)
+			this._touch()
+		})
+	}
+
+	previewKeyEvent(eventType, key, code, text) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			const resolvedEventType =
+				eventType === "keyUp" ? "keyUp" : "keyDown"
+			await this._runtime.keyEvent(
+				resolvedEventType,
+				typeof key === "string" ? key : undefined,
+				typeof code === "string" ? code : undefined,
+				typeof text === "string" ? text : undefined,
+			)
+			await this._delay(25)
+			await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+		})
+	}
+
+	previewInsertText(text) {
+		return this._enqueue(async () => {
+			this._beginPreviewActivity()
+			if (typeof text !== "string" || !text) {
+				return
+			}
+
+			await this._runtime.insertText(text)
+			await this._delay(25)
+			await this._refreshState({ forceUpdated: true })
+			await this._ensurePreviewStreaming()
+		})
+	}
+
+	attachPreviewClient(client) {
+		return this._enqueue(async () => {
+			this._previewClients.add(client)
+			this._broadcastPreviewState(this._previewStatus)
+			await this._ensurePreviewStreaming()
+		})
+	}
+
+	detachPreviewClient(client) {
+		return this._enqueue(async () => {
+			this._previewClients.delete(client)
+			if (this._previewSessions.size > 0 || this._previewClients.size > 0) {
+				return
+			}
+
+			this._clearPreviewSettleTimer()
+			await this._runtime.stopScreencast().catch(() => {})
+		})
+	}
+
+	close() {
+		return this._enqueue(async () => {
+			this._clearPreviewSettleTimer()
+			for (const session of this._previewSessions.values()) {
+				await session.close().catch(() => {})
+			}
+			this._previewSessions.clear()
+			this._previewClients.clear()
+			this._latestScreenshotBuffer = null
+			this._screenshotDirty = true
+			this._tabs = [
+				{
+					index: 0,
+					title: "",
+					url: DEFAULT_URL,
+					active: true,
+				},
+			]
+			this._activeTabIndex = 0
+			this._tabHistories = new Map([
+				[
+					0,
+					{
+						entries: [DEFAULT_URL],
+						index: 0,
+					},
+				],
+			])
+			this._isBrowserReady = false
+			await this._runtime.close().catch(() => {})
+			await fs.rm(this._screenshotDir, { recursive: true, force: true }).catch(() => {})
+		})
+	}
+}
+
+class BrowserWorkspaceManager {
+	constructor({
+		idleTimeoutMs = WORKSPACE_IDLE_TIMEOUT_MS,
+		cleanupIntervalMs = WORKSPACE_CLEANUP_INTERVAL_MS,
+		nowFn = Date.now,
+		workspaceFactory,
+	} = {}) {
+		this._workspaces = new Map()
+		this._idleTimeoutMs = idleTimeoutMs
+		this._cleanupIntervalMs = cleanupIntervalMs
+		this._now = nowFn
+		this._workspaceFactory = workspaceFactory
+		this._cleanupTimer = setInterval(() => {
+			void this.cleanupIdleWorkspaces()
+		}, this._cleanupIntervalMs)
+		this._cleanupTimer.unref?.()
+	}
+
+	_createWorkspaceInstance({ workspaceId, sessionId }) {
+		if (typeof this._workspaceFactory === "function") {
+			return this._workspaceFactory({
+				workspaceId,
+				sessionId,
+			})
+		}
+
+		return new BrowserWorkspace({
+			workspaceId,
+			sessionId,
+			nowFn: this._now,
+		})
+	}
+
+	_requireWorkspace(workspaceId) {
+		const resolvedWorkspaceId = requireNonEmptyString(
+			workspaceId,
+			"A non-empty workspace ID is required.",
+		)
+		const workspace = this._workspaces.get(resolvedWorkspaceId)
+		if (!workspace) {
+			throw new Error(`Browser workspace not found: ${resolvedWorkspaceId}`)
+		}
+
+		return workspace
+	}
+
+	async createWorkspace(options = {}) {
+		const workspaceId = randomUUID()
+		const sessionId = `vpk-browser-workspace-${workspaceId}`
+		const workspace = this._createWorkspaceInstance({
+			workspaceId,
+			sessionId,
+		})
+
+		this._workspaces.set(workspaceId, workspace)
+		try {
+			await workspace.initialize(options.defaultUrl || DEFAULT_URL)
+			return workspace.peekState()
+		} catch (error) {
+			this._workspaces.delete(workspaceId)
+			await workspace.close().catch(() => {})
+			throw error
+		}
+	}
+
+	listWorkspaces() {
+		return Array.from(this._workspaces.values(), (workspace) => workspace.peekState())
+	}
+
+	getWorkspaceState(workspaceId) {
+		return this._requireWorkspace(workspaceId).getState()
+	}
+
+	getWorkspaceStream(workspaceId) {
+		return this._requireWorkspace(workspaceId).getStreamConfig()
+	}
+
+	getWorkspaceSnapshot(workspaceId, options) {
+		return this._requireWorkspace(workspaceId).snapshot(options)
+	}
+
+	getWorkspaceScreenshot(workspaceId) {
+		return this._requireWorkspace(workspaceId).screenshot()
+	}
+
+	getWorkspaceTabs(workspaceId) {
+		return this._requireWorkspace(workspaceId).listTabs()
+	}
+
+	navigateWorkspace(workspaceId, url) {
+		return this._requireWorkspace(workspaceId).navigate(url)
+	}
+
+	resizeWorkspace(workspaceId, width, height, deviceScaleFactor) {
+		return this._requireWorkspace(workspaceId).setViewport(
+			width,
+			height,
+			deviceScaleFactor,
+		)
+	}
+
+	goBack(workspaceId) {
+		return this._requireWorkspace(workspaceId).goBack()
+	}
+
+	goForward(workspaceId) {
+		return this._requireWorkspace(workspaceId).goForward()
+	}
+
+	reloadWorkspace(workspaceId) {
+		return this._requireWorkspace(workspaceId).reload()
+	}
+
+	clickWorkspace(workspaceId, x, y) {
+		return this._requireWorkspace(workspaceId).click(x, y)
+	}
+
+	clickWorkspaceRef(workspaceId, ref) {
+		return this._requireWorkspace(workspaceId).clickRef(ref)
+	}
+
+	hoverWorkspaceRef(workspaceId, ref) {
+		return this._requireWorkspace(workspaceId).hoverRef(ref)
+	}
+
+	fillWorkspaceRef(workspaceId, ref, text) {
+		return this._requireWorkspace(workspaceId).fillRef(ref, text)
+	}
+
+	typeWorkspaceRef(workspaceId, ref, text) {
+		return this._requireWorkspace(workspaceId).typeRef(ref, text)
+	}
+
+	selectWorkspaceRef(workspaceId, ref, values) {
+		return this._requireWorkspace(workspaceId).selectRef(ref, values)
+	}
+
+	scrollWorkspace(workspaceId, direction, pixels) {
+		return this._requireWorkspace(workspaceId).scroll(direction, pixels)
+	}
+
+	wheelWorkspace(workspaceId, deltaX, deltaY) {
+		return this._requireWorkspace(workspaceId).wheel(deltaX, deltaY)
+	}
+
+	pressWorkspaceKey(workspaceId, key) {
+		return this._requireWorkspace(workspaceId).press(key)
+	}
+
+	typeWorkspaceText(workspaceId, text) {
+		return this._requireWorkspace(workspaceId).insertText(text)
+	}
+
+	createWorkspaceTab(workspaceId, url) {
+		return this._requireWorkspace(workspaceId).createTab(url)
+	}
+
+	activateWorkspaceTab(workspaceId, tabIndex) {
+		return this._requireWorkspace(workspaceId).activateTab(tabIndex)
+	}
+
+	closeWorkspaceTab(workspaceId, tabIndex) {
+		return this._requireWorkspace(workspaceId).closeTab(tabIndex)
+	}
+
+	createWorkspacePreviewSession(workspaceId, offerSdp) {
+		return this._requireWorkspace(workspaceId).createPreviewSession(offerSdp)
+	}
+
+	deleteWorkspacePreviewSession(workspaceId, sessionId) {
+		return this._requireWorkspace(workspaceId).deletePreviewSession(sessionId)
+	}
+
+	attachWorkspacePreviewClient(workspaceId, client) {
+		return this._requireWorkspace(workspaceId).attachPreviewClient(client)
+	}
+
+	detachWorkspacePreviewClient(workspaceId, client) {
+		return this._requireWorkspace(workspaceId).detachPreviewClient(client)
+	}
+
+	handleWorkspacePreviewControlMessage(workspaceId, message) {
+		return this._requireWorkspace(workspaceId)._handlePreviewControlMessage(message)
+	}
+
+	async deleteWorkspace(workspaceId) {
+		const resolvedWorkspaceId = requireNonEmptyString(
+			workspaceId,
+			"A non-empty workspace ID is required.",
+		)
+		const workspace = this._workspaces.get(resolvedWorkspaceId)
+		if (!workspace) {
+			return {
+				workspaceId: resolvedWorkspaceId,
+				closed: false,
+			}
+		}
+
+		this._workspaces.delete(resolvedWorkspaceId)
+		await workspace.close()
+		return {
+			workspaceId: resolvedWorkspaceId,
+			closed: true,
+		}
+	}
+
+	async cleanupIdleWorkspaces() {
+		const closedWorkspaceIds = []
+		const now = this._now()
+		for (const [workspaceId, workspace] of this._workspaces.entries()) {
+			if (now - workspace.getLastUsedAt() <= this._idleTimeoutMs) {
+				continue
+			}
+
+			this._workspaces.delete(workspaceId)
+			await workspace.close().catch(() => {})
+			closedWorkspaceIds.push(workspaceId)
+		}
+
+		return closedWorkspaceIds
+	}
+}
+
+const browserWorkspaceManager = new BrowserWorkspaceManager()
+
+module.exports = {
+	BrowserWorkspace,
+	BrowserWorkspaceManager,
+	browserWorkspaceManager,
+	WORKSPACE_IDLE_TIMEOUT_MS,
+	WORKSPACE_CLEANUP_INTERVAL_MS,
+}

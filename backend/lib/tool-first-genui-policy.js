@@ -742,9 +742,9 @@ function resolveToolFirstPolicy({ prompt } = {}) {
 	];
 	if (domains.includes("browser-automation")) {
 		instructionLines.push(
-			"- For this browser-automation surface, the bash tool plus `node scripts/chromium-preview-agent.js ...` counts as the relevant tool path because it controls the shared embedded Chromium session.",
+			"- For this browser-automation surface, the bash tool plus `node scripts/chromium-preview-agent.js [--workspace <id>] ...` counts as the relevant tool path because it controls the embedded browser workspace bound to the UI preview.",
 			"- Do not call `mcp_get_tool_schema` or external browser MCP tools unless the user explicitly asks for schema details.",
-			"- If the user asks you to click, type, select, or scroll, you must execute that interaction in the shared preview session before responding."
+			"- If the user asks you to click, type, select, scroll, or manage tabs, you must execute that interaction in the bound browser workspace before responding."
 		);
 	}
 	if (teamworkGraphTimeWindow.enabled) {

@@ -1,350 +1,197 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ClipboardEvent as ReactClipboardEvent,
+	type KeyboardEvent as ReactKeyboardEvent,
+	type PointerEvent as ReactPointerEvent,
+	type WheelEvent as ReactWheelEvent,
+} from "react";
 import { Input } from "@/components/ui/input";
 import { API_ENDPOINTS } from "@/lib/api-config";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, ArrowRight, ExternalLink, Loader2Icon, RotateCw, TreePine, TriangleAlertIcon, XIcon } from "lucide-react";
-import { getBrowserPreviewRenderMode } from "./browser-preview-panel-state";
+import {
+	ArrowLeft,
+	ArrowRight,
+	ExternalLink,
+	Loader2Icon,
+	PlusIcon,
+	RefreshCwIcon,
+	RotateCw,
+	TreePine,
+	TriangleAlertIcon,
+	XIcon,
+} from "lucide-react";
+import type { UseBrowserWorkspaceResult } from "@/components/website/demos/utils/hooks/use-browser-workspace";
+import { useBrowserPreviewSession } from "@/components/website/demos/utils/hooks/use-browser-preview-session";
 
-type PreviewTab = "browser" | "snapshot";
+type PreviewPanelTab = "browser" | "snapshot";
 
 interface BrowserPreviewPanelProps {
-	currentUrl: string | null;
-	latestScreenshot: string | null;
-	latestSnapshot: string | null;
-	isToolRunning: boolean;
+	workspace: UseBrowserWorkspaceResult;
 	onClose: () => void;
 }
 
-interface PreviewState {
-	ready: boolean;
-	title: string;
-	url: string;
-	viewportWidth: number;
-	viewportHeight: number;
-	canGoBack: boolean;
-	canGoForward: boolean;
-}
-
-interface PreviewStreamConfig {
-	enabled: boolean;
-	port: number;
-	session: string;
-	wsUrl: string;
-}
-
-interface LiveFrameMetadata {
-	deviceWidth: number;
-	deviceHeight: number;
-	pageScaleFactor?: number;
-	offsetTop?: number;
-	scrollOffsetX?: number;
-	scrollOffsetY?: number;
-}
-
-const DEFAULT_PREVIEW_STATE: PreviewState = {
-	ready: false,
-	title: "",
-	url: "",
-	viewportWidth: 1280,
-	viewportHeight: 900,
-	canGoBack: false,
-	canGoForward: false,
+const SPECIAL_KEY_MAP: Record<string, string> = {
+	" ": "Space",
+	ArrowDown: "ArrowDown",
+	ArrowLeft: "ArrowLeft",
+	ArrowRight: "ArrowRight",
+	ArrowUp: "ArrowUp",
+	Backspace: "Backspace",
+	Delete: "Delete",
+	End: "End",
+	Enter: "Enter",
+	Escape: "Escape",
+	Home: "Home",
+	PageDown: "PageDown",
+	PageUp: "PageUp",
+	Tab: "Tab",
 };
-const LIVE_STREAM_FALLBACK_DELAY_MS = 3000;
 
-function isNavigableUrl(value: string | null): value is string {
-	return typeof value === "string" && /^https?:\/\//i.test(value.trim());
-}
+function getTabLabel(url: string, title: string) {
+	if (title.trim()) {
+		return title.trim();
+	}
 
-function normalizeComparableUrl(url: string | null): string {
-	if (!url || !url.trim()) {
-		return "";
+	if (!url || url === "about:blank") {
+		return "New tab";
 	}
 
 	try {
-		return new URL(url.trim()).toString();
+		return new URL(url).hostname;
 	} catch {
-		return url.trim();
+		return url;
 	}
 }
 
-async function readPreviewJson(response: Response): Promise<PreviewState> {
-	if (!response.ok) {
-		const rawText = await response.text();
-		let message = "Chromium preview request failed.";
+function SnapshotView({
+	isLoading,
+	onRefresh,
+	snapshotError,
+	snapshotText,
+}: Readonly<{
+	isLoading: boolean;
+	onRefresh: () => void;
+	snapshotError: string | null;
+	snapshotText: string | null;
+}>) {
+	return (
+		<div className="flex h-full min-h-0 flex-col overflow-hidden">
+			<div className="flex items-center justify-between border-b border-border px-3 py-2">
+				<p className="text-xs font-medium text-text">Accessibility snapshot</p>
+				<button
+					type="button"
+					onClick={onRefresh}
+					className="text-text-subtle hover:text-text hover:bg-surface-raised inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
+					aria-label="Refresh accessibility snapshot"
+				>
+					<RefreshCwIcon className="size-3.5" />
+				</button>
+			</div>
 
-		if (rawText.trim()) {
-			try {
-				const parsed = JSON.parse(rawText) as {
-					error?: unknown;
-					details?: unknown;
-				};
-				if (typeof parsed.error === "string" && parsed.error.trim()) {
-					message = parsed.error.trim();
-				} else if (typeof parsed.details === "string" && parsed.details.trim()) {
-					message = parsed.details.trim();
-				} else {
-					message = rawText.trim();
-				}
-			} catch {
-				message = rawText.trim();
-			}
-		}
-
-		throw new Error(message);
-	}
-
-	return (await response.json()) as PreviewState;
+			<div className="min-h-0 flex-1 overflow-auto p-4">
+				{snapshotText ? (
+					<pre className="min-h-0 overflow-auto rounded-lg border border-border bg-surface-raised p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-text">
+						{snapshotText}
+					</pre>
+				) : snapshotError ? (
+					<div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+						<p className="text-sm text-text-subtle">{snapshotError}</p>
+						<button
+							type="button"
+							onClick={onRefresh}
+							className="text-brand text-sm font-medium hover:underline"
+						>
+							Retry
+						</button>
+					</div>
+				) : (
+					<div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+						{isLoading ? (
+							<Loader2Icon className="size-7 animate-spin text-text-subtle" />
+						) : null}
+						<p className="text-sm text-text-subtle">
+							{isLoading
+								? "Capturing accessibility tree..."
+								: "No snapshot yet. Open the Snapshot tab to inspect the active browser tab."}
+						</p>
+					</div>
+				)}
+			</div>
+		</div>
+	);
 }
 
-interface EmbeddedChromiumPreviewProps {
-	currentUrl: string;
-	isToolRunning: boolean;
-}
+function EmbeddedBrowserWorkspacePreview({
+	workspace,
+}: Readonly<{
+	workspace: UseBrowserWorkspaceResult;
+}>) {
+	const {
+		workspaceId,
+		workspaceState,
+		workspaceError,
+		isWorkspaceInitializing,
+		isWorkspaceMutating,
+		refreshWorkspace,
+		runWorkspaceAction,
+		createWorkspaceTab,
+		activateWorkspaceTab,
+		closeWorkspaceTab,
+	} = workspace;
 
-function EmbeddedChromiumPreview({
-	currentUrl,
-	isToolRunning,
-}: Readonly<EmbeddedChromiumPreviewProps>) {
-	const [previewState, setPreviewState] = useState<PreviewState>(DEFAULT_PREVIEW_STATE);
-	const [draftUrl, setDraftUrl] = useState(currentUrl);
-	const [isPreviewBusy, setIsPreviewBusy] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [streamConfig, setStreamConfig] = useState<PreviewStreamConfig | null>(null);
-	const [hasLiveFrame, setHasLiveFrame] = useState(false);
-	const [initialLiveFrameSrc, setInitialLiveFrameSrc] = useState<string | null>(null);
-	const [liveFrameMetadata, setLiveFrameMetadata] = useState<LiveFrameMetadata | null>(null);
+	const [draftUrl, setDraftUrl] = useState("");
+	const [isDraftUrlDirty, setIsDraftUrlDirty] = useState(false);
 	const [containerViewportSize, setContainerViewportSize] = useState({
 		width: 1280,
 		height: 900,
 	});
-	const [allowScreenshotFallback, setAllowScreenshotFallback] = useState(false);
-	const [screenshotVersion, setScreenshotVersion] = useState(0);
-	const [displayedScreenshotSrc, setDisplayedScreenshotSrc] = useState<string | null>(null);
-	// Incremented after each viewport POST completes so the WebSocket effect
-	// reconnects only once the Chromium viewport is actually at the new size.
-	const [viewportSequence, setViewportSequence] = useState(0);
-	const isMountedRef = useRef(true);
-	const lastRequestedUrlRef = useRef("");
-	const liveFrameRef = useRef<HTMLImageElement | null>(null);
+	const [displayedScreenshotSrc, setDisplayedScreenshotSrc] = useState<
+		string | null
+	>(null);
+
 	const liveViewportRef = useRef<HTMLDivElement | null>(null);
-	const streamSocketRef = useRef<WebSocket | null>(null);
-	const hasLiveFrameRef = useRef(false);
 	const lastViewportRequestRef = useRef("");
+	const pendingViewportRequestRef = useRef("");
+	const viewportSyncTimerRef = useRef<number | null>(null);
+	const pendingWheelRef = useRef({
+		x: 0,
+		y: 0,
+		deltaX: 0,
+		deltaY: 0,
+	});
+	const wheelFlushTimerRef = useRef<number | null>(null);
+
+	const {
+		liveCanvasRef,
+		status: previewStatus,
+		error: previewError,
+		sourceMetadata,
+		canSendControl,
+		sendControlMessage,
+	} = useBrowserPreviewSession(workspaceId);
+	const previousPreviewStatusRef = useRef(previewStatus);
+
+	const currentUrl = workspaceState?.url ?? "";
+	const displayedUrl = isDraftUrlDirty ? draftUrl : currentUrl;
 
 	useEffect(() => {
-		isMountedRef.current = true;
-		return () => {
-			isMountedRef.current = false;
-			if (streamSocketRef.current) {
-				streamSocketRef.current.close();
-				streamSocketRef.current = null;
-			}
-		};
-	}, []);
-
-	useEffect(() => {
-		hasLiveFrameRef.current = hasLiveFrame;
-	}, [hasLiveFrame]);
-
-	useEffect(() => {
-		const nextUrl = previewState.url || currentUrl;
-		setDraftUrl(nextUrl);
-	}, [currentUrl, previewState.url]);
-
-	const refreshState = useCallback(async () => {
-		try {
-			const response = await fetch(API_ENDPOINTS.CHROMIUM_PREVIEW, {
-				cache: "no-store",
-			});
-			const nextState = await readPreviewJson(response);
-			if (!isMountedRef.current) {
-				return nextState;
-			}
-			setPreviewState(nextState);
-			setError(null);
-			if (allowScreenshotFallback) {
-				setScreenshotVersion((version) => version + 1);
-			}
-			return nextState;
-		} catch (caughtError) {
-			if (isMountedRef.current) {
-				setError(
-					caughtError instanceof Error
-						? caughtError.message
-						: "Failed to refresh Chromium preview.",
-				);
-			}
-			return null;
-		}
-	}, [allowScreenshotFallback]);
-
-	const postAction = useCallback(
-		async (
-			action:
-				| "back"
-				| "forward"
-				| "reload"
-				| "scroll",
-			body?: Record<string, unknown>,
-		) => {
-			setIsPreviewBusy(true);
-			try {
-				const response = await fetch(API_ENDPOINTS.chromiumPreviewAction(action), {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify(body ?? {}),
-				});
-				const nextState = await readPreviewJson(response);
-				if (!isMountedRef.current) {
-					return;
-				}
-				setPreviewState(nextState);
-				setError(null);
-				if (allowScreenshotFallback) {
-					setScreenshotVersion((version) => version + 1);
-				}
-			} catch (caughtError) {
-				if (isMountedRef.current) {
-					setError(
-						caughtError instanceof Error
-							? caughtError.message
-							: "Chromium preview action failed.",
-					);
-				}
-			} finally {
-				if (isMountedRef.current) {
-					setIsPreviewBusy(false);
-				}
-			}
-		},
-		[allowScreenshotFallback],
-	);
-
-	const navigate = useCallback(async (targetUrl: string) => {
-		const trimmedUrl = targetUrl.trim();
-		if (!trimmedUrl) {
+		const previousPreviewStatus = previousPreviewStatusRef.current;
+		previousPreviewStatusRef.current = previewStatus;
+		if (!workspaceId) {
 			return;
 		}
 
-		setIsPreviewBusy(true);
-		try {
-			const response = await fetch(API_ENDPOINTS.CHROMIUM_PREVIEW, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({ url: trimmedUrl }),
-			});
-			const nextState = await readPreviewJson(response);
-			if (!isMountedRef.current) {
-				return;
-			}
-			setPreviewState(nextState);
-			setError(null);
-			if (allowScreenshotFallback) {
-				setScreenshotVersion((version) => version + 1);
-			}
-		} catch (caughtError) {
-			if (isMountedRef.current) {
-				setError(
-					caughtError instanceof Error
-						? caughtError.message
-						: "Failed to navigate Chromium preview.",
-				);
-			}
-		} finally {
-			if (isMountedRef.current) {
-				setIsPreviewBusy(false);
-			}
+		if (previewStatus === "steady" && previousPreviewStatus !== "steady") {
+			void refreshWorkspace();
 		}
-	}, [allowScreenshotFallback]);
-
-	const setViewport = useCallback(
-		async (width: number, height: number) => {
-			const nextWidth = Math.max(320, Math.round(width));
-			const nextHeight = Math.max(240, Math.round(height));
-			const viewportKey = `${nextWidth}x${nextHeight}`;
-			if (lastViewportRequestRef.current === viewportKey) {
-				return;
-			}
-
-			lastViewportRequestRef.current = viewportKey;
-			try {
-				const response = await fetch(API_ENDPOINTS.chromiumPreviewAction("viewport"), {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						width: nextWidth,
-						height: nextHeight,
-					}),
-				});
-				const nextState = await readPreviewJson(response);
-				if (!isMountedRef.current) {
-					return;
-				}
-				setPreviewState(nextState);
-				setError(null);
-				if (allowScreenshotFallback) {
-					setScreenshotVersion((version) => version + 1);
-				}
-			} catch (caughtError) {
-				if (isMountedRef.current) {
-					setError(
-						caughtError instanceof Error
-							? caughtError.message
-							: "Failed to resize Chromium preview.",
-					);
-				}
-			}
-		},
-		[allowScreenshotFallback],
-	);
-
-	useEffect(() => {
-		let cancelled = false;
-
-		const loadStreamConfig = async () => {
-			try {
-				const response = await fetch(API_ENDPOINTS.CHROMIUM_PREVIEW_STREAM, {
-					cache: "no-store",
-				});
-				if (!response.ok) {
-					throw new Error("Chromium preview stream unavailable.");
-				}
-				const config = (await response.json()) as PreviewStreamConfig;
-				if (!cancelled && isMountedRef.current) {
-					setStreamConfig(config);
-				}
-			} catch (caughtError) {
-				if (!cancelled && isMountedRef.current) {
-					setStreamConfig(null);
-					setAllowScreenshotFallback(true);
-					setError(
-						caughtError instanceof Error
-							? caughtError.message
-							: "Chromium preview stream unavailable.",
-					);
-				}
-			}
-		};
-
-		void loadStreamConfig();
-
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
-	useEffect(() => {
-		void refreshState();
-	}, [refreshState]);
+	}, [previewStatus, refreshWorkspace, workspaceId]);
 
 	useEffect(() => {
 		const container = liveViewportRef.current;
@@ -361,10 +208,7 @@ function EmbeddedChromiumPreview({
 			const nextWidth = Math.max(320, Math.round(entry.contentRect.width));
 			const nextHeight = Math.max(240, Math.round(entry.contentRect.height));
 			setContainerViewportSize((current) => {
-				if (
-					current.width === nextWidth &&
-					current.height === nextHeight
-				) {
+				if (current.width === nextWidth && current.height === nextHeight) {
 					return current;
 				}
 
@@ -379,11 +223,6 @@ function EmbeddedChromiumPreview({
 		return () => observer.disconnect();
 	}, []);
 
-	// Measure the container synchronously before any useEffect fires so the
-	// first setViewport call already carries the real dimensions instead of
-	// the 1280×900 default.  useLayoutEffect runs before useEffect and a
-	// setState inside it triggers a synchronous re-render, so all subsequent
-	// effects see the correct containerViewportSize from the start.
 	useLayoutEffect(() => {
 		const container = liveViewportRef.current;
 		if (!container) {
@@ -391,183 +230,115 @@ function EmbeddedChromiumPreview({
 		}
 
 		const rect = container.getBoundingClientRect();
-		const w = Math.max(320, Math.round(rect.width));
-		const h = Math.max(240, Math.round(rect.height));
+		const nextWidth = Math.max(320, Math.round(rect.width));
+		const nextHeight = Math.max(240, Math.round(rect.height));
 		setContainerViewportSize((current) => {
-			if (current.width === w && current.height === h) {
+			if (current.width === nextWidth && current.height === nextHeight) {
 				return current;
 			}
 
-			return { width: w, height: h };
+			return {
+				width: nextWidth,
+				height: nextHeight,
+			};
 		});
 	}, []);
 
 	useEffect(() => {
-		// Scale viewport by devicePixelRatio so Chromium renders at physical
-		// pixel resolution.  On Retina (2×) the captured frames match the
-		// display's native density, eliminating blur.
-		const dpr = window.devicePixelRatio || 1;
-		let cancelled = false;
-
-		void (async () => {
-			await setViewport(
-				Math.round(containerViewportSize.width * dpr),
-				Math.round(containerViewportSize.height * dpr),
-			);
-			// Signal that the viewport POST completed so the WebSocket effect
-			// can (re)connect — the stream server's startScreencast will now
-			// read the correct page.viewportSize().
-			if (!cancelled && isMountedRef.current) {
-				setViewportSequence((seq) => seq + 1);
-			}
-		})();
-
 		return () => {
-			cancelled = true;
+			if (viewportSyncTimerRef.current !== null) {
+				window.clearTimeout(viewportSyncTimerRef.current);
+			}
+			if (wheelFlushTimerRef.current !== null) {
+				window.clearTimeout(wheelFlushTimerRef.current);
+			}
 		};
-	}, [containerViewportSize.height, containerViewportSize.width, setViewport]);
+	}, []);
 
 	useEffect(() => {
-		// Wait until the first viewport POST completes (viewportSequence > 0)
-		// before connecting, so the stream server's startScreencast reads the
-		// DPR-scaled viewport dimensions for maxWidth/maxHeight.
-		if (viewportSequence === 0 || !streamConfig?.enabled || !streamConfig.wsUrl) {
+		if (!workspaceId) {
 			return;
 		}
 
-		// Small delay lets the stream server finish stopScreencast from a
-		// previous WebSocket disconnect before the new client triggers
-		// startScreencast with the updated viewport.
-		let cancelled = false;
-		let socket: WebSocket | null = null;
-		const wsUrl = streamConfig.wsUrl;
+		const dpr = window.devicePixelRatio || 1;
+		const requestKey = `${workspaceId}:${containerViewportSize.width}:${containerViewportSize.height}:${dpr}`;
+		if (
+			lastViewportRequestRef.current === requestKey ||
+			pendingViewportRequestRef.current === requestKey
+		) {
+			return;
+		}
 
-		const delayId = window.setTimeout(() => {
-			if (cancelled) {
+		let cancelled = false;
+		pendingViewportRequestRef.current = requestKey;
+		if (viewportSyncTimerRef.current !== null) {
+			window.clearTimeout(viewportSyncTimerRef.current);
+		}
+
+		viewportSyncTimerRef.current = window.setTimeout(() => {
+			viewportSyncTimerRef.current = null;
+			if (cancelled || pendingViewportRequestRef.current !== requestKey) {
 				return;
 			}
 
-			socket = new window.WebSocket(wsUrl);
-			streamSocketRef.current = socket;
-
-			socket.addEventListener("message", (event) => {
-				try {
-					const payload = JSON.parse(String(event.data)) as
-						| { type?: string; data?: string; metadata?: LiveFrameMetadata }
-						| undefined;
-					if (!payload || payload.type !== "frame" || typeof payload.data !== "string") {
-						return;
-					}
-
-					const nextFrameSrc = `data:image/jpeg;base64,${payload.data}`;
-					if (payload.metadata && isMountedRef.current) {
-						setLiveFrameMetadata(payload.metadata);
-					}
-					if (liveFrameRef.current) {
-						liveFrameRef.current.src = nextFrameSrc;
-					} else if (isMountedRef.current) {
-						setInitialLiveFrameSrc(nextFrameSrc);
-					}
-					if (!hasLiveFrameRef.current && isMountedRef.current) {
-						setHasLiveFrame(true);
-					}
-				} catch {
-					// Ignore malformed frame payloads.
+			pendingViewportRequestRef.current = "";
+			void (async () => {
+				const nextState = await runWorkspaceAction(
+					"viewport",
+					{
+						width: containerViewportSize.width,
+						height: containerViewportSize.height,
+						deviceScaleFactor: dpr,
+					},
+					{ suppressMutating: true },
+				);
+				if (cancelled || !nextState) {
+					return;
 				}
-			});
 
-			socket.addEventListener("error", () => {
-				if (!hasLiveFrameRef.current && isMountedRef.current) {
-					setAllowScreenshotFallback(true);
-				}
-			});
-
-			socket.addEventListener("close", () => {
-				if (!hasLiveFrameRef.current && isMountedRef.current) {
-					setAllowScreenshotFallback(true);
-				}
-			});
-		}, 200);
+				lastViewportRequestRef.current = requestKey;
+			})();
+		}, 120);
 
 		return () => {
 			cancelled = true;
-			window.clearTimeout(delayId);
-			if (socket) {
-				socket.close();
-				if (streamSocketRef.current === socket) {
-					streamSocketRef.current = null;
-				}
+			if (pendingViewportRequestRef.current === requestKey) {
+				pendingViewportRequestRef.current = "";
+			}
+			if (viewportSyncTimerRef.current !== null) {
+				window.clearTimeout(viewportSyncTimerRef.current);
+				viewportSyncTimerRef.current = null;
 			}
 		};
-	}, [viewportSequence, streamConfig]);
+	}, [
+		containerViewportSize.height,
+		containerViewportSize.width,
+		runWorkspaceAction,
+		workspaceId,
+	]);
 
-	useEffect(() => {
-		const normalizedTargetUrl = normalizeComparableUrl(currentUrl);
-		if (!normalizedTargetUrl) {
-			return;
+	const preferredScreenshotRevision = useMemo(() => {
+		if (previewStatus === "fallback") {
+			return workspaceState?.updatedAt ?? null;
+		}
+		return null;
+	}, [previewStatus, workspaceState?.updatedAt]);
+
+	const preferredScreenshotSrc = useMemo(() => {
+		if (!workspaceId || preferredScreenshotRevision === null) {
+			return null;
 		}
 
-		setHasLiveFrame(false);
-		hasLiveFrameRef.current = false;
-		setInitialLiveFrameSrc(null);
-		setLiveFrameMetadata(null);
-		setAllowScreenshotFallback(false);
-
-		if (lastRequestedUrlRef.current === normalizedTargetUrl) {
-			return;
-		}
-
-		lastRequestedUrlRef.current = normalizedTargetUrl;
-		void navigate(currentUrl);
-	}, [currentUrl, navigate]);
-
-	const screenshotSrc = useMemo(
-		() =>
-			API_ENDPOINTS.chromiumPreviewScreenshot(
-				previewState.viewportWidth,
-				previewState.viewportHeight,
-				screenshotVersion,
-			),
-		[
-			previewState.viewportHeight,
-			previewState.viewportWidth,
-			screenshotVersion,
-		],
-	);
+		return API_ENDPOINTS.browserWorkspaceScreenshot(
+			workspaceId,
+			undefined,
+			undefined,
+			preferredScreenshotRevision,
+		);
+	}, [preferredScreenshotRevision, workspaceId]);
 
 	useEffect(() => {
-		if (hasLiveFrame || allowScreenshotFallback) {
-			return;
-		}
-
-		const timeoutId = window.setTimeout(() => {
-			if (!hasLiveFrameRef.current && isMountedRef.current) {
-				setAllowScreenshotFallback(true);
-				setScreenshotVersion((version) => version + 1);
-			}
-		}, LIVE_STREAM_FALLBACK_DELAY_MS);
-
-		return () => {
-			window.clearTimeout(timeoutId);
-		};
-	}, [allowScreenshotFallback, hasLiveFrame, screenshotSrc]);
-
-	useEffect(() => {
-		const intervalId = window.setInterval(() => {
-			void refreshState();
-		}, 2000);
-
-		return () => {
-			window.clearInterval(intervalId);
-		};
-	}, [refreshState]);
-
-	useEffect(() => {
-		if (!allowScreenshotFallback) {
-			return;
-		}
-
-		if (!screenshotSrc) {
+		if (!preferredScreenshotSrc) {
 			return;
 		}
 
@@ -575,23 +346,29 @@ function EmbeddedChromiumPreview({
 		const image = new window.Image();
 		image.decoding = "sync";
 		image.onload = () => {
-			if (!cancelled && isMountedRef.current) {
-				setDisplayedScreenshotSrc(screenshotSrc);
+			if (!cancelled) {
+				setDisplayedScreenshotSrc(preferredScreenshotSrc);
 			}
 		};
-		image.src = screenshotSrc;
+		image.src = preferredScreenshotSrc;
 
 		return () => {
 			cancelled = true;
 		};
-	}, [allowScreenshotFallback, screenshotSrc]);
+	}, [preferredScreenshotSrc, previewStatus]);
 
-	const handleOpenInNewTab = useCallback(() => {
-		const urlToOpen = previewState.url || currentUrl;
-		if (isNavigableUrl(urlToOpen)) {
-			window.open(urlToOpen, "_blank", "noopener,noreferrer");
+	const handleNavigate = useCallback(async () => {
+		const nextUrl = displayedUrl.trim();
+		if (!nextUrl) {
+			return;
 		}
-	}, [currentUrl, previewState.url]);
+
+		const nextState = await runWorkspaceAction("navigate", { url: nextUrl });
+		if (nextState) {
+			setDraftUrl("");
+			setIsDraftUrlDirty(false);
+		}
+	}, [displayedUrl, runWorkspaceAction]);
 
 	const handleUrlKeyDown = useCallback(
 		(event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -600,143 +377,219 @@ function EmbeddedChromiumPreview({
 			}
 
 			event.preventDefault();
-			void navigate(event.currentTarget.value);
+			void handleNavigate();
 		},
-		[navigate],
+		[handleNavigate],
 	);
 
-	const effectiveUrl = previewState.url || currentUrl;
-	const isBusy = isPreviewBusy || isToolRunning;
-	const shouldRenderImage =
-		hasLiveFrame ||
-		Boolean(displayedScreenshotSrc) ||
-		previewState.ready ||
-		screenshotVersion > 0;
-
-	const sendStreamMessage = useCallback((payload: Record<string, unknown>) => {
-		const socket = streamSocketRef.current;
-		if (!socket || socket.readyState !== WebSocket.OPEN) {
+	const currentWorkspaceUrl = workspaceState?.url;
+	const handleOpenInNewTab = useCallback(() => {
+		if (!currentWorkspaceUrl || currentWorkspaceUrl === "about:blank") {
 			return;
 		}
 
-		socket.send(JSON.stringify(payload));
-	}, []);
+		window.open(currentWorkspaceUrl, "_blank", "noopener,noreferrer");
+	}, [currentWorkspaceUrl]);
 
-	const resolveLiveFramePoint = useCallback(
+	const previewGeometry = useMemo(() => {
+		const sourceWidth =
+			sourceMetadata?.width ??
+			workspaceState?.viewportWidth ??
+			containerViewportSize.width;
+		const sourceHeight =
+			sourceMetadata?.height ??
+			workspaceState?.viewportHeight ??
+			containerViewportSize.height;
+		const availableWidth = containerViewportSize.width;
+		const availableHeight = containerViewportSize.height;
+		const scale = Math.min(
+			availableWidth / Math.max(sourceWidth, 1),
+			availableHeight / Math.max(sourceHeight, 1),
+		);
+		const renderedWidth = Math.max(1, Math.round(sourceWidth * scale));
+		const renderedHeight = Math.max(1, Math.round(sourceHeight * scale));
+		const offsetLeft = Math.max(
+			0,
+			Math.round((availableWidth - renderedWidth) / 2),
+		);
+
+		return {
+			sourceWidth,
+			sourceHeight,
+			renderedWidth,
+			renderedHeight,
+			offsetLeft,
+		};
+	}, [
+		containerViewportSize.height,
+		containerViewportSize.width,
+		sourceMetadata?.height,
+		sourceMetadata?.width,
+		workspaceState?.viewportHeight,
+		workspaceState?.viewportWidth,
+	]);
+
+	const renderedMediaStyle = useMemo(
+		() => ({
+			left: previewGeometry.offsetLeft,
+			top: 0,
+			width: previewGeometry.renderedWidth,
+			height: previewGeometry.renderedHeight,
+		}),
+		[
+			previewGeometry.offsetLeft,
+			previewGeometry.renderedHeight,
+			previewGeometry.renderedWidth,
+		],
+	);
+
+	const resolvePreviewPoint = useCallback(
 		(clientX: number, clientY: number) => {
 			const container = liveViewportRef.current;
-			const metadata = liveFrameMetadata;
-			if (!container || !metadata?.deviceWidth || !metadata.deviceHeight) {
+			if (!container) {
 				return null;
 			}
 
 			const bounds = container.getBoundingClientRect();
-			const availableWidth = bounds.width;
-			const availableHeight = bounds.height;
-			if (availableWidth <= 0 || availableHeight <= 0) {
-				return null;
-			}
-
-			const scale = Math.min(
-				availableWidth / metadata.deviceWidth,
-				availableHeight / metadata.deviceHeight,
-			);
-			const renderedWidth = metadata.deviceWidth * scale;
-			const renderedHeight = metadata.deviceHeight * scale;
-			const offsetX = (availableWidth - renderedWidth) / 2;
-			const offsetY = 0;
-
-			const xWithinImage = clientX - bounds.left - offsetX;
-			const yWithinImage = clientY - bounds.top - offsetY;
+			const xWithinImage = clientX - bounds.left - previewGeometry.offsetLeft;
+			const yWithinImage = clientY - bounds.top;
 
 			if (
 				xWithinImage < 0 ||
 				yWithinImage < 0 ||
-				xWithinImage > renderedWidth ||
-				yWithinImage > renderedHeight
+				xWithinImage > previewGeometry.renderedWidth ||
+				yWithinImage > previewGeometry.renderedHeight
 			) {
 				return null;
 			}
 
+			const scaleX =
+				previewGeometry.sourceWidth / Math.max(previewGeometry.renderedWidth, 1);
+			const scaleY =
+				previewGeometry.sourceHeight / Math.max(previewGeometry.renderedHeight, 1);
+
 			return {
-				x: Math.round(xWithinImage / scale),
-				y: Math.round(yWithinImage / scale),
+				x: Math.round(xWithinImage * scaleX),
+				y: Math.round(yWithinImage * scaleY),
 			};
 		},
-		[liveFrameMetadata],
+		[
+			previewGeometry.offsetLeft,
+			previewGeometry.renderedHeight,
+			previewGeometry.renderedWidth,
+			previewGeometry.sourceHeight,
+			previewGeometry.sourceWidth,
+		],
+	);
+
+	const resolvePreviewPointOrCenter = useCallback(
+		(clientX: number, clientY: number) => {
+			const resolvedPoint = resolvePreviewPoint(clientX, clientY);
+			if (resolvedPoint) {
+				return resolvedPoint;
+			}
+
+			return {
+				x: Math.round(previewGeometry.sourceWidth / 2),
+				y: Math.round(previewGeometry.sourceHeight / 2),
+			};
+		},
+		[
+			previewGeometry.sourceHeight,
+			previewGeometry.sourceWidth,
+			resolvePreviewPoint,
+		],
 	);
 
 	const handleLivePointerDown = useCallback(
 		(event: ReactPointerEvent<HTMLDivElement>) => {
-			if (!hasLiveFrame || event.button !== 0) {
+			if (event.button !== 0) {
 				return;
 			}
 
-			const point = resolveLiveFramePoint(event.clientX, event.clientY);
+			const point = resolvePreviewPoint(event.clientX, event.clientY);
 			if (!point) {
 				return;
 			}
 
 			event.preventDefault();
 			liveViewportRef.current?.focus();
-			sendStreamMessage({
-				type: "input_mouse",
-				eventType: "mouseMoved",
+			if (
+				canSendControl &&
+				sendControlMessage({
+					type: "preview-click",
+					x: point.x,
+					y: point.y,
+				})
+			) {
+				return;
+			}
+
+			void runWorkspaceAction("click", {
 				x: point.x,
 				y: point.y,
-				button: "none",
-			});
-			sendStreamMessage({
-				type: "input_mouse",
-				eventType: "mousePressed",
-				x: point.x,
-				y: point.y,
-				button: "left",
-				clickCount: 1,
-			});
-			sendStreamMessage({
-				type: "input_mouse",
-				eventType: "mouseReleased",
-				x: point.x,
-				y: point.y,
-				button: "left",
-				clickCount: 1,
 			});
 		},
-		[hasLiveFrame, resolveLiveFramePoint, sendStreamMessage],
+		[canSendControl, resolvePreviewPoint, runWorkspaceAction, sendControlMessage],
 	);
 
 	const handleLiveWheel = useCallback(
 		(event: ReactWheelEvent<HTMLDivElement>) => {
-			if (!hasLiveFrame) {
-				return;
-			}
-
-			const point = resolveLiveFramePoint(event.clientX, event.clientY);
-			if (!point) {
-				return;
-			}
-
+			const point = resolvePreviewPointOrCenter(event.clientX, event.clientY);
 			event.preventDefault();
-			sendStreamMessage({
-				type: "input_mouse",
-				eventType: "mouseWheel",
-				x: point.x,
-				y: point.y,
-				button: "none",
-				deltaX: Math.round(event.deltaX),
-				deltaY: Math.round(event.deltaY),
-			});
+
+			pendingWheelRef.current.x = point.x;
+			pendingWheelRef.current.y = point.y;
+			pendingWheelRef.current.deltaX += Math.round(event.deltaX);
+			pendingWheelRef.current.deltaY += Math.round(event.deltaY);
+
+			if (wheelFlushTimerRef.current !== null) {
+				return;
+			}
+
+			wheelFlushTimerRef.current = window.setTimeout(() => {
+				wheelFlushTimerRef.current = null;
+				const nextWheel = pendingWheelRef.current;
+				pendingWheelRef.current = {
+					x: nextWheel.x,
+					y: nextWheel.y,
+					deltaX: 0,
+					deltaY: 0,
+				};
+
+				if (!nextWheel.deltaX && !nextWheel.deltaY) {
+					return;
+				}
+
+				if (
+					canSendControl &&
+					sendControlMessage({
+						type: "preview-wheel",
+						x: nextWheel.x,
+						y: nextWheel.y,
+						deltaX: nextWheel.deltaX,
+						deltaY: nextWheel.deltaY,
+					})
+				) {
+					return;
+				}
+
+				void runWorkspaceAction("wheel", {
+					deltaX: nextWheel.deltaX,
+					deltaY: nextWheel.deltaY,
+				});
+			}, 40);
 		},
-		[hasLiveFrame, resolveLiveFramePoint, sendStreamMessage],
+		[
+			canSendControl,
+			resolvePreviewPointOrCenter,
+			runWorkspaceAction,
+			sendControlMessage,
+		],
 	);
 
 	const handleLiveKeyDown = useCallback(
 		(event: ReactKeyboardEvent<HTMLDivElement>) => {
-			if (!hasLiveFrame) {
-				return;
-			}
-
 			const isPrintableKey =
 				event.key.length === 1 &&
 				!event.metaKey &&
@@ -744,121 +597,260 @@ function EmbeddedChromiumPreview({
 				!event.altKey;
 
 			event.preventDefault();
-			sendStreamMessage({
-				type: "input_keyboard",
-				eventType: "keyDown",
-				key: event.key,
-				code: event.code,
-				text: isPrintableKey ? event.key : undefined,
-			});
-			sendStreamMessage({
-				type: "input_keyboard",
-				eventType: "keyUp",
-				key: event.key,
-				code: event.code,
-			});
+			if (canSendControl) {
+				const sentDown = sendControlMessage({
+					type: "preview-key",
+					eventType: "keyDown",
+					key: event.key,
+					code: event.code,
+					text: isPrintableKey ? event.key : undefined,
+				});
+				if (sentDown) {
+					void sendControlMessage({
+						type: "preview-key",
+						eventType: "keyUp",
+						key: event.key,
+						code: event.code,
+					});
+					return;
+				}
+			}
+
+			if (isPrintableKey) {
+				void runWorkspaceAction("type", { text: event.key });
+				return;
+			}
+
+			const mappedKey = SPECIAL_KEY_MAP[event.key];
+			if (!mappedKey) {
+				return;
+			}
+
+			const modifiers: string[] = [];
+			if (event.ctrlKey) {
+				modifiers.push("Control");
+			}
+			if (event.metaKey) {
+				modifiers.push("Meta");
+			}
+			if (event.altKey) {
+				modifiers.push("Alt");
+			}
+			if (event.shiftKey) {
+				modifiers.push("Shift");
+			}
+
+			const key = modifiers.length
+				? `${modifiers.join("+")}+${mappedKey}`
+				: mappedKey;
+			void runWorkspaceAction("press", { key });
 		},
-		[hasLiveFrame, sendStreamMessage],
+		[canSendControl, runWorkspaceAction, sendControlMessage],
 	);
+
+	const handlePaste = useCallback(
+		(event: ReactClipboardEvent<HTMLDivElement>) => {
+			const pastedText = event.clipboardData?.getData("text/plain");
+			if (!pastedText) {
+				return;
+			}
+
+			event.preventDefault();
+			if (
+				canSendControl &&
+				sendControlMessage({
+					type: "preview-paste",
+					text: pastedText,
+				})
+			) {
+				return;
+			}
+
+			void runWorkspaceAction("type", { text: pastedText });
+		},
+		[canSendControl, runWorkspaceAction, sendControlMessage],
+	);
+
+	const activeTab = workspaceState?.tabs.find((tab) => tab.active) ?? null;
+	const combinedPreviewError = workspaceError ?? previewError;
+	const isBusy =
+		isWorkspaceInitializing ||
+		isWorkspaceMutating ||
+		previewStatus === "connecting";
+	const showFallbackScreenshot =
+		previewStatus === "fallback" && Boolean(displayedScreenshotSrc);
 
 	return (
 		<div className="flex h-full min-h-0 w-full min-w-0 flex-col">
+			<div className="flex items-center gap-2 border-b border-border px-2 py-2">
+				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+					{workspaceState?.tabs.map((tab) => (
+						<div
+							key={`${workspaceId ?? "workspace"}-${tab.index}`}
+							className={cn(
+								"flex max-w-[180px] shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors",
+								tab.active
+									? "border-border bg-background text-text shadow-sm"
+									: "border-transparent bg-surface-raised text-text-subtle hover:bg-surface-raised-hovered hover:text-text",
+							)}
+						>
+							<button
+								type="button"
+								onClick={() => void activateWorkspaceTab(tab.index)}
+								className="truncate text-left"
+								title={tab.title || tab.url || `Tab ${tab.index + 1}`}
+							>
+								{getTabLabel(tab.url, tab.title)}
+							</button>
+							{(workspaceState?.tabs.length ?? 0) > 1 ? (
+								<button
+									type="button"
+									onClick={(event) => {
+										event.stopPropagation();
+										void closeWorkspaceTab(tab.index);
+									}}
+									className="text-text-subtle hover:text-text inline-flex h-4 w-4 items-center justify-center rounded-sm"
+									aria-label={`Close ${getTabLabel(tab.url, tab.title)}`}
+								>
+									<XIcon className="size-3" />
+								</button>
+							) : null}
+						</div>
+					))}
+				</div>
+
+				<button
+					type="button"
+					onClick={() => void createWorkspaceTab()}
+					className="text-text-subtle hover:text-text hover:bg-surface-raised inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+					aria-label="Create browser tab"
+				>
+					<PlusIcon className="size-4" />
+				</button>
+			</div>
+
 			<div className="flex items-center gap-1 border-b border-border p-2">
 				<button
 					type="button"
-					onClick={() => void postAction("back")}
-					disabled={!previewState.canGoBack}
-					className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+					onClick={() => void runWorkspaceAction("back")}
+					disabled={!workspaceState?.canGoBack}
+					className="text-text-subtle hover:text-text hover:bg-surface-raised disabled:text-text-subtlest inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:pointer-events-none"
 					aria-label="Back"
 				>
 					<ArrowLeft className="size-4" />
 				</button>
 				<button
 					type="button"
-					onClick={() => void postAction("forward")}
-					disabled={!previewState.canGoForward}
-					className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+					onClick={() => void runWorkspaceAction("forward")}
+					disabled={!workspaceState?.canGoForward}
+					className="text-text-subtle hover:text-text hover:bg-surface-raised disabled:text-text-subtlest inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:pointer-events-none"
 					aria-label="Forward"
 				>
 					<ArrowRight className="size-4" />
 				</button>
 				<button
 					type="button"
-					onClick={() => void postAction("reload")}
-					className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+					onClick={() => void runWorkspaceAction("reload")}
+					className="text-text-subtle hover:text-text hover:bg-surface-raised inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors"
 					aria-label="Reload"
 				>
 					<RotateCw className="size-4" />
 				</button>
-				<Input
-					className="h-8 flex-1 text-sm"
-					value={draftUrl}
-					onChange={(event) => setDraftUrl(event.target.value)}
-					onKeyDown={handleUrlKeyDown}
-					placeholder="Enter URL..."
-					aria-label="Enter URL"
+					<Input
+						className="h-8 flex-1 text-sm"
+						value={displayedUrl}
+						onChange={(event) => {
+							setDraftUrl(event.target.value);
+							setIsDraftUrlDirty(true);
+						}}
+						onKeyDown={handleUrlKeyDown}
+						placeholder="Enter URL..."
+						aria-label="Enter URL"
 				/>
 				<button
 					type="button"
 					onClick={handleOpenInNewTab}
-					className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-					aria-label="Open in new tab"
+					className="text-text-subtle hover:text-text hover:bg-surface-raised inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+					aria-label="Open in browser tab"
 				>
 					<ExternalLink className="size-4" />
 				</button>
 			</div>
+
 			<div
 				ref={liveViewportRef}
-				className="relative min-h-0 flex-1 overflow-hidden bg-muted/20 outline-none"
-				tabIndex={hasLiveFrame ? 0 : -1}
+				className="relative min-h-0 flex-1 overflow-hidden bg-surface-raised/40 outline-none"
+				role="application"
+				aria-label={workspaceState?.title || "Browser preview"}
+				tabIndex={0}
 				onPointerDown={handleLivePointerDown}
 				onWheel={handleLiveWheel}
 				onKeyDown={handleLiveKeyDown}
+				onPaste={handlePaste}
 			>
-				{hasLiveFrame ? (
+					<canvas
+						ref={liveCanvasRef}
+						className={cn(
+							"pointer-events-none absolute block select-none",
+							previewStatus === "fallback" && "hidden",
+						)}
+						aria-label={workspaceState?.title || "Live browser preview"}
+						role="img"
+						style={renderedMediaStyle}
+					/>
+
+				{displayedScreenshotSrc && showFallbackScreenshot ? (
 					/* eslint-disable-next-line @next/next/no-img-element */
 					<img
-						ref={liveFrameRef}
-						src={initialLiveFrameSrc ?? undefined}
-						alt={previewState.title || "Live Chromium preview"}
+						key={displayedScreenshotSrc}
+						src={displayedScreenshotSrc}
+						alt={workspaceState?.title || "Browser preview"}
 						decoding="sync"
 						loading="eager"
-						className="size-full object-contain object-top"
+						className="pointer-events-none absolute block select-none"
+						style={renderedMediaStyle}
 					/>
-				) : shouldRenderImage ? (
-					/* eslint-disable-next-line @next/next/no-img-element */
-					<img
-						key={displayedScreenshotSrc ?? screenshotSrc}
-						src={displayedScreenshotSrc ?? screenshotSrc}
-						alt={previewState.title || "Embedded Chromium preview"}
-						decoding="sync"
-						loading="eager"
-						className="size-full object-contain object-top"
-					/>
-				) : (
-					<div className="text-text-subtle flex size-full items-center justify-center text-sm">
-						Launching Chromium preview…
-					</div>
-				)}
-				{isBusy ? (
-					<div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/20 backdrop-blur-[1px]">
-						<Loader2Icon className="size-8 animate-spin text-muted-foreground" />
+				) : null}
+
+				{!displayedScreenshotSrc &&
+				(previewStatus === "fallback" || previewStatus === "connecting") ? (
+					<div className="text-text-subtle flex size-full flex-col items-center justify-center gap-3 text-sm">
+						{isWorkspaceInitializing || previewStatus === "connecting" ? (
+							<Loader2Icon className="size-7 animate-spin" />
+						) : null}
+						<p>
+							{isWorkspaceInitializing
+								? "Launching browser workspace..."
+								: previewStatus === "connecting"
+									? "Connecting live browser preview..."
+									: "Browser preview fell back to screenshot mode."}
+						</p>
 					</div>
 				) : null}
-				{error ? (
+
+				{isBusy ? (
+					<div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/20 backdrop-blur-[1px]">
+						<Loader2Icon className="size-7 animate-spin text-text-subtle" />
+					</div>
+				) : null}
+
+				{combinedPreviewError ? (
 					<div className="absolute inset-x-4 bottom-4 flex items-start gap-3 rounded-lg border border-border bg-background/90 p-3 shadow-sm">
-						<TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-500" />
+						<TriangleAlertIcon className="text-text-warning mt-0.5 size-4 shrink-0" />
 						<div className="min-w-0">
-							<p className="text-sm font-medium text-foreground">
-								Chromium preview unavailable
+							<p className="text-text text-sm font-medium">
+								Browser preview unavailable
 							</p>
-							<p className="mt-1 text-xs text-muted-foreground">{error}</p>
+							<p className="text-text-subtle mt-1 text-xs">
+								{combinedPreviewError}
+							</p>
 						</div>
 					</div>
 				) : null}
-				{!error && !isBusy && isNavigableUrl(effectiveUrl) ? (
-					<div className="pointer-events-none absolute right-3 bottom-3 rounded-md bg-background/85 px-2 py-1 text-[11px] text-muted-foreground shadow-sm">
-						{previewState.title || effectiveUrl}
+
+				{!combinedPreviewError && activeTab ? (
+					<div className="pointer-events-none absolute right-3 bottom-3 rounded-md bg-background/85 px-2 py-1 text-[11px] text-text-subtle shadow-sm">
+						{getTabLabel(activeTab.url, activeTab.title)}
 					</div>
 				) : null}
 			</div>
@@ -867,14 +859,46 @@ function EmbeddedChromiumPreview({
 }
 
 export function BrowserPreviewPanel({
-	currentUrl,
-	latestScreenshot,
-	latestSnapshot,
-	isToolRunning,
+	workspace,
 	onClose,
 }: Readonly<BrowserPreviewPanelProps>) {
-	const [activeTab, setActiveTab] = useState<PreviewTab>("browser");
-	const renderMode = getBrowserPreviewRenderMode(currentUrl, latestScreenshot);
+	const { fetchWorkspaceSnapshot, workspaceId, workspaceState } = workspace;
+	const [activePanelTab, setActivePanelTab] = useState<PreviewPanelTab>("browser");
+	const [snapshotText, setSnapshotText] = useState<string | null>(null);
+	const [snapshotError, setSnapshotError] = useState<string | null>(null);
+	const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
+
+	const loadSnapshot = useCallback(async () => {
+		setIsSnapshotLoading(true);
+		setSnapshotError(null);
+
+		try {
+			const snapshot = await fetchWorkspaceSnapshot(true);
+			setSnapshotText(snapshot?.snapshot ?? null);
+		} catch (error) {
+			setSnapshotError(
+				error instanceof Error
+					? error.message
+					: "Failed to capture browser snapshot.",
+			);
+		} finally {
+			setIsSnapshotLoading(false);
+		}
+	}, [fetchWorkspaceSnapshot]);
+
+	useEffect(() => {
+		if (activePanelTab !== "snapshot") {
+			return;
+		}
+
+		void loadSnapshot();
+	}, [
+		activePanelTab,
+		loadSnapshot,
+		workspaceId,
+		workspaceState?.activeTabIndex,
+		workspaceState?.updatedAt,
+	]);
 
 	return (
 		<div className="flex h-full min-h-0 w-full min-w-0 flex-col bg-background">
@@ -884,12 +908,12 @@ export function BrowserPreviewPanel({
 						<button
 							key={tab}
 							type="button"
-							onClick={() => setActiveTab(tab)}
+							onClick={() => setActivePanelTab(tab)}
 							className={cn(
 								"rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors",
-								activeTab === tab
-									? "bg-muted text-foreground shadow-sm"
-									: "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+								activePanelTab === tab
+									? "bg-surface-raised text-text shadow-sm"
+									: "text-text-subtle hover:bg-surface-raised hover:text-text",
 							)}
 						>
 							{tab === "snapshot" ? (
@@ -903,70 +927,30 @@ export function BrowserPreviewPanel({
 						</button>
 					))}
 				</div>
+
 				<button
 					type="button"
 					onClick={onClose}
-					className="inline-flex h-8 w-8 items-center justify-center rounded-md p-0 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-					aria-label="Close"
+					className="text-text-subtle hover:text-text hover:bg-surface-raised inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+					aria-label="Close browser preview"
 				>
 					<XIcon className="size-4" />
 				</button>
 			</div>
 
 			<div className="min-h-0 flex-1 overflow-hidden">
-				{activeTab === "browser" ? (
-					renderMode === "embedded" && currentUrl ? (
-						<EmbeddedChromiumPreview
-							currentUrl={currentUrl}
-							isToolRunning={isToolRunning}
-						/>
-					) : renderMode === "artifact" ? (
-						<div className="relative min-h-0 flex-1 overflow-auto bg-muted/20">
-							{/* eslint-disable-next-line @next/next/no-img-element */}
-							<img
-								src={latestScreenshot ?? ""}
-								alt="Browser screenshot"
-								className="w-full h-auto"
-							/>
-							{isToolRunning ? (
-								<div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm">
-									<Loader2Icon className="size-8 animate-spin text-muted-foreground" />
-								</div>
-							) : null}
-						</div>
-					) : (
-						<div className="relative min-h-0 flex-1 overflow-auto bg-muted/20">
-							<div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-								{isToolRunning ? (
-									<Loader2Icon className="size-8 animate-spin text-muted-foreground" />
-								) : null}
-								<p className="text-sm text-muted-foreground">
-									{isToolRunning
-										? "Waiting for browser activity…"
-										: "No browser activity yet. The agent's browser view will appear here."}
-								</p>
-							</div>
-						</div>
-					)
+				{activePanelTab === "browser" ? (
+					<EmbeddedBrowserWorkspacePreview
+						key={workspace.workspaceId ?? "browser-workspace-preview"}
+						workspace={workspace}
+					/>
 				) : (
-					<div className="flex h-full flex-col overflow-auto p-4">
-						{latestSnapshot ? (
-							<pre className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap">
-								{latestSnapshot}
-							</pre>
-						) : (
-							<div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-								{isToolRunning ? (
-									<Loader2Icon className="size-8 animate-spin text-muted-foreground" />
-								) : null}
-								<p className="text-sm text-muted-foreground">
-									{isToolRunning
-										? "Capturing accessibility tree…"
-										: "No snapshots yet."}
-								</p>
-							</div>
-						)}
-					</div>
+					<SnapshotView
+						isLoading={isSnapshotLoading}
+						onRefresh={() => void loadSnapshot()}
+						snapshotError={snapshotError}
+						snapshotText={snapshotText}
+					/>
 				)}
 			</div>
 		</div>

@@ -60,3 +60,8 @@ Mark promoted entries with `[Promoted]` prefix — see vpk-lesson skill for deta
 - **What happened:** A live-voice waveform entrance fix relied on a transient `processing` state, but the mic stream often became ready too quickly for the user to perceive the intro.
 - **Why:** The implementation assumed async setup latency would naturally create a visible animation window instead of enforcing one in the UI state.
 - **Rule:** When a first-appearance animation depends on async readiness, hold the intro state for a short minimum duration so the motion is visibly perceptible even on fast paths.
+
+### 2026-03-15 - Recheck local env/config before hardcoding agent-browser launch overrides
+- **What happened:** A code-level `--auto-connect false` override was added to `agent-browser` integrations after runtime failures showed the CLI trying to attach to a debuggable Chrome.
+- **Why:** The failure was caused by a user shell export in `~/.zshrc`, not by a repo-level requirement. The code was patched before confirming whether the local environment had already been corrected.
+- **Rule:** Before baking environment-specific `agent-browser` launch overrides into repo code, verify whether the behavior comes from user shell config or machine-local defaults and retest after the environment is fixed. Prefer environment correction over permanent repo workarounds when the issue is not repo-owned.

@@ -1,6 +1,11 @@
 import type { ComponentDetail } from "@/app/data/component-detail-types";
 
 export const UTILITY_DETAILS: Record<string, ComponentDetail> = {
+	"agent-browser": {
+		description:
+			"An AI-assisted browser workspace for VPK. Binds chat actions to a dedicated embedded browser workspace with real tabs, live preview streaming, accessibility snapshots, and an explicit fullscreen preview route.",
+		demoLayout: { previewContentWidth: "full" },
+	},
 	gui: {
 		description:
 			"A reusable compound component for building interactive animation and parameter control panels. Includes a slider/input control row (GUI.Control) and a card wrapper with copy-values button (GUI.Panel). Used by Shimmer and Generative Card demo pages.",

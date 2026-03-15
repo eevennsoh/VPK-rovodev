@@ -40,6 +40,7 @@
 		"@react-three/fiber": "^9.5.0",
 		"@ricky0123/vad-web": "^0.0.30",
 		"@rive-app/react-webgl2": "^4.27.0",
+		"@roamhq/wrtc": "^0.10.0",
 		"@streamdown/cjk": "^1.0.2",
 		"@streamdown/code": "^1.1.0",
 		"@streamdown/math": "^1.0.2",
@@ -68,6 +69,7 @@
 		"date-fns": "^4.1.0",
 		"embla-carousel-react": "^8.6.0",
 		"input-otp": "^1.4.2",
+		"jpeg-js": "^0.4.4",
 		"katex": "^0.16.38",
 		"leaflet": "^1.9.4",
 		"lucide-react": "^0.577.0",
@@ -136,7 +138,13 @@
 		],
 		"onlyBuiltDependencies": [
 			"agent-browser",
-			"better-sqlite3"
+			"better-sqlite3",
+			"edgedriver",
+			"esbuild",
+			"geckodriver",
+			"iframe-resizer",
+			"protobufjs",
+			"react-grab"
 		]
 	}
 }

@@ -93,8 +93,74 @@ export const API_ENDPOINTS = {
 	WEB_PROXY: `${API_BASE_URL}/api/web-proxy`,
 	CHROMIUM_PREVIEW: `${API_BASE_URL}/api/chromium-preview`,
 	CHROMIUM_PREVIEW_STREAM: `${API_BASE_URL}/api/chromium-preview/stream`,
+	BROWSER_WORKSPACES: `${API_BASE_URL}/api/browser-workspaces`,
 	webProxy: (url: string) =>
 		`${API_BASE_URL}/api/web-proxy?url=${encodeURIComponent(url)}`,
+	browserWorkspace: (workspaceId: string) =>
+		`${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}`,
+	browserWorkspaceAction: (
+		workspaceId: string,
+		action:
+			| "navigate"
+			| "back"
+			| "forward"
+			| "reload"
+			| "viewport"
+			| "click"
+			| "click-ref"
+			| "hover-ref"
+			| "fill-ref"
+			| "type-ref"
+			| "select-ref"
+			| "scroll"
+			| "wheel"
+			| "press"
+			| "type"
+			| "snapshot"
+			| "screenshot"
+			| "stream"
+	) =>
+		`${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}/${action}`,
+	browserWorkspaceTabs: (workspaceId: string) =>
+		`${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}/tabs`,
+	browserWorkspaceTab: (workspaceId: string, tabIndex: number) =>
+		`${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}/tabs/${encodeURIComponent(String(tabIndex))}`,
+	browserWorkspaceActivateTab: (workspaceId: string, tabIndex: number) =>
+		`${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}/tabs/${encodeURIComponent(String(tabIndex))}/activate`,
+	browserWorkspaceSnapshot: (workspaceId: string, interactive?: boolean) => {
+		const params = interactive ? "?interactive=true" : "";
+		return `${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}/snapshot${params}`;
+	},
+	browserWorkspaceScreenshot: (
+		workspaceId: string,
+		width?: number,
+		height?: number,
+		cacheBuster?: number,
+	) => {
+		const params = new URLSearchParams();
+		if (typeof width === "number" && width > 0) {
+			params.set("width", String(width));
+		}
+		if (typeof height === "number" && height > 0) {
+			params.set("height", String(height));
+		}
+		if (typeof cacheBuster === "number") {
+			params.set("v", String(cacheBuster));
+		}
+		const query = params.toString();
+		return `${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}/screenshot${
+			query ? `?${query}` : ""
+		}`;
+	},
+	browserWorkspaceStream: (workspaceId: string) =>
+		`${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}/stream`,
+	browserWorkspacePreviewSession: (workspaceId: string) =>
+		`${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}/preview-session`,
+	browserWorkspacePreviewSessionById: (
+		workspaceId: string,
+		sessionId: string,
+	) =>
+		`${API_BASE_URL}/api/browser-workspaces/${encodeURIComponent(workspaceId)}/preview-session/${encodeURIComponent(sessionId)}`,
 	chromiumPreviewAction: (
 		action:
 			| "back"

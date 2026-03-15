@@ -1,0 +1,380 @@
+const test = require("node:test")
+const assert = require("node:assert/strict")
+
+const {
+	BrowserWorkspace,
+	BrowserWorkspaceManager,
+} = require("./browser-workspace-manager")
+
+function titleFromUrl(url) {
+	if (!url || url === "about:blank") {
+		return ""
+	}
+
+	try {
+		return new URL(url).hostname
+	} catch {
+		return url
+	}
+}
+
+function createFakeRuntime(initialUrl = "about:blank") {
+	const tabs = [
+		{
+			index: 0,
+			url: initialUrl,
+			title: titleFromUrl(initialUrl),
+			active: true,
+		},
+	]
+	const histories = new Map([
+		[
+			0,
+			{
+				entries: [initialUrl],
+				index: 0,
+			},
+		],
+	])
+	let activeTabIndex = 0
+	let viewport = {
+		width: 1280,
+		height: 900,
+	}
+	let screenshotCount = 0
+	let screencasting = false
+
+	function setActiveTab(index) {
+		activeTabIndex = index
+		for (const tab of tabs) {
+			tab.active = tab.index === index
+		}
+	}
+
+	function getActiveTab() {
+		return tabs.find((tab) => tab.index === activeTabIndex) ?? tabs[0]
+	}
+
+	function recordNavigation(nextUrl) {
+		const history = histories.get(activeTabIndex) ?? {
+			entries: ["about:blank"],
+			index: 0,
+		}
+		if (history.entries[history.index] !== nextUrl) {
+			history.entries = history.entries.slice(0, history.index + 1)
+			history.entries.push(nextUrl)
+			history.index = history.entries.length - 1
+		}
+		histories.set(activeTabIndex, history)
+		const activeTab = getActiveTab()
+		if (activeTab) {
+			activeTab.url = nextUrl
+			activeTab.title = titleFromUrl(nextUrl)
+		}
+	}
+
+	return {
+		async initialize(defaultUrl) {
+			if (defaultUrl && defaultUrl !== "about:blank") {
+				recordNavigation(defaultUrl)
+			}
+		},
+		async getState() {
+			return {
+				activeTabIndex,
+				tabs: tabs.map((tab) => ({ ...tab })),
+				title: getActiveTab()?.title ?? "",
+				url: getActiveTab()?.url ?? "about:blank",
+			}
+		},
+		async navigate(url) {
+			recordNavigation(url)
+		},
+		async setViewport(width, height) {
+			viewport = { width, height }
+		},
+		async back() {
+			const history = histories.get(activeTabIndex)
+			if (history && history.index > 0) {
+				history.index -= 1
+				const activeTab = getActiveTab()
+				activeTab.url = history.entries[history.index]
+				activeTab.title = titleFromUrl(activeTab.url)
+			}
+		},
+		async forward() {
+			const history = histories.get(activeTabIndex)
+			if (history && history.index < history.entries.length - 1) {
+				history.index += 1
+				const activeTab = getActiveTab()
+				activeTab.url = history.entries[history.index]
+				activeTab.title = titleFromUrl(activeTab.url)
+			}
+		},
+		async reload() {},
+		async click() {},
+		async clickRef() {},
+		async hoverRef() {},
+		async fillRef() {},
+		async typeRef() {},
+		async selectRef() {},
+		async wheel() {},
+		async scroll() {},
+		async press() {},
+		async keyEvent() {},
+		async insertText() {},
+		async createTab(url) {
+			const nextUrl = url || "about:blank"
+			const nextIndex = tabs.length
+			tabs.push({
+				index: nextIndex,
+				url: nextUrl,
+				title: titleFromUrl(nextUrl),
+				active: false,
+			})
+			histories.set(nextIndex, {
+				entries: [nextUrl],
+				index: 0,
+			})
+			setActiveTab(nextIndex)
+		},
+		async activateTab(index) {
+			setActiveTab(index)
+		},
+		async closeTab(index) {
+			tabs.splice(index, 1)
+			histories.delete(index)
+			const shiftedHistories = new Map()
+			for (const [tabIndex, history] of histories.entries()) {
+				shiftedHistories.set(tabIndex > index ? tabIndex - 1 : tabIndex, history)
+			}
+			histories.clear()
+			for (const [tabIndex, history] of shiftedHistories.entries()) {
+				histories.set(tabIndex, history)
+			}
+			for (const [nextIndex, tab] of tabs.entries()) {
+				tab.index = nextIndex
+			}
+			setActiveTab(Math.max(0, Math.min(activeTabIndex, tabs.length - 1)))
+		},
+		async screenshotBuffer() {
+			screenshotCount += 1
+			return Buffer.from(`shot-${viewport.width}x${viewport.height}-${screenshotCount}`)
+		},
+		async snapshot(options = {}) {
+			return {
+				snapshot:
+					options.interactive
+						? '- button "Sign in" [ref=@e1]\n- link "More info" [ref=@e2]'
+						: '- button "Sign in"',
+				refs: options.interactive
+					? {
+						"@e1": {
+							role: "button",
+							name: "Sign in",
+						},
+						"@e2": {
+							role: "link",
+							name: "More info",
+						},
+					}
+					: undefined,
+			}
+		},
+		isScreencasting() {
+			return screencasting
+		},
+		async startScreencast() {
+			screencasting = true
+		},
+		async stopScreencast() {
+			screencasting = false
+		},
+		async close() {},
+	}
+}
+
+function createTestWorkspace(options = {}) {
+	return new BrowserWorkspace({
+		workspaceId: options.workspaceId ?? "workspace-test",
+		sessionId: options.sessionId ?? "workspace-test-session",
+		delayFn: async () => {},
+		runtimeFactory: () => createFakeRuntime(options.initialUrl),
+		previewSessionFactory: options.previewSessionFactory,
+	})
+}
+
+test("browser workspace tracks tab creation and active tab switching", async () => {
+	const workspace = createTestWorkspace({
+		workspaceId: "workspace-tabs",
+		initialUrl: "https://example.com",
+	})
+
+	await workspace.initialize("https://example.com")
+	const navigated = await workspace.navigate("https://news.ycombinator.com")
+	assert.equal(navigated.url, "https://news.ycombinator.com")
+	assert.equal(navigated.canGoBack, true)
+
+	const createdTab = await workspace.createTab("https://example.org")
+	assert.equal(createdTab.activeTabIndex, 1)
+	assert.equal(createdTab.tabs.length, 2)
+	assert.equal(createdTab.url, "https://example.org")
+
+	const switchedBack = await workspace.activateTab(0)
+	assert.equal(switchedBack.activeTabIndex, 0)
+	assert.equal(switchedBack.url, "https://news.ycombinator.com")
+	assert.equal(switchedBack.canGoBack, true)
+	assert.equal(switchedBack.canGoForward, false)
+})
+
+test("browser workspace snapshot includes refs for interactive snapshots", async () => {
+	const workspace = createTestWorkspace({
+		workspaceId: "workspace-snapshot",
+		initialUrl: "https://example.com",
+	})
+
+	await workspace.initialize("https://example.com")
+	const snapshot = await workspace.snapshot({ interactive: true })
+
+	assert.equal(snapshot.url, "https://example.com")
+	assert.deepEqual(snapshot.refs, {
+		"@e1": {
+			role: "button",
+			name: "Sign in",
+		},
+		"@e2": {
+			role: "link",
+			name: "More info",
+		},
+	})
+})
+
+test("browser workspace screenshot cache stays isolated per workspace", async () => {
+	const first = createTestWorkspace({
+		workspaceId: "workspace-a",
+		initialUrl: "https://example.com",
+	})
+	const second = createTestWorkspace({
+		workspaceId: "workspace-b",
+		initialUrl: "https://example.org",
+	})
+
+	await first.initialize("https://example.com")
+	await second.initialize("https://example.org")
+
+	const firstCapture = await first.screenshot()
+	const secondCapture = await second.screenshot()
+	const firstCachedCapture = await first.screenshot()
+
+	assert.equal(firstCapture.buffer.equals(Buffer.from("shot-1280x900-1")), true)
+	assert.equal(secondCapture.buffer.equals(Buffer.from("shot-1280x900-1")), true)
+	assert.equal(firstCachedCapture.buffer.equals(Buffer.from("shot-1280x900-1")), true)
+
+	await first.navigate("https://example.net")
+	const firstFreshCapture = await first.screenshot()
+	assert.equal(firstFreshCapture.buffer.equals(Buffer.from("shot-1280x900-2")), true)
+})
+
+test("browser workspace preview session lifecycle returns session ids", async () => {
+	const closedSessionIds = []
+	const workspace = createTestWorkspace({
+		workspaceId: "workspace-preview",
+		initialUrl: "https://example.com",
+		previewSessionFactory: ({ sessionId, onClose }) => ({
+			sessionId,
+			ready: async () => ({
+				sessionId,
+				answerSdp: "answer-sdp",
+			}),
+			send() {},
+			pushFrame() {},
+			close: async () => {
+				closedSessionIds.push(sessionId)
+				await onClose()
+			},
+		}),
+	})
+
+	await workspace.initialize("https://example.com")
+	const created = await workspace.createPreviewSession("offer-sdp")
+	assert.equal(typeof created.sessionId, "string")
+	assert.equal(created.answerSdp, "answer-sdp")
+
+	const deleted = await workspace.deletePreviewSession(created.sessionId)
+	assert.deepEqual(deleted, {
+		sessionId: created.sessionId,
+		closed: true,
+	})
+	assert.deepEqual(closedSessionIds, [created.sessionId])
+})
+
+test("browser workspace manager deletes explicit workspaces and cleans up idle ones", async () => {
+	let currentTime = 1_000
+	const closedWorkspaceIds = []
+
+	const manager = new BrowserWorkspaceManager({
+		nowFn: () => currentTime,
+		cleanupIntervalMs: 1_000_000,
+		idleTimeoutMs: 10,
+		workspaceFactory: ({ workspaceId, sessionId }) => ({
+			workspaceId,
+			sessionId,
+			lastUsedAt: currentTime,
+			state: {
+				workspaceId,
+				ready: true,
+				activeTabIndex: 0,
+				tabs: [
+					{
+						index: 0,
+						title: "",
+						url: "about:blank",
+						active: true,
+					},
+				],
+				title: "",
+				url: "about:blank",
+				viewportWidth: 1280,
+				viewportHeight: 900,
+				canGoBack: false,
+				canGoForward: false,
+				updatedAt: currentTime,
+			},
+			async initialize() {},
+			peekState() {
+				return this.state
+			},
+			async getState() {
+				this.lastUsedAt = currentTime
+				return this.state
+			},
+			getLastUsedAt() {
+				return this.lastUsedAt
+			},
+			async close() {
+				closedWorkspaceIds.push(workspaceId)
+			},
+		}),
+	})
+
+	const firstState = await manager.createWorkspace()
+	const secondState = await manager.createWorkspace()
+
+	assert.equal(manager.listWorkspaces().length, 2)
+
+	const deleted = await manager.deleteWorkspace(firstState.workspaceId)
+	assert.deepEqual(deleted, {
+		workspaceId: firstState.workspaceId,
+		closed: true,
+	})
+	assert.deepEqual(closedWorkspaceIds, [firstState.workspaceId])
+
+	currentTime += 50
+	const cleaned = await manager.cleanupIdleWorkspaces()
+	assert.deepEqual(cleaned, [secondState.workspaceId])
+	assert.deepEqual(closedWorkspaceIds, [
+		firstState.workspaceId,
+		secondState.workspaceId,
+	])
+	assert.equal(manager.listWorkspaces().length, 0)
+})
