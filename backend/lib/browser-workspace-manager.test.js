@@ -308,6 +308,94 @@ test("browser workspace preview session lifecycle returns session ids", async ()
 	assert.deepEqual(closedSessionIds, [created.sessionId])
 })
 
+test("browser workspace settles preview state for websocket-only preview clients", async () => {
+	const originalSetTimeout = global.setTimeout
+	const originalClearTimeout = global.clearTimeout
+	const scheduledTimers = []
+
+	global.setTimeout = (callback) => {
+		const timer = {
+			callback,
+			cleared: false,
+			unref() {},
+		}
+		scheduledTimers.push(timer)
+		return timer
+	}
+	global.clearTimeout = (timer) => {
+		if (timer) {
+			timer.cleared = true
+		}
+	}
+
+	try {
+		const messages = []
+		const workspace = createTestWorkspace({
+			workspaceId: "workspace-preview-client",
+			initialUrl: "https://example.com",
+		})
+		const client = {
+			readyState: 1,
+			send(payload) {
+				messages.push(JSON.parse(payload))
+			},
+		}
+
+		await workspace.initialize("https://example.com")
+		await workspace.attachPreviewClient(client)
+		await workspace.previewClick(32, 48)
+
+		assert.equal(workspace._previewStatus, "live")
+		assert.equal(scheduledTimers.length, 1)
+		assert.equal(
+			messages.some(
+				(message) => message.type === "preview-state" && message.status === "live",
+			),
+			true,
+		)
+
+		scheduledTimers[0].callback()
+		await workspace._queue
+
+		const steadyMessages = messages.filter(
+			(message) => message.type === "preview-state" && message.status === "steady",
+		)
+		assert.equal(workspace._previewStatus, "steady")
+		assert.equal(steadyMessages.length >= 2, true)
+		assert.equal(steadyMessages.at(-1)?.settledScreenshotRevision, 1)
+	} finally {
+		global.setTimeout = originalSetTimeout
+		global.clearTimeout = originalClearTimeout
+	}
+})
+
+test("browser workspace cleans up failed preview session negotiation", async () => {
+	let closeCalls = 0
+	const workspace = createTestWorkspace({
+		workspaceId: "workspace-preview-failure",
+		initialUrl: "https://example.com",
+		previewSessionFactory: ({ sessionId }) => ({
+			sessionId,
+			ready: async () => {
+				throw new Error("Invalid offer SDP")
+			},
+			send() {},
+			pushFrame() {},
+			close: async () => {
+				closeCalls += 1
+			},
+		}),
+	})
+
+	await workspace.initialize("https://example.com")
+	await assert.rejects(
+		() => workspace.createPreviewSession("broken-offer-sdp"),
+		/Invalid offer SDP/,
+	)
+	assert.equal(closeCalls, 1)
+	assert.equal(workspace._previewSessions.size, 0)
+})
+
 test("browser workspace manager deletes explicit workspaces and cleans up idle ones", async () => {
 	let currentTime = 1_000
 	const closedWorkspaceIds = []

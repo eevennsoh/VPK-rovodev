@@ -209,6 +209,10 @@ class BrowserWorkspace {
 		}
 	}
 
+	_hasPreviewConsumers() {
+		return this._previewSessions.size > 0 || this._previewClients.size > 0
+	}
+
 	_getHistoryState(tabIndex) {
 		const history = this._tabHistories.get(tabIndex)
 		if (history) {
@@ -312,7 +316,7 @@ class BrowserWorkspace {
 	}
 
 	_broadcastPreviewState(status = this._previewStatus) {
-		if (this._previewSessions.size === 0 && this._previewClients.size === 0) {
+		if (!this._hasPreviewConsumers()) {
 			return
 		}
 
@@ -331,14 +335,14 @@ class BrowserWorkspace {
 
 	_schedulePreviewSettle(delayMs = PREVIEW_SETTLE_DELAY_MS) {
 		this._clearPreviewSettleTimer()
-		if (this._previewSessions.size === 0) {
+		if (!this._hasPreviewConsumers()) {
 			return
 		}
 
-			this._previewSettleTimer = setTimeout(() => {
+		this._previewSettleTimer = setTimeout(() => {
 			this._previewSettleTimer = null
 			void this._enqueue(async () => {
-				if (this._previewSessions.size === 0) {
+				if (!this._hasPreviewConsumers()) {
 					return
 				}
 
@@ -353,15 +357,13 @@ class BrowserWorkspace {
 
 	_beginPreviewActivity() {
 		this._markScreenshotDirty()
-		if (this._previewSessions.size === 0 && this._previewClients.size === 0) {
+		if (!this._hasPreviewConsumers()) {
 			return
 		}
 
 		this._previewStatus = "live"
 		this._broadcastPreviewState("live")
-		if (this._previewSessions.size > 0) {
-			this._schedulePreviewSettle()
-		}
+		this._schedulePreviewSettle()
 	}
 
 	async _captureScreenshot() {
@@ -473,7 +475,7 @@ class BrowserWorkspace {
 	}
 
 	async _ensurePreviewStreaming() {
-		if (this._previewSessions.size === 0 && this._previewClients.size === 0) {
+		if (!this._hasPreviewConsumers()) {
 			return
 		}
 
@@ -546,7 +548,7 @@ class BrowserWorkspace {
 	}
 
 	async _restartPreviewStreaming() {
-		if (this._previewSessions.size === 0 && this._previewClients.size === 0) {
+		if (!this._hasPreviewConsumers()) {
 			return
 		}
 
@@ -976,10 +978,20 @@ class BrowserWorkspace {
 					})
 
 			this._previewSessions.set(sessionId, previewSession)
-			const result = await previewSession.ready()
-			await this._ensurePreviewStreaming()
-			this._schedulePreviewSettle(50)
-			return result
+			try {
+				const result = await previewSession.ready()
+				await this._ensurePreviewStreaming()
+				this._schedulePreviewSettle(50)
+				return result
+			} catch (error) {
+				this._previewSessions.delete(sessionId)
+				await previewSession.close().catch(() => {})
+				if (!this._hasPreviewConsumers()) {
+					this._clearPreviewSettleTimer()
+					await this._runtime.stopScreencast().catch(() => {})
+				}
+				throw error
+			}
 		})
 	}
 
@@ -1076,7 +1088,7 @@ class BrowserWorkspace {
 	detachPreviewClient(client) {
 		return this._enqueue(async () => {
 			this._previewClients.delete(client)
-			if (this._previewSessions.size > 0 || this._previewClients.size > 0) {
+			if (this._hasPreviewConsumers()) {
 				return
 			}
 
