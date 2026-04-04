@@ -213,3 +213,34 @@ The following `.agents/rules/` files load automatically when editing matching fi
 | `agent-operations.md` | `.agents/skills/**`, `.agents/agents/**`, `AGENTS-LESSONS.md` | Skills, parallel work, agent teams |
 | `appendix-reference.md` | `backend/**`, `app/contexts/**`, `app/providers.tsx`, `.agents/skills/**` | Dir structure, env vars, providers, skills catalog |
 | `browser-screenshots.mdc` | `*` (always) | Keep browser screenshots out of workspace root |
+
+## Cursor Cloud specific instructions
+
+### Lockfile registry fixup
+
+The `pnpm-lock.yaml` references Atlassian's internal npm registry (`packages.atlassian.com/api/npm/atlassian-npm/`) for `@forge/*` packages. This registry is not accessible from cloud agent VMs. The lockfile has been patched to point these packages to the public npm registry (`registry.npmjs.org`). If `pnpm install` fails with a 404 from `atlassian-npm`, check for new `@forge/*` entries in the lockfile and update their tarball URLs to the public registry.
+
+### Services overview
+
+| Service | Command | Port | Notes |
+|---------|---------|------|-------|
+| Next.js Frontend | `pnpm run dev:frontend` | 3000 (auto-increments) | Turbopack, proxies API calls to backend |
+| Express Backend | `pnpm run dev:backend` | 8080 (auto-increments) | All API routes, health at `/api/health` |
+| Both together | `pnpm run dev` | 3000 + 8080 | Recommended for cloud agents |
+| RovoDev Serve | `pnpm run rovodev` | 8000 | External AI runtime, not required for UI/component work |
+
+### Running without RovoDev Serve
+
+Use `pnpm run dev` (not `pnpm run rovodev`) to start only the frontend and backend. The app loads and renders all UI components, projects, and navigation without RovoDev. AI chat features will show errors without RovoDev or AI Gateway credentials, but this does not block UI development or component work.
+
+### Lint, typecheck, and test commands
+
+- Lint: `pnpm run lint` (pre-existing 1 error + warnings in codebase)
+- Typecheck: `pnpm tsc --noEmit` (passes clean)
+- Backend tests: `node --test backend/lib/*.test.js` (929/932 pass; 3 pre-existing failures)
+
+### Gotchas
+
+- Always clean `.next/dev/lock` and `.next/` before starting dev if a previous run crashed: `rm -f .next/dev/lock && rm -rf .next`
+- Port files (`.dev-frontend-port`, `.dev-backend-port`) are written at startup; read them to find actual ports if defaults were in use.
+- The `.env.local.example` must be copied to `.env.local` before the backend starts. Without it, ASAP credentials show as MISSING in health check but the server still runs.
